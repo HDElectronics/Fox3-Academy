@@ -51,7 +51,7 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     for (const a of $$('a', nav)) a.setAttribute('aria-current', a.dataset.destination === destination ? 'page' : 'false');
     const links = contextualLinks(destination);
     contextNav.hidden = links.length === 0;
-    contextNav.setAttribute('aria-label', destination === 'practice' ? 'Practice labs' : 'Lessons');
+    contextNav.setAttribute('aria-label', destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference pages' : 'Lessons');
     contextNav.replaceChildren(...links.map(link => {
       const path = link.path.split('?')[0];
       const active = path === route.path || (path === 'learn' && route.path === 'hangar');

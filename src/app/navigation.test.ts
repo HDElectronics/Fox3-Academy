@@ -5,7 +5,7 @@ import { routeFor } from './routes';
 describe('navigation destinations', () => {
   it('keeps old deep links and the Learn alias pointing to the same page', () => {
     expect(routeFor('learn')).toBe(routeFor('hangar'));
-    for (const path of ['radar', 'tws', 'missiles', 'defense', 'rwr', 'sortie', 'reference']) expect(routeFor(path).path).toBe(path);
+    for (const path of ['cockpit', 'radar', 'tws', 'missiles', 'defense', 'rwr', 'sortie', 'reference']) expect(routeFor(path).path).toBe(path);
     expect(routeFor('missing').path).toBe('hangar');
   });
   it('distinguishes lessons from practice without changing Fly or Reference', () => {
@@ -22,6 +22,13 @@ describe('navigation destinations', () => {
   it('opens a guided radar exercise from Learn and free scan from Practice', () => {
     expect(lessonPath('radar')).toBe('radar?ex=low');
     expect(PRACTICE_LINKS.find(link => link.path.startsWith('radar?'))?.path).toBe('radar?lab=free&ex=free');
+  });
+  it('makes cockpit exploration reachable from Learn and Reference', () => {
+    expect(destinationFor('cockpit')).toBe('learn');
+    for (const destination of ['learn', 'reference'] as const) {
+      expect(contextualLinks(destination).some(link => link.path === 'cockpit')).toBe(true);
+    }
+    expect(PRACTICE_LINKS.some(link => link.path.startsWith('cockpit'))).toBe(false);
   });
   it('ignores query ordering but preserves changes of lab, exercise, and repeated values', () => {
     expect(queryIdentity(new URLSearchParams('lab=free&ex=low'))).toBe(queryIdentity(new URLSearchParams('ex=low&lab=free')));

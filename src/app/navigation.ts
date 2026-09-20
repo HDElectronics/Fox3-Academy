@@ -10,6 +10,7 @@ export const DESTINATIONS: readonly (NavLink & { id: Destination })[] = [
 ];
 
 export const LESSON_LINKS: readonly NavLink[] = [
+  { path: 'cockpit', label: 'Cockpit' },
   { path: 'radar?ex=low', label: 'Radar' }, { path: 'tws', label: 'TWS' },
   { path: 'missiles', label: 'Missiles' }, { path: 'defense', label: 'Defense' },
   { path: 'rwr', label: 'RWR' },
@@ -35,7 +36,8 @@ export function lessonPath(route: string): string {
 
 export function contextualLinks(destination: Destination): readonly NavLink[] {
   return destination === 'learn' ? [{ path: 'learn', label: 'Lesson path' }, ...LESSON_LINKS]
-    : destination === 'practice' ? [{ path: 'practice', label: 'All practice' }, ...PRACTICE_LINKS] : [];
+    : destination === 'practice' ? [{ path: 'practice', label: 'All practice' }, ...PRACTICE_LINKS]
+      : destination === 'reference' ? [{ path: 'reference', label: 'Kneeboard' }, { path: 'cockpit', label: 'Cockpit explorer' }] : [];
 }
 
 /** Order-independent URL identity; repeated query values retain their relative order. */
