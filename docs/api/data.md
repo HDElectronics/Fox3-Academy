@@ -148,6 +148,14 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
 
 ## Uncertain values (all of them)
 
+### Cockpit explorer
+
+`COCKPIT_CAVEATS` exports the global limits and each `uncertain` catalogue entry. Current F-16 uncertainties:
+ENG FIRE press behavior, MISSILE LAUNCH press behavior, current IFF DED implementation, manual canopy handcrank,
+anti-G test, throttle cutoff release, and utility-light interaction. The guide's ejection shortcut does not
+specify its repetition sequence. Keyboard defaults beyond explicitly sourced entries are not asserted.
+KY-58 internal selectors, exhaustive HOTAS context tables and software page trees are outside mapped coverage.
+
 ### Aircraft
 - **Russian FC3 detection** (68.4/38 km N-001, 60/30 km N-019M): AI sensor tables; whether the player radars read
   them is not confirmed. ED's Su-33 manual gives the real N001K ≥ 100 km head-on vs 3 m².
@@ -210,7 +218,8 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
   with Space reported to also launch (unverified).
 - F/A-18C: RADAR knob and range/azimuth pushbutton names not in research; mode selection via TDC on PB5 follows
   ED's guide (bvr-mechanics mentions SCS toward the radar for RWS → TWS; not used).
-- F-16C: FCR power switch not in research; CMS, EXP and program-5 button have no default keys.
+- F-16C: FCR power is now described in the cockpit catalogue; its keyboard default remains unverified.
+  CMS, EXP and program-5 button have no verified default keys.
 - F-14B: trigger default key not verified (candidate Space); Jester petal wording not verified; pilot
   countermeasure control is DLC Toggle / Countermeasure Dispense; classic default keyboard binding remains unverified.
 - JF-17: controls-menu wording for T1/S1/S2 not in research; TDC slew and countermeasure keys not in research.
@@ -246,3 +255,8 @@ A source page is a one-based page in the official aircraft guide.
 verification or a simulated system state. Omit unverified keyboard defaults. A control can have a documented
 warning meaning and an uncertain press action; keep that distinction in its notes. Panel diagrams are
 original schematics and do not establish exact physical geometry.
+
+`cockpitFor(aircraft)` returns the mapped `CockpitDefinition`, or `null` for an unsupported aircraft. Never
+silently show another aircraft's cockpit. `F16_COCKPIT` composes the independently sourced front, left, right
+and pedal inventories. `COCKPIT_CAVEATS` is the corresponding uncertainty export. Selecting controls is an
+informational action; these records do not mutate `World` or implement aircraft systems.
