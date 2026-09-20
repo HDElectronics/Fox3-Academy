@@ -139,15 +139,10 @@
   .ml-playbar__time { order: 5; flex-basis: 100%; }
   .ml-playbar__keys { display: none; }
   .ml .ui-lab__hud--tl { top: 40px; }
-  /* Stacked: the shot's result and the setup (with FIRE) come right under the 3D view, then the plots,
-     then the rest of the console. The console box dissolves so each panel can take its own place. */
-  .ml .ui-lab__console { display: contents; }
-  .ml #ml-result-panel { order: 2; }
-  .ml #ml-setup { order: 3; }
-  .ml .ui-lab__strip { order: 4; }
-  .ml .ui-lab__console > * { order: 5; }
-  .ml .ui-lab__console > #ml-result-panel { order: 2; }
-  .ml .ui-lab__console > #ml-setup { order: 3; }
+  .ml.ui-lab.has-mobile-tabs[data-mobile-panel="displays"] .ui-lab__strip {
+    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start;
+  }
+
 }
 
 .ml-playbar__clock {

@@ -84,6 +84,23 @@ async function run(): Promise<void> {
   await wait(200);
   check('Next target fills the Why panel', !(document.querySelector('.rl-why__body') as HTMLElement).hidden);
 
+  // Regression: a hidden World must keep scanning while the pilot uses Displays or Controls.
+  (document.getElementById('rl-ex-low') as HTMLButtonElement).click();
+  (document.getElementById('rl-why-next') as HTMLButtonElement).click();
+  (document.getElementById('rl-time-4') as HTMLButtonElement).click();
+  const rangeText = () => document.querySelector('#rl-why-rows [data-id="range"] .ui-readout__num')?.textContent ?? '';
+  for (const panel of ['displays', 'controls']) {
+    (document.getElementById(`rl-lab-tab-${panel}`) as HTMLButtonElement).click();
+    const worldView = document.querySelector('.ui-lab__view') as HTMLElement;
+    worldView.hidden = true; // Also exercise offscreen behavior at desktop widths.
+    await wait(300); // Let IntersectionObserver receive the visibility change.
+    const before = rangeText();
+    await wait(1000);
+    const after = rangeText();
+    check(`radar simulation continues with World hidden on ${panel}`, before !== '' && before !== after, `${before} -> ${after}`);
+  }
+  (document.getElementById('rl-lab-tab-world') as HTMLButtonElement).click();
+
   // Clean unmount, several cycles: no canvases, no page nodes left, keys inert.
   for (let i = 0; i < 4; i++) { page.unmount(); page = mountOnce(); await wait(150); }
   page.unmount();

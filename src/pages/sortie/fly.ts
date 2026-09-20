@@ -7,6 +7,7 @@
 import type { AircraftId, MissileId, RadarModeId, RwrId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
+import { mobileAction } from '../../ui/mobileAction';
 import type { PageContext } from '../../app/page';
 import { fmtAlt, fmtMach, fmtRange, fmtSpeed, fmtTime, clockCode } from '../../app/format';
 import { World } from '../../sim/world';
@@ -19,7 +20,7 @@ import { speedFromMach } from '../../sim/atmosphere';
 import { Stage, WorldView, CameraRig } from '../../render';
 import { RadarDisplay, RwrDisplay, RwrAudio, MissileTimeline } from '../../ui/displays';
 import {
-  h, setText, setAttr, cleanup, labLayout, consolePanel, screenBezel, segmented, button, toggle, chips, coachBox,
+  h, setText, setAttr, cleanup, labLayout, disclosure, consolePanel, screenBezel, segmented, button, toggle, chips, coachBox,
   eventLog, readouts, callout, placard, bindKeys, kbd, keyHint, splitAlternatives, type KeyMap, type ButtonHandle, type Tone,
 } from '../../ui';
 import { buildSortie, sortieEnd, sortieWorld, SORTIE_LIMIT_S, enemyCount, type SortieSetup, type TimeScale, TIME_SCALES } from './setup';
@@ -240,8 +241,14 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   const keysPanel = buildKeyHelp(ac, keymap);
 
   const n = enemyCount(setup.scenario);
+  const mobileButtons = [
+    mobileAction(turnL.el, 'Left'), mobileAction(turnR.el, 'Right'), mobileAction(chaffBtn.el),
+    mobileAction(desBtn.el, 'Designate'), mobileAction(fireBtn.el),
+  ];
+  for (const action of mobileButtons) bag.add(() => action.destroy());
   const lab = labLayout({
-    id: 'sortie-fly', class: 'sortie-lab',
+    id: 'sortie-fly', class: 'sortie-lab', mobileTabs: true,
+    mobileActions: mobileButtons.map(action => action.el),
     header: {
       title: 'Sortie',
       meta: `${spec.short} vs ${n > 1 ? `2× ` : ''}${AIRCRAFT[setup.enemy].short} · ${setup.skill} · ${setup.scenario === '2v2' ? '2v2 with an AI wingman' : setup.scenario}`,
@@ -250,7 +257,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     viewport: viewEl,
     strip: [radarBezel.el, rwrBezel.el, stripOwn, stripMsl],
     console: [
-      consolePanel({ title: 'Coach', actions: hintsT.el, children: [coach.el, log.el] }).el,
+      consolePanel({ title: 'Coach', actions: hintsT.el, children: [coach.el, disclosure({ title: 'Events', content: log.el })] }).el,
       consolePanel({
         title: 'Weapons', children: [
           fireBtn.el, fireWhy,
@@ -278,10 +285,10 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         ],
       }).el,
       keysPanel,
-      callout({
+      disclosure({ title: 'Accuracy notes', content: callout({
         kind: 'simplified',
         body: 'You fly a tactical autopilot: heading, altitude, speed. AI launch range, reactions and notch accuracy scale with skill (this trainer\'s choices; DCS sets launch range in the mission editor). The AI steers on a GCI picture. Missiles follow the game\'s launch tables, simplified.',
-      }),
+      }) }),
     ],
   });
   lab.overlay('tl', h('div', { class: 'sortie-hud-row' }, camSeg.el, nextBtn.el));
@@ -289,6 +296,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   lab.overlay('bl', clockEl);
   host.append(lab.el);
   bag.add(() => lab.el.remove());
+  bag.add(() => lab.destroy());
 
   // ───────────────────────────────────────── 3D
   let stage: Stage | null = null;

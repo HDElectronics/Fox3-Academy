@@ -11,6 +11,7 @@
  */
 import './style.css';
 import { Vector3 } from 'three';
+import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageFactory, PageContext } from '../../app/page';
 import type { AircraftId, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
@@ -22,7 +23,7 @@ import { D2R, R2D, M_PER_FT, M_PER_NM, bearingTo, elevationTo, relBearing } from
 import { clockCode, fmtAlt, fmtAltShort, fmtRange, fmtSpeed, type Units } from '../../app/format';
 import { Stage, WorldView, CameraRig, isWebGLAvailable } from '../../render';
 import {
-  h, setText, setAttr, cleanup, labLayout, consolePanel, screenBezel, segmented, slider, select, button, toggle,
+  h, setText, setAttr, cleanup, labLayout, disclosure, consolePanel, screenBezel, segmented, slider, select, button, toggle,
   coachBox, eventLog, readouts, callout, placard, lamp, modal, bindKeys, kbd, keyHint, type Tone, type ModalHandle,
 } from '../../ui';
 import { RwrDisplay, RwrAudio } from '../../ui/displays';
@@ -290,18 +291,26 @@ const factory: PageFactory = (): Page => {
     const debriefBtn = button({ id: 'dfn-debrief', label: 'Debrief', size: 's', onClick: () => { if (run.result) showResult(run.result); } });
     const startOverlay = button({ id: 'dfn-start-ov', label: 'Start', variant: 'primary', keys: 'Space', onClick: () => start() });
 
+    const mobileButtons = [
+      mobileAction(startOverlay.el), mobileAction(pauseBtn.el),
+      mobileAction(manButtons[0]![1].el, 'Notch left'), mobileAction(manButtons[1]![1].el, 'Notch right'),
+      mobileAction(chaffBtn.el), mobileAction(retryBtn.el),
+    ];
+    for (const action of mobileButtons) bag.add(() => action.destroy());
     const lab = labLayout({
-      id: 'dfn-lab',
+      id: 'dfn-lab', mobileTabs: true,
+      mobileActions: mobileButtons.map(action => action.el),
       class: 'dfn-lab',
       header: {
-        title: 'Missile defense',
+        title: ctx.params.get('lab') === 'free' ? 'Defense practice' : 'Missile defense',
         meta: `${spec.short} · ${rwrSpec.name} · ${spec.cms.chaff} chaff`,
-        lede: 'You are the target. Beam the radar, chaff in the notch, drag out of range, and see what reacting late costs.',
+        lede: 'Read the warning. Defend. Review what worked.',
       },
       viewport,
       strip: [rwrBezel.el, gaugeBezel.el, stripBlock],
-      console: [drillPanel.el, flyPanel.el, logPanel.el, simplified],
+      console: [drillPanel.el, flyPanel.el, disclosure({ title: 'Events', content: logPanel.el }), disclosure({ title: 'Accuracy notes', content: simplified })],
     });
+    bag.add(() => lab.destroy());
     lab.overlay('tl', phasePill);
     lab.overlay('tr', camSeg.el, timeSeg.el);
     lab.overlay('bl', startOverlay.el, pauseBtn.el, retryBtn.el, debriefBtn.el, ffToggle.el);

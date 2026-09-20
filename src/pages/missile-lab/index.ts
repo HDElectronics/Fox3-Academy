@@ -9,6 +9,7 @@
  * &t=<seconds> (pause the playback there), &cam=side|orbit|missile|top, &man=<manoeuvre>, &aspect=hot|flank|beam|cold.
  */
 import './style.css';
+import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import type { AircraftId, MissileId } from '../../data/types';
 import { AIRCRAFT, AIRCRAFT_CAVEATS, MISSILES, MISSILE_REF_NOTE } from '../../data';
@@ -16,7 +17,7 @@ import type { Dlz } from '../../sim/types';
 import type { ShotResult } from '../../sim/dlz';
 import { readTheme } from '../../ui/theme';
 import {
-  append, bindKeys, button, callout, checklist, cleanup, coachBox, consolePanel, group, h, kbd, labLayout, placard,
+  append, bindKeys, button, callout, checklist, cleanup, coachBox, consolePanel, group, h, kbd, labLayout, disclosure, placard,
   readouts, screenBezel, segmented, select, setText, slider, toast, toggle, clearToasts,
   type ButtonHandle, type SegmentedHandle, type SliderHandle, type SliderOptions,
 } from '../../ui';
@@ -233,14 +234,14 @@ const factory: PageFactory = (): Page => {
         children: [
           h('div', { class: 'ml-mrow' }, missileSel.el, stepKey ? h('span', { class: 'ml-step' }, kbd(stepKey), h('span', null, 'next missile')) : null),
           missileInfo,
-          h('div', { class: 'ml-pair' },
+          disclosure({ title: 'Flight conditions and support', content: [h('div', { class: 'ml-pair' },
             group({ label: 'Shooter (you)', children: [sAlt.el, sMach.el] }),
             group({ label: 'Target', children: [tAlt.el, tMach.el] })),
           aspectSeg.el,
           supportSeg.el, supportHint, phoenixSeg.el, phoenixHint,
           manSeg.el,
           react.el,
-          h('div', { class: 'ml-loft' }, loftSw.el, loftHint),
+          h('div', { class: 'ml-loft' }, loftSw.el, loftHint)] }),
           h('div', { class: 'ml-range' }, rangeSl.el, zoneText, h('div', { class: 'ml-exact' }, exactBtn.el, exactOut)),
           fireBtn.el,
           realFireKey ? null : h('p', { class: 'ml-small' }, `Space fires here. The ${spec.short}'s trigger has no verified keyboard default in DCS: bind it yourself.`),
@@ -308,17 +309,25 @@ const factory: PageFactory = (): Page => {
       const legend = h('div', { class: 'ml-legend', 'aria-hidden': 'true' });
 
       // ------------------------------------------------------------------ layout
+      const mobileButtons = [mobileAction(fireBtn.el), mobileAction(playBtn.el)];
+      for (const action of mobileButtons) bag.add(() => action.destroy());
       const lab = labLayout({
-        id: 'ml-lab', class: 'ml',
+        id: 'ml-lab', class: 'ml', mobileTabs: true,
+        mobileActions: mobileButtons.map(action => action.el),
         header: {
-          title: 'Missile lab',
+          title: ctx.params.get('lab') === 'free' ? 'Missile practice' : 'Missile lab',
           meta: `${spec.short} · launch zones`,
-          lede: 'Why you shoot high and fast, why a cold target shrinks your range, and what Rmax and Rne promise.',
+          lede: 'Set up a shot. Fly it in 3D. Compare the outcome.',
         },
         viewport: view3d,
         strip: [pMach.bz.el, pAlt.bz.el, pRange.bz.el, pEnergy.bz.el],
-        console: [resultPanel.el, setupPanel.el, presetPanel.el, comparePanel.el, dlzPanel.el, cuePanel.el, simplified],
+        console: [resultPanel.el, setupPanel.el, disclosure({ title: 'Guided comparisons', content: presetPanel.el }),
+          disclosure({ title: 'Compare shots', content: comparePanel.el }),
+          disclosure({ title: 'Launch-zone chart', content: dlzPanel.el }),
+          disclosure({ title: 'Cockpit cues', content: cuePanel.el }),
+          disclosure({ title: 'Accuracy notes', content: simplified })],
       });
+      bag.add(() => lab.destroy());
       lab.overlay('tr', camSeg.el);
       lab.overlay('tl', legend);
       lab.view.append(playbar);
@@ -576,6 +585,7 @@ const factory: PageFactory = (): Page => {
 
       /** After a user's shot, bring the replay into sight when the stacked (phone) layout has scrolled it away. */
       function showView() {
+        lab.focus('world');
         const r = lab.view.getBoundingClientRect();
         if (r.bottom < 40 || r.top > window.innerHeight - 40) lab.view.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
       }

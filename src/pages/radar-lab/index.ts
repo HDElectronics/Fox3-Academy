@@ -7,6 +7,7 @@
  * ?shot=<exercise|1> (jump to an interesting moment) ?view=explain (reading section only).
  */
 import './style.css';
+import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { AircraftId, AircraftSpec, RadarModeId } from '../../data/types';
@@ -20,7 +21,7 @@ import { fmtAltShort, fmtSpeed, type Units } from '../../app/format';
 import { CameraRig, FramePriority, LineBatch, Note, Stage, WorldView, UNIT_PER_M } from '../../render';
 import { RadarDisplay } from '../../ui/displays';
 import {
-  button, callout, cleanup, coachBox, consolePanel, eventLog, h, kbd, labLayout, placard, readouts, screenBezel,
+  button, callout, cleanup, coachBox, consolePanel, eventLog, h, kbd, labLayout, disclosure, placard, readouts, screenBezel,
   segmented, setText, slider, toast, bindKeys, checklist,
   type ChecklistHandle, type SegmentedHandle, type SliderHandle, type KeyMap,
 } from '../../ui';
@@ -142,7 +143,7 @@ const factory: PageFactory = (): Page => {
 
     const exPanel = consolePanel({
       title: 'Exercises', id: 'rl-expanel', actions: progressEl,
-      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, h('div', { class: 'ui-row' }, resetBtn.el), log.el],
+      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
     });
 
     // Radar controls.
@@ -268,17 +269,21 @@ const factory: PageFactory = (): Page => {
 
     // ---- DOM: viewport + layout ------------------------------------------------------------------------
     const viewport = h('div', { class: 'rl-viewport' });
+    const mobileButtons = [mobileAction(elDown.el, 'Antenna down'), mobileAction(elUp.el, 'Antenna up'), mobileAction(resetBtn.el, 'Reset')];
+    for (const action of mobileButtons) bag.add(() => action.destroy());
     const lab = labLayout({
-      id: 'rl-lab', class: 'rl-lab',
+      id: 'rl-lab', mobileTabs: true,
+      mobileActions: mobileButtons.map(action => action.el), class: 'rl-lab',
       header: {
-        title: 'Radar lab',
+        title: ctx.params.get('lab') === 'free' ? 'Radar practice' : 'Radar lab',
         meta: `${spec.short} · ${r.name} · ${spec.module === 'fc3' ? 'FC3' : spec.developer}`,
-        lede: 'Where your radar looks, and why a bandit is missing from your scope: azimuth, bars, range or the notch.',
+        lede: 'Move the scan. Find the contact. See why it disappears.',
       },
       viewport,
       strip: [radarBezel.el, sideBezel.el, why.el],
-      console: [exPanel.el, radarPanel.el, numbersPanel.el, simple],
+      console: [exPanel.el, radarPanel.el, disclosure({ title: 'Scan numbers', content: numbersPanel.el }), disclosure({ title: 'Accuracy notes', content: simple })],
     });
+    bag.add(() => lab.destroy());
     const camSeg = segmented<CamPreset>({
       id: 'rl-cam', ariaLabel: 'Camera', value: camPreset, size: 's',
       options: [{ value: '34', label: '3/4' }, { value: 'side', label: 'Side' }, { value: 'top', label: 'Top' }, { value: 'behind', label: 'Behind' }],
@@ -310,7 +315,7 @@ const factory: PageFactory = (): Page => {
     let overlay: LineBatch | null = null;
     let note: Note | null = null;
     try {
-      stage = new Stage(viewport, { ariaLabel: `3D view: ${spec.short} radar scan volume and the bandits` });
+      stage = new Stage(viewport, { autoPause: 'render', ariaLabel: `3D view: ${spec.short} radar scan volume and the bandits` });
     } catch (e) {
       console.warn('Radar lab: 3D view unavailable', e);
       stage = null;
