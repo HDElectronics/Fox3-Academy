@@ -234,3 +234,15 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
 
 The web-verification evidence and remaining current-game checks are in
 [verification-status.md](../research/verification-status.md). No current DCS build was run for that review.
+
+## Cockpit explorer contracts
+
+`src/data/cockpit/types.ts` defines a separate, read-only teaching catalogue. `CockpitPanel` identifies a
+cockpit region and its individually addressable controls. `CockpitControl` contains a stable ID, label,
+kind, purpose, operation, observable effect, optional positions, binding evidence and source references.
+A source page is a one-based page in the official aircraft guide.
+
+`dcsStatus` describes the cited manual: `documented`, `not-implemented` or `uncertain`. It is not a live-build
+verification or a simulated system state. Omit unverified keyboard defaults. A control can have a documented
+warning meaning and an uncertain press action; keep that distinction in its notes. Panel diagrams are
+original schematics and do not establish exact physical geometry.
