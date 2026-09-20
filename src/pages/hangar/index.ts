@@ -1,12 +1,13 @@
 /**
- * Hangar (#/hangar): the landing page. Pick a jet, see in one screen what it can and cannot do in BVR in
- * DCS (3D hero with its scan volume, capability readout, weapons), then go to a lesson.
+ * Learn (#/learn, legacy #/hangar): resume lessons for the globally selected jet, with a 3D scan-volume
+ * hero and aircraft capability reference. Practice and Fly are separate entry points.
  * Query params: ?ac=<AircraftId> selects a jet once (then is removed from the URL);
  * ?shot=band|lessons|weapons|notes scrolls to a section (for screenshots).
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import { ROUTES } from '../../app/routes';
+import { lessonPath } from '../../app/navigation';
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data';
 import type { AircraftId, AircraftSpec } from '../../data/types';
 import type { Units } from '../../app/format';
@@ -14,14 +15,13 @@ import { Stage } from '../../render';
 import { button, callout, cleanup, consolePanel, cx, h, kbd, readouts, screenBezel, setText, type Child } from '../../ui';
 import { mountHero } from './hero3d';
 import {
-  LESSON_PATH, LESSON_TITLE, SINGLE_TARGET_TWS, TARGET_CAP_UNCONFIRMED, allTiles, capFacts, detectSource, detectionScale,
+  LESSON_PATH, LESSON_TITLE, SINGLE_TARGET_TWS, TARGET_CAP_UNCONFIRMED, capFacts, detectSource, detectionScale,
   doneElsewhere, fmtR, headlineBind, isDone, lessonLine, moduleLabel, nextLesson, primaryRadarMissile, rangeNum, refLegend,
   scaleFrac, weaponCols, weaponFacts, weaponScale, weaponsSummary,
   type LessonRoute, type ProgressReader, type Scale, type WeaponFacts,
 } from './facts';
 
 const routeLabel = (r: LessonRoute) => ROUTES.find(x => x.path === r)?.label ?? r;
-const FOCUS_KEY = 'hangarFocus';
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
@@ -43,37 +43,27 @@ const factory: PageFactory = (): Page => {
       const get: ProgressReader = k => ctx.app.getProgress(k);
       const reduced = Stage.prefersReducedMotion();
 
-      // ---------------------------------------------------------------- fleet strip
-      const fleet = fleetStrip(spec.id, id => {
-        if (id === spec.id) { hero.el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); return; }
-        try { history.replaceState({ ...(history.state ?? {}), [FOCUS_KEY]: id }, ''); } catch { /* ignore */ }
-        ctx.app.setAircraft(id);
-      });
-
       // ---------------------------------------------------------------- hero
       const next = nextLesson(spec.id, get);
       const doneCount = LESSON_PATH.filter(r => isDone(r, spec.id, get)).length;
       const hero = heroSection(spec, units, next, doneCount, {
-        go: r => ctx.navigate(r),
+        go: r => ctx.navigate(lessonPath(r)),
         toLessons: () => lessons.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }),
       });
 
       // ---------------------------------------------------------------- the rest
       const band = rulesBand(spec, units, () => ctx.navigate('tws'));
-      const lessons = lessonsSection(spec, units, get, next, r => ctx.navigate(r));
+      const lessons = lessonsSection(spec, units, get, next, r => ctx.navigate(lessonPath(r)));
       const weapons = weaponsSection(spec, units);
       const notes = notesSection(spec);
 
-      const root = h('div', { class: 'hg', id: 'hangar' }, fleet.el, hero.el, band, lessons, weapons, notes);
+      const intro = h('header', { class: 'hg-intro' },
+        h('div', null, h('p', { class: 'hg-intro__eyebrow' }, 'Learn · ' + spec.short),
+          h('h2', null, 'Build the picture. Make the decision.'),
+          h('p', null, 'Follow the lesson path for your selected jet, then practise freely or fly a sortie.')),
+        h('div', { class: 'hg-entry-links' }, h('a', { href: '#/practice' }, 'Open practice labs →'), h('a', { href: '#/sortie' }, 'Fly a sortie →')));
+      const root = h('div', { class: 'hg', id: 'hangar' }, intro, hero.el, lessons, band, weapons, notes);
       ctx.root.append(root);
-
-      // Center the selected tile in the strip (it scrolls sideways on phones) and restore focus after a switch.
-      fleet.reveal();
-      const hs = history.state as Record<string, unknown> | null;
-      if (hs && hs[FOCUS_KEY] === spec.id) {
-        fleet.focus(spec.id);
-        try { const { [FOCUS_KEY]: _drop, ...rest } = hs; history.replaceState(rest, ''); } catch { /* ignore */ }
-      }
 
       // 3D hero (pauses offscreen via the Stage's IntersectionObserver).
       const heroGl = mountHero(hero.canvasHost, spec, {
@@ -93,41 +83,6 @@ const factory: PageFactory = (): Page => {
 export default factory;
 
 // ============================================================================================ sections
-
-function fleetStrip(current: AircraftId, pick: (id: AircraftId) => void) {
-  const tiles = new Map<AircraftId, HTMLButtonElement>();
-  const row = h('div', { class: 'hg-fleet__row', role: 'group', 'aria-label': 'Aircraft' },
-    allTiles().map(t => {
-      const b = h('button', {
-        type: 'button', class: 'hg-tile', 'aria-pressed': String(t.id === current), title: t.title, dataset: { ac: t.id },
-        onclick: () => pick(t.id),
-      },
-      h('span', { class: 'hg-tile__name' }, t.short),
-      h('span', { class: 'hg-tile__mod', dataset: { mod: t.module } }, t.module),
-      h('span', { class: 'hg-tile__lamps' }, mini('Fox 3', t.fox3), mini('Multi', t.multi)));
-      tiles.set(t.id, b);
-      return b;
-    }));
-  const el = h('section', { class: 'hg-fleet', 'aria-label': 'Pick a jet' },
-    h('div', { class: 'hg-fleet__head' },
-      h('h2', { class: 'hg-fleet__title' }, 'Hangar · pick your jet'),
-      h('p', { class: 'hg-legend' },
-        h('span', null, mini('Fox 3', true), ' active radar missile'),
-        h('span', null, mini('Multi', true), ' missiles at two or more targets at once'))),
-    row);
-  return {
-    el,
-    reveal() {
-      const t = tiles.get(current);
-      if (t && row.scrollWidth > row.clientWidth) row.scrollLeft = t.offsetLeft - (row.clientWidth - t.offsetWidth) / 2;
-    },
-    focus(id: AircraftId) { tiles.get(id)?.focus({ preventScroll: true }); },
-  };
-}
-
-function mini(label: string, on: boolean): HTMLElement {
-  return h('span', { class: cx('hg-mini', on && 'is-on') }, label, h('span', { class: 'ui-sr' }, on ? ': yes' : ': no'));
-}
 
 interface HeroActions { go(route: string): void; toLessons(): void }
 
@@ -150,7 +105,7 @@ function heroSection(spec: AircraftSpec, units: Units, next: LessonRoute | null,
       h('span', { class: 'hg-ov__short', 'aria-hidden': 'true' }, 'Not to scale')));
 
   // Identity.
-  const nextLabel = next ? (doneCount === 0 ? `Start: ${routeLabel(next)}` : `Next: ${routeLabel(next)}`) : 'Fly a sortie';
+  const nextLabel = next ? (doneCount === 0 ? `Start learning: ${routeLabel(next)}` : `Continue: ${routeLabel(next)}`) : 'Fly a sortie';
   const id = h('div', { class: 'hg-id' },
     h('div', { class: 'hg-badges' },
       h('span', { class: 'hg-badge', dataset: { kind: spec.module } }, moduleLabel(spec)),
@@ -158,14 +113,14 @@ function heroSection(spec: AircraftSpec, units: Units, next: LessonRoute | null,
       h('span', { class: 'hg-badges__sep', 'aria-hidden': 'true' }, '·'),
       h('span', { class: 'hg-badges__cockpit' }, spec.cockpit === 'ru' ? 'Soviet-style cockpit' : 'Western cockpit')),
     h('h1', { class: 'hg-name' }, spec.name),
-    h('p', { class: 'hg-blurb' }, spec.blurb),
     h('div', { class: 'hg-cta' },
       button({ label: nextLabel + '  →', variant: 'primary', size: 'l', onClick: () => act.go(next ?? 'sortie'), id: 'hg-next' }).el,
       button({
         label: h('span', null, 'Lesson path ', h('span', { class: 'hg-count' }, `${doneCount}/${LESSON_PATH.length}`)),
         variant: 'cap', size: 'l', onClick: act.toLessons, id: 'hg-path-btn',
         ariaLabel: `Lesson path: ${doneCount} of ${LESSON_PATH.length} lessons flown in the ${spec.short}`,
-      }).el));
+      }).el),
+    h('p', { class: 'hg-blurb' }, spec.blurb));
 
   // Capability readout: a black-glass data page.
   const modes = h('div', { class: 'hg-modes', role: 'list', 'aria-label': 'Radar modes as the cockpit labels them' },

@@ -1,0 +1,85 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Router } from './router';
+import { ROUTES } from './routes';
+import { AppStore } from './store';
+import type { PageContext } from './page';
+
+vi.mock('../ui/dom', () => ({ h: (...args: unknown[]) => ({ args }) }));
+
+describe('router deep links and remounts', () => {
+  let app: AppStore;
+  let router: Router;
+  const mounted: PageContext[] = [];
+  const unmount = vi.fn();
+  beforeEach(() => {
+    mounted.length = 0;
+    unmount.mockClear();
+    const location = { hash: '#/tws' };
+    vi.stubGlobal('location', location);
+    vi.stubGlobal('window', { addEventListener: vi.fn() });
+    vi.stubGlobal('history', { state: null, replaceState: vi.fn((_state, _unused, hash: string) => { location.hash = hash; }) });
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
+    for (const route of ROUTES) vi.spyOn(route, 'load').mockResolvedValue({ default: () => ({ mount: ctx => { mounted.push(ctx); }, unmount }) });
+    app = new AppStore();
+    router = new Router({ replaceChildren: vi.fn(), dataset: {} } as unknown as HTMLElement, app);
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it('remounts a same-route query change between guided and free TWS', async () => {
+    router.onChange = vi.fn();
+    await router.resolve();
+    router.navigate('tws?lab=free');
+    await router.resolve(); // browser hashchange
+    expect(unmount).toHaveBeenCalledTimes(1);
+    expect(mounted.map(ctx => ctx.params.get('lab'))).toEqual([null, 'free']);
+    expect(vi.mocked(router.onChange).mock.calls.at(-1)?.[1].get('lab')).toBe('free');
+    location.hash = '#/tws';
+    await router.resolve();
+    expect(mounted.at(-1)?.params.has('lab')).toBe(false);
+    expect(unmount).toHaveBeenCalledTimes(2);
+  });
+  it('does not remount an unchanged route with reordered query keys', async () => {
+    location.hash = '#/radar?lab=free&ex=free';
+    await router.resolve();
+    location.hash = '#/radar?ex=free&lab=free';
+    await router.resolve();
+    expect(mounted).toHaveLength(1);
+  });
+  it('strips initial aircraft selection before mounting and permits later picker changes', async () => {
+    location.hash = '#/tws?ac=f15c&lab=free';
+    await router.resolve();
+    await Promise.resolve();
+    expect(app.aircraft).toBe('f15c');
+    expect(location.hash).toBe('#/tws?lab=free');
+    expect(mounted).toHaveLength(1);
+    expect(mounted[0]?.params.has('ac')).toBe(false);
+    app.setAircraft('f14b');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(2);
+    expect(app.aircraft).toBe('f14b');
+    expect(mounted.at(-1)?.params.get('lab')).toBe('free');
+  });
+  it('strips same-aircraft and invalid aircraft parameters without losing the page', async () => {
+    location.hash = '#/learn?ac=su27';
+    await router.resolve();
+    expect(mounted).toHaveLength(1);
+    expect(location.hash).toBe('#/learn');
+    location.hash = '#/practice?ac=unknown';
+    await router.resolve();
+    expect(mounted).toHaveLength(2);
+    expect(app.aircraft).toBe('su27');
+    expect(location.hash).toBe('#/practice');
+  });
+  it('only mounts the newest route when lazy loads finish out of order', async () => {
+    let release!: (mod: Awaited<ReturnType<typeof ROUTES[number]['load']>>) => void;
+    vi.mocked(ROUTES.find(route => route.path === 'tws')!.load).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+    const old = router.resolve();
+    location.hash = '#/practice';
+    await router.resolve();
+    const staleMount = vi.fn();
+    release({ default: () => ({ mount: staleMount, unmount }) });
+    await old;
+    expect(staleMount).not.toHaveBeenCalled();
+    expect(mounted).toHaveLength(1);
+  });
+});

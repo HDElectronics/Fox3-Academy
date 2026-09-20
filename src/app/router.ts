@@ -1,13 +1,16 @@
 /** Hash router: '#/tws?x=1'. Remounts the current page when the aircraft changes. */
-import { ROUTES, type RouteDef } from './routes';
+import { routeFor, type RouteDef } from './routes';
+import { AIRCRAFT } from '../data/aircraft';
+import type { AircraftId } from '../data/types';
+import { queryIdentity } from './navigation';
 import type { Page } from './page';
 import type { AppStore } from './store';
 import { h } from '../ui/dom';
 
 export class Router {
-  private current: { route: RouteDef; page: Page } | null = null;
+  private current: { route: RouteDef; query: string; page: Page } | null = null;
   private token = 0;
-  onChange: (route: RouteDef) => void = () => {};
+  onChange: (route: RouteDef, params: URLSearchParams) => void = () => {};
 
   constructor(private outlet: HTMLElement, private app: AppStore) {
     window.addEventListener('hashchange', () => this.resolve());
@@ -22,23 +25,36 @@ export class Router {
   async resolve(force = false) {
     const raw = location.hash.replace(/^#\/?/, '');
     const [path, query = ''] = raw.split('?');
-    const route = ROUTES.find(r => r.path === path) ?? ROUTES[0];
-    if (!force && this.current?.route === route) return;
+    const route = routeFor(path ?? '');
+    const params = new URLSearchParams(query);
+    // A deep link may select a jet once. Remove it before store notifications remount the page.
+    const aircraft = params.get('ac');
+    if (aircraft !== null) {
+      params.delete('ac');
+      const qs = params.toString();
+      history.replaceState(history.state, '', '#/' + path + (qs ? '?' + qs : ''));
+      if (Object.hasOwn(AIRCRAFT, aircraft) && aircraft !== this.app.aircraft) {
+        this.app.setAircraft(aircraft as AircraftId);
+        return;
+      }
+    }
+    const queryKey = queryIdentity(params);
+    if (!force && this.current?.route === route && this.current.query === queryKey) return;
     const token = ++this.token;
     if (this.current) {
       try { this.current.page.unmount(); } catch (e) { console.error(e); }
       this.current = null;
     }
     this.outlet.replaceChildren(h('div', { class: 'page-loading' }, 'Loading ' + route.label + '…'));
-    this.onChange(route);
+    this.onChange(route, params);
     try {
       const mod = await route.load();
       if (token !== this.token) return;
       const page = mod.default();
       this.outlet.replaceChildren();
       this.outlet.dataset.page = route.path;
-      this.current = { route, page };
-      await page.mount({ root: this.outlet, app: this.app, params: new URLSearchParams(query), navigate: p => this.navigate(p) });
+      this.current = { route, query: queryKey, page };
+      await page.mount({ root: this.outlet, app: this.app, params, navigate: p => this.navigate(p) });
     } catch (e) {
       console.error(e);
       if (token === this.token) this.outlet.replaceChildren(h('div', { class: 'page-error' }, 'This page failed to load: ' + String(e)));
