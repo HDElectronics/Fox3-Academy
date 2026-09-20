@@ -41,6 +41,19 @@ fallback. Standardize scale, orientation, materials, and attachment points. Load
 resources, dispose them on teardown, and provide lower-detail versions for phones. Aircraft geometry must
 not determine simulation behavior. Do not extract or redistribute models from DCS installations.
 
+### Image-to-3D asset trials
+
+When no suitable freely redistributable model is available, test one aircraft using rights-cleared exterior
+photographs and a service that exports an editable mesh. Keep reference attribution, generation settings,
+provider/model terms and modification notes. Commercial-use permission alone does not establish open
+redistribution rights. Generated assets remain outside the repository until those rights are resolved.
+
+Review the actual rotating mesh beside its references on an external prototype site. Check the correct
+aircraft variant, silhouette from every angle, canopy and intake shapes, thin surfaces, underside, texture
+artifacts, scale/orientation and browser performance. A convincing image is not proof of a good 3D model.
+Record accept/revise/reject decisions before expanding the method across the fleet. Retain procedural
+fallbacks and do not use generated geometry as evidence for aircraft behavior.
+
 ### Interactive cockpit explorer
 
 Start with a sourced 2D cockpit or panel view for each supported aircraft. Every mapped button, switch,
@@ -94,6 +107,23 @@ and explicit completion criteria before expanding across the fleet.
 | Flight fundamentals | One airfield and aircraft for straight flight, turns, trim, pattern, takeoff and landing | Dedicated handling model, control axes, ground contact and clear fidelity limits; do not reuse tactical autopilot as a flight model |
 | Communications | Tune a radio and complete a scripted startup/taxi/departure exchange | Per-aircraft radio controls, sourced phraseology and visible transcript; speech input optional |
 | Jamming | A guided and free DCS exercise comparing jammer on/off and the displayed radar picture | Verified per-module gameplay rules, version notes and uncertainty labels; no engineering-level electronic-warfare model |
+| 3D weapons reference | Inspect one sourced missile and one bomb, then expand to other DCS stores | Redistributable visual assets, per-module compatibility, gameplay roles and condition-dependent range evidence |
+
+### 3D weapons reference
+
+Plan a separate reference section for missiles, bombs, rockets and other stores. Let users rotate and zoom
+each licensed model, compare its size, and see its DCS role, supported aircraft/modules and documented
+gameplay capabilities. Connect relevant entries to existing lessons and aircraft loadout references.
+
+Range needs context: distinguish a published DCS specification from an in-game launch envelope or measured
+exercise result. Show the source, module/version and conditions such as altitude, speed and target aspect;
+do not present one universal effective range. Bomb release envelopes and glide reach need their own
+conditions rather than missile-style range bars. Mark unavailable values as unverified.
+
+Start with a static, sourced catalogue before adding interactive launch or delivery exercises. Keep this
+at DCS gameplay level: no guidance-law design, engineering performance tables, seeker/fuze internals or
+warhead design. The asset viewer and metadata should share the aircraft catalogue's licence and performance
+checks. This section is planned; the existing Missile Lab remains the current interactive capability.
 
 Additional foundations to plan:
 
