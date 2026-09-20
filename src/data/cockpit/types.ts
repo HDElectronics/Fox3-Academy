@@ -1,6 +1,6 @@
 /** Pilot-facing DCS cockpit descriptions. This is an explorer, not a systems or flight simulation. */
 export type CockpitRegion = 'front' | 'left' | 'right' | 'seat' | 'hotas';
-export type CockpitControlKind = 'button' | 'switch' | 'rotary' | 'lever' | 'indicator' | 'display' | 'axis';
+export type CockpitControlKind = 'button' | 'switch' | 'rotary' | 'lever' | 'indicator' | 'display' | 'axis' | 'panel';
 export interface CockpitSourceRef {
   /** One-based PDF page, suitable for a #page= link to the official guide. */
   page: number;
