@@ -68,6 +68,16 @@ separation of lessons from free practice, and fewer competing panels. Validate p
 representative users using external prototypes before changing navigation or visual hierarchy. Keep the
 prototype website outside this repository and record accepted decisions here in Markdown.
 
+Preferred prototype direction (pending implementation approval):
+
+- Use the Learn / Practice / Fly structure from proposal A, with Reference available separately.
+- Keep the 3D world as the primary lesson surface. Reduce competing panels without removing or relegating
+  the world view; keep radar and cockpit information readily accessible.
+- Give guided lessons and unrestricted practice separate Learn and Practice entry points.
+- On mobile, use focused tabs and an always-visible current action.
+
+These are design preferences for the next external prototype revision, not approval to redesign the app.
+
 ## Architecture direction
 
 Keep existing boundaries: data supplies facts, sim supplies behavior, render presents state, and pages
