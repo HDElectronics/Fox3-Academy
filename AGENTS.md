@@ -133,6 +133,34 @@ Headless gotchas:
   aircraft and missiles.
 - The `[hidden]` attribute is forced to `display: none` globally; use `el.hidden`.
 
+## Git branches and commits
+
+- Keep `main` stable. Start each feature, fix or documentation task on a focused branch such as
+  `feat/cockpit-explorer`, `fix/radar-tab-simulation` or `docs/asset-licences`. Inspect `git status`, recent
+  commits and remotes first; preserve existing work and do not silently claim unrelated changes.
+- Plan commit boundaries before editing. Each commit should explain one coherent change that a reviewer can
+  understand and revert independently. Split navigation, shared components, page adoption, research and
+  unrelated cleanup when their dependencies allow it. File/line counts are a review signal, not a quota.
+- Make incremental commits as working slices are ready. Do not collect an entire multi-agent session into
+  one final commit. Include directly related tests and API documentation with the code they describe.
+- Stage explicit paths or selected hunks. Inspect `git diff --cached` and run `git diff --cached --check` before
+  committing; never sweep in all working-tree files without reviewing them. Generated assets, private
+  prototypes, credentials and personal discussions stay out of history.
+- Use short imperative commit subjects describing the resulting behavior. Commit messages and branch names
+  must be professional and contain no personal information or internal conversation history.
+- Each code commit should typecheck and pass the relevant tests. Before integration, run `npm run check` and
+  the required visual checks. When concurrent uncommitted work prevents an isolated check, verify the staged
+  snapshot or commit in a temporary worktree instead of treating unrelated failures as validation.
+- Integrate a completed branch only after reviewing its diff and validation results. Preserve the useful
+  small commits; do not automatically squash them into one large commit. Prefer a fast-forward merge when
+  possible. Delete fully merged local task branches, but never discard another contributor's unmerged work.
+- Do not rewrite published/shared history. Unpublished local cleanup must preserve all work and verify the
+  resulting tree against the original before removing temporary backup refs. Never force-push without an
+  explicit user instruction.
+- In a shared multi-agent checkout, one coordinator owns staging, commits, branch changes and integration.
+  Agents edit only their assigned files and report their changes and checks. Use separate worktrees when
+  agents need genuinely independent branches; never let agents concurrently switch or reset the shared tree.
+
 ## Working with several agents at once
 
 `ARCHITECTURE.md` holds the ownership table used when agents build in parallel: each agent edits only the files
