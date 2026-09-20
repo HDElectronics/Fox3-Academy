@@ -632,7 +632,7 @@ const rightConsoleControls: readonly CockpitControl[] = [
     sources: refs(80, 'NUCLEAR CONSENT Switch'),
   },
   {
-    id: 'f16-right-utility-light', label: 'Utility Light', kind: 'display',
+    id: 'f16-right-utility-light', label: 'Utility Light', kind: 'fixture',
     summary: 'Local cockpit light identified in the right-console overview.',
     operation: 'The assigned guide pages do not describe its switch or adjustment.',
     effect: 'Its exact interactive behavior is not established by the cited text.',
@@ -648,7 +648,7 @@ const seatControls: readonly CockpitControl[] = [
     operation: 'The cockpit handle is not clickable in the documented DCS module; use the documented ejection command instead.',
     effect: 'The command initiates canopy jettison and pilot ejection.',
     binding: { command: 'Initiate ejection sequence', keys: 'LCtrl+E', verified: true },
-    dcsStatus: 'not-implemented', notes: 'Only the clickable handle is N/I. The 16 August 2026 guide explicitly documents LCtrl+E for the ejection command.',
+    dcsStatus: 'not-implemented', notes: 'Only the clickable handle is N/I. The 16 August 2026 guide lists LCtrl+E but does not specify the repeated-input sequence; this is not a claim that one press completes ejection. Check the current DCS Controls command.',
     sources: refs(81, 'Ejection Handle'),
   },
   {
