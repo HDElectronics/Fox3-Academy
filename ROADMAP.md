@@ -62,13 +62,13 @@ performance justify it. Keep the same control metadata for both presentations an
 
 ### Reduce interface overload
 
-Plan a separate UX phase with pilot feedback before implementation. The current screens expose many
+The first UX implementation follows the reviewed Learn / Practice / Fly direction. Continue gathering pilot feedback before further layout changes. The current screens expose many
 controls at once; evaluate clearer starting points, progressive disclosure, a stronger primary action,
 separation of lessons from free practice, and fewer competing panels. Validate proposed workflows with
 representative users using external prototypes before changing navigation or visual hierarchy. Keep the
 prototype website outside this repository and record accepted decisions here in Markdown.
 
-Preferred prototype direction (pending implementation approval):
+Accepted direction for the first implementation:
 
 - Use the Learn / Practice / Fly structure from proposal A, with Reference available separately.
 - Keep the 3D world as the primary lesson surface. Reduce competing panels without removing or relegating
@@ -76,7 +76,41 @@ Preferred prototype direction (pending implementation approval):
 - Give guided lessons and unrestricted practice separate Learn and Practice entry points.
 - On mobile, use focused tabs and an always-visible current action.
 
-These are design preferences for the next external prototype revision, not approval to redesign the app.
+The first pass applies this structure to navigation and the 3D labs. Further proposals and asset reviews remain outside the repository; accepted decisions belong here.
+
+## Next implementation slices and missing foundations
+
+The UI pass is the starting point, not the complete simulator. Keep each slice reviewable with one aircraft
+and explicit completion criteria before expanding across the fleet.
+
+| Slice | First usable result | Prerequisite / acceptance |
+|---|---|---|
+| Approved aircraft visuals | Replace one procedural exterior with the reviewed F-16 and retain a fallback | Final asset licence/source package, verified orientation and scale, phone performance budget; review every subsequent aircraft independently |
+| Cockpit exploration | One complete 2D panel explorer with searchable controls and linked procedures | Sourced pilot-facing labels and effects, keyboard/touch hotspots, clear coverage and uncertainty labels |
+| Flight fundamentals | One airfield and aircraft for straight flight, turns, trim, pattern, takeoff and landing | Dedicated handling model, control axes, ground contact and clear fidelity limits; do not reuse tactical autopilot as a flight model |
+| Communications | Tune a radio and complete a scripted startup/taxi/departure exchange | Per-aircraft radio controls, sourced phraseology and visible transcript; speech input optional |
+| Jamming | A guided and free DCS exercise comparing jammer on/off and the displayed radar picture | Verified per-module gameplay rules, version notes and uncertainty labels; no engineering-level electronic-warfare model |
+
+Additional foundations to plan:
+
+- **Inputs and accessibility:** joystick/HOTAS and gamepad profiles, axis calibration, remapping, left/right
+  modifier handling, touch controls, non-colour cues and reduced-motion options.
+- **Training structure:** reusable objectives, checkpoints, reset-to-step, failure explanations, prerequisites,
+  progress across aircraft and local progress export/import.
+- **Navigation and airfields:** runway selection, headings, traffic patterns, wind/weather presets, waypoints
+  and instrument navigation before more demanding landing exercises.
+- **Procedures:** startup/shutdown, taxi, checklists and emergency drills once the relevant cockpit systems
+  are represented; distinguish clickable training from simulated system behavior.
+- **Debrief and evaluation:** replay the radar's perceived picture alongside truth, mark decision points and
+  add portable debrief export before introducing complex missions.
+- **Performance and delivery:** model LODs, texture limits, cached assets, a split-bundle build and useful
+  fallbacks for low-end devices or unavailable WebGL.
+- **Content maintenance:** per-module/version verification records, repeatable DCS checks and a coverage map
+  that shows which aircraft have researched controls, lessons, assets and cockpit panels.
+
+Broader modules can follow: formation, aerial refuelling, carrier operations, visual combat, navigation-only
+missions and aircraft-specific emergencies. Each requires its own evidence and simulation prerequisites;
+listing it here does not imply that the current app already supports it.
 
 ## Architecture direction
 
