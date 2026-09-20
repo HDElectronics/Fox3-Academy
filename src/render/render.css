@@ -1,0 +1,143 @@
+/* Render kit: stage layers and phosphor-style 3D labels. Colours come from tokens only. */
+.r3-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--sky-horizon);
+  contain: strict;
+}
+.r3-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+.r3-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.r3-message {
+  position: absolute;
+  inset: auto 12px 12px 12px;
+  padding: 8px 12px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--screen) 82%, transparent);
+  color: var(--caution);
+  font-family: var(--font-mono);
+  font-size: var(--fs-s);
+  letter-spacing: 0.04em;
+}
+
+/* ---- entity labels (Tacview-style tags) ---- */
+.r3-tag {
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.r3-tag-body {
+  position: absolute;
+  left: 11px;
+  bottom: 3px;
+  padding: 2px 6px 2px 5px;
+  border-left: 2px solid var(--tag-color, var(--friendly));
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  background: color-mix(in srgb, var(--screen) 58%, transparent);
+  color: var(--tag-color, var(--friendly));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--tag-color, var(--friendly)) 45%, transparent);
+  transition: opacity 0.25s linear;
+}
+.r3-tag-body b {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.r3-tag-body .r3-sub {
+  display: block;
+  color: color-mix(in srgb, var(--tag-color, var(--friendly)) 55%, var(--missile));
+  font-size: 10.5px;
+}
+.r3-tag-body .r3-flag {
+  margin-left: 6px;
+  color: var(--caution);
+}
+.r3-tag[data-side="blue"] { --tag-color: var(--friendly); }
+.r3-tag[data-side="red"] { --tag-color: var(--hostile); }
+.r3-tag[data-side="neutral"] { --tag-color: var(--missile); }
+.r3-tag[data-kind="missile"] .r3-tag-body {
+  left: 8px;
+  bottom: auto;
+  top: 4px;
+  padding: 1px 5px 1px 4px;
+  font-size: 10px;
+  border-left-width: 1px;
+  background: color-mix(in srgb, var(--screen) 40%, transparent);
+}
+/* State tones set through the WorldView label override (TacticalOptions.label → tone). */
+.r3-tag[data-tone="caution"] { --tag-color: var(--caution); }
+.r3-tag[data-tone="warning"] { --tag-color: var(--warning); }
+.r3-tag[data-tone="ok"] { --tag-color: var(--ok, var(--sym)); }
+.r3-tag[data-tone="hi"] { --tag-color: var(--sym-hi); }
+.r3-tag[data-tone="dim"] { --tag-color: var(--sym-dim, var(--missile)); }
+.r3-tag[data-kind="track"] { --tag-color: var(--sym); }
+.r3-tag[data-kind="track"][data-primary="true"] { --tag-color: var(--sym-hi); }
+.r3-tag[data-kind="track"] .r3-tag-body {
+  left: 12px;
+  bottom: -8px;
+  border-left: 0;
+  background: none;
+  padding: 0;
+  font-size: 10px;
+  text-shadow: 0 0 4px var(--screen), 0 0 8px color-mix(in srgb, var(--tag-color) 60%, transparent);
+}
+.r3-tag[data-dead="true"] .r3-tag-body { color: var(--warning); border-left-color: var(--warning); }
+.r3-tag[data-selected="true"] .r3-tag-body {
+  border-left-color: var(--sym-hi);
+  background: color-mix(in srgb, var(--screen) 75%, transparent);
+}
+.r3-tag.r3-below .r3-tag-body {
+  left: 0;
+  bottom: auto;
+  top: 10px;
+  transform: translateX(-50%);
+  border-left: 0;
+  border-radius: var(--r-1);
+  padding: 2px 7px;
+  text-align: center;
+}
+
+/* ---- coverage / annotation labels ---- */
+.r3-note {
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.r3-note > span {
+  position: absolute;
+  left: 6px;
+  top: -7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--note-color, var(--sym));
+  text-shadow: 0 0 3px var(--screen), 0 0 6px var(--screen);
+}
+.r3-note.r3-left > span { left: auto; right: 6px; }
+.r3-note.r3-center > span { left: 0; transform: translateX(-50%); }
+.r3-note.r3-above > span { top: auto; bottom: 5px; }
+.r3-note > span.r3-plate {
+  padding: 1px 5px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--screen) 55%, transparent);
+  text-shadow: none;
+}

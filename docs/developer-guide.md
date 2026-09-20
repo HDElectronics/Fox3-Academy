@@ -1,0 +1,97 @@
+# Developer guide
+
+A tour of the codebase for someone who wants to change or extend it. Agents should read `AGENTS.md` first; this
+guide explains the same system at a slower pace.
+
+## Setup
+
+```
+npm install
+npm run dev        # http://localhost:5173
+npm run check      # typecheck + tests + build
+```
+
+Requirements: Node 20+ (built with Node 24), a browser with WebGL. For screenshots, Google Chrome at the default
+macOS path and Python 3 with Pillow (used by `scripts/shot.sh` to crop phone widths).
+
+## The big picture
+
+The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ...). The shell in `src/app` draws
+the top bar, keeps global state in `AppStore` (selected jet, units, lesson progress), and mounts one page at a
+time. Switching jets or units remounts the current page, so pages read the jet once on mount.
+
+Each page owns three things:
+
+1. A **World** from `src/sim`: the simulation of jets, radars, RWRs, missiles and countermeasures. The page
+   steps it from its animation loop.
+2. A **Stage** from `src/render`: the three.js scene, with `WorldView` drawing the World in 3D.
+3. **Kit components** from `src/ui` and `src/ui/displays`: buttons, panels, and the canvas cockpit displays.
+
+Facts (what each jet and missile can do in DCS) come from `src/data`, which was written from the research notes
+in `docs/research`.
+
+## Simulation (`src/sim`)
+
+- `world.ts`: the `World` class. It owns every entity, runs fixed 1/60 s ticks, emits `SimEvent`s (launch,
+  pitbull, datalink-lost, hit, miss, lock, rwr, ai, ...), records a replay frame every 0.25 s, and is the only
+  API pages call (`spawnAircraft`, `setRadarMode`, `designate`, `lock`, `launch`, `chaff`, ...).
+- `flight.ts`: a tactical autopilot. Jets fly toward `ac.cmd` (heading, altitude, speed, max g, afterburner)
+  with believable energy: hard turns and climbs bleed speed.
+- `radar.ts`: antenna scan (azimuth sweep and bars), detection (range by aspect, look-down, RCS, Doppler notch),
+  RWS bricks, TWS track files, STT, per-jet rules (`radarRules`: designation limits, auto-lock, launch order).
+- `rwr.ts`: rebuilds each jet's RWR contacts every tick (search, lock, launch, missile).
+- `launch.ts`: whether a jet may launch now, with the reason in pilot words.
+- `missile.ts`, `missileModel.ts`: missiles as game mechanics tuned to DCS launch-zone numbers (see "Scope"
+  in `ARCHITECTURE.md`).
+- `dlz.ts`, `dlzTables.ts`: fast launch-zone lookup (Rmax, Rne, Rmin) from generated tables, plus
+  `simulateShot` for full single-shot runs.
+- `ai.ts`: skill-scaled AI pilots (commit, attack, support, defend, pump, merge). `scenarios.ts`: ready-made
+  setups (TWS drill, duel, pair, 2v2, defense drill, radar lab).
+- `picture.ts`: `buildRadarPicture` turns radar state into what the cockpit display shows.
+
+Conventions: x east, y up, z south (north is −z); metres, seconds, radians; `world.rand()` for randomness.
+
+## Rendering (`src/render`)
+
+`Stage` wraps the WebGL renderer, camera, CSS2D label layer, resize handling and the frame loop. `WorldView`
+draws a World the way Tacview does: jets scaled up to stay visible at 100 km, labels, altitude drop lines,
+missile trails, datalink and illumination lines, seeker cones, chaff, explosions, and optional observer layers
+(what one jet's radar believes vs the truth, its scan volume). `CameraRig` offers orbit, chase with a padlock,
+top-down and cockpit views. `ReplayView` renders recorded frames for the Sortie debrief. Jets are procedural
+low-poly models built in code; there are no external assets.
+
+## UI kit and displays (`src/ui`)
+
+Every component is a typed factory returning an element and a small handle (`segmented(...)` returns
+`{ el, set, value, setOption }`). Layout helpers: `labLayout` (one-screen tool), `docLayout` (reading page),
+`split`. `bindKeys` handles DCS-style chords (`RAlt+I`) with physical-key matching so macOS Option works.
+
+`src/ui/displays` draws the cockpit screens on canvas: `RadarDisplay` in five formats (Flanker/Fulcrum HUD,
+F-15C VSD, Hornet/Viper/JF-17 MFD, F-14 TID, Mirage VTB) and `RwrDisplay` for the SPO-15 lamp panel and the
+round scopes. They read colours from the design tokens and only use the `RadarPicture` and `RwrContact` data.
+
+## Styling
+
+`src/styles/tokens.css` defines two cockpit skins, chosen by the selected jet (`data-cockpit="ru"` or `"us"`).
+Use tokens everywhere; canvas and WebGL code read them through `readTheme()`. Page-specific CSS lives next to
+the page (`src/pages/<name>/style.css`).
+
+## Testing
+
+- `npm test` runs about 390 fast tests: sim physics and sensors, AI and a 10-matchup duel sweep, displays and
+  key parsing, and the pure logic of every page (quiz generation, sortie coaching, defense scoring, ...).
+- `TUNE=1 npx vitest run tests/tune` refits the missile model and regenerates the DLZ tables (slow).
+- `sandbox/*.html` pages are dev-only harnesses for the kits and some pages; `sandbox/*.vitest.config.ts` run
+  probe tests that are not part of `npm test`.
+- `scripts/shot.sh` takes headless screenshots and prints console output. See `AGENTS.md` for the gotchas.
+
+## Publishing
+
+Run `npm run check`, then serve `dist/` on a static host. The single-file build embeds application code and
+styles; web fonts are the only current external runtime dependency. Use `npm run preview` to inspect a
+production build locally. Deployment accounts and personal URLs are not part of the source repository.
+
+## Extending
+
+See "Common tasks" in `AGENTS.md` for adding a jet, a missile, a page or a radar rule. Before adding any fact,
+find it in `docs/research` or research it and add it there with a source; label anything unverified.

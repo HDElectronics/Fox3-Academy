@@ -1,0 +1,354 @@
+# Render kit (`src/render`): API
+
+The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
+high-altitude `Environment`, procedural jets and missiles for all ten `AircraftId`s, `WorldView`
+(live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
+
+```ts
+import { Stage, WorldView, ReplayView, RadarVolume, CameraRig, JetMesh, rosterFromWorld, stepSyntheticScan } from '../../render';
+```
+
+**Scale and frame.** 1 render unit = 1 km. Sim frame is also the scene frame (x east, y up, z south,
+north = −z). **Every public API takes sim metres** (positions, distances, ranges), except objects
+you add to `stage.scene` yourself, which are in km units: convert with `toUnits()` / `mToUnits()`.
+
+Harness (also the best usage reference): `/sandbox/render.html`
+`?view=gallery` (all ten jets; `&side=red|blue|neutral`, `&cam=top`, `&only=su27`, `&missiles=1`),
+`?view=world` (live World with every layer; `&cam=orbit|chase|top|cockpit`, `&units=imperial`,
+`&cockpit=ru`, `&clouds=1`, `&surface=land`, `&notch=1`, `&vel=1`, `&truth=0`, `&focus=M1&dist=2500`),
+`?view=hero&ac=f14b` (hangar-style jet + stylised scan volume; `&interactive=0` non-interactive camera,
+`&orbit=20` auto-orbit in deg/s), `?view=world&cam=chase&look=M2&warp=12` (padlock on an incoming missile), `?view=replay&t=44.6&warp=60`,
+`?view=stress` (10 jets, 20 missiles; logs kit JS time), `?view=lose` (WebGL context loss),
+`?view=dispose` (6 mount/unmount cycles).
+
+---
+
+## Minimal page
+
+```ts
+import { Stage, WorldView, CameraRig } from '../../render';
+import { World } from '../../sim/world';
+
+let stage: Stage | null = null;
+
+export default () => ({
+  mount(ctx) {
+    const host = ctx.root.appendChild(document.createElement('div'));
+    host.style.cssText = 'position:relative;height:70vh';          // the Stage fills its container
+    stage = new Stage(host);                                          // sky, sea, lights, labels, loop
+    const world = new World();
+    const me = world.spawnAircraft({ side: 'blue', type: ctx.app.aircraft, controller: 'player', pos: { x: 0, y: 9000, z: 0 }, heading: 0, speed: 260 });
+    const bandit = world.spawnAircraft({ side: 'red', type: 'su27', controller: 'ai', pos: { x: 0, y: 8000, z: -80000 }, heading: Math.PI, speed: 250 });
+
+    const view = new WorldView(stage, world, { units: ctx.app.units, observer: me.id, radarVolumeOf: me.id, layers: { tracks: true } });
+    const rig = new CameraRig(stage, { source: view });
+    rig.frame([me.id, bandit.id]);                                     // tactical framing, keeps following
+
+    let timeScale = 1;
+    stage.onFrame(dt => { if (dt > 0) world.step(dt * timeScale); });   // sim first (priority 0)
+    stage.onTap((x, y) => { const id = view.pickEntity(x, y); view.select(id); });
+  },
+  unmount() { stage?.dispose(); stage = null; },                        // frees everything below too
+});
+```
+
+`stage.dispose()` disposes every kit object created on it (WorldView, ReplayView, CameraRig,
+RadarVolume, Environment), all scene geometries/materials/textures, labels, observers, listeners, the
+loop and the WebGL context. You can dispose a view or rig earlier on its own; double dispose is safe.
+
+---
+
+## Stage (`stage.ts`)
+
+`new Stage(container, opts?)`. The Stage creates `div.r3-stage` inside `container` and fills it
+(100 % × 100 %, `contain: strict`), so **the container must have a size**. Throws
+`WebGLUnavailableError` (after writing a message into the container) when WebGL cannot start; check
+first with `isWebGLAvailable()` if you want your own fallback.
+
+| Option | Default | |
+|---|---|---|
+| `antialias` | `true` | MSAA |
+| `maxDpr` | `2` | device pixel ratio cap |
+| `toneMapping` | `'aces'` | `'aces' \| 'agx' \| 'none'` (symbology and sky are not tone mapped, they keep token colours) |
+| `exposure` | `1` | |
+| `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer |
+| `environment` | `true` | `false`, or `EnvironmentOptions` |
+| `labels` | `true` | CSS2D label overlay |
+| `autoPause` | `true` | while the container is scrolled out of view (IntersectionObserver): `true` pauses the **whole loop, including your sim step**; `'render'` keeps every `onFrame` subscriber running (sim, views, camera) and skips only the drawing, so a fight goes on while the user scrolls to the controls; `false` never pauses. **Sim pages whose fight must continue offscreen pass `autoPause: 'render'`.** |
+| `autoStart` | `true` | `false` starts paused (e.g. `Stage.prefersReducedMotion()`) and renders one frame |
+| `ariaLabel` | `'3D tactical view'` | on the canvas (`role="img"`) |
+
+| Member | |
+|---|---|
+| `scene`, `camera` (PerspectiveCamera), `renderer`, `canvas`, `root` | three.js objects, the wrapper div |
+| `labels: Scene` | root for `CSS2DObject`s, rendered by the label renderer only (positions in km units) |
+| `palette: Palette`, `theme: Theme` | token colours as `THREE.Color` (linear) / raw strings, read once at construction |
+| `env: Environment \| null` | |
+| `shared` | uniforms shared by the kit's shaders (viewport, DPR, px scale, clock) |
+| `width`, `height`, `dpr` | CSS px |
+| `onFrame(fn(dt, t), { priority?, always? } \| priority) → off()` | `dt` real seconds (≤ 0.1), `t` running real time. Lower priority runs first: `FramePriority = { sim: 0, view: 100, camera: 200, late: 300, env: 400 }`. Step your sim at 0 (default) so views see this frame's state. |
+| `onResize(fn(w, h)) → off()` | |
+| `onTap(fn(clientX, clientY, e)) → off()` | pointer click without drag (< 5 px), so picking coexists with orbit drags |
+| `isOffscreen` | true while scrolled out of view (only tracked when `autoPause` is on) |
+| `pause()`, `resume()`, `paused`, `running`, `elapsed` | pause stops the RAF loop. While paused, `requestRender()` renders on demand and only runs subscribers registered with `always: true` (the kit's own), with `dt = 0`. |
+| `requestRender()`, `renderOnce()` | |
+| `pxPerUnit(distanceUnits)` | CSS px per km at that distance |
+| `projectToClient(posUnits, outVec2) → boolean` | |
+| `rayFromClient(x, y) → Raycaster` | |
+| `clientToPlane(x, y, altitudeM = 0, out?) → Vector3 \| null` | sim metres where the pointer hits a horizontal plane (drag threats on a top-down map) |
+| `track(obj)`, `untrack(obj)` | register anything with `dispose()` to be disposed with the Stage |
+| `dispose()` | |
+| `static prefersReducedMotion()` | |
+
+The Stage also resizes when the device pixel ratio changes without a size change (window dragged to
+another screen). WebGL context loss: the loop pauses and a status message shows ("3D view paused … Restoring…");
+on restore it resizes and resumes by itself.
+
+## Environment (`environment.ts`)
+
+Created by the Stage (`stage.env`). Ultramarine zenith to pale horizon haze (`--sky-top`,
+`--sky-horizon`), sun disc and glow, a desaturated sea (default) or muted land (`--earth`) at
+altitude 0 with a faint 10 km grid (every 5th line a bit stronger), altitude-aware distance haze
+(thin looking down from high, thick at the horizon), optional sparse cumulus layer. Lights for the
+flat-shaded models (hemisphere + sun).
+
+`EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: false |
+true | { altitudeM = 2400, coverage = 0.32 }`, `sunAzimuthDeg = 140`, `sunElevationDeg = 48`,
+`hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`, `sunDirection`.
+
+---
+
+## WorldView (`worldView.ts`)
+
+`new WorldView(stage, world, opts?)` syncs a live `World` every frame. It reads the sim state and
+never changes it.
+
+Per aircraft: jet mesh (side colour, F-14 wing sweep follows Mach), Tacview-style visibility scale
+(a jet is never shorter than `minJetPx` on screen; relative sizes are kept), faint side-coloured halo
+when small, tag (callsign, type, altitude, speed in `units`), drop line with a foot ring, ground
+shadow, recent-path trail, death: explosion, charred fall and fade, `SPLASH` tag.
+Per missile: white mesh (fattened when boosted) with a coloured head dot, path line in side colour,
+motor smoke while `motorLeft > 0` (AIM-54C reduced-smoke motor), motor plume, tag (name + `DL · ACT
+12s` / `INERTIAL` / `ACTIVE` / `SARH` / `IR`, `HIT` / `MISS · NOTCHED`), datalink line shooter →
+missile (dashed, flowing, `--datalink`) while `guidance === 'datalink'`, illumination line shooter →
+target (flowing, side colour) while `'sarh'`, seeker cone (half-angle `seekerGimbalDeg`, length
+`seekerRangeKm` trimmed to the target) while `'active'`, explosion on hit.
+Countermeasures: chaff blooms (tens of metres, glint), flares (hot core + smoke streak).
+STT locks draw as a dashed line shooter → target (layer `illumination`).
+
+`WorldViewOptions` = `TacticalOptions` +
+`observer?: EntityId` (whose radar/RWR feeds the radar layers; its side is "ours" for `truth`),
+`radarVolumeOf?: EntityId`, `radarVolume?: RadarVolumeOptions`.
+
+`TacticalOptions`: `units = 'metric'`, `layers?: Partial<Layers>`, `sizeMode: 'screen' | 'true'`
+(default `'screen'`), `minJetPx = 40`, `minMissilePx = 13`, `trueScale = 1`,
+`aircraftTrailSeconds = 45`, `missilePathLinger = 20`,
+`label?: (ac, units) => { title, type?, sub, flag?, tone? }` (override tag text; `tone` colours the
+whole tag: `'caution'` amber, `'warning'` red, `'ok'`, `'hi'` designation amber, `'dim'`, or `null` /
+omitted for the side colour; e.g. what that bandit's RWR hears). `Tag.setTone(tone)` does the same
+on your own tags.
+
+### Layers (toggle at runtime: `view.setLayer('tracks', true)`, `view.setLayers({...})`, read `view.layers`)
+
+| Layer | Default | |
+|---|---|---|
+| `labels` | on | aircraft tags (and track labels) |
+| `missileLabels` | on | |
+| `dropLines` | on | |
+| `shadows` | on | |
+| `trails` | on | missile path lines |
+| `smoke` | on | motor smoke |
+| `aircraftTrails` | on | |
+| `countermeasures` | on | |
+| `datalink` | on | |
+| `illumination` | on | SARH support lines + STT lock lines |
+| `seekers` | on | active seeker cones |
+| `effects` | on | explosions, plumes |
+| `velocity` | off | 30 s velocity vectors |
+| `truth` | on | off: jets not on the observer's side are hidden; only what the radar believes shows |
+| `tracks` | off | observer's track files: ring at the estimate (dashed ring = coasting, amber = primary/locked, ◇ = designated, box = STT), velocity stick, `T1` label, dashed estimate → truth line (only when `truth` is on) |
+| `bricks` | off | observer's RWS bricks (fade over 8 s) |
+| `radarVolume` | off | set by `setRadarVolume()` |
+| `rwrLines` | off | observer's RWR contacts: search dashed dim, lock amber, launch/missile red flowing |
+| `notch` | off | jets inside the observer radar's Doppler gate (`notchKts`, `notchNeedsLookDown`, via `inDopplerNotch`) get an amber diamond and a `NOTCH` tag flag |
+
+### Methods (WorldView and ReplayView share the first block)
+
+| | |
+|---|---|
+| `pickEntity(clientX, clientY, { kinds?: ('aircraft'\|'missile')[], slopPx = 10 }?) → id \| null` | screen-space nearest, forgiving (radius ≥ 12 px or half the jet's on-screen size) |
+| `select(id \| null)`, `selection` | amber corner brackets + highlighted tag |
+| `setHidden(id, hidden)` | hide one entity (the cockpit camera does this for the own jet) |
+| `setUnits(u)`, `setSizeMode(m)` | |
+| `positionOf(id, out) → boolean` | displayed position in **metres** (includes the post-kill fall) |
+| `orientationOf(id, outQuat)`, `headingOf(id)`, `displayScaleOf(id)` | |
+| `aircraftIds()`, `jetObject(id) → JetMesh`, `jetPixelSize(id)` | |
+| `addExplosion(posM, t0, big = true)` | extra explosion at sim time `t0` |
+| `syncNow()` | pull the state immediately: call after each `world.step()` when fast-forwarding before the first frame so trails fill |
+| `clear()`, `dispose()` | |
+| **WorldView only** | |
+| `setWorld(world)` | swap to another World (e.g. reset); clears visuals |
+| `setObserver(id \| null)`, `observer` | |
+| `setRadarVolume(id \| null, opts?) → RadarVolume \| null`, `radarVolume` | turns the `radarVolume` layer on/off |
+| `truePosition(id, out?)`, `sideOf(id)` | |
+
+---
+
+## ReplayView (`replay.ts`)
+
+Renders `RecordFrame[]` (every 0.25 s) at any time with interpolated positions/angles, trails up to
+t (aircraft: last `aircraftTrailSeconds`; missiles: full path, smoke while the motor burned), kills
+and hits as explosions, chaff/flares from `'cm'` events, STT lock lines from `sttTarget`.
+`RecordFrame` has no types or sides, so it needs a roster.
+
+```ts
+const replay = new ReplayView(stage, { frames: world.recording, world, units: ctx.app.units });  // roster + events from the world
+const rig = new CameraRig(stage, { source: replay });
+rig.frame([...world.aircraft.keys()], { follow: false });      // ids from the world (visuals appear on the first frame)
+scrubber.oninput = () => replay.setTime(Number(scrubber.value));   // replay.start … replay.end
+stage.onFrame(dt => { if (playing) replay.setTime(replay.currentTime + dt * speed); });
+```
+
+- `new ReplayView(stage, { frames, roster?, world?, events?, ...TacticalOptions })`: pass `world`
+  (uses `rosterFromWorld(world)` and `world.events`) or your own `roster` (`{ aircraft: { [id]: {
+  type, side, callsign, diedAt? } }, missiles: { [id]: { type, side, shooterId, targetId, launchedAt?,
+  result? } } }`).
+- `setTime(t)` (clamped to `start … end`), `currentTime`, `start`, `end`, `setData(frames, roster, events?)`.
+- Layers, picking, selection and the `EntitySource` methods are the same as WorldView (radar layers do
+  not apply: frames carry no radar picture).
+- Missile Lab tip: turn a `simulateShot()` result into two-entity `RecordFrame`s (shooter fixed or
+  moving, missile from `missilePath`, target from `targetPath`, `t` from `trace`) plus a roster, and
+  play it with a ReplayView. Mark pitbull/impact with a `SymbolLayer` point and a `Note`.
+
+---
+
+## RadarVolume (`radarVolume.ts`)
+
+The scan volume of one radar: azimuth span (`azCenter ± azHalf`, relative to the nose) × bar
+pattern (`bars`, spacing `barSpacingDeg`, edge ± half `beamWidthDeg`, around `elCenter` relative to
+the horizon) × range. Stabilised to the horizon, rotates with heading only. Faint faces with range
+rings, edge lines, bar separators, the current bar outlined (follows `beamEl`, so either bar-index
+convention renders right) with a phosphor sweep trail behind the beam, the beam as a narrow additive
+wedge plus centre ray (`--sym-hi` in STT, faces hidden), and altitude-coverage frames at chosen ranges
+with a label `↑12.6 ↓3.8 km @50 km` / `↑41k ↓12k ft @27 nm`. Hidden when `mode === 'off'`.
+
+```ts
+const vol = new RadarVolume(stage, AIRCRAFT[type].radar, { units, coverageAt: ['cursor', 40000] });
+stage.onFrame(() => vol.update(ac.radar, ac.pos, ac.heading));          // WorldView does this for you
+```
+
+Options: `range: 'scale' | 'detect' | metres` (default `'scale'` = `rangeScale`; `'detect'` =
+head-on detection range), `coverageAt: (metres | 'cursor')[]` (default `['cursor']`), `units`,
+`color` (default `--sym`), `showBeam = true`, `labels = true`, `opacity = 0.035`.
+Methods: `update(state, posM, heading)`, `setSpec(spec)`, `setOptions(o)`, `visible`,
+`rangeFor(state)`, `dispose()`. `object` is the root Group.
+
+Pure helpers (tested): `scanElevationLimits(elCenter, bars, barSpacing, beamWidth) → { hi, lo }`,
+`altitudeCoverage(ownAltM, rangeM, elHi, elLo) → { top, bottom }` (flat earth, range × tan),
+`barElevation(elCenter, bars, bar, spacing)` (bar 0 = top), `coverageText(top, bottom, rangeM, units)`,
+`stepSyntheticScan(state, radarSpec, dt)` (animates a scan without the sim: hangar hero).
+
+**Hangar hero:** a 20 m jet and a 100 km volume cannot share a frame. Use a stylised range:
+`new RadarVolume(stage, spec, { range: 260, labels: false, coverageAt: [] })` next to a
+`JetMesh` at true scale (`jet.scale.setScalar(0.001)`); see `?view=hero`.
+
+---
+
+## CameraRig (`cameras.ts`)
+
+`new CameraRig(stage, { source?, mode = 'orbit', focus?, transition = 0.9, view?: { headingDeg = 20,
+elevationDeg = 22, distance = 30000 }, interactive = true, autoOrbit = 0 })`. `source` is any
+`EntitySource` (WorldView, ReplayView). Uses three's `OrbitControls` (`rig.controls`) on the canvas:
+damping, distance 20 m … 1500 km, never below the surface. Mode and focus changes blend smoothly
+(eased position + slerp).
+
+- **`interactive: false`** attaches nothing to the canvas: no drag, no zoom, no wheel capture, and the
+  canvas gets `touch-action: auto` so a phone scrolls the page through it (landing-page heroes). The page
+  drives the camera with `setView` / `frame` / `focusOn`. Switch later with `setInteractive(on)`;
+  read `isInteractive`.
+- **`autoOrbit: degPerS`** slowly orbits the focus in orbit mode (negative = the other way; pauses while
+  the user drags). `setAutoOrbit(degPerS)`, `0` = off. It advances with the Stage clock, so it stops
+  when the Stage is paused (reduced motion).
+
+| Mode | |
+|---|---|
+| `'orbit'` (default) | tactical orbit around the focus; follows a moving entity keeping your orbit/pan offset |
+| `'chase'` | behind/above the jet, heading-smoothed; drag to adjust the offset. `lookAt: threatId` padlocks: the camera rides the 3D threat → jet line (smoothed; a lofted missile high above or a shooter far below pulls the camera under / over the jet) and aims between the two sight lines, so the jet and the threat both stay in frame (defence drills) |
+| `'top'` | straight down, north up; pan and zoom only; `distance` = height (default 90 km) |
+| `'cockpit'` | from the jet's cockpit along its full attitude (own jet hidden); drag to look around, double-click to reset |
+
+| Method | |
+|---|---|
+| `setMode(mode, { focus?, lookAt?, distance? (m), instant? })` | chase default distance 88 m |
+| `focusOn(idOrPointM \| null, { distance?, instant? })` | works before the entity's first frame (distance applied when it resolves) |
+| `frame(targets, { follow = true, padding = 1.25, headingDeg?, elevationDeg?, minRadius = 3000, fit = 'sphere', instant? })` | fit a group; with `follow` it tracks the group centre and zooms out as it spreads until the user zooms. `fit: 'viewport'` fits the group's real extent seen from that heading / elevation against both fields of view, so a long, flat group (shooter → target) fills a wide viewport instead of a bounding sphere against the narrow one |
+| `setView({ headingDeg?, elevationDeg?, distance? }, instant?)` | heading = compass direction the camera looks toward |
+| `setInteractive(on)`, `isInteractive`, `setAutoOrbit(degPerS)` | see above |
+| `mode`, `focusId`, `setSource(src)`, `distanceTo(pointM)`, `dispose()` | |
+
+Pure helpers (tested): `orbitBasis(headingDeg, elevationDeg, fwd, right, up)` (camera basis for an orbit
+view) and `fitDistance(n, pointAt, fwd, right, up, tanH, tanV, pad, minDist)` (distance that fits points
+offset from a centre inside the view).
+
+---
+
+## Models (`jets.ts`)
+
+- `new JetMesh(id, side: 'blue' | 'red' | 'neutral', stage.palette)`: a Group built in **metres**
+  (nose → −z). Put it in the scene with `jet.scale.setScalar(0.001)` for true size. `setSweep(deg)`
+  (F-14; 20 spread … 68 swept), `setSide()`, `setMaterial(m)`, `lengthM`. Geometry and materials are
+  shared: do not dispose them yourself (the Stage does).
+- Silhouettes: Su-27/J-11A (twin fins on booms, long stinger, ogival LERX), Su-33 (+ canards), MiG-29S
+  (canted fins on the nacelles, long LERX), F-15C (shoulder wing, box intakes, twin fins), F/A-18C
+  (20° canted fins forward of the stabs, long LEX), F-16C (single fin, bubble canopy, chin intake,
+  anhedral stabs), F-14B (swing wings, glove, beaver tail, wide nacelles), JF-17 (side intakes, single
+  tall fin), M-2000C (tailless delta, shock cones). Materials per side: body (side colour lightened),
+  fins (side colour), canopy tint, dark nozzles/intakes, red/green nav lights.
+- `getJetModel(id)`, `JET_DIMENSIONS`, `jetMaterials(palette, side)`, `f14SweepForMach(mach)`.
+- `createMissileMesh(missileId, palette)`: sized from `MISSILES[id].lengthM/diameterM` (AIM-54 is
+  fat, R-27 has butterfly wings, R-77 short strakes + grid-like tail, IR missiles canards).
+  `getMissileGeometry(id)`, `smokeDensity(id)`.
+
+## Low-level pieces (for page-specific symbology)
+
+- `LineBatch(stage.shared, { capacity?, depthTest?, additive?, renderOrder? })`: one draw call of
+  screen-space thick lines. `reset()`, `seg(ax..bz, r,g,b,a, r2,g2,b2,a2, widthPx, dashPx, flowPxPerS,
+  fill)`, `line(aUnits, bUnits, style)`, `polyline(points, style, closed?)`, `commit()`. Positions in
+  km units (local space of the batch). Dashes are in screen px and can flow.
+- `SymbolLayer(stage.shared, { capacity?, additive?, depthTest? })`: point symbols with crisp SDF
+  shapes (`Shape.ring | ringDash | box | boxFill | diamond | dot | cross | brackets | triangle | glow |
+  puff`). `reset()`, `put(x, y, z, shape, sizePx, color, alpha, worldSizeUnits?)`, `commit()`.
+- `Tag`, `Note`: CSS2D labels (add to `stage.labels`).
+- `RibbonGeometry` + `createRibbonMaterial` + `Trail`: time-stamped camera-facing ribbons.
+- Custom `ShaderMaterial`s must support the logarithmic depth buffer: start shaders with
+  `VERT_PRELUDE` / `FRAG_PRELUDE` and end `main()` with `VERT_END` / `FRAG_END` (built-in three
+  materials need nothing).
+- `ORDER` render-order bands, `toUnits`, `toMetres`, `mToUnits`, `orientationQuaternion(heading,
+  pitch, roll)` (+roll = right wing down), `headingQuaternion`, `pxPerUnitAt`, `boostedScale`,
+  `lerpAngle`, `readPalette()`, `sideColor(palette, side)`.
+
+---
+
+## Gotchas
+
+- **Metres in, km in the scene.** Kit APIs take sim metres; your own scene objects are km units.
+- **The container needs a height.** The Stage fills it; a 0-height container gives a 0-height canvas.
+- **Order in the frame:** sim (0) → views sync (100) → camera (200) → views late pass: scale boost,
+  labels, symbology (300) → environment (400) → render. Register your sim step at the default priority.
+- **Pause vs time scale.** `stage.pause()` stops the loop (reduced motion); pausing the sim is your time
+  scale. On-demand renders pass `dt = 0`; guard `world.step` with `if (dt > 0)`.
+- **Offscreen.** With the default `autoPause: true` your `onFrame` sim step stops while the viewport is
+  scrolled away (fine for labs; the scene simply waits). If the sim must keep running (a live fight,
+  a timed drill), pass `autoPause: 'render'`: the loop keeps stepping and only the drawing is skipped.
+- **Phones and the wheel.** An interactive CameraRig owns touch drags and the wheel over the canvas.
+  For a decorative view inside a scrolling page use `interactive: false`.
+- **Truth.** With `observer` set and `truth: false`, enemy jets disappear and only track markers show,
+  the teaching view of "what your radar believes". Keep `truth` on when you want the dashed estimate →
+  truth error lines.
+- **Picking** is screen space; use `stage.onTap()` so orbit drags do not select.
+- **Tags declutter** automatically (aircraft first, missiles pushed below). Text refreshes at ~8 Hz.
+- **Replay needs a roster**: `new ReplayView(stage, { frames: world.recording, world })` is the easy way.
+- **Pre-rolling a sim** before the first frame: call `view.syncNow()` after each `world.step()` or
+  trails start empty.
+- **Performance** (M4 Max, DPR 2, 10 jets + 20 missiles + chaff, every layer): 120 fps, ~190 draw calls,
+  kit JS ≈ 0.35 ms per frame, no per-frame allocations in the hot paths.

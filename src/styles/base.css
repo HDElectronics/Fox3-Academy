@@ -1,0 +1,84 @@
+/* Base layout and typography. Components live in components.css (ui-kit). */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ground-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+#app { min-height: 100%; display: flex; flex-direction: column; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.01em; font-size: var(--fs-xxl); line-height: 1.05; }
+h2 { font-family: var(--font-body); font-weight: 600; font-size: var(--fs-xl); line-height: 1.2; letter-spacing: -0.005em; }
+h3 { font-size: var(--fs-m); font-weight: 600; }
+p { margin: 0 0 0.7em; }
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--caution); outline-offset: 2px; box-shadow: 0 0 0 2px var(--ground); }
+kbd {
+  font-family: var(--font-mono); font-size: 0.8em; padding: 1px 6px; border-radius: var(--r-1);
+  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--btn-line); border-bottom-width: 2px; white-space: nowrap;
+}
+.mono { font-family: var(--font-mono); }
+.placard {
+  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--panel-muted);
+}
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- top bar (instrument panel strip) ---- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; align-items: center; gap: var(--gap-4);
+  min-height: var(--topbar-h); padding: 6px 16px;
+  background: var(--panel); color: var(--panel-ink);
+  border-bottom: 1px solid var(--panel-line);
+}
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: none; }
+.brand-mark {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-weight: 700; font-size: 0.9rem;
+}
+.brand-name { font-family: var(--font-display); font-size: 1.05rem; white-space: nowrap; }
+.modnav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.modnav::-webkit-scrollbar { display: none; }
+.modnav a {
+  text-decoration: none; padding: 7px 11px; border-radius: var(--r-1);
+  font-family: var(--font-mono); font-size: var(--fs-s); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  color: var(--panel-ink);
+}
+.modnav a:hover { background: var(--panel-3); }
+.modnav a[aria-current="page"] { background: var(--btn); color: var(--btn-on); }
+.topbar-right { display: flex; align-items: center; gap: var(--gap-2); flex: none; }
+.jet-label { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--panel-muted); }
+.jet-select, .units-btn {
+  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--btn-line); border-radius: var(--r-1);
+  padding: 6px 8px; font-family: var(--font-mono); font-size: var(--fs-s);
+}
+.units-btn { white-space: nowrap; }
+@media (max-width: 1200px) {
+  .brand-name { display: none; }
+  .modnav a { padding: 7px 8px; letter-spacing: 0.04em; }
+}
+@media (max-width: 900px) {
+  .topbar { flex-wrap: wrap; gap: var(--gap-2); padding-block: 8px; }
+  .modnav { order: 3; flex-basis: 100%; }
+  .brand-name { display: none; }
+  .topbar-right { margin-left: auto; }
+}
+
+/* ---- page outlet ---- */
+.outlet { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-loading, .page-error, .placeholder {
+  margin: var(--gap-6) auto; padding: var(--gap-4); max-width: 60ch; font-family: var(--font-mono); color: var(--ground-muted);
+}
+.page-error { color: var(--warning); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

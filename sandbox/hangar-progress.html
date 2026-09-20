@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Hangar progress seed</title></head>
+<body>
+<!-- Seeds lesson progress in the app store, then opens the hangar (checks done / next / opened states). -->
+<script>
+  localStorage.setItem('fox3school:v1', JSON.stringify({
+    aircraft: 'su27',
+    progress: { 'radar:su27:done': true, 'tws:su27:done': true, 'reference:su27:done': true, 'radar:f15c:done': true, 'missiles:j11a:done': true, 'tws:j11a:done': true },
+  }));
+  location.replace('/#/hangar');
+</script>
+</body>
+</html>

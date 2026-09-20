@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" data-cockpit="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Defense page: mount / unmount cycles</title>
+</head>
+<body>
+  <!-- [OWNER: page-defense] Mounts and unmounts the Defense page several times (mid-run, with the result
+       modal open) and reports leaked RAF loops, window/document listeners, canvases and modals. -->
+  <div id="app"><main class="outlet" id="root" style="height: 100vh"></main></div>
+  <pre id="out" style="position: fixed; left: 8px; bottom: 8px; margin: 0; padding: 8px; background: #000; color: #0f0; font: 12px monospace; z-index: 99"></pre>
+  <script type="module">
+    import '../src/styles/tokens.css';
+    import '../src/styles/base.css';
+    import '../src/styles/components.css';
+    import { AppStore } from '../src/app/store.ts';
+    import factory from '../src/pages/defense/index.ts';
+
+    // Count listeners on window/document and RAF requests.
+    const net = { window: 0, document: 0 };
+    for (const [name, target] of [['window', window], ['document', document]]) {
+      const add = target.addEventListener.bind(target), rem = target.removeEventListener.bind(target);
+      target.addEventListener = (...a) => { net[name]++; return add(...a); };
+      target.removeEventListener = (...a) => { net[name]--; return rem(...a); };
+    }
+    let rafRequests = 0;
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = cb => { rafRequests++; return raf(cb); };
+
+    const out = document.getElementById('out');
+    const log = s => { out.textContent += s + '\n'; console.log(s); };
+    const app = new AppStore();
+    const root = document.getElementById('root');
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const base = { ...net };
+    const states = ['drill=lock', 'drill=pitbull&shot=active', 'drill=lock&shot=result', 'drill=drag&shot=notch&cam=tactical'];
+    for (const q of states) {
+      const page = factory();
+      await page.mount({ root, app, params: new URLSearchParams(q), navigate() {} });
+      await wait(400);
+      page.unmount();
+      root.replaceChildren();
+    }
+    await wait(100);
+    rafRequests = 0;
+    await wait(600);
+    const res = {
+      rafAfterUnmount: rafRequests,
+      windowListeners: net.window - base.window,
+      documentListeners: net.document - base.document,
+      canvases: document.querySelectorAll('canvas').length,
+      modals: document.querySelectorAll('.ui-modal').length,
+      toasts: document.querySelectorAll('.ui-toasts').length,
+    };
+    const ok = res.rafAfterUnmount === 0 && res.windowListeners <= 0 && res.documentListeners <= 0 && res.canvases === 0 && res.modals === 0;
+    log(`DEFENSE CYCLE ${ok ? 'PASS' : 'FAIL'} ${JSON.stringify(res)}`);
+  </script>
+</body>
+</html>

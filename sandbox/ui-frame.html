@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI kit phone frame</title>
+<style>html, body { margin: 0; background: #000; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+<!--
+  Headless Chrome (scripts/shot.sh) never lays out narrower than 500 CSS px: a "390" screenshot is
+  a 500 px layout cropped to 390. This wrapper gives the page a real 390 px viewport:
+    scripts/shot.sh '/sandbox/ui-frame.html?w=390&h=2400&src=ui.html%3Fskin%3Dru' out.png 390 2400
+-->
+<script>
+  const p = new URLSearchParams(location.search);
+  const f = document.createElement('iframe');
+  f.width = p.get('w') || '390';
+  f.height = p.get('h') || '844';
+  f.src = p.get('src') || 'ui.html';
+  document.body.append(f);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+node_modules
+dist
+artifact
+.DS_Store
+.shots
+.scratch
+.research-archive
+
+# Local secrets and tool state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.codex/

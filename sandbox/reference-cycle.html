@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reference cycle check</title></head>
+<body>
+<!-- [OWNER: page-reference] Mounts and unmounts the reference page once per jet, exercising the filter,
+     missile sort and a jet switch, then logs leaks (listeners, timers, observers, canvases). -->
+<div id="app"><main class="outlet" id="outlet"></main></div>
+<script type="module" src="./reference-cycle.ts"></script>
+</body>
+</html>

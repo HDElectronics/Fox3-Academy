@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Phone frame</title>
+<style>html,body{margin:0;background:#000}iframe{display:block;border:0}</style></head>
+<body>
+<!-- Used by scripts/shot.sh for widths under 500 px: headless Chrome never lays out narrower than 500 CSS px,
+     so the page is hosted in an iframe of the real width. ?w=390&h=844&src=<url-encoded path> -->
+<script>
+const p = new URLSearchParams(location.search);
+const f = document.createElement('iframe');
+f.width = p.get('w') || '390'; f.height = p.get('h') || '844';
+f.src = p.get('src') || '/';
+document.body.append(f);
+</script>
+</body></html>

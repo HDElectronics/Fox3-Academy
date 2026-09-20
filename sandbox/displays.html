@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-cockpit="us">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Displays sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  body { margin: 0; }
+  .sb { padding: 16px 24px 40px; max-width: 1480px; margin: 0 auto; color: var(--placard); }
+  .sb-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 16px; font-family: var(--font-mono); font-size: 13px; }
+  .sb-bar h1 { font-size: 22px; margin-right: 12px; }
+  .sb-bar button { background: var(--btn); color: var(--btn-ink); border: 1px solid var(--btn-line); border-radius: var(--r-1); padding: 6px 10px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .sb-bar button[aria-pressed="true"] { color: var(--btn-on); }
+  .sb-out { color: var(--panel-muted); min-width: 16ch; }
+  .sb h2 { font-size: 15px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--panel-muted); margin: 22px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .grid.rwr { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: var(--r-2); padding: 8px 8px 10px; }
+  .card .placard { display: flex; justify-content: space-between; color: var(--placard); margin: 0 2px 6px; }
+  .card .placard span:last-child { color: var(--panel-muted); }
+  .glass { background: #000; border-radius: var(--r-1); padding: 6px; box-shadow: inset 0 0 0 1px var(--panel-3); }
+  .glass canvas { display: block; width: 100%; aspect-ratio: 1; }
+  .strip canvas { aspect-ratio: auto; height: 72px; }
+  .strip.tall canvas { height: 150px; }
+  .strip.vert canvas { aspect-ratio: auto; height: 260px; }
+  .only .grid, .only .grid.rwr { grid-template-columns: 1fr; }
+  @media (max-width: 480px) { .sb { padding: 12px 16px 32px; } }
+</style>
+</head>
+<body>
+<div class="sb" id="root"></div>
+<script type="module" src="./displays.ts"></script>
+</body>
+</html>

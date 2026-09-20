@@ -1,0 +1,157 @@
+/* Missile Lab (page-local). Colours only from tokens; surface inks from the UI kit (--s-*). */
+
+.ml { --lab-strip-h: clamp(200px, 29vh, 300px); }
+
+/* ---------------------------------------------------------------- 3D viewport */
+.ml-view { background: var(--sky-top); }
+.ml-nogl {
+  position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--gap-4);
+  font-family: var(--font-mono); font-size: var(--fs-s); color: var(--ground-ink); text-align: center;
+}
+.ml .r3-note.ml-note > span { font-size: 10px; }
+
+.ml-playbar {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3;
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+}
+.ml-playbar__time { flex: 1 1 auto; min-width: 120px; }
+.ml-playbar__time .ui-slider { gap: 0; }
+.ml-playbar__time .ui-slider__head { display: none; }
+.ml-playbar__time .ui-slider__input { height: 24px; }
+.ml-playbar__keys { flex: none; font-size: var(--fs-xs); }
+.ml-playbar .ui-btn { min-width: 84px; }
+.ml-playbar > .ui-field { flex: none; }
+
+.ml-legend {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 6px;
+  background: color-mix(in srgb, var(--screen) 70%, transparent); border-radius: var(--r-1);
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ground-ink); letter-spacing: 0.06em;
+}
+.ml-legend[hidden] { display: none; }
+.ml-legend__item { display: inline-flex; align-items: center; gap: 5px; opacity: 0.8; }
+.ml-legend__item.is-sel { opacity: 1; }
+
+.ml-swatch {
+  display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--c); border: 2px solid var(--c);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700; line-height: 1;
+}
+
+/* ---------------------------------------------------------------- strip plots */
+.ml .ui-lab__strip { gap: 6px; }
+.ml .ui-lab__strip > .ui-bezel.ml-plot { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.ml .ui-lab__strip > .ui-bezel.ml-plot > .ui-bezel__glass:not(.has-aspect) { min-width: 0; flex: 1 1 auto; min-height: 0; position: relative; }
+.ml-plot-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: pan-y; }
+
+/* ---------------------------------------------------------------- console */
+.ml-small { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-label); }
+.ml-strong { color: var(--s-ink); }
+.ml-note-line { margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.4; color: var(--s-ink); letter-spacing: 0.02em; }
+.ml-note-line[hidden], .ml-takeaway[hidden] { display: none; }
+.ml-takeaway {
+  margin: 0; padding: 8px 10px; border-left: 3px solid var(--s-ink); background: var(--panel-3);
+  font-size: var(--fs-s); line-height: 1.45; color: var(--s-ink);
+}
+
+.ml-presets { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.ml-preset.ui-btn { justify-content: flex-start; text-align: left; }
+
+.ml-mrow { display: flex; align-items: flex-end; gap: var(--gap-3); flex-wrap: wrap; }
+.ml-mrow > .ui-select { flex: 1 1 180px; }
+.ml-mrow .ui-select__input { width: 100%; }
+.ml-step { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--s-label); padding-bottom: 8px; }
+.ml-minfo { margin-top: -4px; }
+
+.ml-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-3); }
+@container (max-width: 330px) { .ml-pair { grid-template-columns: 1fr; } }
+/* phones: the console box dissolves into the page (see below), so there is no container to query */
+@media (max-width: 360px) { .ml-pair { grid-template-columns: 1fr; } }
+.ml-pair > .ui-group { min-width: 0; }
+.ml-pair .ui-group__body { display: grid; gap: 8px; }
+
+.ml-loft { display: grid; gap: 4px; }
+.ml-loft > .ui-switch[hidden], .ml-loft > [hidden] { display: none; }
+.ml-range { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--s-rule); }
+.ml-exact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ml-exact-out { flex: 1 1 160px; }
+.ml-exact-out:empty { display: none; }
+
+/* launch-zone band under the range slider (same 7 px inset as the kit's slider marks) */
+.ml-zone { position: relative; margin: 0 7px; padding-bottom: 14px; }
+.ml-zone__bar { position: relative; height: 10px; border-radius: 2px; background: var(--btn); border: 1px solid var(--btn-line); overflow: hidden; }
+.ml-zone__bar > span { position: absolute; top: 0; bottom: 0; }
+.ml-zone__min {
+  background: repeating-linear-gradient(135deg, var(--s-label) 0 2px, transparent 2px 5px);
+  opacity: 0.8;
+}
+.ml-zone__nez { background: var(--btn-on); }
+.ml-zone__mar { background: color-mix(in srgb, var(--btn-on) 30%, var(--btn)); box-shadow: inset 0 0 0 1px var(--btn-on); }
+.ml-zone__pr { width: 2px; margin-left: -1px; background: var(--btn-ink); }
+.ml-zone__pr[hidden] { display: none; }
+.ml-zone__labs { position: absolute; left: 0; right: 0; top: 12px; height: 12px; }
+.ml-zone__lab {
+  position: absolute; top: 0; transform: translateX(-50%);
+  font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; color: var(--s-ink); white-space: nowrap;
+}
+.ml-zone__lab.is-edge { transform: none; }
+.ml-zone__lab--pr { color: var(--s-label); }
+.ml-zone__lab[hidden] { display: none; }
+.ml-zone.is-exact .ml-zone__bar { outline: 1px dashed var(--s-ink); outline-offset: 1px; }
+.ml-zone-text { margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.45; color: var(--s-ink); }
+
+/* compare list */
+.ml-compare { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ml-compare__row { display: flex; align-items: stretch; gap: 4px; border: 1px solid var(--s-rule); border-radius: var(--r-1); }
+.ml-compare__row.is-sel { border-color: var(--s-ink); background: var(--panel-3); }
+.ml-compare__main {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.ml-compare__text { display: grid; gap: 2px; min-width: 0; }
+.ml-compare__name { font-size: var(--fs-s); color: var(--s-ink); line-height: 1.3; }
+.ml-compare__sub { font-size: var(--fs-xs); color: var(--s-label); line-height: 1.35; }
+.ml-compare__verdict { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; color: var(--s-ink); }
+.ml-compare__acts { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
+.ml-empty { font-size: var(--fs-xs); color: var(--s-label); padding: 4px 0; }
+
+/* DLZ chart and cue explainer */
+.ml-dlz-canvas { display: block; width: 100%; height: 100%; }
+.ml-defs { margin: 0; display: grid; gap: 6px; }
+.ml-def { display: grid; grid-template-columns: 4.6em 1fr; gap: 8px; align-items: baseline; }
+.ml-def dt { font-family: var(--font-mono); font-size: var(--fs-s); color: var(--s-ink); font-weight: 700; }
+.ml-def dd { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-ink); }
+.ml-cues { display: grid; gap: 8px; }
+.ml-loftlist { margin: 0; padding-left: 1.1em; display: grid; gap: 3px; font-size: var(--fs-xs); line-height: 1.4; color: var(--s-label); }
+.ml-loftlist .is-own { color: var(--s-ink); }
+.ml-loftlist .is-cur { color: var(--s-ink); font-weight: 600; }
+
+/* console width drives the setup pair */
+.ml .ui-lab__console { container-type: inline-size; }
+
+/* ---------------------------------------------------------------- phone */
+@media (max-width: 900px) {
+  .ml .ui-lab__view { aspect-ratio: 1 / 1; max-height: 70vh; }
+  .ml .ui-lab__strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .ml .ui-lab__strip > .ui-bezel.ml-plot { max-width: none; }
+  .ml .ui-lab__strip > .ui-bezel.ml-plot > .ui-bezel__glass:not(.has-aspect) { height: 190px; flex: none; }
+  .ml-playbar { left: 6px; right: 6px; bottom: 6px; flex-wrap: wrap; gap: 6px; padding: 5px 8px; }
+  .ml-playbar__time { order: 5; flex-basis: 100%; }
+  .ml-playbar__keys { display: none; }
+  .ml .ui-lab__hud--tl { top: 40px; }
+  /* Stacked: the shot's result and the setup (with FIRE) come right under the 3D view, then the plots,
+     then the rest of the console. The console box dissolves so each panel can take its own place. */
+  .ml .ui-lab__console { display: contents; }
+  .ml #ml-result-panel { order: 2; }
+  .ml #ml-setup { order: 3; }
+  .ml .ui-lab__strip { order: 4; }
+  .ml .ui-lab__console > * { order: 5; }
+  .ml .ui-lab__console > #ml-result-panel { order: 2; }
+  .ml .ui-lab__console > #ml-setup { order: 3; }
+}
+
+.ml-playbar__clock {
+  flex: none; min-width: 9ch; padding: 3px 7px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); border: 1px solid var(--screen-line);
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; text-align: right;
+}

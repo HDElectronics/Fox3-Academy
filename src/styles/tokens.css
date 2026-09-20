@@ -1,0 +1,97 @@
+/*
+ * Fox Three School design tokens. ONE visual world: a fighter cockpit. The chrome is painted in the
+ * selected jet's cockpit colour (data-cockpit on <html>): Soviet turquoise for Flankers and Fulcrums,
+ * dark gull grey for Western jets. Displays are black glass with phosphor symbology.
+ * Every component takes colour from these tokens. Never hard-code colours outside this file
+ * (canvas/WebGL code reads them via ui/theme.ts).
+ */
+:root {
+  /* Western default (US gull grey, FS 36231 darkened) */
+  --ground: #101315;
+  --ground-ink: #e2e7ea;       /* text placed straight on the page ground */
+  --ground-muted: #8e9aa2;
+  --panel: #3a4046;
+  --panel-2: #464d54;
+  --panel-3: #2d3237;
+  --panel-ink: #eef1f2;
+  --panel-muted: #a6b0b7;
+  --panel-line: #58616a;
+  --placard: #f4f6f7;          /* white stencil labels on the panel */
+
+  --screen: #030706;           /* display glass */
+  --screen-2: #0a1210;
+  --screen-line: #1f2d2a;
+  --sym: #45f28c;              /* DDI / VSD green */
+  --sym-dim: #1f7a47;
+  --sym-hi: #f7e26b;           /* designation / primary */
+  --sym-ink: #021008;
+
+  --btn: #22272b;
+  --btn-ink: #dde3e6;
+  --btn-line: #5b646c;
+  --btn-on: #45f28c;           /* lit push-button */
+  --btn-on-ink: #03170b;
+
+  --caution: #ffb23e;          /* MASTER CAUTION amber */
+  --warning: #ff4d42;          /* red warning */
+  --ok: #45f28c;
+  --friendly: #4fb4ff;
+  --hostile: #ff5a4f;
+  --missile: #ffffff;
+  --datalink: #56d8ff;
+
+  --sky-top: #1d4f9a;
+  --sky-horizon: #b9cfdf;
+  --earth: #4a5a52;
+
+  --font-display: 'Russo One', 'Arial Narrow', Impact, system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'B612 Mono', 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  --r-1: 3px;
+  --r-2: 6px;
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
+  --gap-6: 40px;
+
+  --fs-xs: 0.72rem;
+  --fs-s: 0.84rem;
+  --fs-m: 1rem;
+  --fs-l: 1.25rem;
+  --fs-xl: 1.7rem;
+  --fs-xxl: clamp(2rem, 4.5vw, 3.2rem);
+
+  --topbar-h: 52px;
+  color-scheme: dark;
+}
+
+/* Soviet cockpit: turquoise paint, black glass, yellow-green HUD symbology, amber lamps. */
+:root[data-cockpit="ru"] {
+  --ground: #0c1c1d;
+  --ground-ink: #d9eeee;
+  --ground-muted: #7fa8a8;
+  --panel: #4b9c9d;
+  --panel-2: #5aaeaf;
+  --panel-3: #3d8384;
+  --panel-ink: #041415;
+  --panel-muted: #0f2e2f;
+  --panel-line: #2e7071;
+  --placard: #f5f7f2;
+
+  --screen: #040908;
+  --screen-2: #0b1513;
+  --screen-line: #1c3431;
+  --sym: #b5f26a;              /* ИЛС yellow-green */
+  --sym-dim: #5d7f33;
+  --sym-hi: #ffd84a;
+  --sym-ink: #0e1402;
+
+  --btn: #0b1f20;
+  --btn-ink: #cfeeee;
+  --btn-line: #3b6a6b;
+  --btn-on: #ffc53d;           /* amber lamp */
+  --btn-on-ink: #1c1300;
+}

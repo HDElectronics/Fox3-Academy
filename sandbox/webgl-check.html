@@ -1,0 +1,10 @@
+<!doctype html><html><body style="margin:0;background:#000">
+<script type="module">
+import * as THREE from 'three';
+const r = new THREE.WebGLRenderer({ antialias: true });
+r.setSize(400, 300); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background = new THREE.Color('#1d4f9a');
+const c = new THREE.PerspectiveCamera(50, 4/3, 0.1, 100); c.position.set(2, 2, 4); c.lookAt(0, 0, 0);
+s.add(new THREE.Mesh(new THREE.TorusKnotGeometry(1, 0.3, 64, 8), new THREE.MeshNormalMaterial()));
+r.render(s, c); console.error('webgl-check rendered ok', r.capabilities.isWebGL2);
+</script></body></html>

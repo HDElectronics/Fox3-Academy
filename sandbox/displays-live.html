@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" data-cockpit="us">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Displays live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  body { margin: 0; }
+  .lv { padding: 14px 20px 30px; color: var(--placard); font-family: var(--font-mono); font-size: 12px; }
+  .lv-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; align-items: start; }
+  .lv-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: var(--r-2); padding: 8px; }
+  .lv-card > div:first-child { display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 2px 6px; }
+  .lv-glass { background: #000; border-radius: var(--r-1); padding: 6px; }
+  .lv-glass canvas { display: block; width: 100%; aspect-ratio: 1; }
+  .lv-strip canvas { aspect-ratio: auto; height: 70px; }
+  .lv-tl canvas { aspect-ratio: auto; height: 110px; }
+  pre { margin: 10px 0 0; white-space: pre-wrap; color: var(--panel-muted); }
+  @media (max-width: 900px) { .lv-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="lv" id="root"></div>
+<script type="module" src="./displays-live.ts"></script>
+</body>
+</html>

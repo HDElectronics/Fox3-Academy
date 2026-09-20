@@ -1,0 +1,236 @@
+# Data API (`src/data`)
+
+Static facts about the ten jets, seventeen missiles and six RWRs, as DCS World models them. Every value comes
+from `docs/research/*.md`. Where research was uncertain, the value is the most defensible pick and the reason is
+recorded in code (`AIRCRAFT_CAVEATS`, `RWR_CAVEATS`, missile `notes`, bind/step `note`) and in the last section
+of this page. Types are in `src/data/types.ts` (architect contract, unchanged).
+
+```ts
+import {
+  AIRCRAFT, AIRCRAFT_ORDER, AIRCRAFT_CAVEATS,          // aircraft.ts
+  MISSILES, MISSILE_REF_NOTE, FLARE_SUSCEPTIBILITY,    // missiles.ts
+  RWRS, RWR_CAVEATS, rwrSymbol,                        // rwr.ts
+  PROCEDURES, procedureFor,                            // procedures.ts
+  SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor,       // sources.ts
+} from '../../data';
+```
+
+## Exports
+
+| Export | Type | What it is |
+|---|---|---|
+| `AIRCRAFT` | `Record<AircraftId, AircraftSpec>` | Radar rules, loadout, CMs, rough perf, RCS, blurb, strengths, limits. |
+| `AIRCRAFT_ORDER` | `AircraftId[]` | Display order (Russian FC3, F-15C, full-fidelity). |
+| `AIRCRAFT_CAVEATS` | `Record<AircraftId, string[]>` | "Simplified here" sentences: every aircraft value research could not confirm. Show the relevant ones in Hangar/Reference/lab callouts. |
+| `MISSILES` | `Record<MissileId, MissileSpec>` | Seeker, midcourse, loft, pitbull, seeker range/gimbal, mass, size, burn, Mach/g, reference ranges, chaff factor, guidance rule, DCS notes. |
+| `MISSILE_REF_NOTE` | `string` | Caption to show next to `ref` ranges (they are ED's launch table, not flight results). |
+| `FLARE_SUSCEPTIBILITY` | `Record<MissileId, number>` | 0..1 flare factor for IR seekers (radar missiles 0). Not in `MissileSpec` yet. |
+| `RWRS` | `Record<RwrId, RwrSpec>` | Symbols for every emitter, cues (look and sound) for search/lock/launch/missile, teach points. |
+| `rwrSymbol(rwr, emitter)` | `string` | Symbol lookup; falls back to the RWR's `unknown` symbol. SPO-15 returns the type lamp letter (`''` = no lamp). |
+| `RWR_CAVEATS` | `Record<RwrId, string[]>` | Unconfirmed RWR details. |
+| `PROCEDURES` | `Record<AircraftId, AircraftProcedures>` | Binds and step-by-step procedures. |
+| `procedureFor(ac, id)` | `Procedure \| undefined` | e.g. `procedureFor('su27', 'tws-multi')` is `undefined`. |
+| `SOURCES` | `Source[]` | 108 deduplicated research sources, ids 1..n. |
+| `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
+| `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws'`. |
+
+## Conventions
+
+**Units.** km, degrees, seconds, knots, as the type comments say. Western range scales are exact nm
+conversions (`10 nm = 18.52 km`); format them back with `app/format.ts`.
+
+**Detection (`radar.detectKm`).** DCS AI sensor-table (datamine) values for every radar that has one (N-001,
+N-019M, APG-63, APG-73, APG-68, KLJ-7). Reference target 3–5 m². Heatblur's AWG-9 and Razbam's RDI have no table
+in research, so their manual/guide figures are used (they read higher; see caveats). `lookDownFactor` is the
+datamine tail-aspect look-down ratio, applied by the sim to every aspect (simplified: the tables keep head-on
+range unchanged in look-down).
+
+**RCS (`rcsM2`).** Relative frontal RCS. The reference fighter is 5 m² (DCS F-15C unit value). Suggested scaling:
+`range × (rcsM2 / 5) ** 0.25`. Only the F-15C value is from DCS; the rest are relative estimates in DCS's 3–6 m²
+fighter band.
+
+**Scan timing.** Frame time = `bars × 2 × azHalf / scanRateDegPerS` (as `radar.ts` computes). Scan rates are set
+so documented frame times come out right: FC3 jets 5 s, Viper A6/4B 8 s and A3/2B 2 s, AWG-9 TWS 2 s.
+
+| Jet | Radar | Head-on / tail km | Notch kt | Look-down only | Default frame | TWS |
+|---|---|---|---|---|---|---|
+| Su-27 / Su-33 / J-11A | N001 / N001K / N001VE (all DCS `N-001`) | 68.4 / 38 | 113 | no | 5.0 s | 10 tracks, 1 target, auto-STT 0.85 Rmax |
+| MiG-29S | N019M | 60 / 30 | 81 | no | 5.0 s | 10 tracks, 2 targets (СНП2), auto-STT 0.85 |
+| F-15C | AN/APG-63(V)1 | 88.4 / 44 | 54 | no | 5.0 s | 16 tracks, 4 targets, ±30° |
+| F/A-18C | AN/APG-73 | 76 / 46 | 54 | yes | 9.3 s | 10 tracks, 10 targets, ≤ 2.7 s frame |
+| F-16C | AN/APG-68(V)5 | 68.4 / 54 | 71 | yes | 8.0 s | 10 tracks, 6 targets |
+| F-14B | AN/AWG-9 | 167 / 83 | 133 | yes | 6.5 s | 24 tracks, 6 targets, ≤ 2 s frame |
+| JF-17 | KLJ-7 | 89 / 46 | 54 | yes | 8.0 s | 10 tracks, 2 targets, ≤ 4 s frame |
+| M-2000C | RDI | 120 / 55 | 54 | yes | 8.0 s | none (`tws: null`) |
+
+**TWS limits.** `maxFrameTimeS`, `maxAzHalfWidthDeg` and `maxBars` are all upper bounds; a scan change in TWS
+is allowed only if it passes all three. They reproduce DCS's allowed patterns: Hornet 2B ±40°, 4B ±20°, 6B ±10°;
+F-14 ±20°/4B and ±40°/2B; JF-17 ±60°/2B, ±25°/3B, ±10°/4B; F-15C and FC3 Russian jets ±30°.
+
+**FC3 Russian scan.** `azHalfWidthOptionsDeg: [30]`: the scan is always 60° wide and the pilot moves its centre
+between −30°, 0° and +30° (three positions). In СНП it centres on the tracked target.
+
+**Mode labels.** As the cockpit shows them: `ОБЗ ДВБ / СНП ДВБ / АТК ДВБ` on the Russian HUD, `LRS / TWS / STT`
+on the F-15C, `PD STT` and `PD SRCH` on the F-14, `RECH / PSIC` on the M-2000C. `acm` labels are generic
+(`БВБ`, `AACQ`, `ACM`, `PAL`).
+
+**`sttArhLaunchWarning`.** `false` everywhere except the F-14B: DCS most likely shows only a lock until pitbull for
+an ARH fired from STT. The F-14B is `true` because a Phoenix fired from PD-STT is SARH to impact in DCS and gives an
+immediate launch warning.
+
+**`notchNeedsLookDown`.** `false` on FC3 jets (their AI-table gate is a flat radial-speed filter), `true` on
+full-fidelity radars (documented for the AWG-9; ED's Viper look-down notch; physics).
+
+**Missiles.** `ref` = ED's launch table (ModelData[50..55], shooter and target at 900 km/h ≈ M0.85, 10 km head-on,
+10 km target running, 1 km head-on). `maxMach` is the Lua `Mach_max` field (a legacy/AI value; new-API missiles are
+really drag-limited). `chaffSusceptibility` is the Lua `ccm_k0` clamped to 0..1 (0 = immune). `midcourse` is
+`'none'` for SARH (the R-27's inertial + radio-correction midcourse is in its notes: the pilot rule is the same).
+`guidanceRule` is shared by every jet that carries the missile; a clause that applies to one jet only names it
+(AIM-7M: "…; inside 10 nm the F-15C can FLOOD instead…"), so pages drop clauses that name another jet
+(hangar `guidanceRuleFor`). Jet-specific handling is also in `notes` as its own line ("F-15C only: …",
+"F-14: …"), which is the safer place to read it from.
+
+**Binds.** FC3 jets: `keys` is the keyboard default (`'RAlt + I'`) and `note` holds the controls-menu name in
+quotes. Full-fidelity jets: `keys` is the HOTAS or cockpit function as DCS names it (`'Sensor Control Switch -
+Right'`) and `note` starts with `Keyboard: …` when a default key exists. Branch on `AIRCRAFT[id].module`.
+Procedure steps carry both `keys` (keyboard) and `hotas` (function) where they apply. In key strings, a spaced
+`' / '` separates alternatives (`'= / -'`), `', '` separates a sequence (`'2, I'`), and a bare `/` or `,` is the
+key itself (`'; , . /'` = the four cursor keys, `'RShift + , / RShift + /'` = left or right).
+
+**Procedure ids.** Every jet: `search`, `stt-shot`, `support`, `defend`. `tws-multi` only where the jet can engage
+several targets (MiG-29S СНП2, F-15C, F/A-18C, F-16C, F-14B, JF-17). Extras: `tws-designate` (Su-27, Su-33,
+J-11A, MiG-29S: single-target СНП with auto-lock) and `dt-sam` (F-16C).
+
+## Usage
+
+```ts
+const spec = AIRCRAFT[app.aircraft];
+const tws = spec.radar.tws;                              // null on the M-2000C
+if (tws?.autoSttAtRmaxFraction) coach(`СНП locks by itself at ${tws.autoSttAtRmaxFraction * 100} % of Rmax.`);
+const shot = procedureFor(app.aircraft, 'tws-multi') ?? procedureFor(app.aircraft, 'stt-shot');
+const er = MISSILES.r27er;                               // er.ref.highHeadOnKm === 59
+const letter = rwrSymbol(spec.rwr, 'f15c');              // 'П' on the SPO-15, '15' on the TEWS
+const cites = sourcesFor(app.aircraft).map(s => s.title);
+callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" notes
+```
+
+## Gotchas
+
+- `ALR-67` is shared by the F/A-18C and the F-14B. The F-14 differences (JF-17 shows as `17`, warble tones, the
+  four-tone "silent shooter" alert) are in its `teach` list; `symbols` follow ED's Hornet list (`JF`).
+- On the ALR-56C and ALR-67 the SA-15 is `15`, same as the F-15; the airborne hat tells them apart. This is taught.
+- SPO-15 `unknown` is `''` (no type lamp lights). Every airborne radar, and an active missile seeker, is `П`.
+- `maxSimultaneousTargets: 2` on the MiG-29S means СНП2 (two R-77s, targets within 8°, under 3 g), while
+  `launchFromTws` stays `false`: its single-target СНП still converts to STT before launch.
+- The F-16C's `azHalfWidthOptionsDeg` includes 25 and `barOptions` includes 3: those exist only in TWS with a bugged
+  target (A2/3B bug scan). Do not offer them in RWS.
+- `pitbullKm` for AIM-120B/C and SD-10 is not published by ED; see the uncertain list.
+- `rangeScalesKm` for the Russian jets are unverified; `radar.ts` picks the first scale ≥ 80 km as default.
+
+## Notable facts (from research)
+
+- FC3 Russian СНП designates one track and auto-locks it (STT) at 85 % of the selected missile's Rmax: every
+  Flanker radar shot leaves from STT. Confirmed in ED's 2014, 2018 and 2021 manuals.
+- The MiG-29S is the only FC3 jet with a two-target mode (СНП2); the J-11A fires R-77s from STT only and may switch
+  targets once the missile is within ~15 km.
+- F-15C TWS: PDT + 3 SDTs, AIM-120s ripple in designation order and cycle back to the PDT; TWS window ±30° since
+  DCS 1.2.7; AIM-7 needs STT or FLOOD (12°, 10 nm).
+- A Fox 3 fired from TWS gives the target no lock and no launch warning until its seeker goes active (FC3 manual,
+  ED tester 2022). AI does not react to it before then (since 2.7.1).
+- F-16C guides six AIM-120s at six targets; tracks drop after 13 s. F-14 guides six Phoenix; how an AIM-54 guides
+  depends on the radar mode at launch.
+- Chaff factors (Lua `ccm_k0`): AIM-120C 0.1, SD-10 0.11, AIM-120B / R-77 / AIM-54C 0.2, R-27R/ER 0.5,
+  AIM-54A 1.0. SARH missiles and the 54A are the easiest to chaff.
+- Notch gates (AI tables): N-001 113 kt, N-019 81 kt, APG-63/68/73 and KLJ-7 54 kt; AWG-9 clutter filter ±133 kt
+  and off in look-up. Beam window = asin(gate / ground speed): ±6.9° at 450 kt for a 54 kt gate.
+- ALR-67 (Hornet, F-14): outer ring = critical. ALR-56M (Viper) and Serval: nearer the centre = more lethal.
+  ALR-56C (F-15C, DCS): nearer the centre = stronger signal.
+
+## Uncertain values (all of them)
+
+### Aircraft
+- **Russian FC3 detection** (68.4/38 km N-001, 60/30 km N-019M): AI sensor tables; whether the player radars read
+  them is not confirmed. ED's Su-33 manual gives the real N001K ≥ 100 km head-on vs 3 m².
+- **Russian FC3 bars/beam/scan speed**: bars are not selectable and the count is undocumented; 4 × 2.5° assumed,
+  48°/s so a frame takes 5 s (datamine `scan_period`).
+- **Russian FC3 range scales** 10/25/50/100/200 km: candidates, not verified.
+- **Early lock above 85 % Rmax**: Su-27 manual says Enter forces it; MiG-29/Su-33 manuals say it will not happen.
+- **FC3 notch in look-up** (`notchNeedsLookDown: false` for all FC3 jets): the flat AI-table gate is applied at any
+  geometry here; DCS behaviour not confirmed.
+- **Russian acm label `БВБ`**: candidates were ВЕРТ, ОПТ, ШЛЕМ, Ф0 or БВБ; not verified.
+- **MiG-29S gimbal**: datamine STT ±67° az, −45/+50° el; 60° / 50° used.
+- **J-11A jammer**: none in the datamine; not checked in game. **Su-33 station counts** inferred from launcher lists.
+- **R-77 from STT launch warning** (`sttArhLaunchWarning: false` for J-11A/MiG-29S): not verified.
+- **F-15C detection**: AI table 88.4 km; players report ~120 km vs an Su-27. **Bars** 4 × 2.5° assumed.
+  **maxTracks 16** is the LRS figure. **STT AIM-120 warning**: lock only until pitbull (2020 forum) vs the 2014
+  manual's launch indication. **LRS legend** on the VSD undocumented.
+- **F/A-18C**: detection from the AI table; no documented cap on simultaneous AIM-120s (10 = trackfile limit);
+  beam width 3° and scan speed 60°/s estimated; `maxFrameTimeS 2.7` derived; notch 54 kt is the AI gate;
+  elevation gimbal 60° assumed; CMs 60/60 not in research.
+- **F-16C**: detection from the AI table; notch 71 kt = MTR LO (HI 110 kt), default not verified; bar spacing 2.2°
+  and beam 3.2° estimated; VSR, SAM and DT SAM/DTT folded into RWS/STT/TWS; CMs 60/60 not in research.
+  HUD ASC/ASEC geometry is not fully modelled; the unsupported SHOOT text label has been removed.
+- **F-14B**: detection 167 km (90 nm vs 5 m²) from the Heatblur manual; tail 83 km and look-down 0.8 estimated;
+  scan 80°/s derived from the 2 s refresh; elevation gimbal 60° assumed; explicit TWS patterns are enforced;
+  CMs 60/60 not in research. TID vectors/blinking remain simplified; classic F-14 has no IN RNG text cue.
+- **JF-17**: detection from the KLJ-7 table (5 m²); TWS scan options conflict between Chuck and FlyAndWire;
+  two simultaneous SD-10s implied by the store page (medium); scan speed, bar spacing, beam estimated;
+  elevation gimbal 60° (AI table scan volume is ±30°); CMs 36/32 not in research. Units set to imperial
+  because the cockpit shows nm, kt and thousands of feet.
+- **M-2000C**: detection 120 km (~65 nm vs 5 m²) from Chuck's guide; tail 55 km and look-down 0.8 estimated;
+  azimuth 60/30/15 read as ± half-widths; range scales 10/20/40/80 nm, notch 54 kt and scan speed estimated;
+  PSID not modelled; CMs 112/16 not in research.
+- **All jets**: `perf` numbers are rough public figures; `rcsM2` relative estimates except the F-15C.
+
+### Missiles
+- **Pitbull**: AIM-120C 16 km and AIM-120B 14 km read from Lua `D_max` (research disagrees whether that field is the
+  active distance; community says ~8 nm, some ED posts 10 nm). SD-10 16 km estimated. R-77 15 km is the manual's
+  switch-away range. AIM-54 18.5 km = TGTS NORM (54A) / Lua `active_radar_lock_dist` (54C).
+- **AIM-54 seeker range** 25 km: not in research; set to cover TGTS LARGE (13 nm).
+- **AIM-54 ranges, burn, mass**: ED stub values; Heatblur runs its own model. Mk47 vs Mk60 not distinguished.
+- **AIM-7M chaff** 0.6: Lua has 0.2 (sensor) and 1.0 (seeker); which drives chaff is unclear.
+- **Super 530D chaff** 0.1 from the new-API Lua; the legacy entry (cited in bvr-mechanics) says 0.5.
+- **SD-10 loft**: Lua has loft data but AI shots fly flat; player behaviour unverified (`lofts: true`).
+- **R-77 after an early unlock**: not verified; the trainer flies it on to the last estimate.
+- **R-27T length** 3.7 m (ED) vs ~3.8 m (public).
+- **maxMach** is the Lua `Mach_max` field (e.g. R-27R 4.5 > R-27ER 4.0): legacy/AI data, not flight results.
+
+### RWR
+- SPO-15: number of power-ring lamps and separate primary/secondary type rows not confirmed; `unknown` → no lamp.
+- ALR-56C: `JF` and `M2` postdate the 2014 table; `U` for unknown is not in the FC3 manual.
+- ALR-67: airborne modifier shape from ED graphics only; SAM codes borrowed from ED's F-15C table; Chuck's
+  guide disagrees on ring order (ED and Heatblur used).
+- ALR-56M: codes assumed equal to the Hornet list; tones not documented.
+- JF-17: only `M2K`, `M29`, `SA8` confirmed; ARH seeker on the RWR shown as `M` (not documented).
+- Serval: symbol library not researched (ED-style codes stand in); tones and lock/launch look not documented.
+
+### Procedures and binds
+- FC3 `Backspace` unlock: medium confidence (mod copies of the FC3 bindings).
+- FC3 launch key: Russian manuals say Space (hold ≥ 1 s); the F-15C manual gives RAlt + Space ("Weapon Release"),
+  with Space reported to also launch (unverified).
+- F/A-18C: RADAR knob and range/azimuth pushbutton names not in research; mode selection via TDC on PB5 follows
+  ED's guide (bvr-mechanics mentions SCS toward the radar for RWS → TWS; not used).
+- F-16C: FCR power switch not in research; CMS, EXP and program-5 button have no default keys.
+- F-14B: trigger default key not verified (candidate Space); Jester petal wording not verified; pilot
+  countermeasure control is DLC Toggle / Countermeasure Dispense; classic default keyboard binding remains unverified.
+- JF-17: controls-menu wording for T1/S1/S2 not in research; TDC slew and countermeasure keys not in research.
+  Deka documents T2 aft for countermeasures and TWS on entry to INTC (NAV uses RWS); the English manual
+  used is machine-translated, so exact wording remains caveated.
+- M-2000C: radar emission switch, range/azimuth/bar controls not in research; most binds have no default key.
+
+## Requests (to the architect)
+
+- Add `flareSusceptibility: number` to `MissileSpec` (today exported separately as `FLARE_SUSCEPTIBILITY`).
+- Consider `azCenterOptionsDeg?: number[]` on `RadarSpec` for the FC3 Russian three-position scan (−30/0/+30).
+- Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
+
+## Radar contract additions
+
+- `RadarSpec.twsPatterns`: optional tuples `[azHalfDeg, bars]`; enforced together when entering or changing TWS.
+- `detectKm.referenceRcsM2`: source table reference; N-019M uses 3 m². Legacy unspecified tables use 5 m².
+- `detectKm.lookDownHeadOnFactor`: optional head-on factor; the existing `lookDownFactor` applies tail-on.
+- `RadarSpec.bvrStartMode`: initial radar mode for air-to-air scenarios, not generic aircraft spawning.
+  JF-17 uses TWS in INTC; explicit scenario overrides take precedence.
+
+The web-verification evidence and remaining current-game checks are in
+[verification-status.md](../research/verification-status.md). No current DCS build was run for that review.
