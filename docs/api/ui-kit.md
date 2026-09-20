@@ -5,8 +5,8 @@ Cockpit controls, panels and layouts for every page. Plain DOM factories: each r
 `src/styles/components.css` (already imported by `main.ts`), colours only from `tokens.css`.
 
 ```ts
-import { labLayout, consolePanel, screenBezel, segmented, slider, button, coachBox, checklist,
-         eventLog, readouts, callout, bindKeys, kbd, cleanup } from '../../ui';
+import { labLayout, consolePanel, disclosure, screenBezel, segmented, slider, button, coachBox,
+         checklist, eventLog, readouts, callout, bindKeys, kbd, cleanup } from '../../ui';
 ```
 
 Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=kit|lab|doc`
@@ -52,12 +52,14 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
 | `placard(text, { id?, for?, tag? })` | `HTMLElement` | Small letter-spaced label (a `<label>` when `for` is given). |
 | `group({ label, children, hint?, inline?, id?, class? })` | `HTMLFieldSetElement` | Fieldset with a placard legend. |
 | `row(...children)` | `HTMLDivElement` | Wrapping flex row; top-aligns when it holds labelled fields. |
+| `mobileAction(source, label?)` | `{ el, destroy() }` | Compact phone action that mirrors a source button's label, disabled/hidden/lit state and clicks it. Put `el` in `labLayout.mobileActions`; call `destroy()` in unmount. |
 
 ## Panels (`panels.ts`)
 
 | Factory | Returns | Notes |
 |---|---|---|
 | `consolePanel({ title, id?, actions?, children?, dense?, fasteners? = true, class? })` | `{ el, body, setTitle }` | Painted side-console panel: placard title row (white on grey, black on turquoise), quarter-turn fasteners in the corners. Append more content to `body`. |
+| `disclosure({ title, content, open?, id? })` | `HTMLDetailsElement` | Native `<details>` for secondary controls or explanation. Keyboard and disclosure state come from the browser; it owns no listeners and needs no cleanup. |
 | `screenBezel({ label, id?, content?, corners?: { tl?, tr?, bl?, br? }, aspect?, status?, footer?, class? })` | `{ el, glass, setCorner(c, content), setLabel, setStatus }` | Black-glass display in a dark frame with a placard label (`'VSD'`, `'СПО-15'`) and optional status at the right of the label row. `content` (a `<canvas>` or an element with class `ui-fill`) is stretched to fill `glass`. `aspect` (CSS, e.g. `'4 / 3'`, `'1'`) fixes the glass shape; without it the container must give the glass a height. Corner readouts are phosphor mono text, `white-space: pre` (use `\n` for two lines). |
 | `coachBox({ id?, title? = 'NOW', text?, why?, tone? })` | `{ el, set(text, why?, tone?), setTone(t), setTitle(text) }` | "What to do now + why". `role=status`, polite live region. Pass strings: `set()` skips identical text, and the lamp blinks once when the advice changes. Tone colours the bar and lamp: `caution`, `warning`, `ok`, `hi`, `dim` (default = lit-button colour). |
 | `checklist({ id?, steps: { id?, text, keys?, note? }[], done? })` | `{ el, setDone(step, done = true), isDone, setCurrent(step\|null), reset(), doneCount, total }` | Steps by id or index. Done = lit square with a tick (and "(done)" for screen readers); current = highlighted, `aria-current="step"`. |
@@ -73,13 +75,25 @@ Type: `Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim'`.
 
 ## Layout (`layout.ts`)
 
-### `labLayout({ viewport, console, strip?, header?, id?, mobileOrder?, class? })`
-→ `{ el, view, console, strip, overlay(corner, ...children) }`
+### `labLayout({ viewport, console, strip?, header?, id?, mobileOrder?, mobileTabs?, mobileActions?, class? })`
+→ `{ el, view, console, strip, overlay(corner, ...children), focus(panel), destroy() }`
 
 One-screen tool. Desktop (> 900 px): compact header + 3D viewport + display strip on the left, the
-side console full height on the right (it scrolls internally; the page does not). ≤ 900 px: one
-column — header, viewport (4:3, ≤ 62vh), strip, console (`mobileOrder: 'console-first'` swaps the
-last two). No horizontal page scroll at 390 px.
+side console full height on the right (it scrolls internally; the page does not). Its height uses the
+shell's measured `--shell-h` so the contextual navigation cannot clip the bottom. ≤ 900 px without
+tabs: one column — header, viewport (4:3, ≤ 62vh), strip, console (`mobileOrder: 'console-first'`
+swaps the last two). No horizontal page scroll at 390 px.
+
+`mobileTabs: true` replaces the phone stack with accessible World / Displays / Controls tabs while
+leaving the desktop grid unchanged. World is selected first. Arrow keys, Home and End move and
+activate tabs without reaching page-level flight or radar key bindings;
+`focus('world'|'displays'|'controls')` selects one programmatically. Hidden panes stay
+mounted, so switching does not recreate or reset the simulation. The selected pane fills the space
+between the page header, tabs and actions; Displays and Controls scroll inside that space.
+`mobileActions` renders an optional
+phone-only sticky bottom action bar. Its controls wrap when needed, preserve a 44 px touch target and
+include the device safe-area inset. **Call `destroy()` in unmount when `mobileTabs` is enabled** to
+remove the media-query listener and ResizeObserver. Layouts without `mobileTabs` install neither.
 
 - `viewport`: your 3D container (give it to `Stage`). It gets class `ui-fill` and fills the area.
 - `strip`: screen bezels (with `aspect`) sized to the strip height (`--lab-strip-h`,

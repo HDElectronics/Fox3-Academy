@@ -9,6 +9,20 @@ import { button } from './controls';
 
 export type Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim';
 
+export interface DisclosureOptions {
+  title: string;
+  content: Child;
+  open?: boolean;
+  id?: string;
+}
+
+/** Native secondary-content disclosure. It owns no listeners and needs no cleanup. */
+export function disclosure(o: DisclosureOptions): HTMLDetailsElement {
+  return h('details', { class: 'ui-disclosure', id: o.id, open: !!o.open },
+    h('summary', { class: 'ui-disclosure__summary' }, o.title),
+    h('div', { class: 'ui-disclosure__body' }, o.content));
+}
+
 /** Sim seconds → 'mm:ss' for log stamps. */
 const mmss = (s: number) => {
   const t = Math.max(0, Math.floor(s));

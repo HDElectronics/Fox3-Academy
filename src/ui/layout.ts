@@ -43,6 +43,10 @@ export interface LabLayoutOptions {
   id?: string;
   /** Phone order: 'strip-first' = viewport, displays, console (default); 'console-first' = viewport, console, displays. */
   mobileOrder?: 'strip-first' | 'console-first';
+  /** On phones, show World / Displays / Controls as keyboard-accessible tabs. Opt-in. */
+  mobileTabs?: boolean;
+  /** Primary phone actions pinned to the bottom of the scrolling lab. Hidden above 900 px. */
+  mobileActions?: Child;
   class?: string;
 }
 export interface LabLayoutHandle {
@@ -53,6 +57,23 @@ export interface LabLayoutHandle {
   strip: HTMLElement;
   /** Put small controls or readouts over a corner of the 3D view (camera buttons, legend). */
   overlay(corner: HudCorner, ...children: Child[]): HTMLElement;
+  /** Select a phone tab and move focus to its tab. No-op for a missing Displays panel. */
+  focus(panel: 'world' | 'displays' | 'controls'): void;
+  /** Remove responsive observers and tab listeners. Safe to call more than once. */
+  destroy(): void;
+}
+
+type LabPanel = 'world' | 'displays' | 'controls';
+let labId = 0;
+
+/** @internal Roving-tab target used by labLayout's phone tab list. */
+export function labTabTarget(key: string, index: number, length: number): number {
+  if (length < 1 || index < 0 || index >= length) return -1;
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % length;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + length) % length;
+  if (key === 'Home') return 0;
+  if (key === 'End') return length - 1;
+  return -1;
 }
 
 /**
@@ -67,11 +88,121 @@ export function labLayout(o: LabLayoutOptions): LabLayoutHandle {
   const strip = h('section', { class: 'ui-lab__strip', 'aria-label': 'Displays' }, o.strip ?? null);
   const hasStrip = o.strip !== undefined && o.strip !== null && o.strip !== false;
   const head = o.header ? pageHeader({ ...o.header, compact: true, class: cx('ui-lab__head', o.header.class) }) : null;
+  const uid = o.id ?? `ui-lab-${++labId}`;
+  const panels: Partial<Record<LabPanel, HTMLElement>> = { world: view, controls: consoleEl };
+  if (hasStrip) panels.displays = strip;
+  const panelLabels: Record<LabPanel, string> = { world: 'World', displays: 'Displays', controls: 'Controls' };
+  const available = (['world', 'displays', 'controls'] as const).filter(p => panels[p]);
+  const tabButtons = new Map<LabPanel, HTMLButtonElement>();
+  const tabs = o.mobileTabs ? h('div', {
+    class: 'ui-lab__mobile-tabs', role: 'tablist', 'aria-label': 'Lab panels',
+  }, available.map(panel => {
+    const button = h('button', {
+      class: 'ui-lab__mobile-tab', type: 'button', role: 'tab',
+      id: `${uid}-tab-${panel}`, 'aria-controls': `${uid}-panel-${panel}`,
+    }, panelLabels[panel]);
+    tabButtons.set(panel, button);
+    return button;
+  })) : null;
+  const actions = o.mobileActions !== undefined && o.mobileActions !== null && o.mobileActions !== false
+    ? h('div', { class: 'ui-lab__mobile-actions', 'aria-label': 'Primary actions' }, o.mobileActions)
+    : null;
+  tabs?.style.setProperty('--lab-mobile-tab-count', String(available.length));
   const el = h('div', {
-    class: cx('ui-lab', head && 'has-head', hasStrip && 'has-strip', o.class), id: o.id,
+    class: cx('ui-lab', head && 'has-head', hasStrip && 'has-strip', o.mobileTabs && 'has-mobile-tabs', actions && 'has-mobile-actions', o.class), id: o.id,
     dataset: { mobile: o.mobileOrder ?? 'strip-first' },
-  }, head, view, hasStrip ? strip : null, consoleEl);
-  return {
+  }, head, tabs, view, hasStrip ? strip : null, consoleEl, actions);
+
+  let selected: LabPanel = 'world';
+  let mobile = false;
+  let destroyed = false;
+  let resizeFrame = 0;
+  let media: MediaQueryList | null = null;
+  let ro: ResizeObserver | null = null;
+  const cleanups: (() => void)[] = [];
+
+  const refreshVisiblePanel = () => {
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      const panel = panels[selected];
+      if (!panel || panel.hidden) return;
+      // Stage and display canvases also observe their own containers. This resize covers renderers
+      // that only listen at window level after returning from display:none.
+      window.dispatchEvent(new Event('resize'));
+    });
+  };
+  const select = (panel: LabPanel, moveFocus: boolean) => {
+    if (!panels[panel]) return;
+    selected = panel;
+    el.dataset.mobilePanel = panel;
+    for (const name of available) {
+      const active = name === panel;
+      const button = tabButtons.get(name);
+      if (button) {
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      }
+      const content = panels[name]!;
+      content.hidden = mobile && !active;
+    }
+    if (moveFocus && mobile) tabButtons.get(panel)?.focus();
+    if (mobile) refreshVisiblePanel();
+  };
+  const syncMode = (matches: boolean) => {
+    mobile = matches;
+    for (const name of available) {
+      const content = panels[name]!;
+      if (mobile) {
+        content.id = `${uid}-panel-${name}`;
+        content.setAttribute('role', 'tabpanel');
+        content.setAttribute('aria-labelledby', `${uid}-tab-${name}`);
+      } else {
+        content.hidden = false;
+        content.removeAttribute('role');
+        content.removeAttribute('aria-labelledby');
+      }
+    }
+    if (mobile) select(selected, false);
+    else refreshVisiblePanel();
+  };
+
+  if (o.mobileTabs && tabs) {
+    for (const panel of available) {
+      const button = tabButtons.get(panel)!;
+      const click = () => select(panel, false);
+      button.addEventListener('click', click);
+      cleanups.push(() => button.removeEventListener('click', click));
+    }
+    const keydown = (event: KeyboardEvent) => {
+      const index = available.findIndex(p => tabButtons.get(p) === event.target);
+      if (index < 0) return;
+      const next = labTabTarget(event.key, index, available.length);
+      if (next < 0) return;
+      event.preventDefault();
+      // Keep page-level flight/radar bindings from seeing navigation intended for this tab list.
+      event.stopPropagation();
+      select(available[next], true);
+    };
+    tabs.addEventListener('keydown', keydown);
+    cleanups.push(() => tabs.removeEventListener('keydown', keydown));
+
+    media = matchMedia('(max-width: 900px)');
+    const mediaChange = (event: MediaQueryListEvent) => syncMode(event.matches);
+    media.addEventListener('change', mediaChange);
+    cleanups.push(() => media?.removeEventListener('change', mediaChange));
+    syncMode(media.matches);
+
+    if (typeof ResizeObserver === 'function') {
+      ro = new ResizeObserver(entries => {
+        if (!mobile || !entries.some(entry => entry.target === panels[selected])) return;
+        refreshVisiblePanel();
+      });
+      for (const panel of available) ro.observe(panels[panel]!);
+    }
+  }
+
+  const handle: LabLayoutHandle = {
     el, view, console: consoleEl, strip,
     overlay(corner, ...children) {
       let hud = huds[corner];
@@ -79,7 +210,19 @@ export function labLayout(o: LabLayoutOptions): LabLayoutHandle {
       append(hud, children);
       return hud;
     },
+    focus(panel) { select(panel, true); },
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+      ro?.disconnect();
+      ro = null;
+      while (cleanups.length) cleanups.pop()?.();
+      media = null;
+    },
   };
+  return handle;
 }
 
 // ---- doc layout --------------------------------------------------------------------------------
