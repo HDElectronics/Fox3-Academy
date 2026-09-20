@@ -38,6 +38,17 @@ The application runs in a normal browser on a static host. Keep the current sing
 future model assets and additional modules may use a separate split-bundle build. Store preferences through
 `src/app/store.ts`. External assets require documented redistribution rights and a local fallback.
 
+## Navigation and lab presentation
+
+`src/app/navigation.ts` defines Learn, Practice, Fly and Reference destinations without changing established
+module paths. `#/learn` aliases `#/hangar`; Practice has its own directory and marks free sessions with
+`lab=free`. Router identity includes normalized query parameters. An `ac` deep link selects the aircraft once
+before page mount, then leaves the global picker in control.
+
+`labLayout` keeps the 3D world central on desktop and provides opt-in World / Displays / Controls tabs on
+phones. Tabs change presentation only: simulations and recordings continue. Pages supply persistent mobile
+actions and dispose layout observers on unmount. The shell publishes its measured height as `--shell-h`.
+
 ## Folder ownership (edit ONLY what you own)
 
 | Path | Owner | Notes |

@@ -8,18 +8,24 @@ adapts to the jet you pick in the top bar: radar rules, cockpit display, missile
 1. Pick your jet in the **Jet** menu (top right). The app repaints itself in that jet's cockpit colour:
    turquoise for Flankers and Fulcrums, grey for Western jets.
 2. Set units with the button next to it (km and m, or nm and ft). Russian jets start metric.
-3. Open **Hangar** and follow the lesson path: Radar, TWS, Missiles, Defense, RWR, then Sortie. Each lesson
-   remembers when you finish it for that jet (stored in your browser only).
+3. Open **Learn** and follow the lesson path: Radar, TWS, Missiles, Defense and RWR. Each lesson remembers
+   when you finish it for that jet (stored in your browser only).
+4. Open **Practice** for the manual TWS lab and configurable Radar, Missile and Defense experiments.
+5. Open **Fly** for a sortie, or **Reference** for bindings, procedures and aircraft facts.
+
+The 3D world remains the main lab surface. On phones, **World**, **Displays** and **Controls** tabs show
+one workspace at a time; switching tabs keeps the current simulation. The bottom action bar keeps the
+main controls available. Expand settings, event logs and accuracy notes when needed.
 
 Supported jets: Su-27, Su-33, J-11A, MiG-29S, F-15C (Flaming Cliffs 3), F/A-18C, F-16C, F-14B, JF-17, M-2000C.
 
 ## The modules
 
-### Hangar
+### Learn
 What your jet can and cannot do in BVR: radar modes with the cockpit's own labels (for example ОБЗ, СНП, АТК
 on the Su-27), how many tracks and how many targets can have missiles at once, whether you can launch from TWS,
 detection range, RWR, chaff and flares, and one card per missile with its launch-zone ranges and the rule you
-must obey to guide it. The strip at the top switches jets.
+must obey to guide it. Use the Jet selector in the top bar to switch aircraft.
 
 ### Radar
 The scan volume in 3D. Change azimuth width, bars, antenna elevation and range and watch what the radar can
@@ -36,7 +42,7 @@ real procedure (Su-27: designate in СНП and the radar locks by itself at 85 %
 designations and one AIM-120 per track; MiG-29S: the two-target СНП2 R-77 shot; M-2000C: no multi-target TWS).
 The **Your jet** control lets you crank to keep the group in your gimbal.
 
-Choose **Guided course** for the checklist, or **Free lab** for independent practice without a merge or time
+Choose **Learn** for the checklist, or **Practice** for independent practice without a merge or time
 limit. Guided cursor keys step between contacts. Free lab keys `,` / `/` slew left/right and `;` / `.` slew
 up/down; click the radar to place the cursor, then use the aircraft's displayed Designate/Lock action.
 Empty space does not select the nearest contact. Use Unlock to return to search. Arrow left/right command
@@ -73,7 +79,7 @@ autopilot (turn, climb, speed keys), run your radar with your jet's keys, and us
 the debrief replays the fight in 3D with a timeline of launches, pitbulls and hits, per-shot stats (range vs
 Rmax, F-pole, how long the target was warned) and coaching on what went right and wrong.
 
-### Cockpit
+### Reference
 Your kneeboard: the jet's bindings (FC3 keyboard defaults, or HOTAS function names on full-fidelity modules),
 step-by-step procedures, radar numbers, a missile table for all seventeen missiles, a comparison of all ten
 jets, your RWR's symbols, a BVR glossary, and the research sources. The quick filter searches it all.
@@ -87,5 +93,5 @@ DCS keyboard default; the app then offers a clearly marked stand-in key.
 ## What is simplified
 
 The app is a tactics trainer, not a flight simulator. You fly an autopilot, missiles are game mechanics tuned
-to DCS's launch-zone numbers, and a few DCS behaviours are not documented anywhere. Each page has a
+to DCS's launch-zone numbers, and a few DCS behaviours are not documented anywhere. Labs keep their limitations under **Accuracy notes**; other pages have a
 "Simplified here" note, and `docs/dcs-accuracy.md` lists everything in one place.

@@ -25,14 +25,15 @@ npm run build        # dist/index.html, single file, works offline except for we
 
 | Module | What you practise |
 |---|---|
-| Hangar | Pick one of ten jets and see what its radar and missiles can and cannot do in DCS. |
+| Learn | Follow the lesson path with a 3D aircraft overview and progress for each jet. |
+| Practice | Enter the manual TWS lab or configurable Radar, Missile and Defense experiments. |
 | Radar | The scan volume in 3D: azimuth, bars, antenna elevation, frame time, altitude coverage, the notch. |
 | TWS | Guided lessons and free practice: cursor control, designation, multi-target shots, and the target's RWR. |
 | Missiles | Launch zones: altitude, speed, aspect and target manoeuvre against Rmax and Rne, with flight plots. |
 | Defense | You are the target: break a lock, notch and chaff at pitbull, drag a shot out, see a late defense. |
 | RWR | Your jet's RWR anatomy, then a quiz on who is searching, locking and launching and what to do. |
-| Sortie | 1v1, 1v2 or 2v2 against skill-scaled AI, with a replay debrief and coaching. |
-| Cockpit | Kneeboard: bindings, procedures, missile and jet tables, RWR symbols, glossary, sources. |
+| Fly | 1v1, 1v2 or 2v2 against skill-scaled AI, with a replay debrief and coaching. |
+| Reference | Kneeboard: bindings, procedures, missile and jet tables, RWR symbols, glossary, sources. |
 
 Jets: Su-27, Su-33, J-11A, MiG-29S, F-15C (Flaming Cliffs), F/A-18C, F-16C, F-14B, JF-17, M-2000C.
 

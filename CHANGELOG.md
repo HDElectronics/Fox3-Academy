@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Organize navigation around Learn, Practice, Fly and Reference; retain the 3D aircraft overview and add a
+  dedicated practice directory with separate guided/free TWS entry points.
+- Keep the world prominent in 3D labs, collapse secondary details, and add focused phone tabs with persistent
+  actions across Radar, TWS, Missile Lab, Defense and Sortie.
+- Fix same-page query navigation so changing between guided and free sessions remounts correctly; preserve
+  one-time aircraft deep links and global aircraft switching.
+- B14: Keep Defense maneuvers and Sortie steering, designation and fire available in a phone action bar.
+
 - B1: Move MiG-29S СНП2 into the shared radar/launch model, enforce pair constraints, and support it in AI.
 - B2: Capture Phoenix launch-mode guidance and warning behavior; update Defense and Sortie coaching.
 - B3: Correct aspect-dependent look-down detection and N-019M reference radar cross-section scaling.

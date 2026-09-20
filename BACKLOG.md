@@ -47,8 +47,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   zone-band option on the kit slider instead of its own element in the track.
 - **B13. Replay shows only truth.** `RecordFrame` has no track estimates, so the debrief cannot show what your
   radar believed at each moment. Extend the recording in `src/sim/world.ts` and draw it in `ReplayView`.
-- **B14. Phone ergonomics.** On a 390 px phone the Defense maneuver buttons start at the fold and the Sortie
-  controls need scrolling while flying. Consider a compact flight bar pinned to the bottom of the 3D view.
 - **B15. Hyphenated jet names wrap** ("Su-" / "27") in narrow prose. A no-break hyphen falls back to another font;
   a `white-space: nowrap` span around jet names in copy would work.
 

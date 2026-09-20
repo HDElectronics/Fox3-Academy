@@ -12,13 +12,22 @@ npm run check      # typecheck + tests + build
 ```
 
 Requirements: Node 20+ (built with Node 24), a browser with WebGL. For screenshots, Google Chrome at the default
-macOS path and Python 3 with Pillow (used by `scripts/shot.sh` to crop phone widths).
+macOS path and either ImageMagick or Python 3 with Pillow (used by `scripts/shot.sh` to crop phone widths).
 
 ## The big picture
 
 The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ...). The shell in `src/app` draws
 the top bar, keeps global state in `AppStore` (selected jet, units, lesson progress), and mounts one page at a
 time. Switching jets or units remounts the current page, so pages read the jet once on mount.
+
+`src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference. `#/learn` aliases the original
+`#/hangar`; a `lab=free` query selects the Practice context. The router compares normalized query parameters,
+so switching guided/free sessions remounts even on the same path. It consumes `ac` once before mounting.
+The shell measures both navigation rows into `--shell-h` for viewport sizing.
+
+3D labs opt into `labLayout({ mobileTabs: true, mobileActions })`. Phone tab changes hide panels without
+rebuilding their World or Stage. Dispose the layout with the page's cleanup bag. `mobileAction` mirrors an
+existing button's state and invokes its original handler; its MutationObserver must also be disposed.
 
 Each page owns three things:
 
