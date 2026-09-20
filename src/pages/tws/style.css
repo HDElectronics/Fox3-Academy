@@ -1,7 +1,8 @@
 /* [OWNER: page-tws] Track while scan. Colours only from tokens.css. */
 
 .tws {
-  --lab-strip-h: clamp(260px, 36vh, 336px);
+  --lab-strip-h: clamp(210px, 27vh, 250px);
+  --lab-console-w: clamp(290px, 25vw, 350px);
   --tws-glass-ink: color-mix(in srgb, var(--sym) 82%, var(--missile));
 }
 
@@ -50,15 +51,15 @@
 /* ---------------------------------------------------------------- strip: radar, bandit cards, his RWR */
 .tws .ui-lab__strip { gap: 8px; }
 .tws-bandits {
-  display: flex; flex-direction: column; gap: 6px; min-width: 430px; flex: 1 1 520px !important; overflow: hidden !important;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
 }
-.tws-bandits__head { display: flex; align-items: baseline; gap: 10px; padding: 0 2px; }
+.tws-bandits__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; padding: 0 2px; }
 .tws-bandits__title {
   margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--s-title);
 }
 .tws-bandits__note { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; color: var(--s-label); }
-.tws-cards { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 6px; min-height: 0; }
+.tws-cards { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: 6px; min-height: 0; }
 
 .tws-card {
   display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; padding: 5px 6px 6px;
@@ -112,6 +113,25 @@
 
 /* ---------------------------------------------------------------- console */
 .tws .ui-lab__console .ui-coach { flex: none; }
+.tws-brief { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 8px; align-content: start; }
+.tws[data-session="practice"] .tws-brief { grid-template-columns: minmax(0, 1fr); }
+.tws-brief .ui-coach { align-self: start; }
+.tws-brief .ui-coach__text { font-size: var(--fs-s); }
+.tws-brief .ui-coach__why { font-size: var(--fs-xs); }
+.tws-brief .ui-steps { gap: 5px; }
+.tws-brief .ui-step { font-size: var(--fs-xs); }
+.tws-brief .ui-step__note { font-size: var(--fs-xs); }
+.tws-brief .ui-step:not([aria-current="step"]) .ui-step__note { display: none; }
+.tws #tws-hisrwr { width: min(100%, 300px); margin: 10px auto 0; }
+.tws #tws-hisrwr .ui-bezel__glass { width: 100%; }
+.tws .tws-legend { grid-template-columns: auto; color: var(--sym); }
+.tws-mobile-actions { width: 100%; min-width: 0; display: grid; gap: 5px; }
+.tws-mobile-buttons { display: flex; gap: 5px; }
+.tws-mobile-buttons .ui-btn { flex: 1 1 0; min-width: 0; --ui-cap-h: 42px; padding: 0 6px 5px; font-size: var(--fs-xs); white-space: normal; text-align: center; }
+.tws-mobile-now, .tws-mobile-status { margin: 0; font-size: var(--fs-xs); line-height: 1.35; }
+.tws-mobile-now { color: var(--s-ink); }
+.tws-mobile-status { font-family: var(--font-mono); color: var(--s-label); }
+.tws-mobile-status[data-ok="true"] { color: var(--ok); }
 .tws-scanrow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start; }
 .tws-fixed__v { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; line-height: var(--ui-cap-h, 34px); }
 .tws-centre { display: flex; align-items: flex-end; gap: 10px; }
@@ -119,7 +139,7 @@
 .tws-hint { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-label); }
 .tws-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .tws-firerow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
-.tws-firerow > .ui-btn { flex: 1 1 220px; min-width: 0; }
+.tws-firerow > .ui-btn { flex: 1 1 100%; min-width: 0; }
 .tws-firerow > .ui-lamp { flex: none; align-self: center; }
 .tws-actions .ui-btn { --ui-cap-h: 30px; padding-left: 9px; padding-right: 9px; font-size: var(--fs-xs); }
 .tws-firewhy {
@@ -149,8 +169,10 @@
   .tws-legend { grid-template-columns: auto; }
 }
 @media (max-width: 900px) {
-  .tws .ui-lab__strip { flex-direction: column; align-items: stretch; }
-  .tws .ui-lab__strip > .ui-bezel { max-width: 520px; width: 100%; align-self: center; }
+  .tws .ui-lab__strip { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; }
+  .tws-brief { display: flex; flex-direction: column; overflow: visible; }
+  .tws .ui-lab__strip > .tws-brief { min-width: 0; flex: none; }
+  .tws .ui-lab__strip > .ui-bezel { max-width: 520px; width: 100%; align-self: center; flex: none; }
   .tws .ui-lab__strip > #tws-hisrwr { max-width: 340px; }
   .tws-bandits { min-width: 0; flex: none !important; }
   .tws-bandits__head { flex-wrap: wrap; row-gap: 2px; }

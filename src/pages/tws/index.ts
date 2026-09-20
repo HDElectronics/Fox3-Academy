@@ -1,7 +1,8 @@
 /**
  * [OWNER: page-tws] Track while scan, in 3D, for every jet: RWS vs TWS vs STT, track files, designation and
  * multi-target shots where the jet allows them, and above all what each bandit's RWR hears.
- * Route #/tws. Query: ?ac=<id> selects the jet once on mount; ?shot=tracks|mid|active|stt|end|demo pre-rolls the
+ * Route #/tws teaches the lesson; #/tws?lab=free opens Practice. ?ac=<id> selects the jet once on mount.
+ * ?shot=tracks|mid|active|stt|end|demo pre-rolls the
  * drill with the demo pilot (screenshots); &pause=1 starts paused; &cam=top|chase picks the camera.
  */
 import './style.css';
@@ -13,7 +14,7 @@ import { RWRS } from '../../data/rwr';
 import { CameraRig, FramePriority, Stage, WorldView, isWebGLAvailable } from '../../render';
 import type { AircraftLike } from '../../render';
 import {
-  bindKeys, button, callout, chips, cleanup, coachBox, checklist, consolePanel, eventLog, h, keyHint, labLayout,
+  bindKeys, button, callout, chips, cleanup, coachBox, checklist, consolePanel, disclosure, eventLog, h, keyHint, labLayout,
   lamp, modal, placard, readouts, screenBezel, segmented, setAttr, setText, slider, toggle,
   type KeyBinding, type KeyMap, type ModalHandle, type SegOption,
 } from '../../ui';
@@ -99,7 +100,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   let flashText = '', flashAt = -1e9;
   let selected: EntityId | null = null;
   let saved = !!ctx.app.getProgress(`tws:${ac}:done`);
-  let autoplay = !L.freeLab && shot === 'demo';
+  const autoplay = !L.freeLab && shot === 'demo';
   const labInput = new FreeLabInput();
   const holds = new LabTimers();
   bag.add(() => labInput.clear());
@@ -171,14 +172,15 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   const sessionNote = h('p', { class: 'tws-hint' });
   const snapToggle = toggle({ id: 'tws-cursor-snap', label: 'DCS СНП cursor snap', value: false,
     onChange: value => { L.dcsCursorSnap = value; radar.setOptions({ manualCursor: L.freeLab && !value }); updateSession(); } });
-  const sessionMode = segmented<'guided' | 'free'>({ id: 'tws-session', label: 'Practice', value: L.freeLab ? 'free' : 'guided', fill: true,
-    options: [{ value: 'guided', label: 'Guided course' }, { value: 'free', label: 'Free lab' }],
-    onChange: value => { L.freeLab = value === 'free'; autoplay = false; labInput.clear(); reset(); radar.setOptions({ manualCursor: L.freeLab && !L.dcsCursorSnap }); updateSession(); viewEl.focus({ preventScroll: true }); } });
+  const sessionMode = segmented<'guided' | 'free'>({ id: 'tws-session', ariaLabel: 'Learning or practice', value: L.freeLab ? 'free' : 'guided', fill: true,
+    options: [{ value: 'guided', label: 'Learn' }, { value: 'free', label: 'Practice' }],
+    onChange: value => ctx.navigate(value === 'free' ? 'tws?lab=free' : 'tws') });
   const sessionPanel = consolePanel({ id: 'tws-practice', title: 'Practice mode', dense: true,
     children: [sessionNote, snapToggle.el] });
   function updateSession(): void {
     radarCv.setAttribute('aria-label', L.freeLab ? 'Your radar display. Click to position the cursor; use Designate or Lock to acquire a contact.' : 'Your radar display. Click a contact to designate or lock it.');
     lessonPanel.el.hidden = L.freeLab;
+    lab.el.dataset.session = L.freeLab ? 'practice' : 'learn';
     snapToggle.el.hidden = !L.freeLab || !L.cursorSnaps;
     sessionNote.textContent = L.freeLab
       ? 'Hold cursor keys to slew; Designate / Lock acts only under the cursor. Click the radar to position the cursor. Arrow keys command heading and altitude (trainer controls). No merge or time limit.' + (L.cursorSnaps ? L.dcsCursorSnap ? ' DCS СНП: moving onto a firm track snaps and designates; 85% Rmax auto-lock still applies.' : ' Manual designation is a trainer aid: DCS СНП normally snaps when slewed onto a track. After designation, 85% Rmax auto-lock still applies.' : '')
@@ -280,7 +282,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   });
   const cockpitPanel = consolePanel({
     id: 'tws-cockpit', title: `Radar and weapons · ${spec.short}`, dense: true,
-    children: [modeSeg.el, actRow, weaponSeg.el, h('div', { class: 'tws-firerow' }, fireBtn.el, cueLamp.el), fireWhy, weaponInfo, steerSeg.el],
+    children: [modeSeg.el, actRow, weaponSeg.el, h('div', { class: 'tws-firerow' }, fireBtn.el, cueLamp.el), fireWhy, steerSeg.el],
   });
 
   const progressEl = h('span', { class: 'tws-progress' }, '');
@@ -312,16 +314,38 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   });
   const simple = callout({ kind: 'simplified', body: h('ul', { class: 'tws-simple' }, intro.simplified.map(s => h('li', null, s))) });
 
+  // The mobile controls invoke the same buttons as the console. A single sync path keeps
+  // availability, explanations and aircraft-specific designation legends identical.
+  const mobileDes = button({ id: 'tws-mobile-designate', label: 'Designate', onClick: () => desBtn.el.click() });
+  const mobileLock = button({ id: 'tws-mobile-lock', label: 'Lock primary', title: sttBtn.el.title, onClick: () => sttBtn.el.click() });
+  const mobileUnlock = button({ id: 'tws-mobile-unlock', label: 'Unlock', onClick: () => unlockBtn.el.click() });
+  const mobileFire = button({ id: 'tws-mobile-fire', label: 'Fire', variant: 'primary', onClick: () => { fireBtn.el.click(); updateUi(); } });
+  const mobileNow = h('p', { class: 'tws-mobile-now' });
+  const mobileStatus = h('p', { class: 'tws-mobile-status', role: 'status' });
+  const mobileActions = h('div', { class: 'tws-mobile-actions' }, mobileNow,
+    h('div', { class: 'tws-mobile-buttons' }, mobileDes.el, mobileLock.el, mobileUnlock.el, mobileFire.el), mobileStatus);
+  const brief = h('div', { class: 'tws-brief' }, coach.el, lessonPanel.el);
+  const banditExtras = disclosure({ id: 'tws-bandit-details', title: 'Bandit warnings · observer view',
+    content: [banditsBlock, rwrBezel.el] });
+
   // ------------------------------------------------------------------ layout
   const lab = labLayout({
-    id: 'tws-lab', class: 'tws',
-    header: { title: 'Track while scan', actions: sessionMode.el, meta: `${spec.short} · ${spec.radar.name} · ${intro.weaponLine}`, lede: intro.lede },
+    id: 'tws-lab', class: 'tws', mobileTabs: true, mobileActions,
+    header: { title: 'Track while scan', actions: sessionMode.el, meta: `${spec.short} · ${spec.radar.name}` },
     viewport: viewEl,
-    strip: [radarBezel.el, banditsBlock, rwrBezel.el],
-    console: [sessionPanel.el, coach.el, cockpitPanel.el, lessonPanel.el, scanPanel.el, logPanel.el, keysPanel.el, simple],
+    strip: [radarBezel.el, brief],
+    console: [cockpitPanel.el,
+      disclosure({ title: 'Scan settings', content: scanPanel.el }),
+      disclosure({ title: 'Cursor and trainer controls', content: sessionPanel.el }),
+      disclosure({ title: 'World layers and legend', content: [layerChips.el, legend] }),
+      banditExtras,
+      disclosure({ title: 'Event log', content: logPanel.el }),
+      disclosure({ title: 'Keyboard controls', content: keysPanel.el }),
+      disclosure({ title: 'Lesson notes and accuracy', content: [h('p', { class: 'tws-hint' }, intro.lede), weaponInfo, simple] }),
+    ],
   });
-  lab.overlay('tl', legend);
-  lab.overlay('tr', camSeg.el, layerChips.el);
+  bag.add(() => lab.destroy());
+  lab.overlay('tr', camSeg.el);
   lab.overlay('bl', clock);
   ctx.root.append(lab.el);
   updateSession();
@@ -624,6 +648,13 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     setWhy(cycleBtn, !tws ? 'Works in TWS' : ac === 'jf17' && st.designated.length < 2 ? 'Bug a second track first (SPT)' : null);
     setWhy(sttBtn, st.mode === 'stt' ? 'Already locked' : !hasLockTarget ? noContact : null);
     setWhy(unlockBtn, st.mode === 'stt' || (tws && st.designated.length > 0) ? null : 'Nothing locked or designated');
+    for (const [source, mobile] of [[desBtn, mobileDes], [sttBtn, mobileLock], [unlockBtn, mobileUnlock]] as const) {
+      mobile.setDisabled(source.el.disabled);
+      mobile.el.title = source.el.title;
+    }
+    setLegend(mobileDes, relock ? 'Lock cursor' : legends.get(desBtn) ?? 'Designate');
+    // RWS Designate already locks: avoid two identical actions on a small screen.
+    mobileLock.el.hidden = !spec.radar.tws || st.mode === 'rws';
   }
 
   function updateUi(): void {
@@ -655,6 +686,11 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     cueLamp.set(pic?.shootCue && ok ? 'on' : 'off');
     setText(fireWhy, L.ended ? '' : ok ? (pic?.shootCue ? `${cueText} lit: in the zone.` : `Launch allowed. ${pic?.launchBlockedReason ?? ''}`.trim()) : (ck?.reason ?? ''));
     setAttr(fireWhy, 'data-ok', ok ? 'true' : null);
+    mobileFire.setDisabled(!ok);
+    setLegend(mobileFire, L.snp2 && (L.me.stores.r77 ?? 0) >= 2 ? 'Fire ×2' : 'Fire');
+    mobileFire.el.title = `${legends.get(fireBtn) ?? 'Fire'}. ${fireWhy.textContent ?? ''}`;
+    setText(mobileStatus, `${short(spec.radar.modeLabels[st.mode]) || st.mode.toUpperCase()} · ${wid ? MISSILES[wid].name + ': ' : ''}${fireWhy.textContent || (paused ? 'Paused' : 'Training in progress')}`);
+    setAttr(mobileStatus, 'data-ok', ok ? 'true' : null);
     // Coach.
     const now = performance.now();
     if (now - flashAt < FLASH_MS) coach.set(flashText, '', 'caution');
@@ -671,6 +707,10 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     }
     list.setCurrent(current);
     setText(progressEl, `${done} / ${steps.length}`);
+    const currentStep = steps.find(s => s.id === current);
+    setText(mobileNow, now - flashAt < FLASH_MS ? flashText : L.freeLab
+      ? 'Practice · Select a contact in World or position the cursor in Displays.'
+      : `Now · ${currentStep?.text ?? 'Checklist complete'} (${done}/${steps.length})`);
     if (done === steps.length && !saved) {
       saved = true;
       if (!L.freeLab) ctx.app.setProgress(`tws:${ac}:done`, true);
