@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add an F-16C 2D cockpit explorer with 399 sourced items across 49 panels, search, individual explanations,
+  MFD bezel layouts, local exploration progress and focused mobile details. Label coverage limits and
+  manual-unavailable or uncertain interactions; other aircraft remain explicitly unmapped.
 - Organize navigation around Learn, Practice, Fly and Reference; retain the 3D aircraft overview and add a
   dedicated practice directory with separate guided/free TWS entry points.
 - Keep the world prominent in 3D labs, collapse secondary details, and add focused phone tabs with persistent

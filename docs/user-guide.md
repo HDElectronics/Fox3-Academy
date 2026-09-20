@@ -27,6 +27,17 @@ on the Su-27), how many tracks and how many targets can have missiles at once, w
 detection range, RWR, chaff and flares, and one card per missile with its launch-zone ranges and the rule you
 must obey to guide it. Use the Jet selector in the top bar to switch aircraft.
 
+### Cockpit explorer
+Open **Cockpit** from Learn or **Cockpit explorer** from Reference. The first aircraft is the F-16C:
+399 mapped items across 49 panels. Choose an area and panel, or search by label, system or function.
+Select an item for its purpose, operation, positions, observable effects and a link to the DCS guide page.
+On phones, **Back to panel** restores your previous selection. Open **Cockpit layout** for the region map.
+
+These original schematics explain controls; they do not operate simulated aircraft systems. Progress counts
+explanations opened, not mastery. Manual-unavailable and uncertain items are labelled, and unknown key
+bindings are not invented. Other aircraft show an explicit coverage notice. See the
+[coverage note](research/f16-cockpit.md) for omissions and current-game verification still needed.
+
 ### Radar
 The scan volume in 3D. Change azimuth width, bars, antenna elevation and range and watch what the radar can
 see. Click any jet (in 3D, on your radar display, or in the side view) and the **Why** panel says why it is or

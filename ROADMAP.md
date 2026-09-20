@@ -51,7 +51,11 @@ touch-friendly hotspots. Prioritize one complete aircraft over partial coverage 
 
 Use 3D only where licensed cockpit assets, readable labels, accurate control placement, and browser
 performance justify it. Keep the same control metadata for both presentations and retain an accessible
-2D fallback. This is planned work, not part of the current P1 implementation.
+2D fallback. The first F-16C explorer now provides 399 mapped items across 49 panels, search, source links
+and mobile details. Its original schematics are informational, with explicit omissions and uncertainty
+labels; they do not simulate aircraft systems. See [coverage and sources](docs/research/f16-cockpit.md).
+Next, validate current-game interactions, improve spatial panel placement and zoom, and add procedural
+walkthroughs before expanding to another aircraft.
 
 ## 5. Learning and maintenance
 
@@ -86,7 +90,7 @@ and explicit completion criteria before expanding across the fleet.
 | Slice | First usable result | Prerequisite / acceptance |
 |---|---|---|
 | Approved aircraft visuals | Replace one procedural exterior with the reviewed F-16 and retain a fallback | Final asset licence/source package, verified orientation and scale, phone performance budget; review every subsequent aircraft independently |
-| Cockpit exploration | One complete 2D panel explorer with searchable controls and linked procedures | Sourced pilot-facing labels and effects, keyboard/touch hotspots, clear coverage and uncertainty labels |
+| Cockpit exploration | F-16C reference explorer implemented; next validate interactions and add procedure walkthroughs | Resolve documented coverage gaps, improve spatial diagrams and zoom, verify current DCS actions before claiming complete coverage |
 | Flight fundamentals | One airfield and aircraft for straight flight, turns, trim, pattern, takeoff and landing | Dedicated handling model, control axes, ground contact and clear fidelity limits; do not reuse tactical autopilot as a flight model |
 | Communications | Tune a radio and complete a scripted startup/taxi/departure exchange | Per-aircraft radio controls, sourced phraseology and visible transcript; speech input optional |
 | Jamming | A guided and free DCS exercise comparing jammer on/off and the displayed radar picture | Verified per-module gameplay rules, version notes and uncertainty labels; no engineering-level electronic-warfare model |

@@ -27,6 +27,7 @@ npm run build        # dist/index.html, single file, works offline except for we
 |---|---|
 | Learn | Follow the lesson path with a 3D aircraft overview and progress for each jet. |
 | Practice | Enter the manual TWS lab or configurable Radar, Missile and Defense experiments. |
+| Cockpit explorer | Search 399 mapped F-16C controls, displays and fixtures across 49 panels, with explanations and source pages. |
 | Radar | The scan volume in 3D: azimuth, bars, antenna elevation, frame time, altitude coverage, the notch. |
 | TWS | Guided lessons and free practice: cursor control, designation, multi-target shots, and the target's RWR. |
 | Missiles | Launch zones: altitude, speed, aspect and target manoeuvre against Rmax and Rne, with flight plots. |
