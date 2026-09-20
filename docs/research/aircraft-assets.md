@@ -2,7 +2,7 @@
 
 Research date: 2026-09-21
 
-This is a bounded source and licence survey for the ten aircraft currently in Fox Three School. It covers visual aircraft and cockpit assets only. No assets were downloaded or inspected in a modelling tool, so geometry quality, texture contents, draw cost and exact variant details still need a local review before use.
+This is a bounded source and licence survey for the ten aircraft currently in Fox Three School. It covers visual aircraft and cockpit assets only. A follow-up exterior review downloaded and converted the F-16, F-15 and MiG-29 candidates outside this repository. No aircraft assets have been adopted or committed here; exact variant detail, target-render appearance and performance still require review.
 
 ## Acceptance rule
 
@@ -24,10 +24,10 @@ The project is MIT licensed. GPL aircraft are open-source assets, but adding the
 | Fox Three School aircraft | Best source found | Rights evidence | Variant and asset fit | Decision |
 |---|---|---|---|---|
 | Su-27S Flanker-B | [Sketchfab: Sukhoi Su-27](https://sketchfab.com/3d-models/sukhoi-su-27-flanker-2541c1dbc6c1499cb7b38b5bf1314750) | Page says CC Attribution (Sketchfab applies CC BY 4.0 to this option). | Low-poly external model; page gives a general aircraft description but does not say the uploader created the mesh or identify source files. Other prominent results explicitly say DCS or War Thunder. | **Blocked.** Ask the uploader for creation/source provenance before considering it. Explicit DCS/War Thunder uploads are rejected. |
-| Su-33 Flanker-D | [FlightGear FGAddon package](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/) | Package root contains the [GPL v2 text](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/COPYING). | The package's [`su33-set.xml`](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/su33-set.xml) identifies Su-33 Flanker-D, author Emmanuel Baranger, model rating 4 and cockpit rating 2. | **Candidate with licence-scope check.** Exact external airframe. Confirm with the maintainer that `COPYING` covers every mesh, texture and livery and whether the grant is GPL-2.0-only or later. Cockpit quality is not established. |
+| Su-33 Flanker-D | [FlightGear FGAddon package](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/) | Package root contains the [GPL v2 text](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/COPYING). | The package's [`su33-set.xml`](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/su33-set.xml) identifies Su-33 Flanker-D, author Emmanuel Baranger, model rating 4 and cockpit rating 2. | **Withheld from redistribution.** Follow-up found third-party texture/livery credits and no explicit package-wide grant. Confirm all components and whether the grant is GPL-2.0-only or later before publishing a preview. |
 | J-11A Flanker-L | [Sketchfab: Shenyang J11](https://sketchfab.com/3d-models/shenyang-j11-flanker-l-aaa7700649fc43848020981313cc595c) | Page says CC Attribution. | About 30k triangles and a family match, but the page does not identify the J-11A subvariant, original modelling work or source provenance. | **Blocked.** Obtain written provenance and confirm the A variant before use. A repainted Su-27 may be acceptable only if the UI labels it as a family stand-in. |
 | MiG-29S Fulcrum-C | [FlightGear MiG-29 package](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Mig-29/) | The [package README](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Mig-29/README.txt) says the model is distributed under GPL v2; the root includes [`COPYING.txt`](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Mig-29/COPYING.txt). | README identifies a MiG-29 9-12 Fulcrum-A, says physical modelling was unfinished, and says the cockpit uses English rather than Cyrillic labels. It is not the DCS MiG-29S 9-13/Fulcrum-C. | **Family stand-in only.** Rights are explicit, but the variant and cockpit are wrong. Do not present it as an accurate MiG-29S cockpit. |
-| F-15C Eagle | [OpenGameArt: F-15](https://opengameart.org/content/f-15) | Asset page names MNDV.ecb as author, specifies OGA-BY 3.0 and an attribution notice; it says packed matcap textures are CC0. | A small Blender external model with movable control surfaces. The page does not identify the subvariant, and no cockpit is claimed. | **Promising external candidate.** Inspect the silhouette and included-file notices before treating it as an F-15C. Attribute `mandervellt records`, link the source/licence and mark changes. |
+| F-15C Eagle | [OpenGameArt: F-15](https://opengameart.org/content/f-15) | Asset page names MNDV.ecb as author, specifies OGA-BY 3.0 and an attribution notice; it says packed matcap textures are CC0. | A small Blender external model with movable control surfaces. The page does not identify the subvariant, and no cockpit is claimed. | **Low-poly fallback only.** Local conversion has about 2,820 triangles, flat colors and no cockpit detail. Reference schematic images were excluded because their separate provenance was unclear. Exact C variant is unverified. Attribute `mandervellt records`, link the source/licence and mark changes. |
 | F-15C Eagle | [FlightGear F-15 package](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/F-15/) | No `LICENSE`, `COPYING` or copyright file was present in the current package root. The [maintainer README](https://github.com/FGMEMBERS/F-15) does not state a licence. | Exact F-15C configuration and a highly rated external/cockpit model, but its README says the cockpit uses third-party photographs, which need their own redistribution grant. | **Rejected until licensed.** Do not infer a licence from inclusion in FlightGear or from a mirror repository. |
 | F/A-18C Hornet Lot 20 | [Sketchfab: F/A-18C Hornet](https://sketchfab.com/3d-models/mcdonnell-douglas-fa-18c-hornet-c68c8417c8e84864b2a5e0c35c178fd9) | Page says CC Attribution. | About 10k triangles and an exact C-model title, but the description does not establish original authorship, Lot 20 details or cockpit content. | **Blocked.** Obtain creator/source provenance and verify Lot 20 geometry before use. |
 | F/A-18C Hornet Lot 20 cockpit | [OpenHornet](https://openhornet.com/) | Project page says CC BY-NC-SA and personal non-commercial use. | Detailed F/A-18C Lot 20 home-cockpit CAD, not a game-ready aircraft asset. | **Rejected for this project.** The non-commercial restriction is not open-source-compatible and conflicts with an MIT-distributed asset. It may be consulted only within its terms; do not copy its CAD or art. |
@@ -45,12 +45,30 @@ Sketchfab's own [Creative Commons overview](https://sketchfab.com/blogs/communit
 
 There is no verified, exact, permissively licensed set covering all ten aircraft. The current defensible shortlist is:
 
-1. FlightGear F-16C Block 50, exact, GPL v2-or-later.
-2. FlightGear Su-33, exact external airframe, GPL v2 text at package root; confirm scope.
-3. OpenGameArt F-15, open attribution licence, external family model; verify the C variant visually.
-4. FlightGear MiG-29 9-12 and Mirage 2000-5 only as explicitly labelled family stand-ins, both GPL and both unsuitable for exact cockpits.
+1. FlightGear F-16CJ Block 50 configuration, GPL v2-or-later: strongest exterior review candidate. Its exterior mesh is shared by several variants, so configuration identity does not prove every visual detail.
+2. OpenGameArt F-15, OGA-BY 3.0: low-poly family fallback, below the intended fidelity target.
+3. FlightGear MiG-29 9-12 and Mirage 2000-5: explicitly labelled family stand-ins only, both GPL and unsuitable for exact cockpits.
+4. Su-33 remains withheld pending an explicit mesh/texture/livery grant.
 
 The Su-27S, J-11A, F/A-18C Lot 20, F-14B, JF-17 and Mirage 2000C still lack a corroborated exact source with both clear rights and credible provenance. Keep the existing project-owned procedural aircraft for those jets unless a creator supplies an explicit licence and provenance. This is preferable to mixing visual fidelity levels or importing an attractive but unlicensed game extraction.
+
+## Local exterior evaluation
+
+- **F-16:** inspected source revision `0d0d3d425a9a852b9cd6a764dedee7c9c72cdf51`. Assimp conversion retains
+  about 18,000 faces and four textures. Blender inspection found coherent geometry, UVs and normals. Raw
+  conversion exposes FlightGear afterburner-effect geometry, opaque canopy glass and deployed landing gear;
+  a review export must identify any effect removal, material approximations and Block 50 configuration
+  filtering. No separate cockpit was imported. Preserve the original Blender/AC3D inputs and converter.
+- **MiG-29:** converted the GPLv2 9-12 airframe and its texture. This older exterior remains a wrong-variant
+  comparison for MiG-29S. Cockpit, detailed nozzle submodels and animations were not imported.
+- **F-15:** the author-uploaded Blender file is editable but low detail. The review export removes reference
+  drawings, uses flat PBR colors, and does not establish exact F-15C geometry.
+- **Additional Hornet lead:** [HeriFajar's original-author low-poly Hornet](https://sketchfab.com/3d-models/fa-18-hornet-low-poly-25a2485d6eb4428f89c014e03fb42047)
+  claims CC BY 4.0 and authorship, but the creator warns of minimal textures, no cockpit, and possible
+  dimensional inaccuracies. Exact C variant is unverified; this is not a high-fidelity recommendation.
+
+The research has not produced a uniform high-fidelity open-licensed fleet. Review models independently
+before adoption, with their licences and source archives separate from the MIT application code.
 
 ## 2D-first cockpit explorer
 
