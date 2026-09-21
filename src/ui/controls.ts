@@ -6,6 +6,8 @@
  */
 import { h, append, setText, setAttr, cx, type Child } from './dom';
 import { kbd, ariaShortcut } from './keys';
+import { layoutSliderZones, type SliderZones } from './sliderZones';
+export type { SliderZoneBand, SliderZoneMark, SliderZones } from './sliderZones';
 
 // ---- shared ------------------------------------------------------------------------------------
 
@@ -315,6 +317,8 @@ export interface SliderOptions {
   onChange?: (v: number) => void;
   /** Tick marks under the track: values or { value, label }. Change them later with setMarks(). */
   marks?: SliderMark[];
+  /** Decorative bands and labeled boundaries below the track, in slider units. */
+  zones?: SliderZones;
   /** Readout width in characters so the layout does not jump (default: fits min/max). */
   readoutCh?: number;
   disabled?: boolean;
@@ -331,6 +335,8 @@ export interface SliderHandle {
   setDisabled(disabled: boolean): void;
   /** Replace the tick marks under the track (e.g. live Rmin / Rne / Rmax). Marks outside min..max are dropped. */
   setMarks(marks: SliderMark[]): void;
+  /** Replace or remove the decorative zone band; leaves the native input and focus intact. */
+  setZones(zones: SliderZones | null): void;
 }
 
 export type SliderMark = number | { value: number; label?: string; title?: string };
@@ -351,9 +357,10 @@ export function slider(o: SliderOptions): SliderHandle {
   const readCh = o.readoutCh ?? Math.max(fmt(min).length, fmt(max).length, 3);
   out.style.setProperty('--ch', String(readCh));
   const marksEl = h('div', { class: 'ui-slider__marks', 'aria-hidden': 'true' });
+  const zonesEl = h('div', { class: 'ui-slider-zones', 'aria-hidden': 'true' });
   const el = h('div', { class: cx('ui-slider', o.class) },
     h('div', { class: 'ui-slider__head' }, placard(o.label, { for: o.id }), out),
-    h('div', { class: 'ui-slider__track' }, input, marksEl),
+    h('div', { class: 'ui-slider__track' }, input, marksEl, zonesEl),
     o.hint ? h('p', { class: 'ui-slider__hint', id: o.id + '-hint' }, o.hint) : null);
 
   const pct = (v: number) => (max > min ? ((v - min) / (max - min)) * 100 : 0);
@@ -372,6 +379,38 @@ export function slider(o: SliderOptions): SliderHandle {
       return [tick];
     }));
   };
+  let zones = o.zones ?? null;
+  let zonesKey = '';
+  const renderZones = () => {
+    const key = JSON.stringify([min, max, zones]);
+    if (key === zonesKey) return;
+    zonesKey = key;
+    zonesEl.hidden = !zones;
+    if (!zones) { zonesEl.replaceChildren(); return; }
+    const layout = layoutSliderZones(zones, min, max);
+    const bar = h('div', { class: 'ui-slider-zones__bar' });
+    const labels = h('div', { class: 'ui-slider-zones__labels' });
+    for (const band of layout.bands) {
+      const span = h('span', { class: `ui-slider-zones__${band.tone}` });
+      span.style.left = `${band.left}%`; span.style.width = `${band.width}%`;
+      bar.append(span);
+    }
+    for (const mark of layout.marks) {
+      if (mark.cue) {
+        const cue = h('span', { class: 'ui-slider-zones__cue' });
+        cue.style.left = `${mark.left}%`; bar.append(cue);
+      }
+      if (mark.showLabel) {
+        const label = h('span', { class: cx('ui-slider-zones__label', mark.cue && 'is-cue') }, mark.label);
+        label.style.left = `${mark.left}%`;
+        if (mark.left < 6) label.style.transform = 'none';
+        else if (mark.left > 94) label.style.transform = 'translateX(-100%)';
+        labels.append(label);
+      }
+    }
+    zonesEl.classList.toggle('is-exact', !!zones.exact);
+    zonesEl.replaceChildren(bar, labels);
+  };
   const render = () => {
     const v = Number(input.value);
     setText(num, fmt(v));
@@ -381,6 +420,7 @@ export function slider(o: SliderOptions): SliderHandle {
     input.setAttribute('aria-valuetext', fmt(v) + (unit ? ' ' + unit : ''));
   };
   renderMarks();
+  renderZones();
   render();
   input.addEventListener('input', () => { render(); o.onInput?.(Number(input.value)); });
   input.addEventListener('change', () => { render(); o.onChange?.(Number(input.value)); });
@@ -397,10 +437,11 @@ export function slider(o: SliderOptions): SliderHandle {
     setRange(a, b, s) {
       min = a; max = b; if (s !== undefined) step = s;
       input.min = String(min); input.max = String(max); input.step = String(step);
-      renderMarks(); render();
+      renderMarks(); renderZones(); render();
     },
     setDisabled(d) { input.disabled = d; },
     setMarks(m) { marks = m.slice(); renderMarks(); },
+    setZones(value) { zones = value; renderZones(); },
   };
 }
 

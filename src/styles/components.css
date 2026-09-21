@@ -791,3 +791,16 @@
 @media (prefers-reduced-motion: reduce) {
   .ui-lamp[data-state="flash"], .ui-coach.is-new .ui-coach__lamp, .ui-toast { animation: none; }
 }
+
+/* Decorative slider zones share the native thumb's 7 px endpoint inset. */
+.ui-slider-zones { position: relative; margin: 0 7px; padding-bottom: 14px; pointer-events: none; }
+.ui-slider-zones__bar { position: relative; height: 10px; border-radius: 2px; background: var(--btn); border: 1px solid var(--btn-line); overflow: hidden; }
+.ui-slider-zones__bar > span { position: absolute; top: 0; bottom: 0; }
+.ui-slider-zones__hatched { background: repeating-linear-gradient(135deg, var(--s-label) 0 2px, transparent 2px 5px); opacity: 0.8; }
+.ui-slider-zones__solid { background: var(--btn-on); }
+.ui-slider-zones__outline { background: color-mix(in srgb, var(--btn-on) 30%, var(--btn)); box-shadow: inset 0 0 0 1px var(--btn-on); }
+.ui-slider-zones__cue { width: 2px; margin-left: -1px; background: var(--btn-ink); }
+.ui-slider-zones__labels { position: absolute; left: 0; right: 0; top: 12px; height: 12px; }
+.ui-slider-zones__label { position: absolute; top: 0; transform: translateX(-50%); font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; color: var(--s-ink); white-space: nowrap; }
+.ui-slider-zones__label.is-cue { color: var(--s-label); }
+.ui-slider-zones.is-exact .ui-slider-zones__bar { outline: 1px dashed var(--s-ink); outline-offset: 1px; }

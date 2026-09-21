@@ -45,7 +45,7 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
 | `button({ label, id?, onClick?, variant?: 'cap'\|'primary'\|'ghost', size?: 's'\|'m'\|'l', keys?, lamp?, lit?, disabled?, title?, ariaLabel?, block?, keepCase?, class? })` | `{ el, setLabel(c), setDisabled(b), setLit(b) }` | `primary` = lit cap for the one main action on a panel. `lamp: true` adds a lamp strip that `setLit(true)` lights (SHOOT / ПР cue). `ghost` = underlined text action. A lit `primary` (FIRE with the shoot cue) keeps its dark legend and glows, with a dark lamp bar when it has `lamp`; a lit `ghost` goes bold in the surface ink. |
 | `toggle({ id, label, value?, onChange?, style?: 'lamp'\|'switch', states?: [off, on], keys?, size?, disabled?, title? })` | `{ el, value, set(v, emit?), toggle(emit = true), setDisabled }` | `lamp`: latching push-button, `aria-pressed`, lamp strip lit when on. `switch`: lever with ON/OFF legend, `role=switch` + `aria-checked` (use for settings: audio, master arm). |
 | `segmented<T extends string\|number>({ id, label?, ariaLabel?, options: { value, label, sub?, title?, disabled?, keys? }[], value, onChange?, size?: 's', fill? })` | `{ el, group, value, set(v, emit?), setDisabled(v, b), setOption(v, patch), setOptions(opts, value?) }` | Radio group of caps. Arrow keys / Home / End move and select (skipping disabled), roving tabindex. `sub` is a small second line (e.g. frame time). `fill` stretches segments; they wrap when there is no room. **`setOption(v, { label?, sub?, title?, disabled?, keys? })` updates one cap in place** (no rebuild, focus stays): use it for live frame times or per-jet limits. `setOptions` rebuilds only when something a cap shows changed, and keeps keyboard focus on the same value. |
-| `slider({ id, label, min, max, step?, value, unit?, format?, onInput?, onChange?, marks?, readoutCh?, disabled?, hint? })` | `{ el, input, value, set(v, emit?), setUnit(u), setRange(min, max, step?), setDisabled, setMarks(marks) }` | Native range input with a black-glass digital readout (`<output>`). `onInput` is live while dragging, `onChange` on release. `marks`: numbers or `{ value, label?, title? }` ticks; **`setMarks(marks)` replaces them live** (e.g. Rmin / Rne / Rmax from `dlzFor`), is cheap when unchanged, and drops marks outside min..max. `aria-valuetext` includes the unit. |
+| `slider({ id, label, min, max, step?, value, unit?, format?, onInput?, onChange?, marks?, zones?, readoutCh?, disabled?, hint? })` | `{ el, input, value, set(v, emit?), setUnit(u), setRange(min, max, step?), setDisabled, setMarks(marks), setZones(zones) }` | Native range input with a black-glass digital readout (`<output>`). `onInput` is live while dragging, `onChange` on release. `marks`: numbers or `{ value, label?, title? }` ticks; **`setMarks(marks)` replaces them live** (e.g. Rmin / Rne / Rmax from `dlzFor`), is cheap when unchanged, and drops marks outside min..max. `aria-valuetext` includes the unit. |
 | `select<T extends string>({ id, label?, ariaLabel?, options: { value, label, disabled?, group? }[], value, onChange?, inline? })` | `{ el, select, value, set(v, emit?), setOptions(opts, v?), setDisabled }` | Native select as a cap; `group` builds `<optgroup>`s. |
 | `chips<T extends string>({ id, label?, ariaLabel?, options: { value, label, title?, disabled?, keys? }[], value: T[], onChange?(values, changed, on) })` | `{ el, value, has(v), set(values, emit?), toggle(v, on?, emit = true) }` | Any-of-N switches with an indicator lamp (`aria-pressed`). For 3D layer toggles and filters. |
 | `tabs({ id, tabs: { id, label, content?, keys? }[], value?, onChange?, ariaLabel?, fill? })` | `{ el, list, panels: Record<id, HTMLElement>, value, set(id, emit?) }` | `role=tablist`; arrows move and select. Fill `panels[id]` any time. |
@@ -245,3 +245,16 @@ export default factory;
 - `base.css` sets `body { color: var(--panel-ink) }`, which is near-black in the Soviet skin; text
   placed straight on the page background needs a surface (`labLayout`, `docLayout`, `consolePanel`,
   `.ui-surface`) or `color: var(--s-ink)`.
+
+### Slider zone bands
+
+`zones?: SliderZones` and `setZones(zones | null)` add or remove decorative bands below the native
+range input. All values use the slider's own units. `bands` contain `{ from, to, tone }`, where tone
+is `hatched`, `solid`, or `outline`; `marks` contain `{ value, label, cue?, priority? }`. A cue draws a
+vertical line through the band. Higher-priority labels survive when boundaries are crowded; their
+cue lines remain visible. `exact: true` adds a dashed outline for calculated results.
+
+Bands clip to the current min/max; out-of-range marks are omitted. `setRange` recomputes placement,
+and unchanged `setZones` calls skip DOM rebuilding. The native input, focus, keyboard controls and
+readout remain intact. Zones are `aria-hidden` decoration: supply a textual explanation of their
+meaning beside the slider, as Missile Lab does with its launch-zone summary.
