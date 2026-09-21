@@ -478,7 +478,7 @@ const factory: PageFactory = (): Page => {
         const m = MISSILES[setup.missile];
         const mine = spec.missiles.includes(setup.missile);
         const bits = [`Fox ${m.fox}`, seekerWord(setup.missile), m.lofts ? 'lofts' : 'no loft'];
-        if (m.pitbullKm) bits.push(`pitbull ~${fmtR(m.pitbullKm * 1000, u)}`);
+        if (m.pitbullKm) bits.push(`pitbull ${m.pitbullApprox ? '~' : ''}${fmtR(m.pitbullKm * 1000, u)}`);
         const who = mine ? '' : ` Not on the ${spec.short}: carried by the ${AIRCRAFT[shooterTypeFor(ac, setup.missile)].short}.`;
         setText(missileInfo, bits.join(' · ') + '.' + who);
       }

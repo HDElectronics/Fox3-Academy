@@ -10,18 +10,6 @@ import { createRadarState } from '../../sim/radar';
 
 const R2D = 180 / Math.PI;
 
-/**
- * Single-target track-while-scan modes the sim does not model (docs/research/tomcat-thunder-mirage.md):
- * the M-2000C's PSID tracks one target while a 1-bar scan goes on, for awareness only; the Super 530D
- * fires from PSIC (a trigger pull in PSID switches to PSIC first).
- */
-export const SINGLE_TARGET_TWS: Partial<Record<AircraftId, string>> = { m2000c: 'PSID' };
-
-/** Jets whose "targets at once" number is not an ED figure (AIRCRAFT_CAVEATS says why). */
-export const TARGET_CAP_UNCONFIRMED: Partial<Record<AircraftId, string>> = {
-  fa18c: 'ED gives no cap on AIM-120s in the air; the 10 TWS track files are used here',
-};
-
 /** Where the detection numbers come from, when it is not the DCS AI sensor table. */
 const DETECT_SOURCE: Partial<Record<AircraftId, string>> = { f14b: 'Heatblur manual', m2000c: 'Guide figure' };
 export const detectSource = (spec: AircraftSpec): string => DETECT_SOURCE[spec.id] ?? 'DCS AI table';
@@ -114,7 +102,7 @@ export function modeChips(spec: AircraftSpec): ModeChip[] {
   const out: ModeChip[] = [];
   for (const m of order) {
     if (spec.radar.modes.includes(m)) out.push({ mode: m, label: spec.radar.modeLabels[m] ?? m.toUpperCase(), generic: GENERIC[m] ?? '' });
-    else if (m === 'tws' && SINGLE_TARGET_TWS[spec.id]) out.push({ mode: 'tws', label: SINGLE_TARGET_TWS[spec.id] ?? 'TWS', generic: 'one target only', limited: true });
+    else if (m === 'tws' && spec.radar.singleTargetTws?.label) out.push({ mode: 'tws', label: spec.radar.singleTargetTws?.label ?? 'TWS', generic: 'one target only', limited: true });
     else if (m === 'tws') out.push({ mode: 'tws', label: 'TWS', generic: 'not on this jet', missing: true });
   }
   return out;
@@ -131,7 +119,7 @@ export interface TwsRule {
 export function twsRule(spec: AircraftSpec, units: Units): TwsRule {
   const tws = spec.radar.tws;
   if (!tws) {
-    const one = SINGLE_TARGET_TWS[spec.id];
+    const one = spec.radar.singleTargetTws?.label;
     if (one) {
       return {
         answer: 'NO', yes: false,
@@ -155,7 +143,7 @@ export function twsRule(spec: AircraftSpec, units: Units): TwsRule {
   const f3 = primaryFox3(spec);
   const n = tws.maxSimultaneousTargets;
   const sarh = spec.missiles.map(m => MISSILES[m]).find(m => m.seeker === 'sarh');
-  const at = TARGET_CAP_UNCONFIRMED[spec.id] ? `several targets (simplified: ${n} here)` : `up to ${n} targets`;
+  const at = spec.radar.tws?.capConfidence === 'unpublished' ? `several targets (simplified: ${n} here)` : `up to ${n} targets`;
   let rule = `${f3 ? f3.name : 'Fox 3'} from TWS at ${at}, each with no lock or launch warning until its missile goes active.`;
   if (sarh) rule += ` The ${sarh.name} still needs ${sttLabel(spec)}.`;
   return { answer: 'YES', yes: true, rule };
@@ -182,8 +170,8 @@ export function capFacts(spec: AircraftSpec, units: Units): CapFacts {
     radarName: spec.radar.name,
     modes: modeChips(spec),
     scan: defaultScan(spec),
-    twsTracks: tws ? String(tws.maxTracks) : SINGLE_TARGET_TWS[spec.id] ? `1 (${SINGLE_TARGET_TWS[spec.id]})` : 'none',
-    targetsAtOnce: String(tws ? tws.maxSimultaneousTargets : 1) + (TARGET_CAP_UNCONFIRMED[spec.id] ? ' (simplified)' : ''),
+    twsTracks: tws ? String(tws.maxTracks) : spec.radar.singleTargetTws?.label ? `1 (${spec.radar.singleTargetTws?.label})` : 'none',
+    targetsAtOnce: String(tws ? tws.maxSimultaneousTargets : 1) + (spec.radar.tws?.capConfidence === 'unpublished' ? ' (simplified)' : ''),
     tws: twsRule(spec, units),
     detectHeadOnM: spec.radar.detectKm.headOn * 1000,
     detectTailM: spec.radar.detectKm.tail * 1000,
@@ -252,8 +240,7 @@ export function weaponFacts(spec: AircraftSpec, units: Units): WeaponFacts[] {
       : m.seeker === 'sarh' ? 'None (your STT)'
       : 'None (IR lock)';
     const pitbull =
-      // Pitbull distances are rough in DCS (they move with target size and the shot), so always '~'.
-      m.seeker === 'arh' && m.pitbullKm ? '~' + fmtR(m.pitbullKm * 1000, units)
+      m.seeker === 'arh' && m.pitbullKm ? (m.pitbullApprox ? '~' : '') + fmtR(m.pitbullKm * 1000, units)
       : m.seeker === 'sarh' ? 'Never (SARH)'
       : 'None (IR)';
     return {
@@ -358,7 +345,7 @@ export function lessonLine(route: LessonRoute, spec: AircraftSpec, units: Units)
     }
     case 'tws': {
       const tws = r.tws;
-      if (!tws && SINGLE_TARGET_TWS[spec.id]) return `The ${r.name} has no multi-target TWS (${SINGLE_TARGET_TWS[spec.id]} tracks one target for awareness): every shot needs ${sttLabel(spec)} and the target sees the lock from the start. See what TWS would change.`;
+      if (!tws && spec.radar.singleTargetTws?.label) return `The ${r.name} has no multi-target TWS (${spec.radar.singleTargetTws?.label} tracks one target for awareness): every shot needs ${sttLabel(spec)} and the target sees the lock from the start. See what TWS would change.`;
       if (!tws) return `The ${r.name} has no TWS: every shot needs ${sttLabel(spec)} and the target sees the lock from the start. See what TWS would change.`;
       if (tws.autoSttAtRmaxFraction) {
         let s = `${twsLabel(spec)} holds one designated track and auto-locks it at ${tws.autoSttAtRmaxFraction} Rmax. Learn when his RWR lights up and how to time it.`;
@@ -367,7 +354,7 @@ export function lessonLine(route: LessonRoute, spec: AircraftSpec, units: Units)
       }
       if (!tws.launchFromTws) return `${twsLabel(spec)} tracks ${tws.maxTracks} targets but shots leave from STT. Learn to keep the picture while you lock.`;
       const f3 = primaryFox3(spec);
-      const at = TARGET_CAP_UNCONFIRMED[spec.id] ? 'several targets' : `up to ${tws.maxSimultaneousTargets} targets`;
+      const at = spec.radar.tws?.capConfidence === 'unpublished' ? 'several targets' : `up to ${tws.maxSimultaneousTargets} targets`;
       return `${tws.maxTracks} tracks and one ${f3?.name ?? 'Fox 3'} at each of ${at}, with no lock warning until pitbull. ${TWS_VOCAB[spec.id] ?? ''}`.trim();
     }
     case 'missiles': {

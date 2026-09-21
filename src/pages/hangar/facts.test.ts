@@ -38,8 +38,8 @@ describe('capability readout', () => {
     }
   });
   it('says plainly what a jet cannot do', () => {
-    // A jet with no TWS mode at all (synthetic: the M-2000C's radar on a jet id without PSID).
-    const bare = { ...AIRCRAFT.m2000c, id: 'f16c' as const };
+    // A radar with neither multi-target nor single-target TWS metadata.
+    const bare = { ...AIRCRAFT.m2000c, radar: { ...AIRCRAFT.m2000c.radar, singleTargetTws: undefined } };
     expect(twsRule(bare, 'metric').answer).toBe('NO TWS');
     expect(modeChips(bare).some(m => m.mode === 'tws' && m.missing)).toBe(true);
     const su = twsRule(AIRCRAFT.su27, 'metric');
@@ -77,6 +77,14 @@ describe('capability readout', () => {
     expect(lessonLine('tws', AIRCRAFT.fa18c, 'imperial')).not.toContain('up to 10');
     expect(capFacts(AIRCRAFT.f16c, 'imperial').targetsAtOnce).toBe('6');
     expect(capFacts(AIRCRAFT.f15c, 'imperial').targetsAtOnce).toBe('4');
+  });
+  it('derives single-target modes and cap caveats from radar metadata, independent of aircraft id', () => {
+    const mirage = { ...AIRCRAFT.m2000c, radar: { ...AIRCRAFT.m2000c.radar, singleTargetTws: undefined } };
+    expect(modeChips(mirage).find(c => c.mode === 'tws')).toMatchObject({ missing: true });
+    expect(capFacts(mirage, 'imperial').twsTracks).toBe('none');
+    const hornet = { ...AIRCRAFT.fa18c, radar: { ...AIRCRAFT.fa18c.radar, tws: { ...AIRCRAFT.fa18c.radar.tws!, capConfidence: 'documented' as const } } };
+    expect(capFacts(hornet, 'imperial').targetsAtOnce).toBe('10');
+    expect(twsRule(hornet, 'imperial').rule).toContain('up to 10 targets');
   });
   it('names where each detection figure comes from', () => {
     expect(detectSource(AIRCRAFT.su27)).toBe('DCS AI table');
@@ -139,9 +147,9 @@ describe('weapons', () => {
       expect(n % c === 0 || n % c >= c - 1).toBe(true);
     }
   });
-  it('shows every pitbull distance as approximate', () => {
+  it('uses missile confidence when marking pitbull distances', () => {
     for (const id of AIRCRAFT_ORDER) for (const w of weaponFacts(AIRCRAFT[id], 'metric')) {
-      if (MISSILES[w.id].seeker === 'arh') expect(w.pitbull).toMatch(/^~\d/);
+      if (MISSILES[w.id].seeker === 'arh') expect(w.pitbull.startsWith('~')).toBe(MISSILES[w.id].pitbullApprox);
     }
   });
   it('does not claim M0.85 at 1 km in the range legend', () => {

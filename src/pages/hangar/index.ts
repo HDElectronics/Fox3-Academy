@@ -15,7 +15,7 @@ import { Stage } from '../../render';
 import { button, callout, cleanup, consolePanel, cx, h, kbd, readouts, screenBezel, setText, type Child } from '../../ui';
 import { mountHero } from './hero3d';
 import {
-  LESSON_PATH, LESSON_TITLE, SINGLE_TARGET_TWS, TARGET_CAP_UNCONFIRMED, capFacts, detectSource, detectionScale,
+  LESSON_PATH, LESSON_TITLE, capFacts, detectSource, detectionScale,
   doneElsewhere, fmtR, headlineBind, isDone, lessonLine, moduleLabel, nextLesson, primaryRadarMissile, rangeNum, refLegend,
   scaleFrac, weaponCols, weaponFacts, weaponScale, weaponsSummary,
   type LessonRoute, type ProgressReader, type Scale, type WeaponFacts,
@@ -137,7 +137,9 @@ function heroSection(spec: AircraftSpec, units: Units, next: LessonRoute | null,
       { id: 'tracks', label: 'TWS tracks', value: cap.twsTracks, title: 'Track files the radar keeps in TWS' },
       {
         id: 'targets', label: 'Targets at once', value: cap.targetsAtOnce,
-        title: TARGET_CAP_UNCONFIRMED[spec.id] ?? 'Targets your radar can guide missiles at, at the same time',
+        title: spec.radar.tws?.capConfidence === 'unpublished'
+          ? `ED gives no cap on AIM-120s in the air; the ${spec.radar.tws.maxTracks} TWS track files are used here`
+          : 'Targets your radar can guide missiles at, at the same time',
       },
       { id: 'twsl', label: 'Launch in TWS', value: cap.tws.answer },
       { id: 'gimbal', label: 'Gimbal (crank limit)', value: `±${cap.gimbalDeg}°`, title: 'Antenna azimuth limit: crank to just inside it while you support a shot' },
@@ -201,7 +203,7 @@ function rulesBand(spec: AircraftSpec, units: Units, openTws: () => void): HTMLE
   }
   return h('section', { class: 'hg-band', id: 'hg-band', 'aria-label': 'What it can and cannot do' },
     h('div', { class: 'hg-band__tws' },
-      h('h3', null, tws ? `TWS in the ${spec.short}, as DCS plays it` : `No ${SINGLE_TARGET_TWS[spec.id] ? 'multi-target ' : ''}TWS in the ${spec.short}`),
+      h('h3', null, tws ? `TWS in the ${spec.short}, as DCS plays it` : `No ${spec.radar.singleTargetTws ? 'multi-target ' : ''}TWS in the ${spec.short}`),
       twsBody,
       button({ label: tws ? 'Fly the TWS lesson' : 'See what TWS would change', variant: 'ghost', onClick: openTws }).el),
     h('div', { class: 'hg-band__list' },
