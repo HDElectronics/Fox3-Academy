@@ -238,6 +238,13 @@ export class World {
         alive: a.alive, radarMode: r.mode, sttTarget: r.stt.targetId,
         radar: { azCenter: r.azCenter, azHalf: r.azHalf, elCenter: r.elCenter, bars: r.bars, beamAz: r.beamAz, beamEl: r.beamEl },
         designated: r.designated.slice(),
+        radarContacts: {
+          bricks: r.bricks.map(b => ({ targetId: b.targetId, t: b.t, pos: [b.pos.x, b.pos.y, b.pos.z] })),
+          tracks: r.tracks.map(tr => ({
+            targetId: tr.targetId, label: tr.label, pos: [tr.pos.x, tr.pos.y, tr.pos.z],
+            vel: [tr.vel.x, tr.vel.y, tr.vel.z], lastHit: tr.lastHit, firm: tr.firm, coasting: tr.coasting,
+          })),
+        },
       });
     }
     for (const m of this.missiles.values()) {

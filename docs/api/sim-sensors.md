@@ -11,6 +11,16 @@ Facts come from `docs/research/*.md` and `src/data/aircraft.ts`. Where this modu
 
 ## Quick start
 
+### Recorded sensor state
+
+`World.recording` samples each aircraft's `radarContacts` every 0.25 s alongside its existing radar mode,
+designation order and STT target. `RecordedRadarContacts` stores echo positions/times and track estimated
+positions/velocities, labels, last-hit time, firm/coasting flags. Arrays and position tuples are copied;
+later scans cannot change old frames. Target IDs are association keys, not permission to look up truth.
+The field is optional so old recordings and synthetic Missile Lab frames remain compatible. An empty
+contact list means no contacts; an absent field means no sensor recording. Replays must use the latest
+sample at or before the requested time, never interpolate toward a future sensor update.
+
 ```ts
 import { World } from '../../sim/world';
 import { buildRadarPicture } from '../../sim/picture';

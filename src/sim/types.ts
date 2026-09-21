@@ -233,6 +233,15 @@ export interface SpawnOptions {
   jamming?: boolean;
 }
 
+/** Sensor estimates at one recording sample. Positions are measured/estimated, never truth lookups. */
+export interface RecordedRadarContacts {
+  bricks: { targetId: EntityId; t: number; pos: [number, number, number] }[];
+  tracks: {
+    targetId: EntityId; label: string; pos: [number, number, number]; vel: [number, number, number];
+    lastHit: number; firm: boolean; coasting: boolean;
+  }[];
+}
+
 /** A recorded frame for after-action replay (Tacview-style). */
 export interface RecordFrame {
   t: number;
@@ -242,6 +251,8 @@ export interface RecordFrame {
     radarMode: RadarModeId; sttTarget: EntityId | null;
     radar: { azCenter: number; azHalf: number; elCenter: number; bars: number; beamAz: number; beamEl: number };
     designated: EntityId[];
+    /** Optional for older recordings and synthetic Missile Lab replays. */
+    radarContacts?: RecordedRadarContacts;
   }[];
   missiles: {
     id: EntityId; type: MissileId; side: Side; shooterId: EntityId; targetId: EntityId | null;
