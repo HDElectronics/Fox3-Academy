@@ -30,6 +30,8 @@ export interface ScanChange {
   azCenter?: number;   // rad
   elCenter?: number;   // rad
   rangeScale?: number; // m
+  /** FC3 range-angle aiming: preserve the entered height difference while changing range. */
+  expectedRange?: number; // m; ignored on other radars
   cursor?: { az: number; range: number };
   /** TWS: keep the scan centred on the primary designated track (default true, as DCS does). */
   autoCenter?: boolean;
@@ -105,7 +107,6 @@ const DEFAULT_RULES: Omit<RadarRules, 'designationCap'> = {
 // The 60°-wide scan has three positions: left −60..0°, centre ±30°, right 0..+60° (FC3 manuals).
 const RU_FC3: RuleOverride = {
   redesignate: 'lock', whenFull: 'replace-last', unlockKeepsDesignation: false, supportNeedsDesignation: true,
-  azPositionsDeg: [-30, 0, 30],
 };
 
 const RULES: Partial<Record<AircraftId, RuleOverride>> = {
@@ -135,7 +136,7 @@ export function radarRules(type: AircraftId): RadarRules {
   const tws = AIRCRAFT[type].radar.tws;
   const { maxDesignations, ...o } = RULES[type] ?? {};
   const cap = tws ? Math.max(1, Math.min(tws.maxSimultaneousTargets, maxDesignations ?? Infinity)) : 0;
-  const rules: RadarRules = { ...DEFAULT_RULES, ...o, designationCap: cap };
+  const rules: RadarRules = { ...DEFAULT_RULES, ...o, azPositionsDeg: AIRCRAFT[type].radar.azCenterOptionsDeg ?? null, designationCap: cap };
   RULE_CACHE.set(type, rules);
   return rules;
 }
@@ -182,7 +183,7 @@ export function createRadarState(spec: AircraftSpec): RadarState {
   const azHalf = Math.min(Math.max(...r.azHalfWidthOptionsDeg), r.gimbalAzDeg) * D2R;
   const bars = r.barOptions.includes(4) ? 4 : r.barOptions[0];
   const st: RadarState = {
-    mode: 'rws', snp2: false, azCenter: 0, azHalf, elCenter: 0, bars,
+    mode: 'rws', snp2: false, expectedRange: spec.module === 'fc3' && spec.display === 'ru-hud' ? 50000 : null, azCenter: 0, azHalf, elCenter: 0, bars,
     rangeScale: (r.rangeScalesKm.find(k => k >= 80) ?? r.rangeScalesKm[r.rangeScalesKm.length - 1]) * 1000,
     beamAz: -azHalf, beamEl: 0, sweepDir: 1, bar: 0,
     frameTime: frameTimeFor(spec, azHalf, bars),
@@ -964,9 +965,15 @@ export function setScan(world: World, ac: Aircraft, change: ScanChange): void {
   if (change.bars !== undefined) st.bars = snap(r.barOptions, change.bars);
   if (st.mode === 'tws') applyTwsLimits(spec, st, change.bars !== undefined && change.azHalf === undefined ? 'bars' : 'az');
   if (change.azCenter !== undefined) {
-    const pos = radarRules(ac.type).azPositionsDeg;
+    const pos = r.azCenterOptionsDeg;
     st.azCenter = pos ? snap(pos, change.azCenter * R2D) * D2R : change.azCenter;
   }
+  if (change.expectedRange !== undefined && Number.isFinite(change.expectedRange) && st.expectedRange !== null) {
+    const heightDifference = st.expectedRange * Math.tan(st.elCenter);
+    st.expectedRange = clamp(change.expectedRange, 1000, Math.max(...r.rangeScalesKm) * 1000);
+    st.elCenter = Math.atan2(heightDifference, st.expectedRange);
+  }
+  // An explicit elevation in the same command overrides range-angle re-aiming.
   if (change.elCenter !== undefined) st.elCenter = change.elCenter;
   clampCenters(spec, st);
   if (change.rangeScale !== undefined) st.rangeScale = snap(r.rangeScalesKm, change.rangeScale / 1000) * 1000;

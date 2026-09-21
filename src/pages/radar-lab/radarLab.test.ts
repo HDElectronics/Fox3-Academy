@@ -277,6 +277,33 @@ describe('review fixes', () => {
     }
   });
 
+  test('FC3 presets initialize expected range from the preset cursor, not the generic radar default', () => {
+    const sc = EXERCISE_DEFS.free.scene('su27', 'metric');
+    const lw = buildLabWorld('su27', 'metric', sc, { ...sc.scan, cursorM: 70000 });
+    expect(lw.me.radar.expectedRange).toBe(70000);
+    expect(lw.me.radar.cursor.range).toBe(70000);
+  });
+
+  test('FC3 scene restarts retain independently entered expected range, cursor and tilt', () => {
+    const sc = EXERCISE_DEFS.free.scene('su27', 'metric');
+    const lw = buildLabWorld('su27', 'metric', sc, sc.scan);
+    lw.world.setScan(PLAYER, { expectedRange: 80000, cursor: { az: 0, range: 15000 }, elCenter: 3 * D2R });
+    const saved = readScan(lw.me);
+    expect(saved.expectedRangeM).toBe(80000);
+    expect(saved.cursorM).toBe(15000);
+    const again = buildLabWorld('su27', 'metric', sc, saved);
+    expect(again.me.radar.expectedRange).toBe(80000);
+    expect(again.me.radar.cursor.range).toBe(15000);
+    expect(again.me.radar.elCenter).toBeCloseTo(3 * D2R);
+  });
+
+  test('non-FC3 presets leave expected range absent', () => {
+    const sc = EXERCISE_DEFS.free.scene('f15c', 'imperial');
+    const lw = buildLabWorld('f15c', 'imperial', sc, { ...sc.scan, expectedRangeM: 70000 });
+    expect(lw.me.radar.expectedRange).toBeNull();
+    expect(readScan(lw.me).expectedRangeM).toBeUndefined();
+  });
+
   test('VS survives a scene restart; STT does not', () => {
     const sc = EXERCISE_DEFS.free.scene('fa18c', 'imperial');
     const lw = buildLabWorld('fa18c', 'imperial', sc, sc.scan);

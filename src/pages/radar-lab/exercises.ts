@@ -28,6 +28,8 @@ export interface ScanPreset {
   elCenterDeg: number;
   rangeScaleM: number;
   cursorM: number;
+  /** FC3 range-angle input, independent of cursorM; old presets start at cursorM. */
+  expectedRangeM?: number;
 }
 
 export interface SceneTarget extends RadarLabTarget { role: string }

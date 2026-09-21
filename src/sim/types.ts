@@ -55,6 +55,8 @@ export interface RadarState {
   snp2: boolean;
   /** Optional Phoenix launch override; otherwise derived from the current radar mode. */
   phoenixLaunchMode?: PhoenixLaunchMode;
+  /** FC3 range-angle aiming input in metres, independent of the display cursor; null on other radars. */
+  expectedRange: number | null;
   /** Scan volume, all relative to the nose / horizon. */
   azCenter: number;     // rad
   azHalf: number;       // rad

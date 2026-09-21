@@ -108,7 +108,7 @@ detection range to 0 at 100 % (`world.rand()`). Painting (for RWRs) happens on e
 | `canLock(world, ac, targetId)` | `{ ok, reason }`: radar on, has STT, target alive, inside gimbal, range ≤ `LOCK_RANGE_FACTOR (0.85) × detectionRange`, not notched. |
 | `lockTarget(world, ac, targetId)` | STT if `canLock`. Emits `lock` `locked` (and `unlocked` for a previous STT target). |
 | `unlock(world, ac)` | STT → previous search mode (ACM lock → last BVR mode). TWS → drops all designations (F-15C Return To Search/NDTWS); FC3 Russian also drops those tracks. ACM → last BVR mode. |
-| `setScan(world, ac, change)` | `ScanChange { azHalf?, bars?, azCenter?, elCenter?, rangeScale?, cursor?, autoCenter? }`. azHalf/bars/rangeScale snap to the jet's options; TWS limits apply (changing only bars shrinks azimuth to fit the frame limit, otherwise bars shrink). FC3 Russian azCenter snaps to −30° / 0 / +30° (three scan positions). Centres clamp so the pattern stays inside the gimbal. |
+| `setScan(world, ac, change)` | `ScanChange { azHalf?, bars?, azCenter?, elCenter?, rangeScale?, expectedRange?, cursor?, autoCenter? }`. azHalf/bars/rangeScale snap to the jet's options; TWS limits apply (changing only bars shrinks azimuth to fit the frame limit, otherwise bars shrink). FC3 Russian azCenter snaps to −30° / 0 / +30° (three scan positions). Centres clamp so the pattern stays inside the gimbal. |
 | `setCursor(world, ac, { az, range })` | Moves only the display cursor (clamped to ±gimbal and the longest range scale). No TWS limits, no scan recompute: call it on every pointer move. `setScan({ cursor })` does the same plus the rest. |
 | `hasTrack(ac, targetId)`, `trackOf(st, targetId)` | Track lookup. |
 | `guidanceSupport(world, shooter, targetId)` | For missile.ts. `datalink`: STT on the target, or TWS (jets with `launchFromTws`) with a firm track inside the simultaneous-target limit (designated only on F-15C/JF-17). `illuminating`: STT on the target with `lostFor = 0`. `estimate`: the radar's track (clone) when datalink is true. A coasting track (missed revisit, STT memory) keeps sending its **extrapolation**, never the truth (DCS 2.8.7); support ends when the track is dropped, the lock breaks or the radar changes mode. |
@@ -128,7 +128,7 @@ detection range to 0 at 100 % (`world.rand()`). Painting (for RWRs) happens on e
 | JF-17 | 2 (HPT, SPT) | STT | replace SPT | none | primary (HPT) | yes | yes | 3 s |
 | M-2000C | no TWS | – | – | – | – | – | – | 5 s |
 
-Also on `RadarRules`: `azPositionsDeg` (FC3 Russian scan-centre positions −30 / 0 / +30°, null elsewhere: use it
+Also on `RadarRules`: `azPositionsDeg` (derived from `RadarSpec.azCenterOptionsDeg`: FC3 Russian scan-centre positions −30 / 0 / +30°, null elsewhere: use it
 for the three-position scan buttons instead of hard-coding them), `bugScan`, `twsEntryKeep`, `redesignate`,
 `whenFull`, `autoDesignate`, `launchOrder`, `supportNeedsDesignation`, `unlockKeepsDesignation`, `sttMemoryS`.
 
@@ -260,3 +260,16 @@ community solution time is unverified and remains omitted.
 `World` exposes `setSnp2`, `canLaunchSnp2`, and `launchSnp2` wrappers. `World.launch` in active СНП2 mode
 launches the validated pair atomically and returns its first missile for compatibility; callers that need
 both IDs should use `launchSnp2`. `Aircraft.jamming` defaults to false at spawn and is a scenario constraint.
+
+### Expected range for FC3 range-angle aiming
+
+`RadarState.expectedRange` is metres, initially 50000 for FC3 Russian HUD jets and null elsewhere. It is
+independent of the display cursor. `World.setScan(id, { expectedRange })` preserves the entered height
+difference (`old range × tan(elevation)`) while changing tilt, then applies normal gimbal limits. Inputs
+clamp to 1000 m through the radar's longest display scale; non-finite inputs and inputs on other jets are
+ignored. Explicit `elCenter` in the same call overrides the re-aimed elevation. Cursor moves and display
+range changes do not change this input. This is the existing Radar Lab teaching abstraction, now shared
+by the sim API; it does not assert an additional verified DCS input limit.
+
+Radar Lab presets carry optional `expectedRangeM` separately from `cursorM`. Older presets initialize the
+FC3 expected range from their cursor range; scene restarts save and restore both inputs independently.

@@ -159,7 +159,7 @@ const factory: PageFactory = (): Page => {
       })),
       onChange: m => setMode(m),
     });
-    const modeNote = !r.tws ? h('p', { class: 'rl-note' }, `No TWS on the ${spec.short}: ${r.modeLabels.rws ?? 'RWS'} search only (PSID is not modelled).`) : null;
+    const modeNote = !r.tws ? h('p', { class: 'rl-note' }, `No multi-target TWS on the ${spec.short}: ${r.modeLabels.rws ?? 'RWS'} search${r.singleTargetTws ? ` (${r.singleTargetTws.label} is not modelled)` : ''}.`) : null;
 
     const fieldLabel = (text: string, k?: { text: string; fallback: boolean } | null) =>
       h('span', { class: 'rl-flabel' }, text, k ? h('span', { class: 'rl-fkeys', title: k.fallback ? `FC3 default key: the ${spec.short} has no keyboard default for this` : 'DCS default key' }, kbd(k.text)) : null);
@@ -192,18 +192,14 @@ const factory: PageFactory = (): Page => {
 
     let zoneSeg: SegmentedHandle<number> | null = null;
     let azcSlider: SliderHandle | null = null;
-    const zoneEl = ru
+    const zoneEl = r.azCenterOptionsDeg
       ? (zoneSeg = segmented<number>({
         id: 'rl-zone', label: fieldLabel('Scan zone', keys.zone), value: 0, fill: true,
-        options: [
-          { value: -30, label: 'Left', sub: '−60…0°' },
-          { value: 0, label: 'Centre', sub: '±30°' },
-          { value: 30, label: 'Right', sub: '0…+60°' },
-        ],
+        options: r.azCenterOptionsDeg.map(value => ({ value, label: value < 0 ? 'Left' : value > 0 ? 'Right' : 'Centre', sub: `${sdeg(value - r.azHalfWidthOptionsDeg[0], 0)}…${sdeg(value + r.azHalfWidthOptionsDeg[0], 0)}` })),
         onChange: v => applyScan({ azCenter: v * D2R }),
       })).el
       : (azcSlider = slider({
-        id: 'rl-azc', label: 'Scan centre', min: -30, max: 30, step: 1, value: 0, unit: '°', format: v => sdeg(v, 0), readoutCh: 5,
+        id: 'rl-azc', label: 'Scan centre', min: -30, max: 30, step: 1, value: 0, format: v => sdeg(v, 0), readoutCh: 5,
         hint: keys.zone ? h('span', { class: 'rl-hintkeys' }, kbd(keys.zone.text), keys.zone.fallback ? ' FC3 key' : '') : undefined,
         onInput: v => applyScan({ azCenter: v * D2R }),
       })).el;
@@ -211,7 +207,7 @@ const factory: PageFactory = (): Page => {
     const azcNote = h('p', { class: 'rl-note' });
     if (azcSlider) zoneEl.append(azcNote);
     const elSlider = slider({
-      id: 'rl-el', label: 'Antenna elevation', min: -20, max: 20, step: 0.5, value: 0, unit: '°', format: v => sdeg(v), readoutCh: 6,
+      id: 'rl-el', label: 'Antenna elevation', min: -20, max: 20, step: 0.5, value: 0, format: v => sdeg(v), readoutCh: 6,
       onInput: v => { setElevation(v); },
     });
     const elKeyNote = keys.elev?.fallback ? ` (${keys.elev.text} is the FC3 default, offered as a lab shortcut: the ${spec.short} has no keyboard default)` : '';
@@ -226,8 +222,8 @@ const factory: PageFactory = (): Page => {
       onChange: m => applyScan({ rangeScale: m }),
     });
     const cursorSlider = slider({
-      id: 'rl-cursor', label: ru ? 'Expected range (cursor)' : 'Cursor range', min: 1, max: 100, step: 1, value: 40, unit: rngUnit(units),
-      hint: h('span', { class: 'rl-hintkeys' }, ru && keys.expRange ? kbd(keys.expRange.text) : kbd('; / .'), !ru && keys.cursor.fallback ? ' FC3 keys,' : '', ' coverage is read here'),
+      id: 'rl-cursor', label: ru ? 'Expected range' : 'Cursor range', min: 1, max: 100, step: 1, value: 40, unit: rngUnit(units),
+      hint: h('span', { class: 'rl-hintkeys' }, ru && keys.expRange ? kbd(keys.expRange.text) : kbd('; / .'), !ru && keys.cursor.fallback ? ' FC3 keys,' : '', ru ? ' aims the scan; coverage follows the radar cursor' : ' coverage is read here'),
       onInput: v => (ru ? setExpectedRange(rngToM(v, units)) : applyScan({ cursor: { az: me?.radar.cursor.az ?? 0, range: rngToM(v, units) } })),
     });
 
@@ -455,7 +451,7 @@ const factory: PageFactory = (): Page => {
       if (!me) return;
       const st = me.radar;
       if (ru) {
-        const R = Math.max(1000, st.cursor.range);
+        const R = Math.max(1000, st.expectedRange ?? st.cursor.range);
         const dh = R * Math.tan(st.elCenter) + dir * 500;
         applyScan({ elCenter: elevationFor(dh, R) * D2R });
       } else {
@@ -467,16 +463,19 @@ const factory: PageFactory = (): Page => {
     function setExpectedRange(rangeM: number): void {
       if (!me) return;
       const st = me.radar;
-      const R0 = Math.max(1000, st.cursor.range);
-      const dh = R0 * Math.tan(st.elCenter);
-      const R1 = Math.max(1000, Math.min(st.rangeScale, rangeM));
-      applyScan({ cursor: { az: st.cursor.az, range: R1 }, elCenter: elevationFor(dh, R1) * D2R });
+      const R1 = Math.max(1000, Math.min(Math.max(...r.rangeScalesKm) * 1000, rangeM));
+      // Show coverage at the entered range; cursor motion alone never changes range-angle aiming.
+      applyScan({ expectedRange: R1, cursor: { az: st.cursor.az, range: R1 } });
     }
 
     function stepZone(dir: 1 | -1): void {
       if (!me) return;
       const st = me.radar;
-      if (ru) applyScan({ azCenter: Math.max(-30, Math.min(30, Math.round(st.azCenter * R2D / 30) * 30 + dir * 30)) * D2R });
+      if (r.azCenterOptionsDeg) {
+        const positions = r.azCenterOptionsDeg;
+        const nearest = positions.reduce((best, value, i) => Math.abs(value - st.azCenter * R2D) < Math.abs(positions[best] - st.azCenter * R2D) ? i : best, 0);
+        applyScan({ azCenter: positions[Math.max(0, Math.min(positions.length - 1, nearest + dir))] * D2R });
+      }
       else applyScan({ azCenter: st.azCenter + dir * 5 * D2R });
     }
 
@@ -522,7 +521,7 @@ const factory: PageFactory = (): Page => {
         const o = barOpts(), sig = JSON.stringify(o);
         if (sig !== barsSig) { barsSig = sig; barsSeg.setOptions(o, st.bars); } else barsSeg.set(st.bars);
       }
-      if (zoneSeg) zoneSeg.set(Math.round(st.azCenter * R2D / 30) * 30);
+      if (zoneSeg && r.azCenterOptionsDeg) zoneSeg.set(r.azCenterOptionsDeg.reduce((best, value) => Math.abs(value - st.azCenter * R2D) < Math.abs(best - st.azCenter * R2D) ? value : best));
       if (azcSlider) {
         const lim = azCenterLimitDeg(r, curAz());
         azcSlider.setRange(-lim, lim, 1);
@@ -534,9 +533,9 @@ const factory: PageFactory = (): Page => {
       elSlider.setRange(-elLim, elLim, 0.5);
       elSlider.set(Math.round(st.elCenter * R2D * 2) / 2);
       rangeSeg.set(st.rangeScale);
-      const maxU = Math.round(rngValue(st.rangeScale, units));
+      const maxU = Math.round(rngValue(st.expectedRange !== null ? Math.max(...r.rangeScalesKm) * 1000 : st.rangeScale, units));
       cursorSlider.setRange(1, maxU, 1);
-      cursorSlider.set(Math.round(rngValue(st.cursor.range, units)));
+      cursorSlider.set(Math.round(rngValue(st.expectedRange ?? st.cursor.range, units)));
       radarBezel.setStatus(r.modeLabels[st.mode] ?? st.mode.toUpperCase());
       uiClock = 1;
     }
@@ -592,7 +591,7 @@ const factory: PageFactory = (): Page => {
     pair(keys.zone, () => stepZone(-1), () => stepZone(1));
     pair(keys.width, () => stepWidth(1), () => stepWidth(-1));
     pair(keys.range, () => stepRange(-1), () => stepRange(1));
-    pair(keys.expRange, () => me && setExpectedRange(me.radar.cursor.range + 5000), () => me && setExpectedRange(me.radar.cursor.range - 5000));
+    pair(keys.expRange, () => me && setExpectedRange((me.radar.expectedRange ?? me.radar.cursor.range) + 5000), () => me && setExpectedRange((me.radar.expectedRange ?? me.radar.cursor.range) - 5000));
     const cursorStep = units === 'metric' ? 1000 : 1852;
     keyMap[';'] = { down: () => stepCursor(cursorStep, 0), repeat: true };
     keyMap['.'] = { down: () => stepCursor(-cursorStep, 0), repeat: true };
@@ -667,8 +666,8 @@ const factory: PageFactory = (): Page => {
       scanRo.set('gate', gateText(r.notchKts * MPS_PER_KT, units));
       setText(covWhy, `Coverage ≈ range × tan(angle): at ${at} your ${(2 * patternHalfDeg(r, st.bars)).toFixed(1)}° pattern spans ${alt(cov.top - cov.bottom, units)} of altitude, and 1° of tilt moves it ${alt(metresPerDegree(cov.range), units)}.`);
       if (ru) {
-        const R = Math.max(1000, st.cursor.range);
-        setText(raLine, `Range-angle: height difference ${dAltText(R * Math.tan(st.elCenter))} at ${rng(R, units)}. In the jet you enter these two numbers, not degrees; change the range and the tilt follows.`);
+        const R = Math.max(1000, st.expectedRange ?? st.cursor.range);
+        setText(raLine, `Range-angle: height difference ${dAltText(R * Math.tan(st.elCenter))} at expected range ${rng(R, units)}. Cursor coverage is at ${rng(st.cursor.range, units)}. In the jet you enter height difference and expected range; change that range and the tilt follows.`);
       }
     }
 

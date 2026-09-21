@@ -35,6 +35,7 @@ export function applyPreset(world: World, ac: AircraftId, p: ScanPreset): void {
   world.setScan(PLAYER, {
     autoCenter: false, azHalf: p.azHalfDeg * D2R, bars: p.bars, azCenter: p.azCenterDeg * D2R, elCenter: p.elCenterDeg * D2R,
     rangeScale: p.rangeScaleM, cursor: { az: 0, range: p.cursorM },
+    expectedRange: p.expectedRangeM ?? p.cursorM,
   });
 }
 
@@ -45,6 +46,7 @@ export function readScan(me: Aircraft): ScanPreset {
     mode: st.mode === 'tws' || st.mode === 'vs' ? st.mode : 'rws',
     azHalfDeg: Math.round(st.azHalf * R2D), bars: st.bars, azCenterDeg: st.azCenter * R2D, elCenterDeg: st.elCenter * R2D,
     rangeScaleM: st.rangeScale, cursorM: st.cursor.range,
+    ...(st.expectedRange !== null ? { expectedRangeM: st.expectedRange } : {}),
   };
 }
 
