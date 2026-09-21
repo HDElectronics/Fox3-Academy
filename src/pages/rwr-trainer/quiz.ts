@@ -113,7 +113,7 @@ export const TELL: Record<RwrId, { lock: string; launch: string; active: string 
     active: '"M" in a diamond: an active radar missile. No lock or launch came first, so it was a TWS Fox 3.',
   },
   alr67: {
-    lock: 'A lock moves the code to the outer critical band and lights AI steady.',
+    lock: 'A lock moves the code to the outer critical band. AI lights for an airborne lock; SAM lights for a surface lock.',
     launch: 'The code flashes in the critical band with AI flashing and CW lit: his radar illuminates you for the missile.',
     active: '"M" in the critical band with no CW light: the missile\'s own seeker is on you.',
   },
@@ -515,7 +515,11 @@ function buildTapLock(ctx: Ctx): Question | null {
   const threats = [lock];
   if (!fillers(ctx, Math.max(1, ctx.n) - 1, taken, threats)) return null;
   const answer: Answer = { type: 'tap', correct: [lock.id], candidates: tapCandidates(ctx, threats) };
-  const tell = TELL[ctx.rwr].lock;
+  const tell = ctx.rwr === 'alr67'
+    ? isSam(kind)
+      ? 'The code moves to the outer critical band and SAM lights steady; AI stays off because this is a surface radar.'
+      : 'The code moves to the outer critical band and AI lights steady for the airborne lock.'
+    : TELL[ctx.rwr].lock;
   return {
     kind: 'tap-lock', prompt: 'Someone has locked you. Tap him on the RWR.', context: null, threats, answer,
     focusId: lock.id, advice: null, ownShot: null, leadS: LEAD_S, seed: 0,
@@ -596,7 +600,7 @@ function buildIdentify(ctx: Ctx): Question | null {
   const options = shuffle(ctx.rng, [mine, ...pool2.slice(0, 3)]).map(g => ({ id: g.id, label: g.label }));
   const jf = ctx.rwr === 'jf17rwr';
   const who = joinOr(mine.kinds.map(emitterLabel));
-  const read = jf ? `"${mine.symbol}" in an air-threat rectangle is the ${who}.`
+  const read = jf ? `"${mine.symbol}" in a ${isSam(kind) ? 'surface-threat circle' : 'air-threat rectangle'} is the ${who}.`
     : mine.hat ? `"${mine.symbol}" with the airborne hat is the ${who}.`
       : `"${mine.symbol}" with no hat is a ground radar: the ${who}.`;
   const many = mine.kinds.length > 1 ? ` The RWR cannot tell them apart; this one is a ${emitterLabel(kind)}.` : '';
@@ -821,4 +825,3 @@ export function makeQuestion(o: QuizOptions): Question {
     leadS: LEAD_S, seed: o.seed, explain: TELL[o.rwr].lock,
   };
 }
-

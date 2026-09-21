@@ -80,7 +80,7 @@ export function mountLearn(host: ModeHost): ModeController {
       case 'demo': return [
         mk(adv, 'lock', 30, 40, 1000),
         mk(second, 'search', -60, 85, -500),
-        lamps ? mk('sam-long', 'search', -140, 90, 0) : mk('awacs', 'search', -150, 220, -1500),
+        lamps || rwrId === 'jf17rwr' ? mk('sam-long', 'search', -140, 90, 0) : mk('awacs', 'search', -150, 220, -1500),
       ];
       case 'lock': return [mk(adv, 'lock', 40, 35, 0)];
       case 'sarh': return [mk(capable('launch', [adv]), 'launch', -30, 35, 500), mk(second, 'search', 70, 90, 0)];
@@ -161,9 +161,9 @@ export function mountLearn(host: ModeHost): ModeController {
     body: h('ul', { class: 'rwrt-simple' },
       h('li', null, 'Threats are placed by hand: no scan timing, jamming or emitter power tables. Strength follows the trainer\'s sim: closer and locked read stronger.'),
       h('li', null, rwrId === 'jf17rwr'
-        ? 'No ground radars (SAMs) on the JF-17 here: the real HSD draws them as circles, this display would box them like air threats.'
+        ? 'Surface threats use circles and air threats use rectangles. The three SAM choices are representative threat classes; SA-10 and SA-11 label spellings remain unverified.'
         : rwrId === 'alr67'
-          ? 'SAMs only search here: this ALR-67 has no SAM light, and its AI light is for airborne locks.'
+          ? 'SAM lock and launch use the SAM lamp, separate from the AI lamp. The three SAM choices are representative threat classes, not every radar identity.'
           : 'SAM lock and launch are generic: no command-guidance or track-via-missile differences.'),
       ...RWR_CAVEATS[rwrId].map(c => h('li', null, c))),
   });
@@ -353,7 +353,7 @@ export function mountLearn(host: ModeHost): ModeController {
     const msg: Record<PresetId, [string, string | null]> = {
       demo: [lamps ? 'The yellow lamp and the red lamp belong to the lock at 1 o\'clock. The green lamps are the others.'
         : rwrId === 'alr56c' ? 'The lock jumps to the inner ring and takes the diamond. Searches sit by signal strength: stronger nearer the centre, not closer.'
-          : rwrId === 'jf17rwr' ? 'The lock turns red and drops into the inner ring; the main threat gets a line through its box. Searches stay yellow in the outer ring, whatever their range.'
+          : rwrId === 'jf17rwr' ? 'The lock turns red and drops into the inner ring. Air threats use rectangles, surface threats use circles, and the main threat gets four ticks. Searches stay yellow in the outer ring.'
             : 'The lock sits where this RWR puts locks, with the diamond. The searches sit where searches go, whatever their range.',
         'Hover or tap a part in the Anatomy guide to find it on the display.'],
       lock: [rs.cues.lock, 'A lock means he is ready to shoot.'],
@@ -430,7 +430,7 @@ export function mountLearn(host: ModeHost): ModeController {
     const text = lamps
       ? (isAircraft(t.kind) ? `${emitterLabel(t.kind)}: П, like every fighter. The SPO cannot tell them apart.` : `${emitterLabel(t.kind)}: type lamp ${sym}.`)
       : rwrId === 'jf17rwr'
-        ? `${emitterLabel(t.kind)} shows as "${sym}" in an air-threat rectangle.`
+        ? `${emitterLabel(t.kind)} shows as "${sym}" in a ${isSam(t.kind) ? 'surface-threat circle' : 'air-threat rectangle'}.`
         : isSam(t.kind)
           ? `${emitterLabel(t.kind)} shows as "${sym}" with no hat: a ground radar.${twin ? ` "${sym}" with a hat would be the ${emitterShort(twin)}.` : ''}`
           : `${emitterLabel(t.kind)} shows as "${sym}" with the airborne hat.${twin ? ` Without the hat, "${sym}" is an ${emitterShort(twin)}.` : ''}`;

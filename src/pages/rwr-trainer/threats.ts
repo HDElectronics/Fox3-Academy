@@ -56,11 +56,13 @@ export interface Threat {
 // ---------------------------------------------------------------------------------------- emitters
 
 const SAM_LABEL: Record<SamKind, string> = {
-  'sam-long': 'Long-range SAM (SA-10)',
-  'sam-medium': 'Medium-range SAM (SA-11)',
-  'sam-short': 'Short-range SAM (SA-15)',
+  'sam-long': 'Long-range SAM radar',
+  'sam-medium': 'Medium-range SAM radar',
+  'sam-short': 'Short-range SAM radar',
 };
-const SAM_SHORT: Record<SamKind, string> = { 'sam-long': 'SA-10', 'sam-medium': 'SA-11', 'sam-short': 'SA-15' };
+const SAM_SHORT: Record<SamKind, string> = {
+  'sam-long': 'Long-range SAM', 'sam-medium': 'Medium-range SAM', 'sam-short': 'Short-range SAM',
+};
 
 /** Notional RWR hearing ranges (m) for emitters that have no AircraftSpec. Trainer values. */
 const PAINT_M: Record<'awacs' | SamKind, number> = { awacs: 400_000, 'sam-long': 300_000, 'sam-medium': 150_000, 'sam-short': 50_000 };
@@ -80,14 +82,11 @@ export function emitterShort(k: EmitterKind): string {
 }
 
 /**
- * Emitters the sandbox and quiz offer on this RWR. Ground radars (SAMs) everywhere except the JF-17:
- * its HSD draws surface threats as circles, but the kit's display boxes every emitter as an air threat,
- * which would teach the wrong shape.
+ * Representative emitters the sandbox and quiz offer. The three SAM kinds are threat classes, not
+ * an exhaustive identity library; each RWR supplies its own code and its own uncertainty caveats.
  */
-export function emitterKindsFor(rwr: RwrId): EmitterKind[] {
-  const out: EmitterKind[] = [...AIRCRAFT_ORDER, 'awacs'];
-  if (rwr !== 'jf17rwr') out.push('sam-long', 'sam-medium', 'sam-short');
-  return out;
+export function emitterKindsFor(_rwr: RwrId): EmitterKind[] {
+  return [...AIRCRAFT_ORDER, 'awacs', 'sam-long', 'sam-medium', 'sam-short'];
 }
 
 /** RWR hearing range for strength scaling (m), as sim/rwr.ts computes it for aircraft. */
@@ -110,17 +109,14 @@ export function missilesFor(k: EmitterKind, state: ThreatState): MissileId[] {
 export interface StateAvail { state: ThreatState; ok: boolean; reason: string }
 
 /**
- * Which warning states this emitter can produce in DCS, with a plain reason when it cannot. Pass the
- * RWR for limits of this trainer's displays (the ALR-67 here has no SAM light: its AI light would
- * wrongly light for a SAM lock, so SAMs only search on it).
+ * Which warning states this emitter can produce in DCS, with a plain reason when it cannot.
  */
-export function statesFor(k: EmitterKind, rwr?: RwrId): StateAvail[] {
+export function statesFor(k: EmitterKind, _rwr?: RwrId): StateAvail[] {
   const name = emitterShort(k);
   return STATE_ORDER.map(state => {
     if (state === 'search') return { state, ok: true, reason: '' };
     if (k === 'awacs') return { state, ok: false, reason: 'An AWACS only searches: it never locks or fires.' };
     if (isSam(k)) {
-      if (rwr === 'alr67') return { state, ok: false, reason: 'SAMs only search on this trainer\'s ALR-67: it has no SAM light, and the AI light is for airborne locks.' };
       if (state === 'active') return { state, ok: false, reason: `${name} missiles are guided from the ground here: no active-seeker cue.` };
       return { state, ok: true, reason: '' };
     }

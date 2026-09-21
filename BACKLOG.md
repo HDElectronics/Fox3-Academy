@@ -28,9 +28,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B9. SAMs on every RWR.** The JF-17 scope boxes every emitter as an air threat (surface threats should be
-  circles) and the ALR-67 has no SAM lamp; the RWR trainer therefore offers SAMs only on the SPO-15. Fix in
-  `src/ui/displays/rwr/`, then enable SAMs in `src/pages/rwr-trainer`.
 - **B11. Contract additions pages asked for.** In `src/data/types.ts`: `KeyBind.group` and `KeyBind.keyboard`
   (the Cockpit page parses them from text today), `RadarSpec.azCenterOptionsDeg` (FC3 three-position scan),
   single-target TWS modes (M-2000C PSID) and cap confidence, `MissileSpec.pitbullApprox` and
@@ -57,7 +54,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P4 — Ideas
 
-- SAM threats in the Sortie and Defense drills (needs B9 first).
+- SAM threats in the Sortie and Defense drills (RWR trainer display prerequisites are complete).
 - A within-visual-range module: IR missiles, flares, basic BFM, the merge.
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.

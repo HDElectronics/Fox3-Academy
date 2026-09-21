@@ -81,7 +81,7 @@ const RING_TEXT: Record<Exclude<RwrId, 'spo15'>, { r: number; text: string }> = 
 };
 
 const LAMPS: Partial<Record<RwrId, { shape: Shape; badge: { x: number; y: number }; text: string }>> = {
-  alr67: { shape: { kind: 'rect', x: 1, y: 1, w: 98, h: 5.5 }, badge: { x: 10, y: 3.8 }, text: 'AI: steady when an airborne radar locks you, flashing on a launch. CW: continuous-wave illumination, a SARH launch.' },
+  alr67: { shape: { kind: 'rect', x: 1, y: 1, w: 98, h: 5.5 }, badge: { x: 10, y: 3.8 }, text: 'AI: steady when an airborne radar locks you, flashing on its launch. CW: continuous-wave illumination, probably guiding a missile.' },
   alr56m: { shape: { kind: 'rect', x: 1, y: 93.5, w: 98, h: 5.5 }, badge: { x: 17, y: 96.2 }, text: 'LAUNCH flashes on a launch or an active missile. ACT/PWR lights when a radar tracks you.' },
   jf17rwr: { shape: { kind: 'rect', x: 1, y: 93.5, w: 15, h: 5.5 }, badge: { x: 19.5, y: 96.2 }, text: 'MSL LCH: missile launch warning, also shown on the HUD.' },
   serval: { shape: { kind: 'rect', x: 1, y: 1, w: 98, h: 5.5 }, badge: { x: 10, y: 3.8 }, text: 'DA: the RWR is working. D2M: the missile launch detector (up to two warnings at once).' },
@@ -127,9 +127,9 @@ function scopeParts(rwr: Exclude<RwrId, 'spo15'>, ranked: readonly RwrContact[],
       text: `The code names the radar type: ${codes}.${ground}` },
   ];
   if (rwr === 'jf17rwr') {
-    parts.push({ id: 'box', title: 'Rectangle and line', shape: top && top.c.state !== 'missile' ? { kind: 'circle', ...top.p, r: 5.5 } : air ? { kind: 'circle', ...air.p, r: 5.5 } : null,
+    parts.push({ id: 'frame', title: 'Threat frame', shape: top && top.c.state !== 'missile' ? { kind: 'circle', ...top.p, r: 5.5 } : air ? { kind: 'circle', ...air.p, r: 5.5 } : null,
       missing: 'Add a threat to see it.',
-      text: 'Air threats sit in a rectangle; the main air threat has a vertical line through it. Surface threats would be circles.' });
+      text: 'Air threats use rectangles; known surface threats use circles. Four outward ticks mark the main threat.' });
   } else {
     parts.push(
       { id: 'hat', title: 'Airborne hat', shape: hatAt ? { kind: 'circle', x: hatAt.p.x, y: hatAt.p.y - 3, r: 3.4 } : null, dir: [0.3, -1], missing: 'Add a threat to see it.',
@@ -148,6 +148,10 @@ function scopeParts(rwr: Exclude<RwrId, 'spo15'>, ranked: readonly RwrContact[],
   );
   const lamps = LAMPS[rwr];
   if (lamps) parts.push({ id: 'lamps', title: 'Warning lamps', shape: lamps.shape, badge: lamps.badge, text: lamps.text });
+  if (rwr === 'alr67') parts.push({
+    id: 'sam-lamp', title: 'SAM lamp', shape: { kind: 'rect', x: 1, y: 93.5, w: 15, h: 5.5 }, badge: { x: 19.5, y: 96.2 },
+    text: 'Steady when a surface-to-air radar locks you; flashing here when that surface threat launches.',
+  });
   return parts;
 }
 

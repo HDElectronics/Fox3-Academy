@@ -3,7 +3,7 @@ import type { AircraftId, RwrId } from '../../data/types';
 import { AIRCRAFT_ORDER, AIRCRAFT } from '../../data/aircraft';
 import { rwrPriority } from '../../ui/displays/geometry';
 import {
-  type Threat, acceptedClocks, canBe, clockOf, contactsAt, emitterKindsFor, isAircraft, missilesFor, normalizeThreat, rad, statesFor,
+  type Threat, acceptedClocks, canBe, clockOf, contactsAt, emitterKindsFor, isAircraft, isSam, missilesFor, normalizeThreat, rad, statesFor,
   RwrFeed, stateAt,
 } from './threats';
 import {
@@ -171,15 +171,42 @@ describe('question generator', () => {
   it('offers ground radars where the display draws them right', () => {
     expect(emitterKindsFor('alr56c')).toContain('sam-short');
     expect(emitterKindsFor('spo15')).toContain('sam-long');
-    expect(emitterKindsFor('jf17rwr')).not.toContain('sam-short');   // the kit boxes them like air threats
+    expect(emitterKindsFor('jf17rwr')).toContain('sam-short');
     expect(canBe('sam-medium', 'lock', 'alr56c')).toBe(true);
-    expect(canBe('sam-medium', 'lock', 'alr67')).toBe(false);        // no SAM light on this ALR-67: AI is airborne only
+    expect(canBe('sam-medium', 'lock', 'alr67')).toBe(true);
+    expect(canBe('sam-medium', 'launch', 'alr67')).toBe(true);
     const seen = new Set<string>();
     for (let seed = 1; seed < 200; seed++) {
       const q = makeQuestion({ rwr: 'alr56c', own: 'f15c', difficulty: 'hard', seed });
       q.threats.forEach(t => seen.add(t.kind));
     }
     expect([...seen].some(k => k.startsWith('sam'))).toBe(true);
+  });
+
+  it('explains JF-17 SAM identities as surface circles', () => {
+    let found = false;
+    for (let seed = 1; seed <= 300 && !found; seed++) {
+      const q = makeQuestion({ rwr: 'jf17rwr', own: 'jf17', difficulty: 'hard', seed, kind: 'identify' });
+      const target = q.threats.find(t => t.id === q.focusId);
+      if (!target || !isSam(target.kind)) continue;
+      found = true;
+      expect(q.explain).toMatch(/surface-threat circle/);
+      expect(q.explain).not.toMatch(/air-threat rectangle/);
+    }
+    expect(found).toBe(true);
+  });
+
+  it('teaches the ALR-67 SAM lamp for a surface tap-lock question', () => {
+    let found = false;
+    for (let seed = 1; seed <= 300 && !found; seed++) {
+      const q = makeQuestion({ rwr: 'alr67', own: 'fa18c', difficulty: 'hard', seed, kind: 'tap-lock' });
+      const target = q.threats.find(t => t.id === q.focusId);
+      if (!target || !isSam(target.kind)) continue;
+      found = true;
+      expect(q.explain).toMatch(/SAM lights steady/);
+      expect(q.explain).toMatch(/AI stays off/);
+    }
+    expect(found).toBe(true);
   });
 
   it('tells "15" with a hat (F-15) from "15" without one (SA-15)', () => {
