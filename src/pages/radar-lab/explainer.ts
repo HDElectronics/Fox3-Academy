@@ -28,7 +28,6 @@ export function simplifiedLines(ac: AircraftId): string[] {
   ];
   const ld = lookDownCaveat(ac);
   if (ld) lines.push(ld.replace(/^Simplified: /, ''));
-  if (spec.display === 'ru-hud') lines.push('Range-angle aiming: the expected range and the radar cursor share one value here; in the jet they are separate entries.');
   const re = /bar|scan|detect|notch|beam|range scale|elevation|azimuth|gimbal|TWS scan|frame/i;
   // The lab enforces the DCS TWS pattern list where it has one, so the data's "frame-time rule also allows…" note no longer applies.
   const pats = twsPatterns(ac);

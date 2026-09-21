@@ -462,10 +462,7 @@ const factory: PageFactory = (): Page => {
     /** FC3 Russian range-angle aiming: a new expected range keeps the entered height difference, so the tilt changes. */
     function setExpectedRange(rangeM: number): void {
       if (!me) return;
-      const st = me.radar;
-      const R1 = Math.max(1000, Math.min(Math.max(...r.rangeScalesKm) * 1000, rangeM));
-      // Show coverage at the entered range; cursor motion alone never changes range-angle aiming.
-      applyScan({ expectedRange: R1, cursor: { az: st.cursor.az, range: R1 } });
+      applyScan({ expectedRange: rangeM });
     }
 
     function stepZone(dir: 1 | -1): void {
