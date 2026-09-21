@@ -39,6 +39,7 @@ function fc3RuRadar(o: {
     modes: ['off', 'rws', 'tws', 'stt', 'acm'],
     modeLabels: { rws: 'ОБЗ ДВБ', tws: 'СНП ДВБ', stt: 'АТК ДВБ', acm: 'БВБ' },
     azHalfWidthOptionsDeg: [30],          // 60° wide, centred at −30 / 0 / +30 (three positions)
+    azCenterOptionsDeg: [-30, 0, 30],
     barOptions: [4],                      // not selectable in FC3; count assumed
     barSpacingDeg: 2.5,
     beamWidthDeg: 2.5,
@@ -53,6 +54,7 @@ function fc3RuRadar(o: {
       maxTracks: 10,
       launchFromTws: false,
       maxSimultaneousTargets: o.mig29s ? 2 : 1,
+      capConfidence: 'documented',
       maxAzHalfWidthDeg: 30,
       autoSttAtRmaxFraction: 0.85,
       howTo: o.mig29s ? twsBase + snp2 : twsBase,
@@ -82,6 +84,7 @@ const APG63: RadarSpec = {
     maxTracks: 16,
     launchFromTws: true,
     maxSimultaneousTargets: 4,
+    capConfidence: 'documented',
     maxAzHalfWidthDeg: 30,
     autoSttAtRmaxFraction: null,
     howTo:
@@ -115,6 +118,7 @@ const APG73: RadarSpec = {
     maxTracks: 10,
     launchFromTws: true,
     maxSimultaneousTargets: 10,
+    capConfidence: 'unpublished',
     maxFrameTimeS: 2.7,                   // allows 2B ±40°, 4B ±20°, 6B ±10°; refuses 4B ±30°, 6B ±20°
     maxAzHalfWidthDeg: 40,
     maxBars: 6,
@@ -148,6 +152,7 @@ const APG68: RadarSpec = {
     maxTracks: 10,
     launchFromTws: true,
     maxSimultaneousTargets: 6,
+    capConfidence: 'documented',
     maxAzHalfWidthDeg: 60,
     maxBars: 4,
     autoSttAtRmaxFraction: null,
@@ -181,6 +186,7 @@ const AWG9: RadarSpec = {
     maxTracks: 24,
     launchFromTws: true,
     maxSimultaneousTargets: 6,
+    capConfidence: 'documented',
     maxFrameTimeS: 2,
     maxAzHalfWidthDeg: 40,
     maxBars: 4,
@@ -216,6 +222,7 @@ const KLJ7: RadarSpec = {
     maxTracks: 10,
     launchFromTws: true,
     maxSimultaneousTargets: 2,
+    capConfidence: 'documented',
     maxFrameTimeS: 4,                      // allows ±60°/2B, ±25°/3B, ±10°/4B; refuses ±60°/4B
     maxAzHalfWidthDeg: 60,
     maxBars: 4,
@@ -244,6 +251,7 @@ const RDI: RadarSpec = {
   detectKm: { headOn: 120, tail: 55, lookDownFactor: 0.8 },
   notchKts: 54,
   notchNeedsLookDown: true,
+  singleTargetTws: { label: 'PSID', maxTracks: 1, bars: 1, launchFromTws: false, modelled: false },
   tws: null,
   sttArhLaunchWarning: false,
 };

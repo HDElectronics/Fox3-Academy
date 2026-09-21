@@ -166,14 +166,8 @@ export function fox3Of(spec: AircraftSpec): MissileId[] {
   return spec.missiles.filter(id => MISSILES[id].fox === 3);
 }
 
-/**
- * Jets whose multi-target cap is not published: the trainer uses the trackfile count
- * (AIRCRAFT_CAVEATS: "ED gives no cap on simultaneous AIM-120s"; hornet-viper.md, confidence low-med).
- */
-const NO_PUBLISHED_CAP: ReadonlySet<AircraftId> = new Set<AircraftId>(['fa18c']);
-
-/** True when the jet's "targets at once" is the trainer's stand-in, not a published DCS limit. */
-export const capUnpublished = (spec: AircraftSpec) => NO_PUBLISHED_CAP.has(spec.id);
+/** True when the trainer uses a stand-in for an unpublished DCS target cap. */
+export const capUnpublished = (spec: AircraftSpec) => spec.radar.tws?.capConfidence === 'unpublished';
 
 /** Targets you can have missiles guiding on at once, in plain words. */
 export function simultaneousText(spec: AircraftSpec): string {

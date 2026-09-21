@@ -3,7 +3,7 @@
 Static facts about the ten jets, seventeen missiles and six RWRs, as DCS World models them. Every value comes
 from `docs/research/*.md`. Where research was uncertain, the value is the most defensible pick and the reason is
 recorded in code (`AIRCRAFT_CAVEATS`, `RWR_CAVEATS`, missile `notes`, bind/step `note`) and in the last section
-of this page. Types are in `src/data/types.ts` (architect contract, unchanged).
+of this page. Types are in `src/data/types.ts` (shared contract).
 
 ```ts
 import {
@@ -24,7 +24,7 @@ import {
 | `AIRCRAFT_CAVEATS` | `Record<AircraftId, string[]>` | "Simplified here" sentences: every aircraft value research could not confirm. Show the relevant ones in Hangar/Reference/lab callouts. |
 | `MISSILES` | `Record<MissileId, MissileSpec>` | Seeker, midcourse, loft, pitbull, seeker range/gimbal, mass, size, burn, Mach/g, reference ranges, chaff factor, guidance rule, DCS notes. |
 | `MISSILE_REF_NOTE` | `string` | Caption to show next to `ref` ranges (they are ED's launch table, not flight results). |
-| `FLARE_SUSCEPTIBILITY` | `Record<MissileId, number>` | 0..1 flare factor for IR seekers (radar missiles 0). Not in `MissileSpec` yet. |
+| `FLARE_SUSCEPTIBILITY` | `Record<MissileId, number>` | 0..1 flare factor for IR seekers (radar missiles 0). Deprecated derived compatibility map; read `MISSILES[id].flareSusceptibility`. |
 | `RWRS` | `Record<RwrId, RwrSpec>` | Symbols for every emitter, cues (look and sound) for search/lock/launch/missile, teach points. |
 | `rwrSymbol(rwr, emitter)` | `string` | Symbol lookup; falls back to the RWR's `unknown` symbol. SPO-15 returns the type lamp letter (`''` = no lamp). |
 | `RWR_CAVEATS` | `Record<RwrId, string[]>` | Unconfirmed RWR details. |
@@ -68,7 +68,7 @@ is allowed only if it passes all three. They reproduce DCS's allowed patterns: H
 F-14 ±20°/4B and ±40°/2B; JF-17 ±60°/2B, ±25°/3B, ±10°/4B; F-15C and FC3 Russian jets ±30°.
 
 **FC3 Russian scan.** `azHalfWidthOptionsDeg: [30]`: the scan is always 60° wide and the pilot moves its centre
-between −30°, 0° and +30° (three positions). In СНП it centres on the tracked target.
+between `azCenterOptionsDeg: [-30, 0, 30]` (three positions). In СНП it centres on the tracked target.
 
 **Mode labels.** As the cockpit shows them: `ОБЗ ДВБ / СНП ДВБ / АТК ДВБ` on the Russian HUD, `LRS / TWS / STT`
 on the F-15C, `PD STT` and `PD SRCH` on the F-14, `RECH / PSIC` on the M-2000C. `acm` labels are generic
@@ -235,9 +235,20 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 
 ## Requests (to the architect)
 
-- Add `flareSusceptibility: number` to `MissileSpec` (today exported separately as `FLARE_SUSCEPTIBILITY`).
-- Consider `azCenterOptionsDeg?: number[]` on `RadarSpec` for the FC3 Russian three-position scan (−30/0/+30).
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
+
+## Structured capability metadata
+
+- `RadarSpec.singleTargetTws` describes the M-2000C PSID capability (`maxTracks: 1`, `bars: 1`,
+  `launchFromTws: false`, `modelled: false`), sourced from `tomcat-thunder-mirage.md`. It does not add PSID to
+  the shared simulation: `tws` remains null and `modes` lists implemented modes.
+- `RadarSpec.tws.capConfidence` is `documented` for researched target caps and `unpublished` for the Hornet,
+  whose ten-track limit remains a trainer stand-in. Do not present the latter as a DCS target cap.
+- `MissileSpec.pitbullApprox` is true for every current ARH activation distance. These remain approximate,
+  including manual/community readings; `pitbullKm` is absent and `pitbullApprox` false for SARH/IR missiles.
+- `MissileSpec.flareSusceptibility` stores the existing 0..1 DCS gameplay factor: AIM-9X 0.2; AIM-9M,
+  R-73, R-27T/ET and PL-5EII 0.5; Magic II 1 (source 2.0 clamped); radar missiles 0. This is metadata, not a
+  retuning of the simulation. The old map is derived from these values.
 
 ## Radar contract additions
 

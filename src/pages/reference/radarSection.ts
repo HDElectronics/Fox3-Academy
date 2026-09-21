@@ -80,7 +80,7 @@ export function radarSection(rc: RefCtx): { el: HTMLElement; figure: DisplayFigu
   // ---- modes (filterable table)
   const modes = r.modes.filter(m => m !== 'off');
   const modeRows = modes.map(m => ({ mode: m, label: r.modeLabels[m] ?? MODE_NAME[m] ?? m, what: modeWhat(spec, m) }));
-  if (!tws) modeRows.splice(1, 0, { mode: 'tws', label: '—', what: `Not on the ${spec.short}. PSID (single-target track while scan) exists in the jet but is not modelled here; you fight from PSIC.` });
+  if (!tws) modeRows.splice(1, 0, { mode: 'tws', label: r.singleTargetTws?.label ?? '—', what: r.singleTargetTws ? `${r.singleTargetTws.label} tracks ${r.singleTargetTws.maxTracks} target while a ${r.singleTargetTws.bars}-bar scan continues. It cannot guide a radar missile and is not modelled here; lock before firing.` : `No TWS on the ${spec.short}.` });
   const trs = modeRows.map(m => {
     const name = h('td', { class: 'is-mono' }, MODE_NAME[m.mode] ?? m.mode);
     const label = h('td', { class: 'is-mono ref-cockpit' }, m.label);

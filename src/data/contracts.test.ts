@@ -19,4 +19,23 @@ describe('data contracts', () => {
     }
   });
 
+  it('distinguishes an unmodelled single-target scan mode from multi-target TWS', () => {
+    expect(AIRCRAFT.m2000c.radar.singleTargetTws).toEqual({ label: 'PSID', maxTracks: 1, bars: 1, launchFromTws: false, modelled: false });
+    expect(AIRCRAFT.m2000c.radar.tws).toBeNull();
+    expect(AIRCRAFT.m2000c.radar.modes).not.toContain('tws');
+    expect(AIRCRAFT.fa18c.radar.tws?.capConfidence).toBe('unpublished');
+    expect(AIRCRAFT.f15c.radar.tws?.capConfidence).toBe('documented');
+  });
+
+  it('keeps approximate activation ranges and flare factors attached to their missile', () => {
+    for (const m of Object.values(MISSILES)) {
+      expect(m.pitbullApprox).toBe(m.pitbullKm !== undefined);
+      expect(m.flareSusceptibility).toBeGreaterThanOrEqual(0);
+      expect(m.flareSusceptibility).toBeLessThanOrEqual(1);
+      expect(FLARE_SUSCEPTIBILITY[m.id]).toBe(m.flareSusceptibility);
+      if (m.seeker !== 'ir') expect(m.flareSusceptibility).toBe(0);
+    }
+    expect(MISSILES.aim9x.flareSusceptibility).toBe(0.2);
+    expect(MISSILES.magic2.flareSusceptibility).toBe(1);
+  });
 });

@@ -47,6 +47,8 @@ export interface RadarSpec {
   /** Label shown in the cockpit for each mode (e.g. { rws: 'ОБЗ', tws: 'СНП', stt: 'АТК' }). */
   modeLabels: Partial<Record<RadarModeId, string>>;
   azHalfWidthOptionsDeg: number[];   // selectable scan half-widths, e.g. [10, 30, 60]
+  /** Fixed manual scan centers; omitted for continuously slewable radars. */
+  azCenterOptionsDeg?: number[];
   barOptions: number[];              // selectable bar counts, e.g. [1, 2, 4, 6, 8]
   /** Explicit DCS TWS scan combinations: [azimuth half-width in degrees, bars]. */
   twsPatterns?: readonly (readonly [azHalfDeg: number, bars: number])[];
@@ -68,12 +70,16 @@ export interface RadarSpec {
   notchKts: number;
   /** Does the notch only apply against ground clutter (look-down)? */
   notchNeedsLookDown: boolean;
+  /** Documented single-target scan/track capability that is not implemented by the shared TWS model. */
+  singleTargetTws?: { label: string; maxTracks: 1; bars: number; launchFromTws: false; modelled: false };
   tws: null | {
     maxTracks: number;            // track files the radar maintains
     /** Can a radar missile be launched while staying in TWS? */
     launchFromTws: boolean;
     /** Max designated targets that can have supported ARH missiles simultaneously. 1 = sequential only. */
     maxSimultaneousTargets: number;
+    /** Whether that cap is documented or a trainer stand-in for an unpublished DCS cap. */
+    capConfidence: 'documented' | 'unpublished';
     /** DCS limits the scan volume in TWS on some jets. Frame time above this is refused. */
     maxFrameTimeS?: number;
     maxAzHalfWidthDeg?: number;
@@ -126,6 +132,8 @@ export interface MissileSpec {
   lofts: boolean;
   /** ARH only: seeker activation distance to the (predicted) target. */
   pitbullKm?: number;
+  /** True when pitbullKm is approximate; false when no activation distance applies. */
+  pitbullApprox: boolean;
   seekerRangeKm?: number;
   seekerGimbalDeg?: number;
   massKg: number;
@@ -142,6 +150,8 @@ export interface MissileSpec {
   };
   /** How much the seeker falls for chaff, 0 (immune) .. 1 (very gullible). */
   chaffSusceptibility: number;
+  /** Existing DCS gameplay flare factor, clamped to 0..1; radar missiles are 0. */
+  flareSusceptibility: number;
   /** What the pilot must do to guide it, in one sentence. */
   guidanceRule: string;
   /** DCS-specific behaviour worth knowing. */

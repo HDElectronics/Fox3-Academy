@@ -101,7 +101,7 @@ export function missilesSection(rc: RefCtx): MissilesSection {
       h('td', { class: 'is-mono' }, SEEKER_LABEL[m.seeker]),
       h('td', null, MIDCOURSE_LABEL[m.midcourse]),
       h('td', null, m.lofts ? 'Yes' : '—'),
-      h('td', { class: 'is-num' }, m.pitbullKm != null ? '~' + rangeNum(m.pitbullKm, units) : '—'),
+      h('td', { class: 'is-num' }, m.pitbullKm != null ? (m.pitbullApprox ? '~' : '') + rangeNum(m.pitbullKm, units) : '—'),
       h('td', { class: 'is-num' }, rangeNum(m.ref.highHeadOnKm, units)),
       h('td', { class: 'is-num' }, rangeNum(m.ref.highColdKm, units)),
       h('td', { class: 'is-num' }, rangeNum(m.ref.lowHeadOnKm, units)),

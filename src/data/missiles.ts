@@ -9,7 +9,7 @@
  * - ref: ED's own launch table (ModelData[50..55]): shooter and target both at 900 km/h (~M0.85 at 10 km).
  *   Table values, not flight results. See MISSILE_REF_NOTE.
  * - chaffSusceptibility: the Lua ccm_k0 factor (0 = immune, 1 = default), clamped to 0..1. IR missiles are 0
- *   (chaff does nothing to them); their flare factor is in the notes.
+ *   (chaff does nothing to them); flareSusceptibility holds the IR factor on the same 0..1 scale.
  * - pitbullKm for AMRAAM-class missiles is not published; values are the best reading and marked (approx.).
  */
 import type { MissileId, MissileSpec } from './types';
@@ -18,17 +18,6 @@ import type { MissileId, MissileSpec } from './types';
 export const MISSILE_REF_NOTE =
   'Reference ranges are ED\'s DCS launch table (shooter and target at 900 km/h, about M0.85 at 10 km): 10 km head-on, ' +
   '10 km with the target running away, and 1 km head-on. They drive the FC3/AI launch zone; the real missile may do better or worse.';
-
-/**
- * How much an IR seeker falls for flares, 0 (immune) .. 1 (very gullible), on the same scale as
- * chaffSusceptibility: the Lua IR ccm_k0 clamped to 0..1 (AIM-9X 0.2; AIM-9M, R-73, R-27T/ET, PL-5EII 0.5;
- * Magic II 2.0 → 1). Radar missiles are 0. Not in MissileSpec yet (requested from the architect).
- */
-export const FLARE_SUSCEPTIBILITY: Record<MissileId, number> = {
-  r27r: 0, r27er: 0, r27t: 0.5, r27et: 0.5, r77: 0, r73: 0.5,
-  aim120b: 0, aim120c: 0, aim7m: 0, aim9m: 0.5, aim9x: 0.2,
-  aim54a: 0, aim54c: 0, sd10: 0, pl5e: 0.5, s530d: 0, magic2: 1,
-};
 
 type Def = Omit<MissileSpec, 'id'>;
 const m = (id: MissileId, d: Def): MissileSpec => ({ id, ...d });
@@ -41,6 +30,7 @@ const PHOENIX_RULE =
 
 export const MISSILES: Record<MissileId, MissileSpec> = {
   r27r: m('r27r', {
+    flareSusceptibility: 0, pitbullApprox: false,
     name: 'R-27R', nato: 'AA-10 Alamo-A', fox: 1, seeker: 'sarh', midcourse: 'none', lofts: false,
     seekerRangeKm: 60, seekerGimbalDeg: 55,
     massKg: 253, lengthM: 4.0, diameterM: 0.23, burnS: 6, maxMach: 4.5, maxG: 25,
@@ -57,6 +47,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   r27er: m('r27er', {
+    flareSusceptibility: 0, pitbullApprox: false,
     name: 'R-27ER', nato: 'AA-10 Alamo-C', fox: 1, seeker: 'sarh', midcourse: 'none', lofts: false,
     seekerRangeKm: 60, seekerGimbalDeg: 55,
     massKg: 351, lengthM: 4.78, diameterM: 0.26, burnS: 8, maxMach: 4.0, maxG: 25,
@@ -72,6 +63,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   r27t: m('r27t', {
+    flareSusceptibility: 0.5, pitbullApprox: false,
     name: 'R-27T', nato: 'AA-10 Alamo-B', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 25, seekerGimbalDeg: 60,
     massKg: 245, lengthM: 3.7, diameterM: 0.23, burnS: 6, maxMach: 3.2, maxG: 25,
@@ -87,6 +79,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   r27et: m('r27et', {
+    flareSusceptibility: 0.5, pitbullApprox: false,
     name: 'R-27ET', nato: 'AA-10 Alamo-D', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 25, seekerGimbalDeg: 60,
     massKg: 343, lengthM: 4.5, diameterM: 0.26, burnS: 8, maxMach: 4.0, maxG: 25,
@@ -100,6 +93,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   r77: m('r77', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'R-77', nato: 'AA-12 Adder', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: false,
     pitbullKm: 15, seekerRangeKm: 16, seekerGimbalDeg: 60,
     massKg: 175, lengthM: 3.6, diameterM: 0.19, burnS: 5.1, maxMach: 4.0, maxG: 40,
@@ -115,6 +109,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   r73: m('r73', {
+    flareSusceptibility: 0.5, pitbullApprox: false,
     name: 'R-73', nato: 'AA-11 Archer', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 20, seekerGimbalDeg: 75,
     massKg: 105, lengthM: 2.9, diameterM: 0.17, burnS: 5.5, maxMach: 2.8, maxG: 45,
@@ -128,6 +123,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim120b: m('aim120b', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'AIM-120B', nato: 'AMRAAM', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: true,
     pitbullKm: 14, seekerRangeKm: 30, seekerGimbalDeg: 60,
     massKg: 157.9, lengthM: 3.66, diameterM: 0.178, burnS: 7.1, maxMach: 4.0, maxG: 30,
@@ -144,6 +140,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim120c: m('aim120c', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'AIM-120C', nato: 'AMRAAM', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: true,
     pitbullKm: 16, seekerRangeKm: 30, seekerGimbalDeg: 60,
     massKg: 161.5, lengthM: 3.66, diameterM: 0.178, burnS: 6.5, maxMach: 4.0, maxG: 30,
@@ -160,6 +157,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim7m: m('aim7m', {
+    flareSusceptibility: 0, pitbullApprox: false,
     name: 'AIM-7M', nato: 'Sparrow', fox: 1, seeker: 'sarh', midcourse: 'none', lofts: false,
     seekerRangeKm: 60, seekerGimbalDeg: 60,
     massKg: 231.1, lengthM: 3.66, diameterM: 0.203, burnS: 14.5, maxMach: 3.2, maxG: 25,
@@ -178,6 +176,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim9m: m('aim9m', {
+    flareSusceptibility: 0.5, pitbullApprox: false,
     name: 'AIM-9M', nato: 'Sidewinder', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 20, seekerGimbalDeg: 45,
     massKg: 85.7, lengthM: 2.87, diameterM: 0.127, burnS: 5.2, maxMach: 2.7, maxG: 40,
@@ -191,6 +190,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim9x: m('aim9x', {
+    flareSusceptibility: 0.2, pitbullApprox: false,
     name: 'AIM-9X', nato: 'Sidewinder', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 25, seekerGimbalDeg: 90,
     massKg: 84.5, lengthM: 3.02, diameterM: 0.127, burnS: 5.0, maxMach: 2.7, maxG: 55,
@@ -204,6 +204,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim54a: m('aim54a', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'AIM-54A', nato: 'Phoenix', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: true,
     pitbullKm: 18.5, seekerRangeKm: 25, seekerGimbalDeg: 60,
     massKg: 444, lengthM: 3.96, diameterM: 0.38, burnS: 27, maxMach: 4.0, maxG: 22,
@@ -220,6 +221,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   aim54c: m('aim54c', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'AIM-54C', nato: 'Phoenix', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: true,
     pitbullKm: 18.5, seekerRangeKm: 25, seekerGimbalDeg: 60,
     massKg: 454, lengthM: 3.96, diameterM: 0.38, burnS: 27, maxMach: 4.0, maxG: 22,
@@ -235,6 +237,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   sd10: m('sd10', {
+    flareSusceptibility: 0, pitbullApprox: true,
     name: 'SD-10', fox: 3, seeker: 'arh', midcourse: 'datalink', lofts: true,
     pitbullKm: 16, seekerRangeKm: 30, seekerGimbalDeg: 60,
     massKg: 199, lengthM: 3.9, diameterM: 0.203, burnS: 10, maxMach: 5.0, maxG: 30,
@@ -250,6 +253,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   pl5e: m('pl5e', {
+    flareSusceptibility: 0.5, pitbullApprox: false,
     name: 'PL-5EII', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 20, seekerGimbalDeg: 45,
     massKg: 83, lengthM: 2.89, diameterM: 0.127, burnS: 6, maxMach: 2.7, maxG: 35,
@@ -263,6 +267,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   s530d: m('s530d', {
+    flareSusceptibility: 0, pitbullApprox: false,
     name: 'Super 530D', fox: 1, seeker: 'sarh', midcourse: 'none', lofts: true,
     seekerRangeKm: 100, seekerGimbalDeg: 50,
     massKg: 270, lengthM: 3.8, diameterM: 0.263, burnS: 10.5, maxMach: 5.0, maxG: 25,
@@ -279,6 +284,7 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
   magic2: m('magic2', {
+    flareSusceptibility: 1, pitbullApprox: false,
     name: 'Magic II', fox: 2, seeker: 'ir', midcourse: 'none', lofts: false,
     seekerRangeKm: 20, seekerGimbalDeg: 55,
     massKg: 85, lengthM: 2.75, diameterM: 0.157, burnS: 1.9, maxMach: 2.0, maxG: 40,
@@ -292,3 +298,8 @@ export const MISSILES: Record<MissileId, MissileSpec> = {
     ],
   }),
 };
+
+/** @deprecated Read MISSILES[id].flareSusceptibility; retained as a derived compatibility export. */
+export const FLARE_SUSCEPTIBILITY = Object.fromEntries(
+  Object.values(MISSILES).map(missile => [missile.id, missile.flareSusceptibility]),
+) as Record<MissileId, number>;

@@ -101,7 +101,7 @@ export function bindingsSection(rc: RefCtx): HTMLElement {
 
 function twsFact(spec: AircraftSpec): string {
   const tws = spec.radar.tws;
-  if (!tws) return 'None: PSIC only';
+  if (!tws) return spec.radar.singleTargetTws ? `${spec.radar.singleTargetTws.label}: 1 target (not modelled)` : 'None';
   const n = tws.maxSimultaneousTargets;
   if (tws.autoSttAtRmaxFraction != null) return `${tws.maxTracks} tracks · ${n > 1 ? `${n} targets (СНП2)` : '1 target, from STT'}`;
   if (capUnpublished(spec)) return `${tws.maxTracks} tracks · no published target cap`;
