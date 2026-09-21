@@ -90,6 +90,12 @@ autopilot (turn, climb, speed keys), run your radar with your jet's keys, and us
 the debrief replays the fight in 3D with a timeline of launches, pitbulls and hits, per-shot stats (range vs
 Rmax, F-pole, how long the target was warned) and coaching on what went right and wrong.
 
+Use **Truth / Your radar** below the playback controls to compare the complete fight with your recorded
+sensor picture. Your radar shows ownship, echo squares and estimated track rings; dashed rings mean a
+coasting track. It holds the last sensor sample between updates (about 0.25 s), including when you scrub
+backward. Other aircraft and missiles are hidden. The timeline, coaching and shot cards still describe
+the whole fight using truth. This is a simplified sensor replay, without recorded RWR or datalink.
+
 ### Reference
 Your kneeboard: the jet's bindings (FC3 keyboard defaults, or HOTAS function names on full-fidelity modules),
 step-by-step procedures, radar numbers, a missile table for all seventeen missiles, a comparison of all ten

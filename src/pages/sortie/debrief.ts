@@ -103,6 +103,13 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
 
   let playing = !Stage.prefersReducedMotion();
   let speed = 4;
+  let radarView = ctx.params.get('view') === 'radar';
+  const perspective = segmented<'truth' | 'radar'>({
+    id: 'sortie-rperspective', ariaLabel: 'Replay picture', size: 's', value: radarView ? 'radar' : 'truth',
+    options: [{ value: 'truth', label: 'Truth' }, { value: 'radar', label: 'Your radar' }],
+    onChange: value => { radarView = value === 'radar'; applyPerspective(); },
+  });
+  const pictureNote = h('p', { class: 'sortie-note', 'aria-live': 'polite' });
   const playBtn = button({ label: playing ? 'Pause' : 'Play', size: 's', keys: 'Space', onClick: () => setPlaying(!playing) });
   const speedSeg = segmented<number>({
     id: 'sortie-rspeed', ariaLabel: 'Replay speed', size: 's', value: speed,
@@ -140,6 +147,7 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   });
   const timelineEl = h('div', { class: 'sortie-tl' },
     h('div', { class: 'sortie-tl__bar' }, playBtn.el, speedSeg.el, timeOut, h('span', { class: 'sortie-tl__end' }, `/ ${fmtTime(t1)}`)),
+    h('div', { class: 'sortie-tl__bar' }, perspective.el), pictureNote,
     h('div', { class: 'sortie-tl__track' },
       h('div', { class: 'sortie-tl__lanes' }, h('span', { class: 'sortie-tl__lanelabel' }, 'Events'), laneEv, h('span', { class: 'sortie-tl__lanelabel' }, 'Coach'), laneCo, ticks, playhead),
       scrub),
@@ -229,7 +237,7 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
     console: [
       consolePanel({ title: 'Result', children: [resultEl] }).el,
       consolePanel({ title: 'Debrief', class: 'sortie-dpanel', children: [tabsH.el] }).el,
-      callout({ kind: 'simplified', body: 'F-pole is the shooter–target distance when the missile ended. Launch zones are recomputed from the true geometry at launch (the in-game DLZ numbers, simplified). The replay is recorded every 0.25 s.' }),
+      callout({ kind: 'simplified', body: 'Your radar shows your recorded sensor estimates, held between 0.25 s samples. Rings are tracks; dashed rings are coasting tracks; squares are echoes. The timeline, result, coaching and shot cards always use whole-fight truth. F-pole is the shooter–target distance when the missile ended. Launch zones use true launch geometry (simplified).' }),
     ],
   });
   lab.overlay('tl', h('div', { class: 'sortie-hud-row' }, camSeg.el, focusSel.el));
@@ -246,12 +254,20 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   } catch (e) { console.warn('Debrief: 3D view unavailable', e); }
   bag.add(() => stage?.dispose());
 
+  function applyPerspective(): void {
+    replay?.setRadarObserver(radarView ? eng.playerId : null);
+    focus = radarView ? eng.playerId : 'all';
+    focusSel.setOptions(radarView ? [{ value: eng.playerId, label: 'Ownship' }] : [{ value: 'all', label: 'Whole fight' }, ...ids.map(id => ({ value: id, label: name(id) }))], focus);
+    focusSel.setDisabled(radarView);
+    applyCam();
+    syncUi();
+  }
   function applyCam(): void {
     if (!rig) return;
     const f = focus === 'all' ? null : focus;
     if (cam === 'tactical') {
       rig.setMode('orbit');
-      if (f) rig.focusOn(f, { distance: 22000 }); else rig.frame(ids, { padding: 1.15, headingDeg: 15, elevationDeg: 28 });
+      if (f) rig.focusOn(f, { distance: radarView ? Math.max(60000, setup.range * 1.8) : 22000 }); else rig.frame(ids, { padding: 1.15, headingDeg: 15, elevationDeg: 28 });
     } else if (cam === 'chase') rig.setMode('chase', { focus: f ?? eng.playerId, lookAt: null });
     else rig.setMode('top', { focus: f ?? eng.playerId, distance: Math.max(60000, setup.range * 1.2) });
   }
@@ -267,6 +283,11 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
     setText(bigTime, fmtTime(cur));
     if (document.activeElement !== scrub) scrub.value = String(cur);
     playhead.style.left = pct(cur);
+    setText(pictureNote, radarView
+      ? replay?.radarSampleTime !== null && replay?.radarSampleTime !== undefined
+        ? 'Your radar · ownship and recorded estimates only. Timeline and coaching show whole-fight truth.'
+        : 'Your radar · sensor recording unavailable at this time. Timeline and coaching show whole-fight truth.'
+      : 'Truth · all aircraft and missiles. Switch to Your radar to compare what your sensors knew.');
   }
   function setPlaying(p: boolean): void {
     playing = p;
@@ -275,7 +296,7 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   }
   function jump(t: number, f: EntityId | null): void {
     setTime(t - 2);
-    if (f && rig) {
+    if (f && rig && !radarView) {
       const isMissile = world.missiles.has(f);
       if (cam !== 'tactical') { cam = 'tactical'; camSeg.set('tactical'); rig.setMode('orbit'); }
       rig.focusOn(f, { distance: isMissile ? 6000 : 20000 });
@@ -294,8 +315,8 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
 
   const firstShot = inp.shots[0]?.t;
   setTime(o.startAt ?? (firstShot !== undefined ? firstShot - 10 : t0));
-  applyCam();
-  if (rig && o.startAt === undefined) rig.frame(ids, { padding: 1.15, headingDeg: 15, elevationDeg: 28, instant: true });
+  applyPerspective();
+  if (rig && o.startAt === undefined && !radarView) rig.frame(ids, { padding: 1.15, headingDeg: 15, elevationDeg: 28, instant: true });
 
   let uiAcc = 0;
   const onFrame = (dt: number) => {

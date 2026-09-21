@@ -6,6 +6,7 @@
  *   ?ac=<AircraftId>      select the jet once on mount
  *   ?shot=fly&t=80        open the fly screen after a scripted pre-roll of t sim seconds
  *   ?shot=debrief&t=120   fly the whole sortie with the scripted pilot, open the debrief at t
+ *   ?shot=debrief&view=radar   show the player's recorded radar estimates instead of truth
  *   ?scenario=1v1|1v2|2v2&enemy=<id>&skill=rookie|regular|veteran|ace&range=<km>
  */
 import './style.css';
