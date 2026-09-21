@@ -30,6 +30,7 @@ import { reasonText } from './coach';
 import { flightHint, type HintState } from './hints';
 import { trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
 import { ScriptedPilot } from './autopilot';
+import { HoldAction } from './input';
 
 export interface FlyOutcome {
   world: World;
@@ -104,7 +105,18 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   const stick = { turn: 0, climb: 0, speed: 0, speedAt: 0 };
   const cursorHeld = { az: 0, range: 0 };
   const elevHeld = { dir: 0, acc: 0 };
-  const holds: { launch: number | null; launchFired: boolean; mode: number | null; modeDone: boolean } = { launch: null, launchFired: false, mode: null, modeDone: false };
+  const launchHold = new HoldAction(K.launch?.holdS ?? 0, fire, undefined, () => !paused && canAct());
+  const modeHold = new HoldAction(K.modeToggle?.holdS ?? 1, toggleMode,
+    K.modeToggle?.tap === 'step' ? step : undefined, () => !paused && canAct());
+  function clearHeldInputs(): void {
+    launchHold.cancel(); modeHold.cancel();
+    if (stick.turn) me.cmd.heading = me.heading;
+    if (stick.climb) me.cmd.altitude = me.pos.y;
+    stick.turn = 0; stick.climb = 0; stick.speed = 0;
+    cursorHeld.az = 0; cursorHeld.range = 0; elevHeld.dir = 0; elevHeld.acc = 0;
+  }
+  bag.on(window, 'blur', clearHeldInputs);
+  bag.add(clearHeldInputs);
   let pic: RadarPicture | null = null;
   /** Launch allowed although the cue is not lit (see updateUi). */
   let inRange = false;
@@ -134,7 +146,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     options: TIME_SCALES.map(v => ({ value: v, label: `${v}×` })),
     onChange: v => { timeScale = v; },
   });
-  const pauseT = toggle({ id: 'sortie-pause', label: 'Pause', value: paused, size: 's', keys: TK.pause, onChange: v => { paused = v; } });
+  const pauseT = toggle({ id: 'sortie-pause', label: 'Pause', value: paused, size: 's', keys: TK.pause, onChange: v => { paused = v; clearHeldInputs(); } });
   const endBtn = button({ label: 'End sortie', size: 's', onClick: () => endNow(sortieEnd(world, eng) ?? { outcome: 'draw', reason: 'ended', t: world.t }) });
   const briefBtn = button({ label: 'Brief', size: 's', variant: 'ghost', title: 'Abandon this sortie and go back to the brief', onClick: () => o.onBrief() });
 
@@ -606,14 +618,14 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   if (K.launch?.keys) {
     const hold = K.launch.holdS ?? 0;
     keyMap[K.launch.keys] = hold > 0
-      ? { down: () => { holds.launch = performance.now(); holds.launchFired = false; }, up: () => { holds.launch = null; } }
+      ? launchHold.binding
       : { down: () => fire() };
   }
   // RWS/TWS: F-16 TMS Right held 1 s toggles TWS, a tap steps the bug.
   if (K.modeToggle?.keys) {
     const mk = K.modeToggle;
     keyMap[mk.keys as string] = mk.holdS
-      ? { down: () => { holds.mode = performance.now(); holds.modeDone = false; }, up: () => { if (holds.mode !== null && !holds.modeDone) { if (mk.tap === 'step') step(); } holds.mode = null; } }
+      ? modeHold.binding
       : { down: () => toggleMode() };
   }
   bindJet('designate', designateAtCursor);
@@ -703,7 +715,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
 
   function frame(dt: number): void {
     if (finished) return;
-    if (dt > 0) {
+    if (paused) clearHeldInputs();
+    if (dt > 0 && !paused) {
       // Held keys (real time).
       if (stick.speed && me.alive && performance.now() - stick.speedAt > THROTTLE_DELAY_MS) me.cmd.speed = clamp(me.cmd.speed + stick.speed * 40 * dt, 120, vmax);
       if ((cursorHeld.az || cursorHeld.range) && me.alive) {
@@ -711,9 +724,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         world.setScan(me.id, { cursor: { az: c.az + cursorHeld.az * 30 * D2R * dt, range: Math.max(1000, c.range + cursorHeld.range * 0.45 * me.radar.rangeScale * dt) } });
       }
       if (elevHeld.dir) { elevHeld.acc += dt; if (elevHeld.acc > 0.25) { elevHeld.acc = 0; elevStep(elevHeld.dir); } }
-      const now = performance.now();
-      if (holds.launch !== null && !holds.launchFired && (now - holds.launch) / 1000 >= (K.launch?.holdS ?? 0)) { holds.launchFired = true; fire(); }
-      if (holds.mode !== null && !holds.modeDone && (now - holds.mode) / 1000 >= (K.modeToggle?.holdS ?? 1)) { holds.modeDone = true; toggleMode(); }
+      launchHold.tick(); modeHold.tick();
       if (!paused) stepSim(Math.min(dt, 0.1) * timeScale);
     }
     if (finished) return;
