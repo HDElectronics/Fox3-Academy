@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- B11: Make keyboard defaults, binding groups, radar capabilities and missile uncertainty typed data;
+  migrate page consumers and separate FC3 expected range from the radar cursor, including scene restarts.
+- B12: Adopt shared camera, detection explanation, seeker-state and slider-zone APIs across the lessons.
+- B13: Record radar estimates and add Truth / Your radar perspectives to Sortie debriefs; radar view hides
+  unobserved truth and keeps camera focus on ownship when scrubbing or jumping to events.
+- B16: Exercise live browser flows across all modules at desktop and phone widths. Cancel Sortie holds
+  on pause, focus loss and disposal, and settle completed holds even when release falls between frames.
+  Record remaining physical-device, audio and performance checks in the browser QA report.
+
 - B8: Enlarge Flanker HUD contact dots and friendly-row spacing in small bezels while preserving
   proportional marks on larger displays and existing designation/lock cues.
 - B10: Keep tactical tags inside the viewport and include radar explanations and missile replay markers

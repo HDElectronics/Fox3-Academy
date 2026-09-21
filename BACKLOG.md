@@ -28,24 +28,18 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B11. Contract additions pages asked for.** In `src/data/types.ts`: `KeyBind.group` and `KeyBind.keyboard`
-  (the Cockpit page parses them from text today), `RadarSpec.azCenterOptionsDeg` (FC3 three-position scan),
-  single-target TWS modes (M-2000C PSID) and cap confidence, `MissileSpec.pitbullApprox` and
-  `flareSusceptibility`. In `src/sim/types.ts`: an expected-range field in `RadarState` for FC3 range-angle
-  aiming. Replace the page-local workarounds after adding each.
-- **B12. Adopt the newer kit and sim APIs.** Hangar hero: `CameraRig` with `interactive: false` and auto-orbit
-  instead of its own camera. Defense: `notchState()` from `src/sim/missile.ts` instead of mirroring the seeker
-  timer and SARH grace. TWS: `explainDetection(..., { units })` instead of rebuilding sentences. Missile Lab: a
-  zone-band option on the kit slider instead of its own element in the track.
-- **B13. Replay shows only truth.** `RecordFrame` has no track estimates, so the debrief cannot show what your
-  radar believed at each moment. Extend the recording in `src/sim/world.ts` and draw it in `ReplayView`.
 - **B15. Hyphenated jet names wrap** ("Su-" / "27") in narrow prose. A no-break hyphen falls back to another font;
   a `white-space: nowrap` span around jet names in copy would work.
 
+- **B21. Radar-volume annotation overlap.** Coverage annotations can overlap nearby aircraft tags in
+  crowded Radar Lab views. Coordinate them with shared label placement and check desktop/phone layouts.
+
 ## P3 — Quality and infrastructure
 
-- **B16. Real-browser QA.** Headless checks cannot cover: key holds (FC3 Space 1 s, Viper TMS Right 1 s,
-  M-2000C 2 s), RWR audio by ear, touch, scroll restore, and frame rate on low-end GPUs. Do one manual pass per page and fix what it finds.
+- **B16. Remaining device QA.** The [browser QA pass](docs/browser-qa.md) covers live desktop/phone-width
+  interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
+  M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
+  routes, and frame rate on low-end GPUs. Hold cancellation and thresholds have automated regression tests.
 - **B18. Sandbox cleanup.** `sandbox/` holds many probe configs and harnesses from the build waves. Keep the
   harness pages that still run (`render.html`, `ui.html`, `displays.html`, `frame.html`, page cycle harnesses)
   and delete stale probes.
