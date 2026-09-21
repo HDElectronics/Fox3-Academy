@@ -2,7 +2,13 @@
 
 Research date: 2026-09-21
 
-Prefer free, openly redistributable assets. A paid fallback may be evaluated up to US$20 when no suitable free model exists; price alone does not establish redistribution rights. No purchase or asset integration has been made.
+**Status: deferred to community contributions.** The application retains its existing procedural aircraft
+models. No further asset search, purchase, generation or cleanup is scheduled. No external review model
+has been integrated. The candidates below are historical research leads, not an active adoption queue;
+contributors should recheck availability, rights and quality before proposing a replacement.
+
+Prefer free, openly redistributable assets. Price alone does not establish redistribution rights. No
+purchase or asset integration has been made. See [B20 in the backlog](../../BACKLOG.md) for acceptance criteria.
 
 This is a bounded source and licence survey for the ten aircraft currently in Fox Three School. It covers visual aircraft and cockpit assets only. A follow-up exterior review downloaded and converted the F-16, F-15 and MiG-29 candidates outside this repository. No aircraft assets have been adopted or committed here; exact variant detail, target-render appearance and performance still require review.
 
@@ -60,7 +66,7 @@ There is no verified, exact, open-licensed set covering all ten aircraft.
 - **Su-27S, F/A-18C Lot 20, JF-17 and Mirage 2000C:** no suitable exact candidate cleared yet.
   The known Mirage 2000-5 is a different variant, not an approved substitute.
 
-The next search must prioritize convincing shape, textures and detail comparable to or better than the
+A future community search should prioritize convincing shape, textures and detail comparable to or better than the
 reviewed F-16, correct aircraft variants, and clear upstream rights. Polygon counts alone do not establish
 quality. Keep rejected candidates as research records; do not treat them as approved fallbacks.
 
@@ -73,7 +79,7 @@ quality. Keep rejected candidates as research records; do not treat them as appr
 
 Sketchfab candidates should be reported with separate **visual quality**, **download availability** and **licence** statuses. Its downloadable CC BY models can be good fits; Editorial, NC and ND restrictions do not meet this project's open-asset requirement. Do not recover viewer-only files or assume a third-party reseller has creator permission.
 
-For paid fallbacks, ordinary marketplace licences may permit inclusion in a finished game while forbidding distribution of the underlying model. For example, [CGTrader's Royalty Free terms](https://help.cgtrader.com/hc/en-us/articles/360015124437-Royalty-Free-License) restrict raw redistribution and require protection against extraction in software. Such a purchase is not automatically suitable for an open repository or this application's directly accessible assets. No qualifying paid fallback under the budget has yet been verified.
+For paid fallbacks, ordinary marketplace licences may permit inclusion in a finished game while forbidding distribution of the underlying model. For example, [CGTrader's Royalty Free terms](https://help.cgtrader.com/hc/en-us/articles/360015124437-Royalty-Free-License) restrict raw redistribution and require protection against extraction in software. Such a purchase is not automatically suitable for an open repository or this application's directly accessible assets. No qualifying paid fallback has been verified in this survey.
 
 ## Local exterior evaluation
 

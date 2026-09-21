@@ -31,8 +31,12 @@ autopilot must not stand in for trim, pitch, roll, rudder, or landing dynamics.
 
 ## 4. Aircraft presentation
 
-Replace the current silhouettes incrementally with realistic models licensed for open redistribution and
-modification. Research coverage for all ten aircraft; a free download is not proof of an open license.
+**Deferred to community contributions.** Keep the existing procedural aircraft models in the application.
+Higher-fidelity exteriors, asset searches, purchases, generation and manual mesh cleanup are not part of
+the active implementation plan. They do not block training features or release readiness.
+
+Contributors can propose one realistic replacement at a time, licensed for open redistribution and
+modification. Coverage is needed for all ten aircraft; a free download is not proof of an open license.
 Keep original sources, authors, licenses, attribution, and modification notes for every model and texture.
 See the [aircraft asset research](docs/research/aircraft-assets.md) for candidates and unresolved coverage.
 
@@ -41,10 +45,11 @@ fallback. Standardize scale, orientation, materials, and attachment points. Load
 resources, dispose them on teardown, and provide lower-detail versions for phones. Aircraft geometry must
 not determine simulation behavior. Do not extract or redistribute models from DCS installations.
 
-### Image-to-3D asset trials
+### Image-to-3D asset trials — deferred
 
-When no suitable freely redistributable model is available, test one aircraft using rights-cleared exterior
-photographs and a service that exports an editable mesh. Keep reference attribution, generation settings,
+No further generation or cleanup trials are planned. The exterior experiment remains outside the
+repository and has not replaced any application model. A future community proposal may use rights-cleared
+exterior photographs and a service that exports an editable mesh. Keep reference attribution, generation settings,
 provider/model terms and modification notes. Commercial-use permission alone does not establish open
 redistribution rights. Generated assets remain outside the repository until those rights are resolved.
 
@@ -102,7 +107,7 @@ and explicit completion criteria before expanding across the fleet.
 
 | Slice | First usable result | Prerequisite / acceptance |
 |---|---|---|
-| Approved aircraft visuals | Replace one procedural exterior with the reviewed F-16 and retain a fallback | Final asset licence/source package, verified orientation and scale, phone performance budget; review every subsequent aircraft independently |
+| Aircraft visuals — community contribution, deferred | Keep existing procedural exteriors; consider one independently reviewed replacement when contributed | Final asset licence/source package, verified variant, orientation and scale, phone performance budget; previous review candidates are not integration approvals |
 | Cockpit exploration | F-16C reference explorer implemented; next validate interactions and add procedure walkthroughs | Resolve documented coverage gaps, improve spatial diagrams and zoom, verify current DCS actions before claiming complete coverage |
 | Flight fundamentals | One airfield and aircraft for straight flight, turns, trim, pattern, takeoff and landing | Dedicated handling model, control axes, ground contact and clear fidelity limits; do not reuse tactical autopilot as a flight model |
 | Communications | Tune a radio and complete a scripted startup/taxi/departure exchange | Per-aircraft radio controls, sourced phraseology and visible transcript; speech input optional |

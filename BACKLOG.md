@@ -67,3 +67,13 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
 - A progress view across jets and Tacview ACMI export from Sortie.
+
+## Community contributions — deferred from active implementation
+
+- **B20. Higher-fidelity aircraft exteriors.** Keep the current procedural models in `src/render/jets.ts`.
+  Asset sourcing, generation, cleanup and integration are deferred; training development does not depend
+  on them. Existing external previews are research records, not approved replacements. Start with one
+  aircraft and the [asset research and integration checklist](docs/research/aircraft-assets.md).
+  Done when a contribution includes clear mesh/texture redistribution rights, preferred source and
+  conversion steps, correct or explicitly simplified variant details, verified scale/orientation,
+  desktop/phone performance checks, attribution, resource cleanup and a working procedural fallback.
