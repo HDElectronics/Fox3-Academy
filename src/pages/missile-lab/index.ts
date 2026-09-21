@@ -220,8 +220,6 @@ const factory: PageFactory = (): Page => {
         onInput: v => { setup.range = rangeFromUser(v, u); onRange(); },
       };
       const rangeSl = slider(rOpts);
-      const zone = buildZoneBand();
-      rangeSl.el.querySelector('.ui-slider__track')?.append(zone.el);
       const zoneText = h('p', { class: 'ml-zone-text', 'aria-live': 'polite' });
       const exactBtn = button({ id: 'ml-exact', label: 'Compute exactly', size: 's', onClick: () => computeExact(),
         title: 'Fly the missile many times at these exact conditions and bisect for Rmax and Rne' });
@@ -376,21 +374,6 @@ const factory: PageFactory = (): Page => {
         react.el.title = off ? 'Pick what he does after launch first: with None he never reacts.' : 'Seconds after launch before he starts his move';
       }
 
-      function buildZoneBand() {
-        const min = h('span', { class: 'ml-zone__min' });
-        const nez = h('span', { class: 'ml-zone__nez' });
-        const mar = h('span', { class: 'ml-zone__mar' });
-        const pr = h('span', { class: 'ml-zone__pr' });
-        const labMin = h('span', { class: 'ml-zone__lab' });
-        const labNe = h('span', { class: 'ml-zone__lab' });
-        const labMax = h('span', { class: 'ml-zone__lab' });
-        const labPr = h('span', { class: 'ml-zone__lab ml-zone__lab--pr' });
-        const el = h('div', { class: 'ml-zone', 'aria-hidden': 'true' },
-          h('div', { class: 'ml-zone__bar' }, min, nez, mar, pr),
-          h('div', { class: 'ml-zone__labs' }, labMin, labNe, labMax, labPr));
-        return { el, min, nez, mar, pr, labMin, labNe, labMax, labPr };
-      }
-
       function zoneMarks(): { rmin: number; rne: number; rmax: number; exact: boolean } {
         if (exact && exact.key === setupKey(setup)) return { rmin: dlz.rmin, rne: exact.rne, rmax: exact.rmax, exact: true };
         return { rmin: dlz.rmin, rne: dlz.rne, rmax: dlz.rmax, exact: false };
@@ -398,25 +381,21 @@ const factory: PageFactory = (): Page => {
 
       function drawZone() {
         const z = zoneMarks();
-        const maxU = Number(rangeSl.input.max), minU = Number(rangeSl.input.min);
-        const P = (m: number) => Math.max(0, Math.min(100, ((rangeToUser(m, u) - minU) / (maxU - minU)) * 100));
-        const pmin = P(z.rmin), pne = P(z.rne), pmax = P(z.rmax);
-        zone.min.style.left = '0%'; zone.min.style.width = pmin + '%';
-        zone.nez.style.left = pmin + '%'; zone.nez.style.width = Math.max(0, pne - pmin) + '%';
-        zone.mar.style.left = pne + '%'; zone.mar.style.width = Math.max(0, pmax - pne) + '%';
-        const place = (el: HTMLElement, p: number, text: string) => { el.style.left = p + '%'; setText(el, text); };
-        place(zone.labMin, pmin, cues.rmin);
-        place(zone.labNe, pne, cues.rne);
-        place(zone.labMax, pmax, cues.rmax);
-        if (cues.prFraction !== null) {
-          const pp = P(cues.prFraction * z.rmax);
-          zone.pr.hidden = false; zone.pr.style.left = pp + '%';
-          zone.labPr.hidden = Math.abs(pmax - pp) < 7; place(zone.labPr, pp, cues.cue);
-        } else { zone.pr.hidden = true; zone.labPr.hidden = true; }
-        // keep labels from overlapping: Rmin sits at the left edge, and hides when Rne is right next to it
-        zone.labMin.classList.toggle('is-edge', pmin < 6);
-        zone.labMin.hidden = pne - pmin < 9;
-        zone.el.classList.toggle('is-exact', z.exact);
+        const user = (m: number) => rangeToUser(m, u);
+        rangeSl.setZones({
+          exact: z.exact,
+          bands: [
+            { from: Number(rangeSl.input.min), to: user(z.rmin), tone: 'hatched' },
+            { from: user(z.rmin), to: user(z.rne), tone: 'solid' },
+            { from: user(z.rne), to: user(z.rmax), tone: 'outline' },
+          ],
+          marks: [
+            { value: user(z.rmin), label: cues.rmin },
+            { value: user(z.rne), label: cues.rne, priority: 2 },
+            { value: user(z.rmax), label: cues.rmax, priority: 3 },
+            ...(cues.prFraction === null ? [] : [{ value: user(cues.prFraction * z.rmax), label: cues.cue, cue: true, priority: 1 }]),
+          ],
+        });
         const p = zonePlace(setup.range, { ...dlz, rne: z.rne, rmax: z.rmax });
         const where = {
           'inside-rmin': `inside ${cues.rmin}: too close`,
