@@ -31,9 +31,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B9. SAMs on every RWR.** The JF-17 scope boxes every emitter as an air threat (surface threats should be
   circles) and the ALR-67 has no SAM lamp; the RWR trainer therefore offers SAMs only on the SPO-15. Fix in
   `src/ui/displays/rwr/`, then enable SAMs in `src/pages/rwr-trainer`.
-- **B10. 3D label clutter.** Page notes (for example "below the bars") do not take part in tag decluttering, and
-  tags still overlap on phones in the Radar and Missile labs. Add a public declutter registration in
-  `src/render/tactical.ts`.
 - **B11. Contract additions pages asked for.** In `src/data/types.ts`: `KeyBind.group` and `KeyBind.keyboard`
   (the Cockpit page parses them from text today), `RadarSpec.azCenterOptionsDeg` (FC3 three-position scan),
   single-target TWS modes (M-2000C PSID) and cap confidence, `MissileSpec.pitbullApprox` and

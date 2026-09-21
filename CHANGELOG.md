@@ -4,6 +4,8 @@
 
 - B8: Enlarge Flanker HUD contact dots and friendly-row spacing in small bezels while preserving
   proportional marks on larger displays and existing designation/lock cues.
+- B10: Keep tactical tags inside the viewport and include radar explanations and missile replay markers
+  in shared label placement; suppress crowded secondary labels until space becomes available.
 
 - Add an F-16C 2D cockpit explorer with 399 sourced items across 49 panels, search, individual explanations,
   MFD bezel layouts, local exploration progress and focused mobile details. Label coverage limits and

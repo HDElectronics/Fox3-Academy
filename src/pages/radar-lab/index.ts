@@ -345,6 +345,7 @@ const factory: PageFactory = (): Page => {
       note = new Note(st.labels, 'r3-left', st.theme.caution);
       const nt = note;
       bag.add(() => nt.dispose());
+      bag.add(view.registerLabel(nt, { priority: 1 }));
       bag.add(st.onTap((x, y) => {
         const id = view?.pickEntity(x, y, { kinds: ['aircraft'] }) ?? null;
         select(id && id !== PLAYER ? id : null);

@@ -37,6 +37,7 @@ export class ShotScene {
   private lines: LineBatch | null = null;
   private syms: SymbolLayer | null = null;
   private notes: Note[] = [];
+  private noteOffs: (() => void)[] = [];
   private shots: SceneShot[] = [];
   private current: SceneShot | null = null;
   private t = 0;
@@ -182,6 +183,8 @@ export class ShotScene {
   }
 
   private buildNotes(): void {
+    for (const off of this.noteOffs) off();
+    this.noteOffs = [];
     for (const n of this.notes) n.dispose();
     this.notes = [];
     const st = this.stage;
@@ -196,12 +199,14 @@ export class ShotScene {
       endNote.set(isCur ? `${s.key} · ${st.width >= 520 ? s.endText : s.endShort}` : s.key);
       endNote.obj.position.set(end.x * UNIT_PER_M, end.y * UNIT_PER_M, end.z * UNIT_PER_M);
       this.notes.push(endNote);
-      // on a narrow view the pitbull tag would sit on the jets' tags; the diamond and the plots still mark it
-      if (isCur && r.pitbull && s.pitbullText && st.width >= 520) {
+      if (this.replay) this.noteOffs.push(this.replay.registerLabel(endNote, { priority: isCur ? 1 : 4 }));
+      // Shared layout gives this marker a nearby slot or hides it if the viewport is full.
+      if (isCur && r.pitbull && s.pitbullText) {
         const pb = new Note(st.labels, 'ml-note r3-center r3-above', s.color);
         pb.set(s.pitbullText);
         pb.obj.position.set(r.pitbull.pos.x * UNIT_PER_M, r.pitbull.pos.y * UNIT_PER_M, r.pitbull.pos.z * UNIT_PER_M);
         this.notes.push(pb);
+        if (this.replay) this.noteOffs.push(this.replay.registerLabel(pb, { priority: 3 }));
       }
     }
   }
@@ -266,6 +271,8 @@ export class ShotScene {
   }
 
   dispose(): void {
+    for (const off of this.noteOffs) off();
+    this.noteOffs = [];
     for (const n of this.notes) n.dispose();
     this.notes = [];
     this.stage?.dispose();
