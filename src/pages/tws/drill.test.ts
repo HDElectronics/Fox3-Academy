@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_ORDER } from '../../data/aircraft';
 import { TwsLesson } from './drill';
 import { resolveBinds } from './binds';
-import { article, banditWhy, coachFor, endSummary, introFor, stepsFor } from './lesson';
+import { article, banditWhy, coachFor, detectWhy, endSummary, introFor, stepsFor } from './lesson';
 import { MISSILES } from '../../data/missiles';
 import { canLaunchSnp2 } from '../../sim/launch';
 import { autopilotTick, newAutopilot } from './autopilot';
@@ -95,6 +95,18 @@ describe('tws lesson', () => {
     expect(dropped).toBe(true);
     // His RWR still hears you while he is in your notch.
     expect(['search', 'quiet']).toContain(L.banditState(id));
+  });
+
+  it('search explanations use the selected units and include shared detection reasons', () => {
+    const metric = new TwsLesson('f15c', { units: 'metric' });
+    const imperial = new TwsLesson('f15c', { units: 'imperial' });
+    for (const lesson of [metric, imperial]) {
+      const target = lesson.bandits[0];
+      target.pos.copy(lesson.me.pos).add({ x: 0, y: 0, z: -500000 });
+      expect(detectWhy(lesson, target.id)).toContain('Beyond detection range:');
+    }
+    expect(detectWhy(metric, metric.bandits[0].id)).toContain('km');
+    expect(detectWhy(imperial, imperial.bandits[0].id)).toContain('nm');
   });
 
   it('refuses TWS on the M-2000C in plain words', () => {

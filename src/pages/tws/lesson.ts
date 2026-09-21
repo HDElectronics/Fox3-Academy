@@ -10,7 +10,7 @@ import type { EntityId, Missile } from '../../sim/types';
 import { dlzFor } from '../../sim/dlz';
 import { explainDetection, trackOf } from '../../sim/radar';
 import { fmtRange, fmtTime } from '../../app/format';
-import { MPS_PER_KT, R2D, relBearing } from '../../sim/math';
+import { R2D, relBearing } from '../../sim/math';
 import { MERGE_RANGE_M, type BanditState, type TwsLesson, type Tone } from './drill';
 import type { ActBind, JetBinds, PageAct } from './binds';
 
@@ -280,18 +280,9 @@ export function banditWhy(L: TwsLesson, id: EntityId): string {
 export function detectWhy(L: TwsLesson, id: EntityId, withNotch = true): string | null {
   const b = L.bandit(id);
   if (!b || !b.alive) return null;
-  const x = explainDetection(L.world, L.me, b), st = L.me.radar;
-  const d = (a: number) => `${Math.abs(a * R2D).toFixed(0)}°`;
-  if (st.mode === 'off') return 'Your radar is off.';
-  if (!x.inGimbal) return `Outside your gimbal: ${d(x.az)} off the nose.`;
-  if (!x.inAzimuth) return `Outside your scan: ${d(x.az - st.azCenter)} from its centre, scan ±${Math.round(st.azHalf * R2D)}°.`;
-  if (!x.inBars) {
-    const top = st.elCenter + ((st.bars - 1) * L.spec.radar.barSpacingDeg + L.spec.radar.beamWidthDeg) / 2 / R2D;
-    return `Outside the bars: he is ${x.el > top ? 'above' : 'below'} your scan. Tilt the antenna.`;
-  }
-  if (withNotch && x.notched) return `In your notch: ${Math.round(x.radialSpeed / MPS_PER_KT)} kt radial speed, gate ${L.spec.radar.notchKts} kt.`;
-  if (x.range > x.detectRange) return `Too far: ${fmtRange(x.range, L.units)}, your radar sees him at ${fmtRange(x.detectRange, L.units)}.`;
-  return null;
+  const x = explainDetection(L.world, L.me, b, { units: L.units });
+  const reason = x.reasons.find(reason => withNotch || !reason.startsWith('In the notch:'));
+  return reason ? `${reason}.` : null;
 }
 
 // ---------------------------------------------------------------------------------------------- coach
@@ -448,7 +439,7 @@ function fireAdvice(L: TwsLesson, b: JetBinds, target: EntityId | null): string 
 function scanMiss(L: TwsLesson): string | null {
   for (const b of L.bandits) {
     if (!b.alive) continue;
-    const x = explainDetection(L.world, L.me, b);
+    const x = explainDetection(L.world, L.me, b, { units: L.units });
     if (x.range < x.detectRange * 0.9 && (!x.inAzimuth || !x.inBars)) return `${b.callsign} is in range but ${(detectWhy(L, b.id, false) ?? '').replace(/^Outside/, 'outside')}`;
   }
   return null;
