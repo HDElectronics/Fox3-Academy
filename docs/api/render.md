@@ -288,7 +288,8 @@ damping, distance 20 m … 1500 km, never below the surface. Mode and focus chan
   read `isInteractive`.
 - **`autoOrbit: degPerS`** slowly orbits the focus in orbit mode (negative = the other way; pauses while
   the user drags). `setAutoOrbit(degPerS)`, `0` = off. It advances with the Stage clock, so it stops
-  when the Stage is paused (reduced motion).
+  when the Stage is paused (reduced motion). Hangar uses this noninteractive rig with a fixed
+  focus ahead of the jet; resizing updates only its distance.
 
 | Mode | |
 |---|---|

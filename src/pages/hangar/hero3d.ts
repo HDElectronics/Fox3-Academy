@@ -1,11 +1,10 @@
 /**
  * Hangar hero: the selected jet at true size, high over a hazy sea, with its radar scan volume sweeping
  * ahead (render kit Stage + JetMesh + RadarVolume, synthetic scan from the jet's own radar spec).
- * The camera swings slowly behind the jet; the Stage pauses offscreen; reduced motion = one still frame.
+ * The camera orbits slowly around the jet; the Stage pauses offscreen; reduced motion = one still frame.
  */
-import { Vector3 } from 'three';
 import {
-  FramePriority, JET_DIMENSIONS, JetMesh, RadarVolume, Stage, f14SweepForMach, isWebGLAvailable, stepSyntheticScan,
+  CameraRig, FramePriority, JET_DIMENSIONS, JetMesh, RadarVolume, Stage, f14SweepForMach, isWebGLAvailable, stepSyntheticScan,
 } from '../../render';
 import type { AircraftSpec } from '../../data/types';
 import type { Units } from '../../app/format';
@@ -62,8 +61,12 @@ export function mountHero(host: HTMLElement, spec: AircraftSpec, o: HeroOptions)
   const vol = new RadarVolume(stage, spec.radar, { units: o.units, range: VOLUME_M, labels: false, coverageAt: [], opacity: 0.045 });
 
   const L = JET_DIMENSIONS[spec.id].length;
-  const target = new Vector3();
-  const cam = stage.camera;
+  const rig = new CameraRig(stage, {
+    interactive: false,
+    autoOrbit: o.reducedMotion ? 0 : 0.8,
+    focus: { x: 0, y: POS_M.y + L * 0.08, z: -L * 0.55 },
+    view: { headingDeg: 347, elevationDeg: 22, distance: L * 3 },
+  });
   let lastScanOut = -1;
   let t0 = -1;
 
@@ -75,25 +78,11 @@ export function mountHero(host: HTMLElement, spec: AircraftSpec, o: HeroOptions)
     stepSyntheticScan(scan, spec.radar, 0);
   }
 
-  const place = (t: number) => {
+  const frameHero = () => {
     const aspect = stage.width / Math.max(1, stage.height);
-    // Camera swings slowly between the jet's left and right rear quarters, never into the volume.
-    const swing = o.reducedMotion ? 0.35 : Math.sin((t / 46) * Math.PI * 2);
-    const headingDeg = 338 + swing * 26;
-    const elevDeg = 22 + (o.reducedMotion ? 0 : Math.sin((t / 71) * Math.PI * 2) * 3);
-    const wide = Math.max(0, scan.azHalf / D2R - 30) / 35;          // 0 at ±30°, ~1 at ±65°
+    const wide = Math.max(0, scan.azHalf / D2R - 30) / 35;
     const small = stage.width < 600 ? 0.86 : 1;
-    const dist = L * (2.55 + wide * 0.5) * small * Math.max(1, 1.35 / aspect) * 0.001;
-    // Look at a point a little ahead of the nose so the volume opens into the frame.
-    target.set(0, ALT_KM + L * 0.00008, -L * 0.00055);
-    const h = headingDeg * D2R, e = elevDeg * D2R;
-    cam.position.set(
-      target.x - Math.sin(h) * Math.cos(e) * dist,
-      target.y + Math.sin(e) * dist,
-      target.z + Math.cos(h) * Math.cos(e) * dist,
-    );
-    cam.lookAt(target);
-    cam.updateMatrixWorld();
+    rig.setView({ distance: L * (2.55 + wide * 0.5) * small * Math.max(1, 1.35 / aspect) }, true);
   };
 
   stage.onFrame((dt, t) => {
@@ -110,9 +99,8 @@ export function mountHero(host: HTMLElement, spec: AircraftSpec, o: HeroOptions)
       o.onScan({ bar: scan.bar + 1, bars: scan.bars, beamAzDeg: Math.round((scan.beamAz * 180) / Math.PI) });
     }
   }, { priority: FramePriority.sim, always: true });
-  stage.onFrame((_dt, t) => place(t0 < 0 ? 0 : t - t0), { priority: FramePriority.camera, always: true });
-  stage.onResize(() => stage.requestRender());
-  place(0);
+  stage.onResize(frameHero);
+  frameHero();
   stage.requestRender();
 
   return {
