@@ -1,7 +1,6 @@
 /**
  * [OWNER: page-tws] The keys this lesson uses, read from the jet's PROCEDURES binds (src/data/procedures.ts).
- * FC3 jets: the DCS keyboard default is the bind's `keys`. Full-fidelity jets: `keys` is the HOTAS or cockpit
- * function and the keyboard default is in the note ("Keyboard: …"). Where DCS has no default key, the page
+ * Keyboard defaults come from the bind's `keyboard` field. Where DCS has no default key, the page
  * uses a stand-in and says so (source 'page').
  */
 import { PROCEDURES } from '../../data/procedures';
@@ -45,15 +44,6 @@ export interface JetBinds {
   weaponKeys: Partial<Record<MissileId, string>>;
 }
 
-/** 'Keyboard: RAlt + /. "Toward the radar DDI"…' → 'RAlt + /'. */
-export function keyboardFromNote(note: string | undefined): string | null {
-  if (!note) return null;
-  const m = /Keyboard:\s*(.+?)(?:\.\s|\.$|,\s(?:with|the)|\s\(|$)/.exec(note);
-  if (!m) return null;
-  const k = m[1].trim().replace(/\.$/, '');
-  return isBindable(k) ? k : null;
-}
-
 /** True when every alternative in the string parses as a key chord (not prose like 'No default key'). */
 export function isBindable(keys: string | null | undefined): keys is string {
   if (!keys) return false;
@@ -79,17 +69,17 @@ function holdOf(b: KeyBind | undefined): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-/** DCS default key for a bind: FC3 = bind.keys; full fidelity = the "Keyboard:" note. */
-function dcsKey(ac: AircraftId, b: KeyBind | undefined, alt = -1): string | null {
+/** DCS keyboard default from the shared catalogue. */
+function dcsKey( b: KeyBind | undefined, alt = -1): string | null {
   if (!b) return null;
-  const raw = AIRCRAFT[ac].module === 'fc3' ? (isBindable(b.keys) ? b.keys : null) : keyboardFromNote(b.note);
+  const raw = isBindable(b.keyboard) ? b.keyboard : null;
   if (!raw) return null;
   return alt >= 0 ? alternative(raw, alt) : raw;
 }
 
 function make(ac: AircraftId, act: PageAct, b: KeyBind | undefined, o: { alt?: number; fallback?: string; name?: string; note?: string; holdS?: number; noKey?: boolean } = {}): ActBind | undefined {
   if (!b && !o.fallback) return undefined;
-  const k = o.noKey ? null : dcsKey(ac, b, o.alt ?? -1);
+  const k = o.noKey ? null : dcsKey(b, o.alt ?? -1);
   const fc3 = AIRCRAFT[ac].module === 'fc3';
   const name = o.name ?? (b ? (fc3 ? b.action : b.keys) : act);
   if (k) return { act, name, keys: k, source: 'dcs', holdS: o.holdS ?? holdOf(b), note: o.note };
@@ -102,7 +92,7 @@ function cursorOf(ac: AircraftId, binds: KeyBind[]): CursorKeys | null {
   const b = find(binds, /^Cursor/i);
   if (!b) return { up: ';', down: '.', left: ',', right: '/', name: 'Trainer radar cursor', source: 'page' };
   const fc3 = AIRCRAFT[ac].module === 'fc3';
-  const raw = fc3 ? b.keys : (/Keyboard:\s*(.+)$/.exec(b.note ?? '')?.[1].trim() ?? null);
+  const raw = b.keyboard;
   const dirsText = fc3 ? (b.note ?? '') : b.keys;
   const dirs = (dirsText.match(/\b(Up|Down|Left|Right)\b/gi) ?? []).map(d => d.toLowerCase());
   const src = raw ? 'dcs' as const : 'page' as const;
@@ -142,7 +132,7 @@ export function resolveBinds(ac: AircraftId): JetBinds {
     put(make(ac, 'stt', find(binds, /^TDC to the radar DDI/)));
     put(make(ac, 'fire', find(binds, /^Launch/)));
     const w = find(binds, /^Weapon select/);
-    const wk = keyboardFromNote(w?.note);
+    const wk = w?.keyboard;
     if (wk) {
       const alts = splitAlternatives(wk).map(s => s.trim());
       for (const id of spec.missiles) {

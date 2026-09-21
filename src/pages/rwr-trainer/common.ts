@@ -36,7 +36,7 @@ export function rwrModeKeys(ac: AircraftId): string | null {
 export interface ChaffBind { keys: string; hotas: string | null; note: string | null }
 
 /**
- * The jet's chaff binds from PROCEDURES: the FC3 key, or the "Keyboard: X" note of a HOTAS bind (paired
+ * The jet's chaff keyboard defaults from PROCEDURES (paired
  * alternatives such as the Mirage's "Decoy Program release / Decoy PANIC" = "Delete / Insert" come back
  * as two binds). Without a known default key the HOTAS name comes back with a caveat.
  */
@@ -46,7 +46,7 @@ export function chaffBinds(ac: AircraftId): ChaffBind[] {
   if (!b) return [];
   const keys = b.keys.trim();
   if (/^(Insert|Delete|[A-Z])$/.test(keys)) return [{ keys, hotas: null, note: null }];
-  const kb = b.note ? /Keyboard:\s*([^.;]+)/.exec(b.note)?.[1]?.trim() ?? null : null;
+  const kb = b.keyboard;
   const names = keys.split(' / ').map(x => x.trim());
   if (kb) {
     const ks = kb.split(' / ').map(x => x.trim());

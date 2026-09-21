@@ -849,7 +849,7 @@ function buildKeyHelp(ac: AircraftId, map: JetKeyMap): HTMLElement {
   const K = map.keys;
   const row = (label: string, k: JetKey | undefined, extra?: string) => {
     if (!k) return null;
-    const shared = !k.keys && k.note?.startsWith('Shares') ? /Keyboard:\s*([^.]*)/.exec(k.note)?.[1] : undefined;
+    const shared = k.sharedKeys;
     const note = k.keys ? (map.module === 'full' ? k.dcsName : undefined)
       : shared ? `${k.dcsName} · in DCS: ${shared}; click it here` : `no default key · ${k.dcsName}`;
     return keyHint({ label: label + (extra ?? ''), keys: k.keys ?? 'click', note });

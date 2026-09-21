@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
 import {
-  beamWindowDeg, bindGroup, filterMissiles, groupBinds, keyboardFromNote, matches, queryTokens, rangeNum, rwrRows,
+  beamWindowDeg, filterMissiles, groupBinds, matches, queryTokens, rangeNum, rwrRows,
   scanMatrix, simultaneousText, sortMissiles, speedText, splitControlsName, splitHits, twsAllows, twsPatternText, twsPatternsOf, ALL_MISSILES,
 } from './model';
 import { radarRules } from '../../sim/radar';
@@ -48,28 +48,13 @@ describe('units', () => {
 });
 
 describe('binds', () => {
-  it('reads the keyboard default out of full-fidelity notes', () => {
-    expect(keyboardFromNote('Keyboard: RAlt + /. "Toward the radar DDI", normally the right DDI.'))
-      .toEqual({ keys: 'RAlt + /', rest: '"Toward the radar DDI", normally the right DDI.' });
-    expect(keyboardFromNote('Keyboard: ; . , /')).toEqual({ keys: '; . , /', rest: '' });
-    expect(keyboardFromNote('Keyboard: RAlt + .')).toEqual({ keys: 'RAlt + .', rest: '' });
-    expect(keyboardFromNote('Keyboard: Enter, with the TDC over the mode legend.')?.keys).toBe('Enter');
-    expect(keyboardFromNote('Keyboard: Space. A/A missiles fire on the trigger.')?.keys).toBe('Space');
-    expect(keyboardFromNote('Keyboard: RAlt + ; / RAlt + . / RAlt + , (the manual prints LAlt + , for Left)')?.keys)
-      .toBe('RAlt + ; / RAlt + . / RAlt + ,');
-    expect(keyboardFromNote('Keyboard: C for the gun. PCA 530 button to select the 530.')?.keys).toBe('C');
-    expect(keyboardFromNote('No default key.')).toBeNull();
-    expect(keyboardFromNote(undefined)).toBeNull();
-  });
-  it('every full-fidelity keyboard note yields a key string', () => {
-    for (const ac of AIRCRAFT_ORDER) {
-      if (AIRCRAFT[ac].module !== 'full') continue;
-      for (const b of PROCEDURES[ac].binds) {
-        if (!b.note?.startsWith('Keyboard:')) continue;
-        const kb = keyboardFromNote(b.note);
-        expect(kb, `${ac} ${b.action}`).not.toBeNull();
-        expect(kb?.keys, `${ac} ${b.action}`).not.toMatch(/\b[a-z]{3,}\b/);
-      }
+  it('keeps punctuation keys and unknown defaults distinct from prose', () => {
+    const fcr = PROCEDURES.f16c.binds.find(b => b.action === 'FCR as sensor of interest');
+    expect(fcr?.keyboard).toBe('RAlt + .');
+    expect(PROCEDURES.f14b.binds.find(b => /^Launch/.test(b.action))?.keyboard).toBeNull();
+    for (const ac of AIRCRAFT_ORDER) for (const b of PROCEDURES[ac].binds) {
+      expect(b.note ?? '').not.toMatch(/^Keyboard:/);
+      expect(['radar', 'weapons', 'defence']).toContain(b.group);
     }
   });
   it('splits FC3 controls-menu names from caveats', () => {
@@ -80,10 +65,6 @@ describe('binds', () => {
     expect(splitControlsName('Hold for at least 1 s.').menu).toBe('');
   });
   it('groups binds into radar, weapons and countermeasures for every jet', () => {
-    expect(bindGroup({ action: 'Chaff', keys: 'Insert' })).toBe('defence');
-    expect(bindGroup({ action: 'Manual program 5', keys: 'CHAFF/FLARE Dispense button' })).toBe('defence');
-    expect(bindGroup({ action: 'Launch permission override', keys: 'LAlt + W' })).toBe('weapons');
-    expect(bindGroup({ action: 'Cursor slew', keys: '; , . /' })).toBe('radar');
     for (const ac of AIRCRAFT_ORDER) {
       const g = groupBinds(PROCEDURES[ac].binds);
       expect(g.radar.length, ac).toBeGreaterThan(2);

@@ -3,7 +3,7 @@
  * text matching for the quick filter, missile sorting, unit formatting and radar arithmetic.
  * No DOM here, so it is unit-tested in model.test.ts.
  */
-import type { AircraftId, AircraftSpec, KeyBind, MissileId, MissileSpec, RwrSpec, RwrSymbol } from '../../data/types';
+import type { AircraftId, AircraftSpec, BindGroup, KeyBind, MissileId, MissileSpec, RwrSpec, RwrSymbol } from '../../data/types';
 import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 
@@ -80,50 +80,17 @@ export function beamWindowDeg(gateKts: number, groundSpeedKts: number): number {
 
 // ---- key binds ---------------------------------------------------------------------------------
 
-export type BindGroup = 'radar' | 'weapons' | 'defence';
+export type { BindGroup } from '../../data/types';
 export const BIND_GROUP_TITLE: Record<BindGroup, string> = {
   radar: 'Radar and sensors',
   weapons: 'Weapons',
   defence: 'Countermeasures and RWR',
 };
 
-const DEFENCE_RE = /chaff|flare|countermeasure|decoy|\becm\b|jammer|dispense|\brwr\b/i;
-const WEAPON_RE = /weapon|launch|missile|master arm|\baim-|uncage|\bcage\b|trigger|sparrow|phoenix|\bgun\b|magic|pl-5|\bmsl\b|override|dogfight/i;
-
-/**
- * Which kneeboard column a bind belongs to. The data has no groups, so it is read from the action
- * (and, for countermeasures, the key or switch name: "Manual program 5" is the CHAFF/FLARE button).
- */
-export function bindGroup(b: KeyBind): BindGroup {
-  if (DEFENCE_RE.test(b.action + ' ' + b.keys)) return 'defence';
-  if (WEAPON_RE.test(b.action)) return 'weapons';
-  return 'radar';
-}
-
 export function groupBinds(binds: readonly KeyBind[]): Record<BindGroup, KeyBind[]> {
   const out: Record<BindGroup, KeyBind[]> = { radar: [], weapons: [], defence: [] };
-  for (const b of binds) out[bindGroup(b)].push(b);
+  for (const b of binds) out[b.group].push(b);
   return out;
-}
-
-/**
- * Full-fidelity binds keep the keyboard default in the note ("Keyboard: RAlt + /. rest…").
- * Split it into the key string and whatever prose follows. Returns null when there is no default.
- */
-export function keyboardFromNote(note: string | undefined): { keys: string; rest: string } | null {
-  if (!note) return null;
-  const m = /^Keyboard:\s*(.*)$/s.exec(note.trim());
-  if (!m) return null;
-  const body = m[1].trim();
-  // Where the key list ends: ". " before a capital or quote, " (" parenthetical, ", " before a lower-case
-  // word, or " for " / " with " prose. A lone trailing "." is the key itself ("RAlt + .").
-  const cut = /\.\s+(?=["“A-Z])|\s+\(|,\s+(?=[a-z]{2,})|\s+(?=(?:for|with|to)\s)/.exec(body);
-  let keys = cut ? body.slice(0, cut.index) : body;
-  let rest = cut ? body.slice(cut.index).replace(/^[.,]?\s*/, '') : '';
-  keys = keys.trim();
-  rest = rest.trim();
-  if (!keys) return null;
-  return { keys, rest };
 }
 
 /** FC3 notes: the controls-menu name(s) in quotes, then caveats. */

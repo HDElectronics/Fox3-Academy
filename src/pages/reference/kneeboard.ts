@@ -9,7 +9,7 @@ import { tabs, type TabsHandle } from '../../ui/controls';
 import { PROCEDURES, procedureFor, MISSILES, RWRS } from '../../data';
 import type { AircraftSpec, KeyBind, Procedure, ProcedureStep } from '../../data/types';
 import {
-  BIND_GROUP_TITLE, capUnpublished, groupBinds, keyboardFromNote, splitControlsName, matches, fox3Of,
+  BIND_GROUP_TITLE, capUnpublished, groupBinds, splitControlsName, matches, fox3Of,
   type BindGroup,
 } from './model';
 import { hl, tag, type RefCtx } from './common';
@@ -28,14 +28,10 @@ function bindRow(b: KeyBind, full: boolean, group: BindGroup): BindRow {
   let keysCell: Child;
   const sub: Child[] = [];
   if (full) {
-    // Full fidelity: `keys` is the HOTAS / cockpit function; the keyboard default lives in the note.
-    const kb = keyboardFromNote(b.note);
-    keysCell = kb ? keysEl(kb.keys) : h('span', { class: 'ref-nokey' }, 'no key');
+    keysCell = b.keyboard ? keysEl(b.keyboard) : h('span', { class: 'ref-nokey' }, 'no key');
     sub.push(h('span', { class: 'ref-bind__hotas' }, b.keys));
-    let rest = kb ? kb.rest : (b.note ?? '');
-    // "Keyboard: C for the gun." → "Key C for the gun."; "No default key." repeats the "no key" cell.
-    if (kb && /^(?:for|with|to)\s/.test(rest)) rest = `Key ${kb.keys} ${rest}`;
-    if (!kb && /^No default key\.?$/i.test(rest.trim())) rest = '';
+    let rest = b.note ?? '';
+    if (!b.keyboard && /^No default key\.?$/i.test(rest.trim())) rest = '';
     if (rest) sub.push(h('span', { class: 'ref-bind__note' }, rest));
   } else {
     keysCell = keysEl(b.keys);
@@ -46,7 +42,7 @@ function bindRow(b: KeyBind, full: boolean, group: BindGroup): BindRow {
   const el = h('li', { class: 'ref-bind' },
     h('div', { class: 'ref-bind__line' }, action, h('span', { class: 'ref-bind__keys' }, keysCell)),
     sub.length ? h('div', { class: 'ref-bind__sub' }, sub) : null);
-  return { el, action, bind: b, hay: [b.action, b.keys, b.note ?? ''].join(' • '), group };
+  return { el, action, bind: b, hay: [b.action, b.keys, b.keyboard ?? '', b.note ?? ''].join(' • '), group };
 }
 
 export function bindingsSection(rc: RefCtx): HTMLElement {

@@ -90,9 +90,12 @@ really drag-limited). `chaffSusceptibility` is the Lua `ccm_k0` clamped to 0..1 
 (hangar `guidanceRuleFor`). Jet-specific handling is also in `notes` as its own line ("F-15C only: …",
 "F-14: …"), which is the safer place to read it from.
 
-**Binds.** FC3 jets: `keys` is the keyboard default (`'RAlt + I'`) and `note` holds the controls-menu name in
+**Binds.** `group` is explicitly `radar`, `weapons` or `defence`. `keyboard` contains the documented default
+key string, or `null` when absent or unverified. Consumers must not derive either from prose.
+
+FC3 jets: `keys` is the keyboard default (`'RAlt + I'`) and `note` holds the controls-menu name in
 quotes. Full-fidelity jets: `keys` is the HOTAS or cockpit function as DCS names it (`'Sensor Control Switch -
-Right'`) and `note` starts with `Keyboard: …` when a default key exists. Branch on `AIRCRAFT[id].module`.
+Right'`); `note` contains caveats only. Branch on `AIRCRAFT[id].module` for presentation.
 Procedure steps carry both `keys` (keyboard) and `hotas` (function) where they apply. In key strings, a spaced
 `' / '` separates alternatives (`'= / -'`), `', '` separates a sequence (`'2, I'`), and a bare `/` or `,` is the
 key itself (`'; , . /'` = the four cursor keys, `'RShift + , / RShift + /'` = left or right).

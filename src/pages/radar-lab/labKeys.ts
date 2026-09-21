@@ -1,6 +1,6 @@
 /**
  * [OWNER: page-radar-lab] Which DCS keys operate the radar in this jet, read from PROCEDURES binds.
- * FC3 jets store the keyboard default in `keys`; full-fidelity jets put it in `note` ("Keyboard: = / -").
+ * Every jet stores the keyboard default in the structured `keyboard` field.
  * Where a jet has no keyboard default for a lab function, the FC3 default is offered instead and
  * flagged `fallback` so the UI can say so.
  */
@@ -40,14 +40,6 @@ const FC3_DEFAULT = {
   mode: 'RAlt + I',
 };
 
-/** Keyboard text of a bind, or null when it has no keyboard default. */
-export function keyboardOf(ac: AircraftId, b: KeyBind): string | null {
-  if (AIRCRAFT[ac].module === 'fc3') return b.keys;
-  const m = /Keyboard:\s*(.+)$/.exec(b.note ?? '');
-  if (!m) return null;
-  return m[1].replace(/\.\s+["'A-Z(].*$/, '').trim();
-}
-
 function pairOf(text: string | null, fallback: boolean): KeyPair | null {
   if (!text) return null;
   const alts = splitAlternatives(text);
@@ -62,7 +54,7 @@ function find(ac: AircraftId, re: RegExp): KeyBind | undefined {
 }
 
 export function labKeys(ac: AircraftId): LabKeys {
-  const own = (re: RegExp) => { const b = find(ac, re); return b ? keyboardOf(ac, b) : null; };
+  const own = (re: RegExp) => { const b = find(ac, re); return b ? b.keyboard : null; };
   const spec = AIRCRAFT[ac];
   const out: LabKeys = {
     elev: pairOf(own(/antenna elevation|scan elevation/i), false),
@@ -74,7 +66,7 @@ export function labKeys(ac: AircraftId): LabKeys {
     cursor: { text: '; , . /', fallback: true },
   };
   const modeBind = find(ac, /RWS \/ TWS|TWS on \/ off/i);
-  const modeKey = modeBind ? keyboardOf(ac, modeBind) : null;
+  const modeKey = modeBind ? modeBind.keyboard : null;
   if (modeKey && parseChord(modeKey)) {
     out.mode = { key: parseChord(modeKey)?.text ?? modeKey, text: modeKey, hold: /hold 1 s/i.test(modeBind?.action ?? ''), fallback: false };
   }

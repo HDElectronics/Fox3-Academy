@@ -1,25 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { AIRCRAFT_ORDER } from '../../data/aircraft';
 import { parseKeyList } from '../../ui/keys';
-import { jetKeyMap, keyPrefix, trainerKeys, usedChords } from './keys';
-
-describe('keyPrefix', () => {
-  test('reads the keyboard part of a full-fidelity note', () => {
-    expect(keyPrefix('RAlt + /. "Toward the radar DDI", normally the right DDI.')).toBe('RAlt + /');
-    expect(keyPrefix('Enter, with the TDC over the mode legend.')).toBe('Enter');
-    expect(keyPrefix('; . , /')).toBe('; . , /');
-    expect(keyPrefix('= / -')).toBe('= / -');
-    expect(keyPrefix('Space. A/A missiles fire on the trigger')).toBe('Space');
-    expect(keyPrefix('A (1st press context menu, 2nd main menu, 3rd close)')).toBe('A');
-    expect(keyPrefix('C for the gun. PCA 530 button to select the 530.')).toBe('C');
-    expect(keyPrefix('RAlt + ; / RAlt + . / RAlt + , (the manual prints LAlt + , for Left)')).toBe('RAlt + ; / RAlt + . / RAlt + ,');
-    expect(keyPrefix('LShift + D / LShift + W / LShift + S / LShift + X')).toBe('LShift + D / LShift + W / LShift + S / LShift + X');
-    expect(keyPrefix('RCtrl + Right')).toBe('RCtrl + Right');
-    expect(keyPrefix('Delete / Insert')).toBe('Delete / Insert');
-  });
-});
+import { jetKeyMap, trainerKeys, usedChords } from './keys';
 
 describe('jetKeyMap', () => {
+  test('retains the known DCS key when another trainer action owns that chord', () => {
+    const mode = jetKeyMap('fa18c').keys.modeToggle;
+    expect(mode?.keys).toBeNull();
+    expect(mode?.sharedKeys).toBe('Enter');
+  });
   test('FC3 Flankers use the FC3 keyboard defaults', () => {
     const k = jetKeyMap('su27').keys;
     expect(k.modeToggle?.keys).toBe('RAlt + I');

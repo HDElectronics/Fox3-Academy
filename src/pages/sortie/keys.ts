@@ -1,7 +1,6 @@
 /**
  * Sortie key map, built from the jet's own binds in data/procedures.ts (never hard-coded per jet).
- * FC3 jets: KeyBind.keys is the keyboard default. Full-fidelity jets: KeyBind.keys is the HOTAS function
- * and the keyboard default, when one exists, is in the note ("Keyboard: RCtrl + Up").
+ * Keyboard defaults come from KeyBind.keyboard; null means absent or unverified.
  * Trainer keys (steering, throttle, time, camera) are added only where they do not collide with the jet's keys.
  */
 import type { AircraftId, KeyBind, MissileId } from '../../data/types';
@@ -27,6 +26,8 @@ export interface JetKey {
   /** Hornet Undesignate: steps L&S in TWS, leaves STT otherwise. */
   stepsInTws?: boolean;
   note?: string;
+  /** DCS key used by another trainer action; keep its identity without parsing prose. */
+  sharedKeys?: string;
 }
 
 export interface WeaponSelectKey {
@@ -41,39 +42,6 @@ export interface JetKeyMap {
   module: 'fc3' | 'full';
   keys: Partial<Record<ActionId, JetKey>>;
   selects: WeaponSelectKey[];
-}
-
-/** Keyboard default of a bind: FC3 keys, or the 'Keyboard: …' part of a full-fidelity note. */
-export function keyboardOf(bind: KeyBind, module: 'fc3' | 'full'): string | null {
-  if (module === 'fc3') return bind.keys.split(/\s+/).some(t => !!parseChord(t)) ? bind.keys : null;
-  const m = /Keyboard:\s*(.*)$/.exec(bind.note ?? '');
-  if (!m) return null;
-  return keyPrefix(m[1]);
-}
-
-/**
- * The leading key string of a note: 'RAlt + /. "Toward…"' → 'RAlt + /'; 'Enter, with the TDC…' → 'Enter';
- * '; . , /' → '; . , /'; 'A (1st press…' → 'A'; 'RAlt + ; / RAlt + . / RAlt + , (the manual…' → keeps the three.
- */
-export function keyPrefix(text: string): string | null {
-  const toks = text.trim().split(/\s+/).filter(Boolean);
-  const out: { t: string; conn: boolean }[] = [];
-  const isKey = (t: string) => !!parseChord(t);
-  const nextIsKey = (i: number) => i + 1 < toks.length && (isKey(toks[i + 1]) || isKey(toks[i + 1].replace(/[.,]$/, '')));
-  for (let i = 0; i < toks.length; i++) {
-    let t = toks[i];
-    // Connectors: '+' joins a chord; a spaced '/' followed by another key separates alternatives
-    // (a trailing '/' is the slash key itself, as in '; . , /').
-    if (t === '+' && out.length) { out.push({ t, conn: true }); continue; }
-    if ((t === '/' || /^(and|or)$/i.test(t)) && out.length && nextIsKey(i)) { out.push({ t, conn: true }); continue; }
-    let end = false;
-    if (t.length > 1 && /[.,]$/.test(t) && isKey(t.slice(0, -1))) { t = t.slice(0, -1); end = true; }
-    if (!isKey(t)) break;
-    out.push({ t, conn: false });
-    if (end) break;
-  }
-  while (out.length && out[out.length - 1].conn) out.pop();
-  return out.length ? out.map(x => x.t).join(' ') : null;
 }
 
 interface Matcher { action: ActionId | 'rangeInOut' | 'cursor' | 'elev'; re: RegExp }
@@ -121,7 +89,7 @@ export function jetKeyMap(ac: AircraftId): JetKeyMap {
   };
 
   for (const b of binds) {
-    const kb = keyboardOf(b, module);
+    const kb = b.keyboard;
     const dcsName = module === 'fc3' ? b.action : b.keys;
 
     // Weapon select by family (Hornet 'Weapon select AMRAAM / Sparrow / …', Viper 'AIM-120 (missile override)').
@@ -192,7 +160,7 @@ export function jetKeyMap(ac: AircraftId): JetKeyMap {
     if (!k?.keys) continue;
     const texts = parseKeyList(k.keys).map(c => c.text);
     if (!texts.length || texts.some(t => used.has(t))) {
-      keys[a] = { ...k, keys: null, note: `Shares ${k.keys} with another function in DCS; click it here. ${k.note ?? ''}`.trim() };
+      keys[a] = { ...k, keys: null, sharedKeys: k.keys, note: `Shares ${k.keys} with another function in DCS; click it here. ${k.note ?? ''}`.trim() };
       continue;
     }
     texts.forEach(t => used.add(t));

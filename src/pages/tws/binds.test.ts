@@ -2,17 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_ORDER } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
 import { parseKeyList } from '../../ui/keys';
-import { alternative, isBindable, keyboardFromNote, resolveBinds } from './binds';
+import { alternative, isBindable, resolveBinds } from './binds';
 import { pageKeyTag, stepsFor } from './lesson';
 
 describe('tws binds', () => {
-  it('reads keyboard defaults from full-fidelity notes', () => {
-    expect(keyboardFromNote('Keyboard: RAlt + /. "Toward the radar DDI", normally the right DDI.')).toBe('RAlt + /');
-    expect(keyboardFromNote('Keyboard: Enter, with the TDC over the mode legend.')).toBe('Enter');
-    expect(keyboardFromNote('Keyboard: Space. A/A missiles fire on the trigger')).toBe('Space');
-    expect(keyboardFromNote('Keyboard: LShift + D / LShift + W / LShift + S / LShift + X')).toBe('LShift + D / LShift + W / LShift + S / LShift + X');
-    expect(keyboardFromNote('No default key.')).toBeNull();
-    expect(keyboardFromNote('Default key not verified (candidate: Space).')).toBeNull();
+  it('rejects prose and extracts chord alternatives', () => {
     expect(isBindable('No default key')).toBe(false);
     expect(alternative('D / C', 0)).toBe('D');
   });

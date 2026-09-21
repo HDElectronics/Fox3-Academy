@@ -248,29 +248,23 @@ export function cueNames(ac: AircraftId, missile: MissileId): CueNames {
 
 // ------------------------------------------------------------------------------------------ keys
 
-/** First bindable chord in a bind string, or in its "Keyboard: …" note. */
-function bindableKey(keys: string | undefined, note: string | undefined): string | null {
-  const tryStr = (s: string | undefined): string | null => {
-    if (!s) return null;
-    for (const alt of splitAlternatives(s)) if (parseKeyList(alt).length === 1) return alt.trim();
-    return null;
-  };
-  const direct = tryStr(keys);
-  if (direct) return direct;
-  const m = note?.match(/Keyboard:\s*([^.;(]+)/);
-  return m ? tryStr(m[1].trim()) : null;
+/** First bindable chord in a known keyboard default. */
+function bindableKey(keys: string | null): string | null {
+  if (!keys) return null;
+  for (const alt of splitAlternatives(keys)) if (parseKeyList(alt).length === 1) return alt.trim();
+  return null;
 }
 
 /** The jet's missile launch key (keyboard default), or null when research has none. */
 export function launchKey(ac: AircraftId): string | null {
   const b = PROCEDURES[ac].binds.find(x => /^launch/i.test(x.action));
-  return b ? bindableKey(b.keys, b.note) : null;
+  return b ? bindableKey(b.keyboard) : null;
 }
 
 /** The jet's weapon-step key (FC3 "Weapon Change", Viper missile step), or null. */
 export function weaponStepKey(ac: AircraftId): string | null {
   const b = PROCEDURES[ac].binds.find(x => /weapon cycle|missile step/i.test(x.action));
-  return b ? bindableKey(b.keys, b.note) : null;
+  return b ? bindableKey(b.keyboard) : null;
 }
 
 // ------------------------------------------------------------------------------------------ presets

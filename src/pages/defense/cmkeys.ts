@@ -5,7 +5,7 @@
  */
 import type { AircraftId } from '../../data/types';
 import { PROCEDURES } from '../../data/procedures';
-import { parseChord, splitAlternatives } from '../../ui/keys';
+import { splitAlternatives } from '../../ui/keys';
 
 /** Keys the page itself uses for flying and control. A DCS bind on one of these cannot be used here. */
 export const RESERVED_KEYS = ['A', 'D', 'W', 'S', '1', '2', '3', '4', '5', 'P', 'Space', 'Shift', 'Ctrl', 'F2', 'F10', 'C', 'F', 'R', 'N'];
@@ -23,19 +23,6 @@ export interface CmKey {
   note: string;
 }
 
-/** Every alternative must be a real chord ('Insert', 'E'), not a HOTAS name that happens to contain 'Left'. */
-function isKeyString(s: string): boolean {
-  const alts = splitAlternatives(s);
-  return alts.length > 0 && alts.every(a => parseChord(a) !== null);
-}
-
-function keyboardOf(keys: string, note: string | undefined): string | null {
-  if (isKeyString(keys)) return keys;
-  const m = /Keyboard:\s*([^.;]+)/.exec(note ?? '');
-  if (m && isKeyString(m[1].trim())) return m[1].trim();
-  return null;
-}
-
 function reserved(chord: string): boolean {
   return splitAlternatives(chord).some(k => RESERVED_KEYS.some(r => r.toLowerCase() === k.trim().toLowerCase()));
 }
@@ -46,14 +33,14 @@ function build(kind: 'chaff' | 'flare', ac: AircraftId, fallback: string, letter
   const own = binds.find(b => re.test(b.action));
   const generic = binds.find(b => /countermeasure|decoy/i.test(b.action));
   if (own) {
-    const kb = keyboardOf(own.keys, own.note);
+    const kb = own.keyboard;
     const dcsName = kb === own.keys ? '' : own.keys;
     if (kb && !reserved(kb)) return { bind: `${kb} / ${letter}`, dcsKey: kb, dcsName, exact: true, note: '' };
     if (kb) return { bind: `${fallback} / ${letter}`, dcsKey: kb, dcsName, exact: false, note: `${kb} steers here, so this page uses ${fallback} for it.` };
     return { bind: `${fallback} / ${letter}`, dcsKey: null, dcsName, exact: false, note: 'No default key in DCS: bind one.' };
   }
   if (generic) {
-    const kb = keyboardOf(generic.keys, generic.note);
+    const kb = generic.keyboard;
     return {
       bind: `${fallback} / ${letter}`, dcsKey: kb, dcsName: kb === generic.keys ? '' : generic.keys, exact: false,
       note: kb ? 'In the jet one control releases a programme; here chaff and flares have their own keys.' : 'No confirmed default key: check your controls menu.',

@@ -167,7 +167,17 @@ export interface RwrSpec {
   teach: string[];
 }
 
-export interface KeyBind { action: string; keys: string; note?: string }
+export type BindGroup = 'radar' | 'weapons' | 'defence';
+export interface KeyBind {
+  action: string;
+  /** FC3 keyboard label or full-fidelity HOTAS/cockpit function name. */
+  keys: string;
+  group: BindGroup;
+  /** Known DCS keyboard default; null when absent or not verified. Never a trainer fallback. */
+  keyboard: string | null;
+  /** Controls-menu name and caveats, without encoded keyboard metadata. */
+  note?: string;
+}
 export interface ProcedureStep { text: string; keys?: string; hotas?: string; note?: string }
 export interface Procedure { id: string; title: string; steps: ProcedureStep[] }
 
