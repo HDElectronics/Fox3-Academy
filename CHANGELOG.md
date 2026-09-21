@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- B8: Enlarge Flanker HUD contact dots and friendly-row spacing in small bezels while preserving
+  proportional marks on larger displays and existing designation/lock cues.
+
 - Add an F-16C 2D cockpit explorer with 399 sourced items across 49 panels, search, individual explanations,
   MFD bezel layouts, local exploration progress and focused mobile details. Label coverage limits and
   manual-unavailable or uncertain interactions; other aircraft remain explicitly unmapped.

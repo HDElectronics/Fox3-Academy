@@ -28,8 +28,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B8. Flanker HUD contact marks are small.** The ru-hud format's dot-row marks are hard to see in the
-  ~230 px bezels of the Sortie and TWS pages. Scale marks with the display size in `src/ui/displays/radar/`.
 - **B9. SAMs on every RWR.** The JF-17 scope boxes every emitter as an air threat (surface threats should be
   circles) and the ALR-67 has no SAM lamp; the RWR trainer therefore offers SAMs only on the SPO-15. Fix in
   `src/ui/displays/rwr/`, then enable SAMs in `src/pages/rwr-trainer`.

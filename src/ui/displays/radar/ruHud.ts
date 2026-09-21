@@ -191,10 +191,15 @@ export function ruModeLabel(label: string, mode: string): string {
 /** A contact as a row of two dots (fighter-size RCS); `friendly` adds the IFF row above. */
 function dots(f: FrameCtx, x: number, y: number, friendly: boolean): void {
   const { g, u } = f;
-  const r = 0.55 * u, d = 0.85 * u;
+  // Small bezels need more than a ~2.5 CSS-pixel dot diameter. Enlarge the entire
+  // mark toward its 320px-display size so the dots and IFF rows stay separated.
+  // Cap the boost for tiny displays; larger displays keep their proportional size.
+  // These are CSS pixels: Surface already handles the device-pixel ratio.
+  const markU = Math.max(u, Math.min(3.2, u * 1.5));
+  const r = 0.55 * markU, d = 0.85 * markU;
   g.circle(x - d, y, r, true);
   g.circle(x + d, y, r, true);
-  if (friendly) { g.circle(x - d, y - 1.5 * u, r, true); g.circle(x + d, y - 1.5 * u, r, true); }
+  if (friendly) { g.circle(x - d, y - 1.5 * markU, r, true); g.circle(x + d, y - 1.5 * markU, r, true); }
 }
 
 function drawRuTrack(f: FrameCtx, t: PicTrack, x: number, y: number, mig: boolean): void {
