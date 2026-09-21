@@ -13,11 +13,12 @@ import { parseChord, splitAlternatives } from '../../ui/keys';
 import { relBearing } from '../../sim/math';
 import type { Aircraft, Missile } from '../../sim/types';
 import { World } from '../../sim/world';
+import { notchState } from '../../sim/missile';
 import { missileModel } from '../../sim/missileModel';
 import { DRILLS, DRILL_ORDER, SCORED_DRILLS, defaultSetup, drillGoal, normalizeSetup, rangeBounds, setupFor, threatsFor, type DrillId } from './drills';
 import { DrillRunner } from './runner';
 import { debrief, emptyMetrics, missText, type RunMetrics } from './debrief';
-import { chaffOdds, signedClosing } from './gates';
+import { chaffOdds, seekerGate, signedClosing } from './gates';
 import { newPilot, pilotHeading, pressManeuver } from './pilot';
 import { RESERVED_KEYS, cmKeys } from './cmkeys';
 import { beamWindowDeg } from './explainer';
@@ -260,7 +261,7 @@ describe('review fixes', () => {
   test('chaff odds follow the sim: none once the seeker is on chaff, full only inside the gate after a notch drop', () => {
     const world = new World(1);
     const me = world.spawnAircraft({ side: 'blue', type: 'f15c', controller: 'player', pos: { x: 0, y: 5000, z: 0 }, heading: Math.PI / 2, speed: 250 });
-    const m = { id: 'm1', type: 'aim120c', alive: true, guidance: 'active', pos: new Vector3(0, 8000, -8000), seekerOn: me.id } as unknown as Missile;
+    const m = { id: 'm1', type: 'aim120c', alive: true, guidance: 'active', pos: new Vector3(0, 8000, -8000), vel: new Vector3(0, 0, 600), aimPos: me.pos.clone(), aimVel: me.vel.clone(), targetId: me.id, seekerOn: me.id } as unknown as Missile;
     const full = missileModel('aim120c').chaffChance;
     expect(chaffOdds(world, m, me)).toBeGreaterThan(full * 0.9);           // beaming, tracked: about the full chance
     (m as { seekerOn: string | null }).seekerOn = 'chaff-7';
@@ -269,6 +270,27 @@ describe('review fixes', () => {
     expect(chaffOdds(world, m, me)).toBeCloseTo(full);                      // dropped you, still in the gate
     me.vel.set(0, 0, -250);                                                 // turned hot on it: out of the gate
     expect(chaffOdds(world, m, me)).toBe(0);
+  });
+
+  test('the seeker gauge follows the sim through live flight and clears after the missile ends', () => {
+    const run = new DrillRunner('f15c', defaultSetup('pitbull', 'f15c'), 'imperial', 3);
+    run.start();
+    let checked = 0;
+    for (let i = 0; i < 3000 && run.phase === 'run'; i++) {
+      run.tick(1 / 30, 1 / 30);
+      const missile = run.missile();
+      if (!missile) continue;
+      const state = notchState(run.world, missile);
+      const gauge = seekerGate(run.world, missile, run.me);
+      if (state?.targetId === run.me.id) {
+        expect(gauge.gate).toBe(state.gateMps);
+        expect(gauge.inGate).toBe(state.inNotch);
+        expect(gauge.depth).toBe(state.depth);
+        checked++;
+      } else expect(gauge.on).toBe(false);
+    }
+    expect(checked).toBeGreaterThan(10);
+    expect(seekerGate(run.world, run.missile(), run.me).on).toBe(false);
   });
 
   test('free practice: already cranking when the missile leaves the rail counts as reacting at the launch; Hot never counts', () => {

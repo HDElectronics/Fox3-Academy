@@ -47,7 +47,10 @@ notchState(world, m): NotchState | null                  // read-only seeker not
 against the aircraft it tracks (or lost in the notch): `targetId`, `gateMps` (this geometry's gate),
 `radialMps`, `lookDown`, `inNotch`, `depth` (0..1, what chaff scales with), `heldS` / `holdS` (time in
 the gate so far / time that breaks the seeker) and `lost` (the seeker has lost it in the notch). Displays
-(Defense page Doppler gauge) can read it instead of mirroring `missileModel` numbers.
+(Defense page Doppler gauge) read it instead of mirroring `missileModel` numbers.
+Defense consumes `notchState(world, missile)` directly for the seeker gate, depth and hold timer.
+Its drill metrics still accumulate total time in a useful gate, but do not mirror the seeker's private
+timer or the SARH grace constant. The displayed signed radial direction is a gauge presentation aid.
 
 Guidance support comes from `world.supportOverride?.(m) ?? radar.guidanceSupport(world, shooter, m.targetId)`.
 

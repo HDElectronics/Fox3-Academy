@@ -21,6 +21,7 @@ import type { AiSkill, Missile } from '../../sim/types';
 import { mach } from '../../sim/atmosphere';
 import { D2R, R2D, M_PER_FT, M_PER_NM, bearingTo, elevationTo, relBearing } from '../../sim/math';
 import { clockCode, fmtAlt, fmtAltShort, fmtRange, fmtSpeed, type Units } from '../../app/format';
+import { notchState } from '../../sim/missile';
 import { Stage, WorldView, CameraRig, isWebGLAvailable } from '../../render';
 import {
   h, setText, setAttr, cleanup, labLayout, disclosure, consolePanel, screenBezel, segmented, slider, select, button, toggle,
@@ -33,7 +34,7 @@ import {
   type AltSetup, type AspectSetup, type DrillId, type MethodSetup, type Setup,
 } from './drills';
 import { MANEUVER_LABEL, THROTTLES, type Maneuver, type Throttle } from './pilot';
-import { aspectDeg, chaffOdds, chaffRange, radarGate, seekerGate, seekerHoldS, sttMemory, threatRef, type GateRead, type RefMode } from './gates';
+import { aspectDeg, chaffOdds, chaffRange, radarGate, seekerGate, sttMemory, threatRef, type GateRead, type RefMode } from './gates';
 import { DopplerGauge, type GaugeRow } from './gauge';
 import type { Debrief } from './debrief';
 import { DrillRunner } from './runner';
@@ -45,9 +46,6 @@ const RWR_LABEL: Record<string, string> = {
 };
 const SHOT_STATES = ['launch', 'notch', 'active', 'result', 'live'] as const;
 type ShotState = typeof SHOT_STATES[number];
-
-/** Seconds a SARH missile flies on after his lock breaks before it goes dumb (missile.ts SARH_GRACE_S). */
-const SARH_GRACE_S = 1.5;
 
 /** Chase camera distance behind your jet (m). */
 const CHASE_M = 130;
@@ -723,7 +721,7 @@ const factory: PageFactory = (): Page => {
         if (!rg.inGate && turning()) return ['Keep the turn going: the beam is still ahead of you.', `You show him ${spd(Math.abs(rg.radial))}; his gate is ±${spd(rg.gate)}. Turns are slow up high.`, 'caution'];
         if (!rg.inGate) return ['Trim with A / D: the needle is outside his gate.', `You show him ${spd(Math.abs(rg.radial))}; his gate is ±${spd(rg.gate)}.`, 'caution'];
         const lost = shooter.radar.mode === 'stt' ? shooter.radar.stt.lostFor : 0;
-        return ['Hold the needle in the gate. Chaff now.', `His radar is in memory (${lost.toFixed(1)} of ${sttMemory(shooter)} s). When the lock breaks the missile goes dumb about ${SARH_GRACE_S} s later.`, 'hi'];
+        return ['Hold the needle in the gate. Chaff now.', `His radar is in memory (${lost.toFixed(1)} of ${sttMemory(shooter)} s). When the lock breaks the missile briefly flies on memory, then goes dumb.`, 'hi'];
       }
       if (m.guidance !== 'active') {
         return notching
@@ -745,6 +743,7 @@ const factory: PageFactory = (): Page => {
       const m = run.missile();
       const rg = radarGate(world, shooter, me);
       const sg = seekerGate(world, m, me);
+      const notch = m ? notchState(world, m) : null;
       const sr = AIRCRAFT[setup.shooter].radar;
       const sttOn = shooter.alive && shooter.radar.mode === 'stt' && shooter.radar.stt.targetId === me.id;
       const trk = shooter.alive ? shooter.radar.tracks.find(t => t.targetId === me.id) : undefined;
@@ -779,7 +778,7 @@ const factory: PageFactory = (): Page => {
       }
       rows.push({
         title: `SEEKER  ${spec.name}`, status, read: sg, dim: !sg.on,
-        hold: sg.on && m && m.seekerOn === me.id ? { t: run.seekerHold, need: seekerHoldS(m), label: `DROPS YOU ${run.seekerHold.toFixed(1)}/${seekerHoldS(m)} s` } : null,
+        hold: sg.on && m?.seekerOn === me.id && notch ? { t: notch.heldS, need: notch.holdS, label: `DROPS YOU ${notch.heldS.toFixed(1)}/${notch.holdS} s` } : null,
         note, noteLit,
       });
       return rows;

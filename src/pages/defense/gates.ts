@@ -1,23 +1,12 @@
-/**
- * [OWNER: page-defense] What the Doppler gates see (pure). Mirrors the sim's own tests so the gauge shows
- * exactly what decides the outcome:
- * - the shooter's radar: radar.isNotched() = ground-referenced radial speed < spec.notchKts, only in
- *   look-down when spec.notchNeedsLookDown (full-fidelity radars);
- * - the missile seeker: missile.ts notchGate() = missileModel.notchMps, x0.4 in look-up, narrower inside
- *   8 km; the seeker drops you after model.notchHoldS in the gate.
- * Also picks the threat reference the maneuver buttons fly against.
- */
+/** Defense gauge adapters: radar geometry and the sim's read-only missile notch state. */
 import type { Vector3 } from 'three';
 import type { World } from '../../sim/world';
 import type { Aircraft, Missile } from '../../sim/types';
 import { AIRCRAFT } from '../../data/aircraft';
-import { MISSILES } from '../../data/missiles';
 import { MPS_PER_KT, aspectAngle, clamp, isLookDown } from '../../sim/math';
+import { notchState } from '../../sim/missile';
 import { missileModel } from '../../sim/missileModel';
 import { radarRules, trackOf } from '../../sim/radar';
-
-/** Seeker gate narrows inside this range (missile.ts CLOSE_GATE_M). */
-const CLOSE_GATE_M = 8000;
 
 export interface GateRead {
   /** Is this sensor looking at you right now (radar tracking you, seeker switched on)? */
@@ -66,14 +55,6 @@ export function radarGate(world: World, shooter: Aircraft | undefined, me: Aircr
   };
 }
 
-/** Gate width of this missile's seeker against you right now (m/s), as missile.ts computes it. */
-export function seekerGateWidth(world: World, m: Missile, me: Aircraft): { gate: number; lookDown: boolean } {
-  const model = missileModel(m.type);
-  const lookDown = isLookDown(m.pos, me.pos, world.groundAlt);
-  const close = clamp(0.5 + 0.5 * m.pos.distanceTo(me.pos) / CLOSE_GATE_M, 0.5, 1);
-  return { gate: model.notchMps * (lookDown ? 1 : model.lookUpNotchFactor) * close, lookDown };
-}
-
 /** Is the seeker switched on and looking (SARH homing, or ARH after pitbull)? */
 export function seekerOn(m: Missile | null): boolean {
   return !!m && m.alive && (m.guidance === 'sarh' || m.guidance === 'active');
@@ -81,25 +62,19 @@ export function seekerOn(m: Missile | null): boolean {
 
 /** What the missile's own seeker sees of you. */
 export function seekerGate(world: World, m: Missile | null, me: Aircraft): GateRead {
-  if (!m || !me.alive || MISSILES[m.type].seeker === 'ir') return EMPTY;
-  const { gate, lookDown } = seekerGateWidth(world, m, me);
-  const radial = signedClosing(m.pos, me.pos, me.vel);
-  const inGate = Math.abs(radial) < gate;
+  if (!m || !me.alive) return EMPTY;
+  const state = notchState(world, m);
+  if (!state || state.targetId !== me.id) return EMPTY;
   return {
-    on: seekerOn(m), radial, gate, applies: true, lookDown, needsLookDown: false, inGate,
-    depth: clamp(1 - Math.abs(radial) / (2 * gate), 0, 1),
-    range: m.pos.distanceTo(me.pos),
+    on: seekerOn(m), radial: signedClosing(m.pos, me.pos, me.vel), gate: state.gateMps,
+    applies: true, lookDown: state.lookDown, needsLookDown: false, inGate: state.inNotch,
+    depth: state.depth, range: m.pos.distanceTo(me.pos),
   };
 }
 
 /** STT memory of the shooter's radar (s): the lock breaks after this long in the notch. */
 export function sttMemory(shooter: Aircraft): number {
   return radarRules(shooter.type).sttMemoryS;
-}
-
-/** Seconds the seeker must hold you in the gate before it drops you. */
-export function seekerHoldS(m: Missile): number {
-  return missileModel(m.type).notchHoldS;
 }
 
 /** Chaff is only rolled while the missile is this close (m). */

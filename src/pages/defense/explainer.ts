@@ -184,7 +184,7 @@ export function buildExplainer(o: ExplainerOptions): HTMLElement {
         p('Diving moves you along his line of sight when he is above you. Keep the descent moderate or the needle leaves the gate.')),
       card('SARH or ARH: what you beam',
         h('h4', null, 'SARH: R-27ER, AIM-7M'),
-        p('It homes on his radar energy reflected off you, so it needs his STT the whole way. Beam the shooter\'s radar. When his lock breaks the missile goes dumb moments later (1.5 s in this trainer), and a dumb SARH missile ignores chaff. You get a lock warning, then a launch warning for the whole flight.'),
+        p('It homes on his radar energy reflected off you, so it needs his STT the whole way. Beam the shooter\'s radar. When his lock breaks the missile goes dumb after a brief memory period, and a dumb SARH missile ignores chaff. You get a lock warning, then a launch warning for the whole flight.'),
         h('h4', null, 'ARH: R-77, AIM-120C, SD-10, AIM-54C'),
         p('It flies on his datalink until pitbull, then turns its own seeker on. Before pitbull, notching his radar makes his track coast and the missile flies to a stale point. After pitbull the shooter no longer matters: beam the missile itself, low, and chaff.'),
         arhThreats.includes('aim54c')

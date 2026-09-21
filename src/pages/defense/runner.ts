@@ -47,8 +47,6 @@ export class DrillRunner {
   unlockAt: number | null = null;
   endAt: number | null = null;
   refMode: RefMode = 'auto';
-  /** Seeker notch timer, mirrored from missile.ts (+dt in the gate, -2dt out). */
-  seekerHold = 0;
   /** Continuous seconds in his radar's gate. */
   radarHold = 0;
   /** In a gate that matters right now (for the NOTCH flag and lamp). */
@@ -194,7 +192,7 @@ export class DrillRunner {
     const sg = seekerGate(this.world, m, this.me);
     const inFlight = !!m && m.alive;
     if (inFlight && rg.on && rg.inGate) { mt.radarGateS += dt; this.radarHold += dt; } else this.radarHold = 0;
-    if (inFlight && sg.on && sg.inGate) { mt.seekerGateS += dt; this.seekerHold += dt; } else this.seekerHold = Math.max(0, this.seekerHold - 2 * dt);
+    if (inFlight && sg.on && sg.inGate) mt.seekerGateS += dt;
     if (inFlight && m && m.guidance === 'active' && !sg.lookDown) mt.lookUpS += dt;
     this.notchFlag = (sg.on && sg.inGate) || (rg.on && rg.inGate && inFlight);
     if (inFlight && m && mt.reactT !== null && m.guidance !== 'ballistic') {
