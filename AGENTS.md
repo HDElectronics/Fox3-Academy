@@ -163,6 +163,18 @@ Headless gotchas:
 
 ## Working with several agents at once
 
+Use Worktrunk (`wt`) for isolated parallel checkouts when available. Create one focused branch/worktree
+per task with `wt switch --create <branch> --base main --no-cd`; give each agent its absolute worktree path
+and file ownership. Install dependencies in each worktree and use distinct dev-server ports. The primary
+checkout stays on `main`; never run concurrent agents against its working tree.
+
+The coordinator reviews and stages explicit paths, commits completed slices, and integrates sequentially.
+Use `wt merge main --no-commit --no-rebase` only after preparing a clean branch based on current `main`;
+these flags prevent automatic staging, squash and rebase. If another task has landed, explicitly rebase
+the unpublished task branch, resolve conflicts and repeat checks before integration. The project pre-merge
+hook runs `npm run check`; visual checks remain a separate requirement. Do not use Worktrunk's default
+squash workflow or LLM-generated commits. See the [developer guide](docs/developer-guide.md#parallel-work-with-worktrunk).
+
 `ARCHITECTURE.md` holds the ownership table used when agents build in parallel: each agent edits only the files
 it owns, contract files belong to one coordinator, and requests for other owners go in the agent's report. Brief every sub-agent with rule 1 and assign explicit file ownership before parallel work.
 

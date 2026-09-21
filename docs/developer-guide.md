@@ -14,6 +14,40 @@ npm run check      # typecheck + tests + build
 Requirements: Node 20+ (built with Node 24), a browser with WebGL. For screenshots, Google Chrome at the default
 macOS path and either ImageMagick or Python 3 with Pillow (used by `scripts/shot.sh` to crop phone widths).
 
+## Parallel work with Worktrunk
+
+[Worktrunk](https://github.com/max-sixty/worktrunk) is an optional Git worktree manager. On macOS, install
+with `brew install worktrunk`, then run `wt config shell install zsh` and restart the shell. Ordinary Git
+worktrees remain supported; contributors do not need an AI agent or a paid model service.
+
+Create a separate task checkout from a clean primary checkout:
+
+```sh
+wt switch --create fix/contact-visibility --base main --no-cd
+wt list
+```
+
+Worktrunk prints the new directory. Work there, run `npm ci`, and choose a distinct port when starting a
+dev server (`npm run dev -- --port 5192 --strictPort`, for example). Each agent receives its own absolute
+directory and explicit file ownership. One coordinator owns staging, commits and integration. Shared Git
+configuration and refs still belong to the same repository even though working directories are isolated.
+
+Review the diff, stage explicit paths, inspect `git diff --cached`, and make small commits. Before merging,
+bring an unpublished branch up to date with `git rebase main`, resolve any conflicts, run the relevant
+visual checks, and review the final diff. Do not rewrite published branches without agreement.
+
+From the clean task worktree, integrate with:
+
+```sh
+wt merge main --no-commit --no-rebase
+```
+
+This preserves the prepared commits and requires a fast-forward. The checked-in `.config/wt.toml` runs
+`npm run check` before integration; approve that known hook when Worktrunk first asks. Successful integration
+removes the completed task worktree and branch. Never force removal of unmerged work. Avoid bare `wt merge`:
+its default workflow can stage changes, squash commits and rebase automatically. No commit-generation
+service or automatic agent-launch hook is configured by this project.
+
 ## The big picture
 
 The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ...). The shell in `src/app` draws

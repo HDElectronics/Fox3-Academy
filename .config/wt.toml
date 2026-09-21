@@ -1,0 +1,3 @@
+# Run the repository checks before Worktrunk integrates a branch.
+[pre-merge]
+check = "npm run check"
