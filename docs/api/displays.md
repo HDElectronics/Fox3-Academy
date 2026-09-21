@@ -137,12 +137,17 @@ lights gets the ring. `emitterType` may be any `RwrSymbol['emitter']` (`'awacs'`
   ALR-56C by signal strength (DCS), locks and launches in the inner ring, `M` in a diamond; ALR-67 critical band
   outermost (lock / launch / missile), lethal band for search, status circle; ALR-56M search outside, lock just
   outside the white inner circle with a box, launch / missile inside with a flashing circle; JF-17 yellow search in
-  the outer ring, red lock / launch in the inner ring, rectangles (main threat with a vertical line), MAWS missile
+  the outer ring, red lock / launch in the inner ring, rectangles for air threats and circles for known surface
+  threats (four outward ticks on the main threat), MAWS missile
   number (`77`, `120`) with above / below mark; Serval nearer the centre = more dangerous. Airborne hat on
   aircraft and AWACS only (`isAirborne()`: SAMs, `'unknown'` and missiles have none, so `15` with a hat is an
   F-15 and without one an SA-15; never on the JF-17). ALR-56C: EW and AWACS never sit in the inner ring.
-  Priority diamond, new-threat upper semicircle, launch flashing plus the per-RWR marks, corner lamps
-  (ALR-67 `AI` / `CW`, ALR-56M `LAUNCH` / `ACT/PWR`, JF-17 `MSL LCH`, Serval `DA` / `D2M`). Overlapping symbols
+  Non-JF scopes use the priority diamond and new-threat upper semicircle; JF-17 uses its four-tick main-threat
+  frame. Launch flashing plus the per-RWR marks and corner lamps include
+  (ALR-67 `AI` / `CW` / `SAM`, ALR-56M `LAUNCH` / `ACT/PWR`, JF-17 `MSL LCH`, Serval `DA` / `D2M`). ALR-67
+  AI is limited to airborne locks/launches; SAM is steady for a surface lock and flashes for a surface launch
+  (Hornet launch flashing is a shared Heatblur-backed approximation). CW follows the trainer's generic launch
+  state and is not verified per emitter. Overlapping symbols
   are spread along their ring (like ALR-67 OFFSET), so the band keeps its meaning.
 
 ## RwrAudio (optional, off by default)

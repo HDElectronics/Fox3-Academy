@@ -206,8 +206,11 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 ### RWR
 - SPO-15: number of power-ring lamps and separate primary/secondary type rows not confirmed; `unknown` → no lamp.
 - ALR-56C: `JF` and `M2` postdate the 2014 table; `U` for unknown is not in the FC3 manual.
-- ALR-67: airborne modifier shape from ED graphics only; SAM codes borrowed from ED's F-15C table; Chuck's
-  guide disagrees on ring order (ED and Heatblur used).
+- ALR-67: airborne modifier shape from ED graphics only; Chuck's guide disagrees on ring order (ED and Heatblur
+  used). The Hornet guide confirms a steady SAM lock lamp but not launch flashing; the shared renderer follows
+  Heatblur's ALR-67 flashing engagement cue and labels that approximation. Codes `10`, `11` and `15` are
+  corroborated by the official Hornet appendix. CW is driven by the trainer's generic launch state, not verified
+  per emitter.
 - ALR-56M: codes assumed equal to the Hornet list; tones not documented.
 - JF-17: only `M2K`, `M29`, `SA8` confirmed; ARH seeker on the RWR shown as `M` (not documented).
 - Serval: symbol library not researched (ED-style codes stand in); tones and lock/launch look not documented.

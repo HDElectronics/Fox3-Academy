@@ -102,10 +102,11 @@ export const RWRS: Record<RwrId, RwrSpec> = {
         'Code with the airborne modifier (hat) in the non-lethal or lethal band. New airborne emitter: double beep ' +
         '(Hornet); single short tone on a new emitter or band change (F-14).',
       lock:
-        'The symbol moves to the critical band (outermost ring) and the AI light comes on steady. Repeating beep ' +
+        'The symbol moves to the critical band (outermost ring). AI lights steady for an airborne lock; SAM lights ' +
+        'steady for a surface-to-air radar lock. Repeating beep ' +
         '(Hornet) or slow warble (F-14).',
       launch:
-        'The symbol flashes in the critical band, the AI light flashes and CW lights for illumination. Faster tone ' +
+        'The symbol flashes in the critical band; the matching AI or SAM lamp flashes here and CW lights for illumination. Faster tone ' +
         '(Hornet) or fast warble (F-14).',
       missile: '"M": an active radar missile seeker, in the critical band, with the fast tone.',
     },
@@ -153,7 +154,7 @@ export const RWRS: Record<RwrId, RwrSpec> = {
       { missile: 'M', awacs: 'A50', 'sam-long': 'SA10', 'sam-medium': 'SA11', 'sam-short': 'SA8', unknown: 'U' },
     ),
     cues: {
-      search: 'Yellow air-threat rectangle with the type inside, in the outer (non-lethal) ring.',
+      search: 'Yellow threat symbol in the outer (non-lethal) ring: rectangle for air, circle for a known surface emitter.',
       lock: 'The symbol turns red and moves to the inner (lethal) ring, with a "Tracking!" voice.',
       launch: 'The red symbol flashes and the HUD shows "MSL LCH".',
       missile:
@@ -163,7 +164,7 @@ export const RWRS: Record<RwrId, RwrSpec> = {
     teach: [
       'Colour carries the state: yellow = search, red = lock, flashing = launch.',
       'Inner ring = lethal (tracking you), outer ring = non-lethal (search).',
-      'Main air threat = rectangle with a vertical line through it. Surface threats are circles. A line under a symbol = jammed emitter.',
+      'Air threats use rectangles; surface threats use circles. Four outward ticks mark the main threat. A line under a symbol = jammed emitter.',
       'MAWS gives only a bearing, and is reliable inside about 5 km: it is a last-ditch cue, not a BVR warning.',
       'An SD-10 or AIM-120 fired from TWS gives no warning until the seeker goes active.',
       'Only "M2K", "M29" and "SA8" are confirmed label spellings; the others follow that pattern.',
@@ -209,7 +210,9 @@ export const RWR_CAVEATS: Record<RwrId, string[]> = {
   alr67: [
     'The Hornet and the F-14 share this RWR here; F-14 differences (JF-17 = "17", tones) are in the teach notes.',
     'The shape of the airborne modifier (hat) is only in ED graphics; community calls it a hat or chevron.',
-    'SAM codes (10, 11, 15) are taken from ED\'s F-15C table.',
+    'SAM codes 10, 11 and 15 are listed in the official Hornet appendix for SA-10, SA-11 and SA-15 tracking radars.',
+    'The Hornet guide confirms a steady SAM lock lamp but does not state that it flashes on launch; flashing here follows Heatblur\'s shared ALR-67 behavior.',
+    'CW follows the trainer\'s generic launch state here; the manuals do not establish CW illumination for every represented SAM or fighter launch.',
   ],
   alr56m: [
     'Viper codes are assumed to match the Hornet list; ED\'s appendix is graphical.',

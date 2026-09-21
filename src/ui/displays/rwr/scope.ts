@@ -4,8 +4,8 @@
  * hornet-viper.md, tomcat-thunder-mirage.md, bvr-mechanics.md.
  *
  * Common rules: nose up, bearing = angle; the radial position encodes lethality / priority (or
- * signal strength on the DCS ALR-56C), never range. Airborne emitters wear a "hat" chevron, the top
- * threat a diamond, a new threat an upper semicircle for a few seconds. Lock = steady symbol with
+ * signal strength on the DCS ALR-56C), never range. On non-JF scopes, airborne emitters wear a "hat"
+ * chevron, the top threat a diamond, and a new threat an upper semicircle for a few seconds. Lock = steady symbol with
  * emphasis (ALR-56M: box), launch = flashing symbol (ALR-56C: flashing circle and lower semicircle;
  * ALR-56M: inside the inner circle with a flashing circle), an active radar missile shows the
  * spec's missile symbol ('M').
@@ -16,6 +16,7 @@ import { diamond, hat } from '../glyphs';
 import { isAirborne, missileDigits, rwrSymbolFor, scopeRadius } from '../geometry';
 import { MISSILES } from '../../../data/missiles';
 import { RX, RY, type RwrFrame } from './common';
+import { alr67LampStates, jf17ThreatFrame, type WarningLampState } from './logic';
 
 interface Placed { c: RwrContact; x: number; y: number; r: number; ang: number; sym: string; rank: number }
 
@@ -186,10 +187,26 @@ function drawSymbol(f: RwrFrame, p: Placed): void {
   // Airborne hat.
   if (isAirborne(c) && on && spec.id !== 'jf17rwr') hat(g, p.x, p.y - 3 * u, Math.max(3.4 * u, tw * 0.9), 1.3 * u);
 
-  // JF-17: air threats inside a rectangle; the main threat gets a vertical line through it.
+  // JF-17: airborne threats use rectangles, known surface threats use circles. The main threat gets
+  // the four cardinal ticks shown in the Deka manual. Unknowns stay unframed rather than claiming a
+  // domain the RWR contact does not provide.
   if (spec.id === 'jf17rwr' && !missile && on) {
-    g.rect(p.x - tw / 2 - 0.4 * u, p.y - 2 * u, tw + 0.8 * u, 4 * u);
-    if (top) g.line(p.x, p.y - 3.1 * u, p.x, p.y + 3.1 * u);
+    const frame = jf17ThreatFrame(c);
+    const halfW = Math.max(2.2 * u, tw / 2 + 0.4 * u);
+    const halfH = 2 * u;
+    const radius = Math.max(3 * u, tw / 2 + 0.8 * u);
+    if (frame === 'air') g.rect(p.x - halfW, p.y - halfH, halfW * 2, halfH * 2);
+    else if (frame === 'surface') g.circle(p.x, p.y - 0.1 * u, radius);
+    if (top && frame !== 'none') {
+      const xEdge = frame === 'air' ? halfW : radius;
+      const yEdge = frame === 'air' ? halfH : radius;
+      g.segs([
+        p.x - xEdge - 1.7 * u, p.y, p.x - xEdge - 0.3 * u, p.y,
+        p.x + xEdge + 0.3 * u, p.y, p.x + xEdge + 1.7 * u, p.y,
+        p.x, p.y - yEdge - 1.7 * u, p.x, p.y - yEdge - 0.3 * u,
+        p.x, p.y + yEdge + 0.3 * u, p.x, p.y + yEdge + 1.7 * u,
+      ]);
+    }
   }
   // JF-17 MAWS above / below marker for missiles.
   if (spec.id === 'jf17rwr' && missile && on) {
@@ -207,9 +224,6 @@ function drawSymbol(f: RwrFrame, p: Placed): void {
   if (isNew && spec.id !== 'jf17rwr') {
     g.ink(col, 1.1, 0.3, a);
     g.arc(p.x, p.y - 0.2 * u, 5.2 * u, Math.PI * 1.08, Math.PI * 1.92);
-  } else if (isNew) {
-    g.ink(th.missile, 1, 0.3, blinkOn(4, now) ? 1 : 0.3);
-    g.rect(p.x - tw / 2 - 1.2 * u, p.y - 2.8 * u, tw + 2.4 * u, 5.6 * u);
   }
 
   // Lock emphasis.
@@ -245,10 +259,15 @@ function drawCornerLamps(f: RwrFrame): void {
   };
   const L = RX(f, 2), Rr = RX(f, 98), T = RY(f, 3.5), B = RY(f, 96.5);
   switch (spec.id) {
-    case 'alr67':
-      lampTxt('AI', L, T, anyLock || anyLaunch, th.warning, anyLaunch);
-      lampTxt('CW', Rr, T, ranked.some(c => c.state === 'launch'), th.warning, true);
+    case 'alr67': {
+      const lamps = alr67LampStates(ranked);
+      const show = (s: string, x: number, y: number, state: WarningLampState) =>
+        lampTxt(s, x, y, state !== 'off', th.warning, state === 'flash');
+      show('AI', L, T, lamps.ai);
+      show('CW', Rr, T, lamps.cw);
+      show('SAM', L, B, lamps.sam);
       break;
+    }
     case 'alr56m':
       lampTxt('LAUNCH', L, B, anyLaunch, th.warning, true);
       lampTxt('ACT/PWR', Rr, B, anyLock || anyLaunch, th.caution);
