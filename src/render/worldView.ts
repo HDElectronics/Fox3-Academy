@@ -32,7 +32,7 @@ export class WorldView extends TacticalScene {
   private volumeOf: EntityId | null = null;
   private volume: RadarVolume | null = null;
   private volumeOpts: RadarVolumeOptions;
-  private trackTags = new Map<string, { tag: Tag; seen: number }>();
+  private trackTags = new Map<string, { tag: Tag; seen: number; unregister: () => void }>();
   private tagStamp = 0;
   private notched = new Set<EntityId>();
 
@@ -176,7 +176,11 @@ export class WorldView extends TacticalScene {
           }
           const key = tr.label + ':' + tr.targetId;
           let rec = this.trackTags.get(key);
-          if (!rec) { rec = { tag: new Tag(this.stage.labels, 'track', 'neutral'), seen: 0 }; this.trackTags.set(key, rec); }
+          if (!rec) {
+            const tag = new Tag(this.stage.labels, 'track', 'neutral');
+            rec = { tag, seen: 0, unregister: this.registerLabel(tag, { priority: 3 }) };
+            this.trackTags.set(key, rec);
+          }
           rec.seen = stamp;
           const tag = rec.tag;
           tag.visible = L.labels;
@@ -213,11 +217,11 @@ export class WorldView extends TacticalScene {
         }
       }
     }
-    for (const [k, rec] of this.trackTags) if (rec.seen !== stamp) { rec.tag.dispose(); this.trackTags.delete(k); }
+    for (const [k, rec] of this.trackTags) if (rec.seen !== stamp) { rec.unregister(); rec.tag.dispose(); this.trackTags.delete(k); }
   }
 
   private clearTrackTags(): void {
-    for (const r of this.trackTags.values()) r.tag.dispose();
+    for (const r of this.trackTags.values()) { r.unregister(); r.tag.dispose(); }
     this.trackTags.clear();
   }
 

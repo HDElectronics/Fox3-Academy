@@ -28,6 +28,7 @@ export type { ShapeId, SymbolLayerOptions } from './symbols';
 export { RibbonGeometry, Trail, createRibbonMaterial } from './ribbon';
 export type { RibbonStyle } from './ribbon';
 export { Tag, Note } from './tags';
+export type { DeclutterLabel, LabelBounds, LabelRegistration } from './tags';
 export { readPalette, paletteFromTheme, sideColor } from './palette';
 export type { Palette, VisualSide } from './palette';
 export { ORDER, VERT_PRELUDE, VERT_END, FRAG_PRELUDE, FRAG_END, createSharedUniforms } from './shared';

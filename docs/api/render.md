@@ -148,6 +148,26 @@ whole tag: `'caution'` amber, `'warning'` red, `'ok'`, `'hi'` designation amber,
 omitted for the side colour; e.g. what that bandit's RWR hears). `Tag.setTone(tone)` does the same
 on your own tags.
 
+`view.registerLabel(label, { priority?, offset?: { x, y } }) → unregister()` adds a page-owned
+`Tag` or `Note` to the same screen-space layout as aircraft and missile tags. Set its text,
+`visible` flag and `obj.position` normally; the position is in **render units**, like other CSS2D
+labels. Lower priority wins: selected aircraft 0, aircraft 1, missiles 2, annotations 3 by default.
+Use priority 1 for the current lesson explanation or selected replay result; secondary markers can
+use 4. `offset` is a preferred CSS-pixel offset, not a fixed position.
+
+Call `unregister()` before disposing the label. It is idempotent and restores the label's original
+placement/visibility; ownership and disposal remain with the page. Entity `clear()`/world resets
+retain registrations; disposing the view releases them. Registering the same label twice throws.
+
+Layout measures the rendered text (including centered/left/above notes), tries nearby collision-free
+positions and keeps them inside a 6 px viewport margin. It follows the camera each frame; text still
+refreshes at about 8 Hz. Labels can move up to 100 px in narrow views or 160 px in wider views. If no
+nearby space fits, lower-priority text is hidden for that frame and returns when space is available.
+Offscreen anchors stay offscreen. Hidden text does not hide its aircraft, trail or marker. Keep the
+full explanation/result available outside the 3D view; exceptionally long labels may not fit at all.
+Labels intentionally left unregistered (for example the radar-volume coverage overlay) remain
+outside this layout. Do not register a label with two views simultaneously.
+
 ### Layers (toggle at runtime: `view.setLayer('tracks', true)`, `view.setLayers({...})`, read `view.layers`)
 
 | Layer | Default | |
@@ -346,7 +366,7 @@ offset from a centre inside the view).
   the teaching view of "what your radar believes". Keep `truth` on when you want the dashed estimate →
   truth error lines.
 - **Picking** is screen space; use `stage.onTap()` so orbit drags do not select.
-- **Tags declutter** automatically (aircraft first, missiles pushed below). Text refreshes at ~8 Hz.
+- **Tags declutter** automatically, along with annotations added through `registerLabel`. Selected aircraft have first priority; crowded labels move nearby or hide until space is available. Text refreshes at ~8 Hz; layout follows the camera every frame.
 - **Replay needs a roster**: `new ReplayView(stage, { frames: world.recording, world })` is the easy way.
 - **Pre-rolling a sim** before the first frame: call `view.syncNow()` after each `world.step()` or
   trails start empty.

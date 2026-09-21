@@ -22,7 +22,7 @@ import { Shape, SymbolLayer } from './symbols';
 import { createRibbonMaterial, RibbonGeometry, Trail } from './ribbon';
 import { createMissileMesh, f14SweepForMach, JetMesh, NOMINAL_JET_M, NOMINAL_MISSILE_M, smokeDensity } from './jets';
 import { sideColor, type Palette } from './palette';
-import { Tag } from './tags';
+import { Tag, LabelRegistry, layoutLabels, type DeclutterLabel, type LabelRegistration, type LabelCandidate } from './tags';
 import { boostedScale, orientationQuaternion, UNIT_PER_M } from './units';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 
@@ -263,6 +263,7 @@ export abstract class TacticalScene implements EntitySource {
   private cones = new Map<EntityId, Mesh>();
   private offs: (() => void)[] = [];
   private disposed = false;
+  private pageLabels = new LabelRegistry();
 
   constructor(stage: Stage, opts: TacticalOptions = {}) {
     this.stage = stage;
@@ -300,6 +301,18 @@ export abstract class TacticalScene implements EntitySource {
   }
 
   // ---------------------------------------------------------------- public API
+
+  /** Join page-owned Tag/Note annotations to entity-label layout. Lower priority wins:
+   * selected aircraft 0, aircraft 1, missiles 2, default annotation 3. Returns an idempotent
+   * unregister function; call it before disposing the label. clear()/world resets retain registrations.
+   * Positions are read from label.obj in render units. Offscreen anchors are not moved into view.
+   */
+  registerLabel(label: DeclutterLabel, options: LabelRegistration = {}): () => void {
+    if (this.disposed) return () => {};
+    const off = this.pageLabels.register(label, options);
+    this.stage.requestRender();
+    return () => { off(); this.stage.requestRender(); };
+  }
 
   setLayer<K extends keyof Layers>(name: K, on: Layers[K]): void {
     this.layers[name] = on;
@@ -403,6 +416,7 @@ export abstract class TacticalScene implements EntitySource {
     this.disposed = true;
     for (const off of this.offs) off();
     this.clear();
+    this.pageLabels.clear();
     this.lines.dispose(); this.symbols.dispose(); this.glow.dispose(); this.overlaySymbols.dispose();
     this.shadowMat.dispose(); this.coneGeo.dispose();
     for (const m of this.coneMats.values()) m.dispose();
@@ -760,53 +774,38 @@ export abstract class TacticalScene implements EntitySource {
     if (L.effects) this.drawBlasts(t);
 
     this.drawExtra();
-    if (labelTick) this.declutter();
+    this.declutter();
 
     this.lines.commit(); this.symbols.commit(); this.glow.commit(); this.overlaySymbols.commit();
   }
 
-  private declutterList: { tag: Tag; ox: number; top: number; left: number; w: number; h: number; pri: number }[] = [];
-  private placed: { l: number; t: number; r: number; b: number }[] = [];
-
-  /** Greedy screen-space declutter: push overlapping tags down, aircraft first. Runs at the label rate. */
+  /** Position every frame so camera motion cannot reintroduce overlaps between text updates. */
   private declutter(): void {
     const cam = this.stage.camera, W = this.stage.width, H = this.stage.height;
-    const list = this.declutterList;
-    let n = 0;
-    const add = (tag: Tag, pos: Vector3, px: number, kind: 0 | 1, pri: number) => {
-      if (!tag.visible) return;
-      _v.copy(pos).project(cam);
-      if (_v.z > 1 || _v.z < -1) return;
-      const x = (_v.x * 0.5 + 0.5) * W, y = (-_v.y * 0.5 + 0.5) * H;
-      const ox = kind === 0 ? Math.max(0, Math.min(40, px * 0.42 - 8)) : 0;
-      let e = list[n];
-      if (!e) { e = { tag, ox, top: 0, left: 0, w: 0, h: 0, pri }; list[n] = e; }
-      n++;
-      e.tag = tag; e.ox = ox; e.pri = pri;
-      e.w = tag.width; e.h = tag.height;
-      e.left = x + (kind === 0 ? 11 + ox : 8);
-      e.top = kind === 0 ? y - 3 - e.h : y + 4;
-      tag.place(ox, 0);
+    cam.updateMatrixWorld();
+    const labels: { label: DeclutterLabel; x: number; y: number }[] = [];
+    const boxes: LabelCandidate[] = [];
+    const hidden: DeclutterLabel[] = [];
+    const add = (label: DeclutterLabel, priority: number, ox = 0, oy = 0) => {
+      if (!label.visible || !label.obj.parent) { hidden.push(label); return; }
+      label.obj.updateWorldMatrix(true, false);
+      _v.setFromMatrixPosition(label.obj.matrixWorld).project(cam);
+      if (!Number.isFinite(_v.x) || _v.z > 1 || _v.z < -1 || Math.abs(_v.x) > 1 || Math.abs(_v.y) > 1) { hidden.push(label); return; }
+      const b = label.bounds();
+      labels.push({ label, x: ox, y: oy });
+      boxes.push({ ...b, left: (_v.x * 0.5 + 0.5) * W + b.left + ox,
+        top: (-_v.y * 0.5 + 0.5) * H + b.top + oy, priority });
     };
-    for (const j of this.jets.values()) add(j.tag, j.pos, j.px, 0, j.id === this.selected ? 0 : 1);
-    for (const m of this.missiles.values()) add(m.tag, m.pos, 0, 1, 2);
-    list.length = Math.max(list.length, n);
-    const act = list.slice(0, n).sort((a, b) => a.pri - b.pri || a.top - b.top);
-    const placed = this.placed;
-    placed.length = 0;
-    for (const e of act) {
-      let dy = 0;
-      for (let iter = 0; iter < 8; iter++) {
-        let hit = -1;
-        for (let k = 0; k < placed.length; k++) {
-          const p = placed[k];
-          if (e.left < p.r && e.left + e.w > p.l && e.top + dy < p.b && e.top + dy + e.h > p.t) { hit = k; break; }
-        }
-        if (hit < 0) break;
-        dy = placed[hit].b - e.top + 2;
-      }
-      if (dy) e.tag.place(e.ox, dy);
-      placed.push({ l: e.left, t: e.top + dy, r: e.left + e.w, b: e.top + dy + e.h });
+    for (const j of this.jets.values()) add(j.tag, j.id === this.selected ? 0 : 1, Math.max(0, Math.min(40, j.px * 0.42 - 8)));
+    for (const m of this.missiles.values()) add(m.tag, 2);
+    for (const [label, options] of this.pageLabels.entries()) add(label, options.priority ?? 3, options.offset?.x ?? 0, options.offset?.y ?? 0);
+    const positions = layoutLabels(boxes, W, H);
+    // Finish every DOM measurement before writing placement/visibility.
+    for (const label of hidden) label.setLayoutVisible(false);
+    for (let i = 0; i < labels.length; i++) {
+      const { label, x, y } = labels[i], p = positions[i];
+      label.place(x + p.x, y + p.y);
+      label.setLayoutVisible(p.visible);
     }
   }
 

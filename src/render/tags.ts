@@ -5,9 +5,106 @@
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { Object3D } from 'three';
 
+/** CSS-pixel rectangle relative to a label's projected anchor. */
+export interface LabelBounds { left: number; top: number; width: number; height: number }
+
+/** Page-owned labels can join a TacticalScene without transferring ownership of their DOM. */
+export interface DeclutterLabel {
+  readonly obj: CSS2DObject;
+  readonly visible: boolean;
+  bounds(): LabelBounds;
+  place(x: number, y: number): void;
+  setLayoutVisible(visible: boolean): void;
+}
+
+/** Measure the painted child, including CSS centering, independently of the CSS2D anchor transform. */
+class LabelLayout {
+  private x = 0;
+  private y = 0;
+  constructor(private anchor: HTMLElement, private body: HTMLElement) {}
+  bounds(fallback: LabelBounds): LabelBounds {
+    const a = this.anchor.getBoundingClientRect(), b = this.body.getBoundingClientRect();
+    return b.width > 0 && b.height > 0
+      ? { left: b.left - a.left - this.x, top: b.top - a.top - this.y, width: b.width, height: b.height }
+      : fallback;
+  }
+  place(x: number, y: number): void {
+    x = Math.round(x); y = Math.round(y);
+    if (x === this.x && y === this.y) return;
+    this.x = x; this.y = y;
+    // Individual translate preserves the centered/above transforms supplied by the stylesheet.
+    this.body.style.translate = x || y ? `${x}px ${y}px` : '';
+  }
+  show(visible: boolean): void {
+    const value = visible ? '' : 'hidden';
+    if (this.body.style.visibility !== value) this.body.style.visibility = value;
+  }
+}
+
+export interface LabelRegistration { priority?: number; offset?: { x: number; y: number } }
+
+/** Registry is independent of entity resets; callers release page labels before disposing them. */
+export class LabelRegistry {
+  private labels = new Map<DeclutterLabel, LabelRegistration>();
+  register(label: DeclutterLabel, options: LabelRegistration = {}): () => void {
+    if (this.labels.has(label)) throw new Error('Label is already registered');
+    const registration = { ...options, offset: options.offset ? { ...options.offset } : undefined };
+    this.labels.set(label, registration);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      if (this.labels.get(label) !== registration) return;
+      this.labels.delete(label);
+      label.place(0, 0); label.setLayoutVisible(true);
+    };
+  }
+  entries(): IterableIterator<[DeclutterLabel, LabelRegistration]> { return this.labels.entries(); }
+  clear(): void {
+    for (const label of this.labels.keys()) { label.place(0, 0); label.setLayoutVisible(true); }
+    this.labels.clear();
+  }
+}
+
+export interface LabelCandidate extends LabelBounds { priority: number }
+export interface LabelPlacement { x: number; y: number; visible: boolean }
+
+/** Place near the preferred anchor, inside the viewport, without overlapping earlier priority labels.
+ * When local space is exhausted, hide lower-priority text rather than obscuring another label.
+ */
+export function layoutLabels(labels: readonly LabelCandidate[], width: number, height: number): LabelPlacement[] {
+  const margin = 6, gap = 4, maxMove = width < 600 ? 100 : 160;
+  const placed: LabelBounds[] = [];
+  const result = labels.map(() => ({ x: 0, y: 0, visible: false }));
+  const order = labels.map((label, index) => ({ label, index })).sort((a, b) => a.label.priority - b.label.priority || a.index - b.index);
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  for (const { label: l, index } of order) {
+    if (l.width > width - 2 * margin || l.height > height - 2 * margin) continue;
+    const xs = [clamp(l.left, margin, width - margin - l.width)];
+    const ys = [clamp(l.top, margin, height - margin - l.height)];
+    for (const p of placed) {
+      xs.push(p.left - gap - l.width, p.left + p.width + gap);
+      ys.push(p.top - gap - l.height, p.top + p.height + gap);
+    }
+    let best: LabelBounds | null = null, distance = Infinity;
+    for (const left of xs) for (const top of ys) {
+      if (left < margin || top < margin || left + l.width > width - margin || top + l.height > height - margin) continue;
+      const d = Math.hypot(left - l.left, top - l.top);
+      if (d > maxMove || d >= distance) continue;
+      if (placed.some(p => left < p.left + p.width + gap && left + l.width + gap > p.left && top < p.top + p.height + gap && top + l.height + gap > p.top)) continue;
+      best = { left, top, width: l.width, height: l.height }; distance = d;
+    }
+    if (best) {
+      placed.push(best);
+      result[index] = { x: best.left - l.left, y: best.top - l.top, visible: true };
+    }
+  }
+  return result;
+}
+
 export type TagKind = 'aircraft' | 'missile' | 'track';
 
-export class Tag {
+export class Tag implements DeclutterLabel {
   readonly obj: CSS2DObject;
   readonly el: HTMLDivElement;
   private titleEl: HTMLElement;
@@ -15,7 +112,8 @@ export class Tag {
   private flagEl: HTMLSpanElement;
   private subEl: HTMLSpanElement;
   private body: HTMLDivElement;
-  private state = { title: '', type: '', flag: '', sub: '', side: '', dead: false, selected: false, opacity: 1, visible: true, ox: 0, dy: 0 };
+  private layout: LabelLayout;
+  private state = { title: '', type: '', flag: '', sub: '', side: '', dead: false, selected: false, opacity: 1, visible: true };
   /** Approximate size in CSS px (from text length), for decluttering. */
   width = 60;
   height = 30;
@@ -37,6 +135,7 @@ export class Tag {
     el.appendChild(body);
     this.el = el;
     this.body = body;
+    this.layout = new LabelLayout(el, body);
     this.obj = new CSS2DObject(el);
     this.obj.center.set(0, 0);
     this.state.side = side;
@@ -55,13 +154,13 @@ export class Tag {
     this.height = sub ? 31 : 18;
   }
 
-  /** Extra offset in CSS px: ox pushes the tag right of the anchor, dy down (declutter). */
-  place(ox: number, dy: number): void {
-    const s = this.state;
-    const qx = Math.round(ox), qy = Math.round(dy);
-    if (s.ox === qx && s.dy === qy) return;
-    s.ox = qx; s.dy = qy;
-    this.body.style.transform = qx || qy ? `translate(${qx}px, ${qy}px)` : '';
+  /** Offset in CSS pixels; preserves the stylesheet's anchor alignment. */
+  place(x: number, y: number): void { this.layout.place(x, y); }
+  setLayoutVisible(visible: boolean): void { this.layout.show(visible); }
+  bounds(): LabelBounds {
+    if (this.el.dataset.kind === 'track') return this.layout.bounds({ left: 12, top: 8 - this.height, width: this.width, height: this.height });
+    const missile = this.el.dataset.kind === 'missile';
+    return this.layout.bounds({ left: missile ? 8 : 11, top: missile ? 4 : -3 - this.height, width: this.width, height: this.height });
   }
 
   setSide(side: string): void { if (this.state.side !== side) { this.state.side = side; this.el.dataset.side = side; } }
@@ -87,16 +186,20 @@ export class Tag {
 }
 
 /** A one-line annotation (coverage altitudes, markers). */
-export class Note {
+export class Note implements DeclutterLabel {
   readonly obj: CSS2DObject;
   private span: HTMLSpanElement;
   private text = '';
+  private layout: LabelLayout;
+  private cls: string;
 
   constructor(parent: Object3D, cls = '', color?: string, plate = true) {
     const el = document.createElement('div');
     el.className = 'r3-note' + (cls ? ' ' + cls : '');
     if (color) el.style.setProperty('--note-color', color);
+    this.cls = cls;
     this.span = document.createElement('span');
+    this.layout = new LabelLayout(el, this.span);
     if (plate) this.span.className = 'r3-plate';
     el.appendChild(this.span);
     this.obj = new CSS2DObject(el);
@@ -106,5 +209,14 @@ export class Note {
 
   set(text: string): void { if (text !== this.text) { this.text = text; this.span.textContent = text; } }
   set visible(v: boolean) { this.obj.visible = v; }
+  get visible(): boolean { return this.obj.visible; }
+  place(x: number, y: number): void { this.layout.place(x, y); }
+  setLayoutVisible(visible: boolean): void { this.layout.show(visible); }
+  bounds(): LabelBounds {
+    const width = this.text.length * 6.5 + 10, height = 16;
+    return this.layout.bounds({ width, height,
+      left: this.cls.includes('r3-center') ? -width / 2 : this.cls.includes('r3-left') ? -width - 6 : 6,
+      top: this.cls.includes('r3-above') ? -height - 5 : -7 });
+  }
   dispose(): void { this.obj.removeFromParent(); this.obj.element.remove(); }
 }
