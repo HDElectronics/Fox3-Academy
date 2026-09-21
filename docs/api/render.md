@@ -219,7 +219,7 @@ outside this layout. Do not register a label with two views simultaneously.
 Renders `RecordFrame[]` (every 0.25 s) at any time with interpolated positions/angles, trails up to
 t (aircraft: last `aircraftTrailSeconds`; missiles: full path, smoke while the motor burned), kills
 and hits as explosions, chaff/flares from `'cm'` events, STT lock lines from `sttTarget`.
-`RecordFrame` has no types or sides, so it needs a roster.
+`RecordFrame` includes types and sides; the roster adds callsigns, precise launch/death times and missile outcomes.
 
 ```ts
 const replay = new ReplayView(stage, { frames: world.recording, world, units: ctx.app.units });  // roster + events from the world
@@ -234,8 +234,22 @@ stage.onFrame(dt => { if (playing) replay.setTime(replay.currentTime + dt * spee
   type, side, callsign, diedAt? } }, missiles: { [id]: { type, side, shooterId, targetId, launchedAt?,
   result? } } }`).
 - `setTime(t)` (clamped to `start … end`), `currentTime`, `start`, `end`, `setData(frames, roster, events?)`.
-- Layers, picking, selection and the `EntitySource` methods are the same as WorldView (radar layers do
-  not apply: frames carry no radar picture).
+- `setRadarObserver(id)` selects one aircraft’s recorded radar picture; `setRadarObserver(null)` returns
+  to truth (the default). `observer`, `hasRadarRecording(id)` and `radarSampleTime` expose selection and
+  availability. This is an exclusive picture selection, not the live WorldView radar-layer switches.
+- Radar view draws only ownship plus recorded echo squares and estimated track rings/velocity sticks.
+  Dashed rings mean coasting; designation and STT markers use the same past sample. Track labels never
+  reveal the truth roster’s type, side or callsign. Other aircraft (including friendlies), missiles,
+  countermeasures, explosions, lock lines and their trails are excluded. Camera entity lookups and picking
+  likewise contain ownship only. Track tags join the shared declutter registry and are released on
+  observer changes, data replacement, track loss and disposal.
+- Sensor state is held at the latest recording sample at or before replay time; it never interpolates
+  toward a later detection or estimate. Backward seeks recompute that floor sample. Missing legacy data
+  draws no contacts rather than silently substituting truth; `radarSampleTime` is null in that case.
+  Ownship/truth positions retain normal interpolation. This is the trainer’s sensor estimate, not a
+  complete DCS cockpit replay: RWR, datalink and missile knowledge are not recorded.
+- Other layers, selection and the `EntitySource` methods are the same as WorldView. In radar mode the
+  `effects` layer is forced off; returning to truth restores its previous setting.
 - Missile Lab tip: turn a `simulateShot()` result into two-entity `RecordFrame`s (shooter fixed or
   moving, missile from `missilePath`, target from `targetPath`, `t` from `trace`) plus a roster, and
   play it with a ReplayView. Mark pitbull/impact with a `SymbolLayer` point and a `Note`.

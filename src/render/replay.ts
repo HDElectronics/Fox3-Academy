@@ -2,7 +2,8 @@
  * ReplayView: renders a recording (World.recording, RecordFrame[] every 0.25 s) at any time t with
  * interpolated positions and orientations, trails up to t, missile smoke while the motor burned,
  * explosions at kills and hits, countermeasure puffs from 'cm' events, and STT lock lines.
- * RecordFrame carries no types or sides, so it needs a roster (rosterFromWorld(world) builds one).
+ * Radar perspective holds recorded sensor estimates between samples, without drawing other truth entities.
+ * A roster supplies callsigns and exact lifecycle times (rosterFromWorld(world) builds one).
  */
 import { Vector3 } from 'three';
 import type { AircraftId, MissileId, RadarModeId } from '../data/types';
@@ -10,8 +11,11 @@ import { MISSILES } from '../data/missiles';
 import type { EntityId, Missile, MissileGuidance, RecordFrame, SimEvent, Side } from '../sim/types';
 import type { World } from '../sim/world';
 import type { Stage } from './stage';
-import { TacticalScene, type AircraftLike, type CountermeasureLike, type MissileLike, type TacticalOptions } from './tactical';
+import { TacticalScene, type AircraftLike, type CountermeasureLike, type Layers, type MissileLike, type TacticalOptions } from './tactical';
 import { lerpAngle, UNIT_PER_M } from './units';
+import { recordedRadarAt } from './replay-sensors';
+import { Shape } from './symbols';
+import { Tag } from './tags';
 
 export interface ReplayAircraft { type: AircraftId; side: Side; callsign: string; diedAt?: number | null }
 export interface ReplayMissile {
@@ -87,6 +91,10 @@ export function sampleIndex(t: ArrayLike<number>, x: number): number {
 }
 
 export class ReplayView extends TacticalScene {
+  private frames: RecordFrame[] = [];
+  private radarObserver: EntityId | null = null;
+  private truthEffects = true;
+  private trackTags = new Map<string, { tag: Tag; unregister: () => void }>();
   private acs: AcTrack[] = [];
   private acById = new Map<EntityId, AcTrack>();
   private msls: MslTrack[] = [];
@@ -112,6 +120,40 @@ export class ReplayView extends TacticalScene {
   /** Current replay time (s). */
   get currentTime(): number { return this.tNow; }
 
+  /** Null selects truth; an aircraft ID selects only its ownship and recorded sensor estimates. */
+  setRadarObserver(id: EntityId | null): void {
+    if (id === this.radarObserver) return;
+    if (this.radarObserver === null) this.truthEffects = this.layers.effects;
+    this.radarObserver = id;
+    this.layers.effects = id === null ? this.truthEffects : false;
+    this.clearTrackTags();
+    this.select(null);
+    this.syncNow();
+    this.stage.requestRender();
+  }
+  get observer(): EntityId | null { return this.radarObserver; }
+  /** False for legacy/synthetic frames without sensor snapshots. No truth fallback is drawn. */
+  hasRadarRecording(id: EntityId): boolean {
+    return this.frames.some(f => f.aircraft.some(a => a.id === id && a.radarContacts !== undefined));
+  }
+  get radarSampleTime(): number | null {
+    return this.radarObserver ? recordedRadarAt(this.frames, this.tNow, this.radarObserver)?.t ?? null : null;
+  }
+
+  override clear(): void {
+    this.clearTrackTags();
+    super.clear();
+  }
+
+  private clearTrackTags(): void {
+    for (const r of this.trackTags.values()) { r.unregister(); r.tag.dispose(); }
+    this.trackTags.clear();
+  }
+
+  protected override onLayerChange(name: keyof Layers): void {
+    if (name === 'effects' && this.radarObserver !== null) this.layers.effects = false;
+  }
+
   /** Show the recording at time t (clamped to [start, end]). */
   setTime(t: number): void {
     this.tNow = Math.max(this.t0, Math.min(this.t1, t));
@@ -122,6 +164,7 @@ export class ReplayView extends TacticalScene {
   /** Replace the recording (e.g. a new sortie). */
   setData(frames: RecordFrame[], roster: ReplayRoster, events: SimEvent[] = []): void {
     this.clear();
+    this.frames = frames;
     this.t0 = frames.length ? frames[0].t : 0;
     this.t1 = frames.length ? frames[frames.length - 1].t : 0;
     const acA = new Map<EntityId, { t: number[]; p: number[]; h: number[]; pi: number[]; ro: number[]; alive: number[]; mode: RadarModeId[]; stt: (EntityId | null)[] }>();
@@ -202,6 +245,7 @@ export class ReplayView extends TacticalScene {
     this.listAc.length = 0;
     this.listMsl.length = 0;
     for (const a of this.acs) {
+      if (this.radarObserver !== null && a.id !== this.radarObserver) { a.present = false; continue; }
       const k = sampleIndex(a.t, x);
       a.present = k >= 0;
       if (!a.present) continue;
@@ -221,6 +265,7 @@ export class ReplayView extends TacticalScene {
       this.listAc.push(L);
     }
     for (const m of this.msls) {
+      if (this.radarObserver !== null) { m.present = false; continue; }
       const k = sampleIndex(m.t, x);
       m.present = k >= 0 && x >= m.launchT - 1e-6;
       if (!m.present) continue;
@@ -276,6 +321,7 @@ export class ReplayView extends TacticalScene {
   protected override countermeasures(): Iterable<CountermeasureLike> {
     const x = this.tNow;
     this.cmOut.length = 0;
+    if (this.radarObserver !== null) return this.cmOut;
     let used = 0;
     for (const e of this.cmEvents) {
       const life = e.what === 'chaff' ? 6 : 4;
@@ -298,6 +344,7 @@ export class ReplayView extends TacticalScene {
   }
 
   protected override drawExtra(): void {
+    if (this.radarObserver !== null) { this.drawRadar(); return; }
     if (!this.layers.illumination) return;
     // STT lock lines: who was locking whom at this moment.
     const x = this.tNow, P = this.palette;
@@ -311,5 +358,44 @@ export class ReplayView extends TacticalScene {
       const c = a.info.side === 'blue' ? P.friendly : P.hostile;
       this.lines.seg(v.pos.x, v.pos.y, v.pos.z, w.pos.x, w.pos.y, w.pos.z, c.r, c.g, c.b, 0.55, c.r, c.g, c.b, 0.55, 1.2, 10, 0, 0.35);
     }
+  }
+
+  private drawRadar(): void {
+    const sample = this.radarObserver ? recordedRadarAt(this.frames, this.tNow, this.radarObserver) : null;
+    const a = sample?.aircraft;
+    const contacts = a?.alive ? a.radarContacts : null;
+    if (!a || !contacts) { this.clearTrackTags(); return; }
+    const P = this.palette;
+    for (const b of contacts.bricks) {
+      const alpha = Math.max(0, 1 - (this.tNow - b.t) / 8) * 0.9;
+      this.symbols.put(b.pos[0] * UNIT_PER_M, b.pos[1] * UNIT_PER_M, b.pos[2] * UNIT_PER_M, Shape.boxFill, 6, P.sym, alpha);
+    }
+    const seen = new Set<string>();
+    for (const tr of contacts.tracks) {
+      const [ex, ey, ez] = tr.pos.map(v => v * UNIT_PER_M);
+      const primary = a.designated[0] === tr.targetId, locked = a.sttTarget === tr.targetId;
+      const designated = a.designated.includes(tr.targetId);
+      const c = primary || locked ? P.symHi : tr.firm ? P.sym : P.symDim;
+      this.overlaySymbols.put(ex, ey, ez, tr.coasting ? Shape.ringDash : Shape.ring, 22, c, 0.95);
+      if (designated && !primary) this.overlaySymbols.put(ex, ey, ez, Shape.diamond, 30, c, 0.8);
+      if (locked) this.overlaySymbols.put(ex, ey, ez, Shape.box, 30, c, 0.95);
+      if (tr.firm) {
+        const k = 20 * UNIT_PER_M;
+        this.lines.seg(ex, ey, ez, ex + tr.vel[0] * k, ey + tr.vel[1] * k, ez + tr.vel[2] * k, c.r, c.g, c.b, 0.85, c.r, c.g, c.b, 0.3, 1.3);
+      }
+      const key = tr.label + ':' + tr.targetId;
+      seen.add(key);
+      let rec = this.trackTags.get(key);
+      if (!rec) {
+        const tag = new Tag(this.stage.labels, 'track', 'neutral');
+        rec = { tag, unregister: this.registerLabel(tag, { priority: 3 }) };
+        this.trackTags.set(key, rec);
+      }
+      rec.tag.obj.position.set(ex, ey, ez);
+      rec.tag.visible = this.layers.labels;
+      rec.tag.setFlagAttr('primary', String(primary || locked));
+      rec.tag.set(tr.label + (locked ? ' STT' : primary ? ' PRIMARY' : designated ? ' DESIGNATED' : ''), tr.coasting ? 'COAST' : 'ESTIMATE', '', '');
+    }
+    for (const [key, rec] of this.trackTags) if (!seen.has(key)) { rec.unregister(); rec.tag.dispose(); this.trackTags.delete(key); }
   }
 }
