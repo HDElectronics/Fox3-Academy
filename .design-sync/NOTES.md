@@ -71,3 +71,82 @@ per component at the bottom of `index.tsx`.
   travels in the uploaded `_ds_sync.json`, not in git.
 - **`dist/` of the binding is gitignored**, so a fresh clone must run `npm install` inside `design-system/`
   and `node build.mjs` before the converter.
+
+## Preview authoring — what the first campaign learned
+
+Folded from four parallel batches (controls, layout, panels, overlays). 27 components, 108 cells.
+
+### Capture harness facts
+
+- Each cell is captured alone at **900 x 700**, one page load per cell (`?story=`), with the provider's
+  `var(--gap-4)` padding — so a full-width component gets about 868 px.
+- 900 px keeps the kit's `max-width: 900px` breakpoints **active**: `LabLayout` renders its phone column
+  and `DocLayout` its wrapped contents chips rather than a sticky sidebar.
+- The shot is not full-page. Whole-screen frames (`LabLayout`, `DocLayout`) always continue past the fold;
+  compose each cell so the feature it is named for lands above it.
+- The review sheet is a scaled composite. Judge cropping and fine detail from
+  `_screenshots/review/raw/<group>__<Name>__<Cell>.png`, not the sheet.
+- Cells are listed alphabetically, not in source order, and a grade key is the export name — renaming an
+  export forces a regrade.
+
+### Two traps that cost a capture run each
+
+- **Two open modals on one card crash the renderer.** `modal()` focuses its dialog and registers a
+  document `focusin` listener that pulls focus back. Two open dialogs ping-pong synchronously:
+  `RangeError: Maximum call stack size exceeded`, and the whole capture page dies, failing whatever was
+  captured after it. The previews carry `inert` on each Modal host box, which makes `focus()` a no-op and
+  paints identically. `cfg.overrides.Modal.cardMode = "single"` is the config-level alternative, at the
+  cost of the other cells. Corollary for the app: never have two modals open at once — true of the app
+  today (one debrief overlay per page), so this is a harness constraint, not a kit bug.
+- **A nested `CockpitGround` loses to the provider.** React flushes child effects before parent effects,
+  so a cell asking for `cockpit="ru"` is overwritten by the provider's default `us`. The skin previews
+  re-assert it in a `queueMicrotask`. In the card's grid view the last cell to mount wins; in the graded
+  shots each cell is its own page load, so they do not bleed.
+
+### Binding limits worth knowing before extending it
+
+- **Handle-only state cannot be previewed, and should not be faked.** `EventLog.push()`,
+  `Checklist.setCurrent()` and `Readouts.setTone()` exist only on the handle; the binding rebuilds from
+  the factory and never touches it. Previews show the resting state. Adding a prop to the binding is the
+  honest fix if those states ever need to appear on a card.
+- **`display: contents` portal hosts break direct-child CSS.** JSX passed to a slot renders into a
+  `display:contents` host, so the element is a DOM grandchild and `.parent > .child` stops matching. It
+  bit `.ui-lab__strip > .ui-bezel` (`flex: 1 1 280px`), leaving the strip's bezels at content width with
+  their corners overlapping. `.ui-lab__console > *` has the same exposure. Wrap such items in a plain div
+  with an explicit width.
+- **Overlay hosts have no height.** `fromHostFactory` gives Modal and Toast a `min-height: 1px` relative
+  host and the kit positions `--within` overlays absolutely inside it, so they need a sized box or the
+  dialog collapses and the toast escapes the cell. Toasts also need `ms={0}`; the 3200 ms default empties
+  the stack before the screenshot.
+- **Container-query components need a narrow wrapper in a preview.** `Split` folds through
+  `@container (max-width: N)` on itself, and no `stackBelow` value can fire at the 868 px capture width.
+  Wrap it in a div with an inline `maxWidth` below the threshold.
+
+### Component quirks the sheets exposed
+
+- `Select` is a closed native select in a screenshot: `group` (optgroups) and per-option `disabled` never
+  show. Its only visible axes are `inline`, `disabled` and box width.
+- `Toggle`'s `style="switch"` is the only one that states its position in words; the `lamp` style only
+  lights a strip, so always leave one cap off. `size` applies to the lamp style only.
+- `Slider` needs `readoutCh` when `format` widens the readout, and `layoutSliderZones` drops a zone label
+  within 9 % of a higher-priority neighbour — keep boundary values apart.
+- `Readouts` `columns={2}` fills its container, so a wide card lays out three pairs per line, not two.
+- `Lamp` `on` and `flash` do differ in a still (the flash is caught bright); `hi` and `caution` are both
+  amber and need distinct labels to earn a place in one row.
+- `Callout` kinds read apart by the left accent bar — `simplified` dashed, the others solid.
+- `kbd()` splits on ` / `, ` and ` and spaces, so multi-key bindings can be written exactly as
+  `src/data/procedures.ts` writes them (`'RCtrl + = / RCtrl + -'`).
+- Cyrillic survives the mono font and the uppercase transforms.
+
+### Content sourcing
+
+Preview copy is grounded in `src/data`, not memory: bindings from `procedures.ts`, radar and missile
+names from `aircraft.ts` / `missiles.ts`, RWR names and codes from `rwr.ts`. Obvious-looking guesses are
+wrong here — it is `N019M` and `AN/APG-63(V)1`, not `N019` and `AN/APG-63`. Where a fact is not in
+research, a `Callout` says "not verified" rather than asserting it (AGENTS.md rule 2).
+
+### Known render warns
+
+- `[FONT_REMOTE]` for the four Google families — expected, they load at runtime as `index.html` does.
+- `[RENDER_THIN]` on `Lamp` and `EventLog` is **legitimate**: a lamp is a key-cap-sized annunciator, and a
+  log with no lines is one row of phosphor text. Padding either would misrepresent the component.

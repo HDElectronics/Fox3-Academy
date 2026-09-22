@@ -9,5 +9,14 @@
   "provider": {
     "component": "CockpitGround"
   },
-  "guidelinesGlob": []
+  "guidelinesGlob": [],
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "DocLayout": {
+      "cardMode": "column"
+    },
+    "LabLayout": {
+      "cardMode": "column"
+    }
+  }
 }
