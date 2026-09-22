@@ -4,13 +4,14 @@ import { AIRCRAFT } from '../data/aircraft';
 import type { Units } from './format';
 
 type Listener = (s: AppStore, what: 'aircraft' | 'units' | 'progress') => void;
-const KEY = 'fox3school:v1';
+const KEY = 'fox3academy:v1';
+const LEGACY_KEY = 'fox3school:v1'; // pre-rename key: read as a fallback, dropped on the next save
 
 function load(): Record<string, unknown> {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '{}') ?? {}; } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY) ?? '{}') ?? {}; } catch { return {}; }
 }
 function save(data: Record<string, unknown>) {
-  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* storage blocked: fine */ }
+  try { localStorage.setItem(KEY, JSON.stringify(data)); localStorage.removeItem(LEGACY_KEY); } catch { /* storage blocked: fine */ }
 }
 
 export class AppStore {
