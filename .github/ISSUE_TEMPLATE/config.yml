@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Wiki
+    url: https://github.com/HDElectronics/Fox3-Academy/wiki
+    about: Module tour, FAQ and contributor start page.

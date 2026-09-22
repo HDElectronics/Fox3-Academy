@@ -1,0 +1,25 @@
+name: Bug
+description: Something is broken, crashes or renders wrong
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps to reproduce, what you expected, what you saw.
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Page URL
+      placeholder: "#/tws?ac=su27"
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 140, Windows 11, 1440 px wide
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output or screenshot

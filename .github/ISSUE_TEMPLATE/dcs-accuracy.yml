@@ -1,0 +1,46 @@
+name: Differs from DCS
+description: Something in the trainer behaves differently from DCS World
+labels: ["dcs-accuracy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Accuracy is the product. Tell us what the trainer shows and what DCS does, with evidence if you have it.
+        Gameplay behaviour only: displays, keys, launch-zone numbers, RWR cues, what defeats a shot.
+  - type: dropdown
+    id: jet
+    attributes:
+      label: Jet
+      options: [Su-27, Su-33, J-11A, MiG-29S, F-15C, F/A-18C, F-16C, F-14B, JF-17, M-2000C, Several or all]
+    validations:
+      required: true
+  - type: dropdown
+    id: page
+    attributes:
+      label: Page
+      options: [Learn, Cockpit explorer, Radar, TWS, Missiles, Defense, RWR, Sortie or debrief, Reference, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: trainer
+    attributes:
+      label: What the trainer does
+      description: Steps, settings and what you see. A URL with ?ac= and ?shot= parameters helps.
+    validations:
+      required: true
+  - type: textarea
+    id: dcs
+    attributes:
+      label: What DCS does
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Manual page, track file, Tacview capture, video timestamp. Include the DCS version.
+  - type: input
+    id: version
+    attributes:
+      label: DCS version
+      placeholder: e.g. 2.9.x

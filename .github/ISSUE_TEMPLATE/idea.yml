@@ -1,0 +1,16 @@
+name: Idea or lesson request
+description: Suggest a lesson, a jet, a drill or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help you fly better
+      description: The skill you want to practise and how you picture it in the trainer.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Jet, DCS module, sources, anything that already covers this.
