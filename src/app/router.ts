@@ -3,7 +3,7 @@ import { routeFor, type RouteDef } from './routes';
 import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
 import { queryIdentity } from './navigation';
-import type { Page } from './page';
+import type { Page, PageFactory } from './page';
 import type { AppStore } from './store';
 import { h } from '../ui/dom';
 
@@ -45,11 +45,19 @@ export class Router {
       try { this.current.page.unmount(); } catch (e) { console.error(e); }
       this.current = null;
     }
-    this.outlet.replaceChildren(h('div', { class: 'page-loading' }, 'Loading ' + route.label + '…'));
+    this.outlet.replaceChildren(h('div', { class: 'page-loading', role: 'status' }, 'Loading ' + route.label + '…'));
     this.onChange(route, params);
+    let mod: { default: PageFactory };
     try {
-      const mod = await route.load();
-      if (token !== this.token) return;
+      mod = await route.load();
+    } catch (e) {
+      // Usually a network failure or a stale chunk after a redeploy (code-split build only).
+      console.error(e);
+      if (token === this.token) this.showError(route, 'Could not load ' + route.label + '. Check the connection and retry.');
+      return;
+    }
+    if (token !== this.token) return;
+    try {
       const page = mod.default();
       this.outlet.replaceChildren();
       this.outlet.dataset.page = route.path;
@@ -57,7 +65,16 @@ export class Router {
       await page.mount({ root: this.outlet, app: this.app, params, navigate: p => this.navigate(p) });
     } catch (e) {
       console.error(e);
-      if (token === this.token) this.outlet.replaceChildren(h('div', { class: 'page-error' }, 'This page failed to load: ' + String(e)));
+      if (token === this.token) this.showError(route, route.label + ' failed to start: ' + String(e));
     }
+  }
+
+  private showError(route: RouteDef, message: string) {
+    this.outlet.dataset.page = route.path;
+    this.outlet.replaceChildren(h('div', { class: 'page-error', role: 'alert' },
+      h('p', null, message),
+      h('div', { class: 'page-error__actions' },
+        h('button', { type: 'button', class: 'ui-btn ui-btn--primary', onclick: () => this.resolve(true) }, 'Retry'),
+        h('button', { type: 'button', class: 'ui-btn', onclick: () => location.reload() }, 'Reload app'))));
   }
 }
