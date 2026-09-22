@@ -281,7 +281,11 @@ Options: `range: 'scale' | 'detect' | metres` (default `'scale'` = `rangeScale`;
 head-on detection range), `coverageAt: (metres | 'cursor')[]` (default `['cursor']`), `units`,
 `color` (default `--sym`), `showBeam = true`, `labels = true`, `opacity = 0.035`.
 Methods: `update(state, posM, heading)`, `setSpec(spec)`, `setOptions(o)`, `visible`,
-`rangeFor(state)`, `dispose()`. `object` is the root Group.
+`rangeFor(state)`, `setLabelHost(host | null)`, `dispose()`. `object` is the root Group.
+`setLabelHost(view)` joins the coverage labels to that view's shared label layout at
+`LabelPriority.coverage` with an 80 px move limit: aircraft, missile and lesson tags keep their spot,
+and a crowded coverage label moves a short way or hides until space is free. `WorldView` does this
+for its own volume; a standalone volume has no layout until you call it.
 
 Pure helpers (tested): `scanElevationLimits(elCenter, bars, barSpacing, beamWidth) → { hi, lo }`,
 `altitudeCoverage(ownAltM, rangeM, elHi, elLo) → { top, bottom }` (flat earth, range × tan),

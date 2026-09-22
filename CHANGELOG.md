@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- B21: Place radar-volume coverage labels in the shared label layout below aircraft, missile and lesson
+  tags; a crowded coverage label moves a short way or hides, and placements no longer flip between sides.
 - B11: Make keyboard defaults, binding groups, radar capabilities and missile uncertainty typed data;
   migrate page consumers and separate FC3 expected range from the radar cursor, including scene restarts.
 - B12: Adopt shared camera, detection explanation, seeker-state and slider-zone APIs across the lessons.

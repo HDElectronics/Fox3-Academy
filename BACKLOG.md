@@ -31,9 +31,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B15. Hyphenated jet names wrap** ("Su-" / "27") in narrow prose. A no-break hyphen falls back to another font;
   a `white-space: nowrap` span around jet names in copy would work.
 
-- **B21. Radar-volume annotation overlap.** Coverage annotations can overlap nearby aircraft tags in
-  crowded Radar Lab views. Coordinate them with shared label placement and check desktop/phone layouts.
-
 ## P3 — Quality and infrastructure
 
 - **B16. Remaining device QA.** The [browser QA pass](docs/browser-qa.md) covers live desktop/phone-width
