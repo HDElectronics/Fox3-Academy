@@ -62,7 +62,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |
 | `docs/` | Human docs: user guide, developer guide, DCS accuracy, decisions | `docs/README.md` |
-| `sandbox/` | Dev-only harness pages and probe configs (not in the build) | |
+| `sandbox/` | Dev-only kit and page harnesses, `frame.html` for phone shots (not in the build) | `docs/developer-guide.md` |
 | `tests/tune/` | Env-gated tuning, AI duel sweep, DLZ generator | |
 | `scripts/` | `shot.sh` (headless screenshots) | |
 

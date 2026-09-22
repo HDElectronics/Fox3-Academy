@@ -231,10 +231,9 @@ export default factory;
 
 - **Hash routing**: never use `<a href="#section">` for in-page links (it navigates the router).
   `docLayout` contents are buttons calling `go(id)`.
-- **Headless screenshots at 390 are really 500 px wide.** `scripts/shot.sh … 390` renders a 500 CSS
-  px layout (Chrome headless minimum) and crops it. To check a true 390 layout wrap the page in the
-  frame: `scripts/shot.sh '/sandbox/ui-frame.html?w=390&h=2400&src=<url-encoded path>' out.png 390 2400`
-  (the `src` is relative to `/sandbox/`, e.g. `..%2F%23%2Ftws` for `/#/tws`).
+- **Headless Chrome never lays out narrower than 500 CSS px.** For widths under 500, `scripts/shot.sh`
+  hosts the page in `sandbox/frame.html` at the real width and crops, so
+  `scripts/shot.sh '/sandbox/ui.html?skin=ru' out.png 390 2400` is a true 390 layout.
 - The 3D viewport background before WebGL draws is `--sky-top`; the lab page must not scroll on
   desktop, so keep console content in the console (it scrolls) rather than under the layout.
 - Bezel content that is not a `<canvas>` needs class `ui-fill` to be stretched.

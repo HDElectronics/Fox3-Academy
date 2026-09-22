@@ -40,9 +40,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
   M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
   routes, and frame rate on low-end GPUs. Hold cancellation and thresholds have automated regression tests.
-- **B18. Sandbox cleanup.** `sandbox/` holds many probe configs and harnesses from the build waves. Keep the
-  harness pages that still run (`render.html`, `ui.html`, `displays.html`, `frame.html`, page cycle harnesses)
-  and delete stale probes.
 - **B19. Bundle size.** The single file is 1.8 MB (545 KB gzipped). For a normal static host, a second Vite
   config with code splitting per page would cut first load.
 

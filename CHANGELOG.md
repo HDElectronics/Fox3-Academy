@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- B18: Remove stale sandbox probes (vitest probe configs, dump scripts and one-off page checks); keep the kit,
+  page-cycle and phone-frame harnesses, and typecheck `sandbox/` with the app.
 - B11: Make keyboard defaults, binding groups, radar capabilities and missile uncertainty typed data;
   migrate page consumers and separate FC3 expected range from the radar cursor, including scene restarts.
 - B12: Adopt shared camera, detection explanation, seeker-state and slider-zone APIs across the lessons.
