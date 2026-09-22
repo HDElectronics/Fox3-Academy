@@ -15,14 +15,14 @@ let observers = 0;
 const RO = window.ResizeObserver;
 window.ResizeObserver = class extends RO {
   private on = false;
-  observe(t: Element, o?: ResizeObserverOptions) { if (!this.on) { this.on = true; observers++; } super.observe(t, o); }
-  disconnect() { if (this.on) { this.on = false; observers--; } super.disconnect(); }
+  override observe(t: Element, o?: ResizeObserverOptions) { if (!this.on) { this.on = true; observers++; } super.observe(t, o); }
+  override disconnect() { if (this.on) { this.on = false; observers--; } super.disconnect(); }
 };
 const IO = window.IntersectionObserver;
 window.IntersectionObserver = class extends IO {
   private on = false;
-  observe(t: Element) { if (!this.on) { this.on = true; observers++; } super.observe(t); }
-  disconnect() { if (this.on) { this.on = false; observers--; } super.disconnect(); }
+  override observe(t: Element) { if (!this.on) { this.on = true; observers++; } super.observe(t); }
+  override disconnect() { if (this.on) { this.on = false; observers--; } super.disconnect(); }
 };
 let errors = 0;
 const err = console.error.bind(console);

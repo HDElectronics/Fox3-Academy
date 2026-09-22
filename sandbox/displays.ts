@@ -233,7 +233,7 @@ class FakeRadar {
     const dlz = primRel ? { ...s.dlz, targetRange: primRel.range } : null;
     const shoot = !!dlz && dlz.targetRange <= dlz.rmax && dlz.targetRange >= dlz.rmin;
     return {
-      t, ownerId: 'me', aircraftType: s.type, units: spec.units, mode: sc.mode, modeLabel: spec.radar.modeLabels[sc.mode] ?? sc.mode.toUpperCase(),
+      t, ownerId: 'me', aircraftType: s.type, units: spec.units, ownHeading: 0, mode: sc.mode, modeLabel: spec.radar.modeLabels[sc.mode] ?? sc.mode.toUpperCase(),
       rangeScale: s.rangeScale, gimbalAz: spec.radar.gimbalAzDeg * D2R,
       scan: { azCenter: sc.azCenter, azHalf: sc.azHalf, elCenter: sc.elCenter, bars: sc.bars, beamAz: sc.mode === 'stt' && primRel ? primRel.az : sc.beamAz, beamEl: sc.beamEl, bar: sc.bar, frameTime: sc.frameTime },
       altCoverage: { top: OWN_ALT + cursorRange * Math.tan(sc.elCenter + halfCov), bottom: OWN_ALT + cursorRange * Math.tan(sc.elCenter - halfCov), atRange: cursorRange },

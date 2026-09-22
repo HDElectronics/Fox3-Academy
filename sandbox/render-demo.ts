@@ -184,8 +184,10 @@ function buildDemo(): Demo {
         lastRec = t;
         frames.push({
           t,
-          aircraft: [...world.aircraft.values()].map(a => ({ id: a.id, pos: [a.pos.x, a.pos.y, a.pos.z] as [number, number, number], heading: a.heading, pitch: a.pitch, roll: a.roll, alive: a.alive, radarMode: a.radar.mode, sttTarget: a.radar.stt.targetId })),
-          missiles: [...world.missiles.values()].map(m => ({ id: m.id, pos: [m.pos.x, m.pos.y, m.pos.z] as [number, number, number], guidance: m.guidance, alive: m.alive })),
+          aircraft: [...world.aircraft.values()].map(a => ({ id: a.id, side: a.side, type: a.type, pos: [a.pos.x, a.pos.y, a.pos.z] as [number, number, number], heading: a.heading, pitch: a.pitch, roll: a.roll, alive: a.alive, radarMode: a.radar.mode, sttTarget: a.radar.stt.targetId,
+            radar: { azCenter: a.radar.azCenter, azHalf: a.radar.azHalf, elCenter: a.radar.elCenter, bars: a.radar.bars, beamAz: a.radar.beamAz, beamEl: a.radar.beamEl },
+            designated: a.radar.designated.slice() })),
+          missiles: [...world.missiles.values()].map(m => ({ id: m.id, type: m.type, side: m.side, shooterId: m.shooterId, targetId: m.targetId, pos: [m.pos.x, m.pos.y, m.pos.z] as [number, number, number], guidance: m.guidance, alive: m.alive, timeToActive: m.timeToActive })),
         });
       }
     },
