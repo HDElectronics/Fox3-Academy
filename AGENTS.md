@@ -10,7 +10,8 @@ track-while-scan, launch zones, defending against missiles, reading the RWR, and
 Tacview-style debrief. Ten DCS jets, and every page adapts to the jet picked in the top bar.
 
 Stack: TypeScript 7 (strict), three.js 0.186, Vite 8, Vitest 5. No UI framework: typed DOM factories in `src/ui`.
-The production build is a self-contained HTML file suitable for a static web host.
+The default production build is a self-contained HTML file; `npm run build:web` makes a code-split build
+for normal static hosts.
 
 ## Rules that matter most
 
@@ -41,7 +42,8 @@ npm run dev          # Vite dev server on :5173 (agents share :5190, see Visual 
 npm run typecheck    # tsc --noEmit
 npm test             # vitest: sim, data, kits, page logic (a few seconds)
 npm run build        # dist/index.html (single file, three.js inlined)
-npm run check        # typecheck + test + build
+npm run build:web    # dist-web/ (code split: shell, one chunk per page, three.js vendor chunk)
+npm run check        # typecheck + test + both builds
 ```
 
 Offline tuning (slow, only when changing the missile model):
@@ -97,7 +99,8 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   `ctx.app.setProgress('<route>:<aircraft>:done', true)`.
 - **Change a radar rule:** `src/sim/radar.ts` (`radarRules`, scan, detection, TWS, STT), then
   `src/sim/sensors.test.ts`. Launch rules are in `launch.ts`, the display model in `picture.ts`.
-- **Publish:** run `npm run check`, then deploy `dist/` to the chosen static host. No personal deployment endpoint belongs in the repository.
+- **Publish:** run `npm run check`, then deploy `dist/` (one file) or `dist-web/` (faster first load) to the
+  chosen static host. No personal deployment endpoint belongs in the repository.
 
 ## Visual checks
 

@@ -43,8 +43,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B18. Sandbox cleanup.** `sandbox/` holds many probe configs and harnesses from the build waves. Keep the
   harness pages that still run (`render.html`, `ui.html`, `displays.html`, `frame.html`, page cycle harnesses)
   and delete stale probes.
-- **B19. Bundle size.** The single file is 1.8 MB (545 KB gzipped). For a normal static host, a second Vite
-  config with code splitting per page would cut first load.
 
 ## P4 — Ideas
 
