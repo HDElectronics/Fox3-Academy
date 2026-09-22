@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 [[ "$OUT" = /* ]] || OUT="$PWD/$OUT"
 mkdir -p "$(dirname "$OUT")"
 if ! curl -s -o /dev/null http://localhost:5190/; then
-  (npx vite --port 5190 --strictPort > /tmp/fox3-vite.log 2>&1 &)
+  (npx vite --port 5190 --strictPort > /tmp/fox3academy-vite.log 2>&1 &)
   for i in {1..40}; do curl -s -o /dev/null http://localhost:5190/ && break; sleep 0.25; done
 fi
 # Headless Chrome lays out at >= 500 CSS px. For phone widths, host the page in an iframe of the real
@@ -21,7 +21,7 @@ if (( W < 500 )); then
   TARGET="/sandbox/frame.html?w=$W&h=$H&src=$ENC"
   W=500
 fi
-PROFILE=$(mktemp -d /tmp/fox3-chrome.XXXXXX)
+PROFILE=$(mktemp -d /tmp/fox3academy-chrome.XXXXXX)
 LOG="$PROFILE.log"
 rm -f "$OUT"
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --user-data-dir="$PROFILE" \

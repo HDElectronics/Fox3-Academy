@@ -1,4 +1,4 @@
-# Fox Three School docs
+# Fox3 Academy docs
 
 | Doc | For | What it covers |
 |---|---|---|

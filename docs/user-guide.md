@@ -1,6 +1,6 @@
-# Fox Three School — pilot's guide
+# Fox3 Academy — pilot's guide
 
-Fox Three School teaches beyond-visual-range (BVR) combat in DCS World the way the game models it. Everything
+Fox3 Academy teaches beyond-visual-range (BVR) combat in DCS World the way the game models it. Everything
 adapts to the jet you pick in the top bar: radar rules, cockpit display, missiles, RWR, key bindings, units.
 
 ## Getting started

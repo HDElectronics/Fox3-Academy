@@ -20,7 +20,7 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   const contextNav = h('nav', { class: 'context-nav', 'aria-label': 'Lessons' });
 
   const bar = h('header', { class: 'topbar' },
-    h('a', { class: 'brand', href: '#/learn' }, h('span', { class: 'brand-mark' }, 'F3'), h('span', { class: 'brand-name' }, 'Fox Three School')),
+    h('a', { class: 'brand', href: '#/learn' }, h('span', { class: 'brand-mark' }, 'F3A'), h('span', { class: 'brand-name' }, 'Fox3 Academy')),
     nav,
     h('div', { class: 'topbar-right' },
       h('label', { class: 'jet-label', for: 'jetSelect' }, 'Jet'), select, unitsBtn),
@@ -58,7 +58,7 @@ export function buildShell(root: HTMLElement, app: AppStore) {
       return h('a', { href: '#/' + link.path, 'aria-current': active ? 'page' : 'false' }, link.label);
     }));
     syncHeight();
-    document.title = route.path === 'hangar' ? 'Fox Three School' : route.label + ' · Fox Three School';
+    document.title = route.path === 'hangar' ? 'Fox3 Academy' : route.label + ' · Fox3 Academy';
   };
   return { outlet, setActive };
 }

@@ -1,4 +1,4 @@
-# AGENTS.md — working on Fox Three School
+# AGENTS.md — working on Fox3 Academy
 
 Instructions for contributors and coding agents working in this repository.
 Read this file first, then `BACKLOG.md` for what to do next. Humans: start at `docs/README.md`.

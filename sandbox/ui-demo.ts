@@ -142,7 +142,7 @@ function viewSwitch(): HTMLElement {
 }
 function topbar(): HTMLElement {
   return h('header', { class: 'topbar' },
-    h('a', { class: 'brand', href: '#' }, h('span', { class: 'brand-mark' }, 'F3'), h('span', { class: 'brand-name' }, 'Fox Three School')),
+    h('a', { class: 'brand', href: '#' }, h('span', { class: 'brand-mark' }, 'F3A'), h('span', { class: 'brand-name' }, 'Fox3 Academy')),
     h('nav', { class: 'modnav', 'aria-label': 'Modules' },
       ['Hangar', 'Radar', 'TWS', 'Missiles', 'Defense', 'RWR', 'Sortie', 'Cockpit'].map(l =>
         h('a', { href: '#', 'aria-current': l === 'TWS' ? 'page' : 'false' }, l))),

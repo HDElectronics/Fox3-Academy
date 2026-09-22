@@ -10,7 +10,7 @@ contributors should recheck availability, rights and quality before proposing a 
 Prefer free, openly redistributable assets. Price alone does not establish redistribution rights. No
 purchase or asset integration has been made. See [B20 in the backlog](../../BACKLOG.md) for acceptance criteria.
 
-This is a bounded source and licence survey for the ten aircraft currently in Fox Three School. It covers visual aircraft and cockpit assets only. A follow-up exterior review downloaded and converted the F-16, F-15 and MiG-29 candidates outside this repository. No aircraft assets have been adopted or committed here; exact variant detail, target-render appearance and performance still require review.
+This is a bounded source and licence survey for the ten aircraft currently in Fox3 Academy. It covers visual aircraft and cockpit assets only. A follow-up exterior review downloaded and converted the F-16, F-15 and MiG-29 candidates outside this repository. No aircraft assets have been adopted or committed here; exact variant detail, target-render appearance and performance still require review.
 
 ## Acceptance rule
 
@@ -29,7 +29,7 @@ The project is MIT licensed. GPL aircraft are open-source assets, but adding the
 
 ## Candidate matrix
 
-| Fox Three School aircraft | Best source found | Rights evidence | Variant and asset fit | Decision |
+| Fox3 Academy aircraft | Best source found | Rights evidence | Variant and asset fit | Decision |
 |---|---|---|---|---|
 | Su-27S Flanker-B | [Sketchfab: Sukhoi Su-27](https://sketchfab.com/3d-models/sukhoi-su-27-flanker-2541c1dbc6c1499cb7b38b5bf1314750) | Page says CC Attribution (Sketchfab applies CC BY 4.0 to this option). | Low-poly external model; page gives a general aircraft description but does not say the uploader created the mesh or identify source files. Other prominent results explicitly say DCS or War Thunder. | **Blocked.** Ask the uploader for creation/source provenance before considering it. Explicit DCS/War Thunder uploads are rejected. |
 | Su-33 Flanker-D | [FlightGear FGAddon package](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/) | Package root contains the [GPL v2 text](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/COPYING). | The package's [`su33-set.xml`](https://svn.code.sf.net/p/flightgear/fgaddon/trunk/Aircraft/Sukhoi-Su-33/su33-set.xml) identifies Su-33 Flanker-D, author Emmanuel Baranger, model rating 4 and cockpit rating 2. | **Withheld from redistribution.** Follow-up found third-party texture/livery credits and no explicit package-wide grant. Confirm all components and whether the grant is GPL-2.0-only or later before publishing a preview. |

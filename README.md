@@ -1,4 +1,4 @@
-# Fox Three School
+# Fox3 Academy
 
 An independent, browser-based training companion for DCS World, currently focused on beyond-visual-range skills. Pick your jet, then learn its radar, launch zones,
 RWR and defensive moves the way DCS models them, and finish with full engagements against AI that

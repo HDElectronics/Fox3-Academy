@@ -1,6 +1,6 @@
 # Contributing
 
-Fox Three School is a browser-based training companion for DCS World players. The current modules focus
+Fox3 Academy is a browser-based training companion for DCS World players. The current modules focus
 on BVR skills; the [roadmap](ROADMAP.md) describes expansion into other aircraft procedures.
 
 ## Development workflow

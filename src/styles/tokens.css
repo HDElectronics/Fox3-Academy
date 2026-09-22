@@ -1,5 +1,5 @@
 /*
- * Fox Three School design tokens. ONE visual world: a fighter cockpit. The chrome is painted in the
+ * Fox3 Academy design tokens. ONE visual world: a fighter cockpit. The chrome is painted in the
  * selected jet's cockpit colour (data-cockpit on <html>): Soviet turquoise for Flankers and Fulcrums,
  * dark gull grey for Western jets. Displays are black glass with phosphor symbology.
  * Every component takes colour from these tokens. Never hard-code colours outside this file

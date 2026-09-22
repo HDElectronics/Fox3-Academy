@@ -1,4 +1,4 @@
-# Fox Three School — architecture and team contract
+# Fox3 Academy — architecture and team contract
 
 > Status: v0.1.0 is built. This file stays the contract for parallel agent work. Single agents start with
 > `AGENTS.md`; open work is in `BACKLOG.md`.

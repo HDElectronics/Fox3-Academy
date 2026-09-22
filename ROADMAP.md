@@ -1,6 +1,6 @@
 # Development roadmap
 
-Fox Three School is evolving from a BVR trainer into a broader DCS learning environment. The current
+Fox3 Academy is evolving from a BVR trainer into a broader DCS learning environment. The current
 simulation is a tactical autopilot, not a full flight model. These phases are product directions, not
 release promises. [BACKLOG.md](BACKLOG.md) remains the authoritative list of concrete open work.
 
