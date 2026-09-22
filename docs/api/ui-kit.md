@@ -179,6 +179,12 @@ const unbind = bindKeys({
 - `cleanup()` → `{ add(fn), on(target, type, fn, opts?), dispose() }`: collect everything a page
   must undo; `dispose()` runs in reverse, logs errors, is safe to call twice.
 - `setAttr(el, name, value | null)` (cheap when unchanged), `clear(el)`, `srOnly(text)`, `cx(...classes)`.
+- Jet names never wrap at their hyphen: `append` (so every `h()` string child) and `setText` put each
+  hyphenated jet designation ("Su-27", "MiG-29S", "F/A-18C", "Flanker-B", plural and variant suffixes
+  included) in a `span.jet-name` (`white-space: nowrap`, `base.css`). A no-break hyphen would fall back to
+  another font. Option, textarea, title and non-HTML parents keep plain text. Helpers in `jetName.ts`:
+  `jetName(s)` (one span), `proseNodes(text)`, `jetNameParts(text)` (pure split, `null` when no jet).
+  Strings assigned with `textContent` directly bypass this.
 
 ---
 

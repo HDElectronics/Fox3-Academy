@@ -30,6 +30,8 @@ kbd {
   font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--panel-muted);
 }
 .num { font-variant-numeric: tabular-nums; }
+/* Jet designations never wrap at their hyphen ("Su-" / "27"); set by append()/setText() in src/ui/dom.ts. */
+.jet-name { white-space: nowrap; }
 
 /* ---- top bar (instrument panel strip) ---- */
 .topbar {
