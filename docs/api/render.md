@@ -148,12 +148,15 @@ whole tag: `'caution'` amber, `'warning'` red, `'ok'`, `'hi'` designation amber,
 omitted for the side colour; e.g. what that bandit's RWR hears). `Tag.setTone(tone)` does the same
 on your own tags.
 
-`view.registerLabel(label, { priority?, offset?: { x, y } }) → unregister()` adds a page-owned
+`view.registerLabel(label, { priority?, offset?: { x, y }, maxMove? }) → unregister()` adds a page-owned
 `Tag` or `Note` to the same screen-space layout as aircraft and missile tags. Set its text,
 `visible` flag and `obj.position` normally; the position is in **render units**, like other CSS2D
-labels. Lower priority wins: selected aircraft 0, aircraft 1, missiles 2, annotations 3 by default.
-Use priority 1 for the current lesson explanation or selected replay result; secondary markers can
-use 4. `offset` is a preferred CSS-pixel offset, not a fixed position.
+labels. Lower priority wins; `LabelPriority` names the levels: `selected` 0, `aircraft` 1, `missile` 2,
+`annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
+current lesson explanation or selected replay result; secondary markers can use 4. `offset` is a
+preferred CSS-pixel offset, not a fixed position. `maxMove` caps how far (CSS px) the label may be
+nudged before it hides instead, for text that only reads next to its anchor. `WorldView`,
+`ReplayView` and any other `TacticalScene` satisfy the `LabelHost` interface (`registerLabel`).
 
 Call `unregister()` before disposing the label. It is idempotent and restores the label's original
 placement/visibility; ownership and disposal remain with the page. Entity `clear()`/world resets
@@ -163,6 +166,9 @@ Layout measures the rendered text (including centered/left/above notes), tries n
 positions and keeps them inside a 6 px viewport margin. It follows the camera each frame; text still
 refreshes at about 8 Hz. Labels can move up to 100 px in narrow views or 160 px in wider views. If no
 nearby space fits, lower-priority text is hidden for that frame and returns when space is available.
+Each label's last offset is fed back, and a spot within 8 px of it wins unless another is more than
+8 px closer to the anchor, so labels do not flip sides of a neighbour as the camera moves. The pure
+pass is `layoutLabels(candidates, width, height)` in `tags.ts` (unit-tested).
 Offscreen anchors stay offscreen. Hidden text does not hide its aircraft, trail or marker. Keep the
 full explanation/result available outside the 3D view; exceptionally long labels may not fit at all.
 Labels intentionally left unregistered (for example the radar-volume coverage overlay) remain
