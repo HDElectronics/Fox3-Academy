@@ -55,6 +55,12 @@ export interface LessonStep {
   text: string;
   keys?: string;
   note?: string;
+  /**
+   * The step describes a scan the radar sets by itself. Those settings can be ones the player is not
+   * allowed to select (the F-16C's A2 and 3B exist only under a bug), so the text must read as a
+   * consequence, never an instruction: the matching control stays greyed out.
+   */
+  auto?: true;
   done: (L: TwsLesson) => boolean;
 }
 
@@ -116,7 +122,7 @@ export function stepsFor(ac: AircraftId, b: JetBinds): LessonStep[] {
     case 'f16c':
       return [
         { id: 'tws', text: 'TMS Right held 1 s: TWS', ...k('mode'), done: L => L.flags.tws },
-        { id: 'bug', text: 'TMS Up on a track: bug it. The scan shrinks to ±25° 3-bar around it', ...k('designate'), done: L => L.flags.des1 },
+        { id: 'bug', text: 'TMS Up on a firm track: bug it. The radar then tightens its own scan around him (±25°, 3 bars: you cannot set those yourself)', ...k('designate'), auto: true, done: L => L.flags.des1 },
         { id: 'fire', text: 'Fire at the bug', ...k('fire'), done: L => twsShots(L).length >= 1 },
         { id: 'step', text: 'Short TMS Right: the bug steps to the next track. Fire again', ...k('cycle'), done: L => twsTargets(L) >= 2 },
         { id: 'support', text: 'Keep the tracks in the scan until A counts out', done: L => twsActiveTargets(L) >= 2 },
