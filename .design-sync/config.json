@@ -1,0 +1,13 @@
+{
+  "projectId": "0dfade12-ca5d-4d09-8d01-71f87d4acd5b",
+  "shape": "package",
+  "pkg": "fox3-academy-ui",
+  "globalName": "Fox3UI",
+  "buildCmd": "cd design-system && node build.mjs",
+  "cssEntry": "dist/styles.css",
+  "docsDir": "docs",
+  "provider": {
+    "component": "CockpitGround"
+  },
+  "guidelinesGlob": []
+}

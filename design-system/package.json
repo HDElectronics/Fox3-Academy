@@ -1,0 +1,30 @@
+{
+  "name": "fox3-academy-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "React binding for the Fox3 Academy cockpit UI kit (src/ui)",
+  "main": "./dist/design-system/index.js",
+  "module": "./dist/design-system/index.js",
+  "types": "./dist/design-system/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/design-system/index.d.ts",
+      "default": "./dist/design-system/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.25.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}
