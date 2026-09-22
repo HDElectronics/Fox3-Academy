@@ -12,7 +12,11 @@ on BVR skills; the [roadmap](ROADMAP.md) describes expansion into other aircraft
 5. Update API docs when changing contracts and record completed work in CHANGELOG.md.
 
 Use short-lived topic branches and focused commits. Do not commit generated builds, screenshots, local
-credentials, private conversations, machine-specific paths, or deployment account details.
+credentials, private conversations, machine-specific paths, or deployment account details. The one
+exception is the small curated set in `docs/images/` used by the README; regenerate those with
+`scripts/shot.sh` and replace them only when the pages they show change visibly.
+
+Pull requests run the CI workflow (`.github/workflows/ci.yml`): typecheck, tests and build.
 
 ## Evidence and scope
 

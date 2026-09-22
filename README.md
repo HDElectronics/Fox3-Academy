@@ -1,72 +1,81 @@
+<div align="center">
+
 # Fox3 Academy
 
-An independent, browser-based training companion for DCS World, currently focused on beyond-visual-range skills. Pick your jet, then learn its radar, launch zones,
-RWR and defensive moves the way DCS models them, and finish with full engagements against AI that
-shoots back, debriefed like Tacview.
+**Learn BVR the way DCS World flies it.**
+Radar, TWS, launch zones, missile defense and the RWR, in 3D, in your browser, for the jet you fly.
 
-Built with three.js, TypeScript and Vite. The whole app builds into one self-contained HTML file.
+[![CI](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml/badge.svg)](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
+[![Wiki](https://img.shields.io/badge/docs-wiki-0969da.svg)](https://github.com/HDElectronics/Fox3-Academy/wiki)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-8250df.svg)](CONTRIBUTING.md)
 
-## Run it
+<img src="docs/images/tws.png" alt="F-15C ripple-firing AIM-120Cs at four Su-27s in the TWS lesson" width="900">
 
-```
-npm install
-npm run dev          # http://localhost:5173 (Vite default)
-```
+</div>
 
-Other scripts:
+## Why
 
-```
-npm test             # simulation, data and page-logic tests (vitest)
-npm run typecheck    # TypeScript strict
-npm run build        # dist/index.html, single file, works offline except for web fonts
-```
+You lost the lock and don't know why. Your AMRAAM went stupid at 30 nm. A Flanker fired at you and the RWR
+said nothing. Fox3 Academy lets you see what the radar sees, fly the shot again, and watch the missile's
+energy bleed off, without loading a mission or spending an evening getting shot down on a server.
 
-## What is inside
+- **See the scan volume.** Azimuth, bars, antenna elevation and the notch drawn in 3D around your jet.
+- **Shoot and see the result.** Launch zones against altitude, speed, aspect and target manoeuvre, with plots.
+- **Be the target.** Break the lock, notch and chaff at pitbull, drag the shot out.
+- **Fly the whole fight.** 1v1 to 2v2 against AI that shoots back, then a Tacview-style debrief with coaching.
 
-| Module | What you practise |
+Ten jets, each with its own radar rules, RWR and key bindings: **Su-27, Su-33, J-11A, MiG-29S, F-15C,
+F/A-18C, F-16C, F-14B, JF-17, M-2000C.** Russian jets get a metric, Russian-labelled cockpit skin.
+
+## Screenshots
+
+| Radar lab: why that contact is off your scope | Missile lab: launch zones and energy |
 |---|---|
-| Learn | Follow the lesson path with a 3D aircraft overview and progress for each jet. |
-| Practice | Enter the manual TWS lab or configurable Radar, Missile and Defense experiments. |
-| Cockpit explorer | Search 399 mapped F-16C controls, displays and fixtures across 49 panels, with explanations and source pages. |
-| Radar | The scan volume in 3D: azimuth, bars, antenna elevation, frame time, altitude coverage, the notch. |
-| TWS | Guided lessons and free practice: cursor control, designation, multi-target shots, and the target's RWR. |
-| Missiles | Launch zones: altitude, speed, aspect and target manoeuvre against Rmax and Rne, with flight plots. |
-| Defense | You are the target: break a lock, notch and chaff at pitbull, drag a shot out, see a late defense. |
-| RWR | Your jet's RWR anatomy, then a quiz on who is searching, locking and launching and what to do. |
-| Fly | 1v1, 1v2 or 2v2 against skill-scaled AI, with a replay debrief and coaching. |
-| Reference | Kneeboard: bindings, procedures, missile and jet tables, RWR symbols, glossary, sources. |
+| ![Radar lab](docs/images/radar.png) | ![Missile lab](docs/images/missiles.png) |
+| **Defense: notch an R-27ER in an F-16C** | **RWR trainer: ALR-67 anatomy and threat sandbox** |
+| ![Defense](docs/images/defense.png) | ![RWR trainer](docs/images/rwr.png) |
+| **Sortie: Su-27 vs F-15C, СНП auto-lock** | **Debrief: replay, timeline and coaching** |
+| ![Sortie](docs/images/sortie-fly.png) | ![Debrief](docs/images/sortie-debrief.png) |
 
-Jets: Su-27, Su-33, J-11A, MiG-29S, F-15C (Flaming Cliffs), F/A-18C, F-16C, F-14B, JF-17, M-2000C.
+More pages and a tour of each module: [Wiki](https://github.com/HDElectronics/Fox3-Academy/wiki).
 
-## How it is built
+## Fly it
 
-- `src/data`: aircraft, missiles, RWRs and bindings as DCS presents them, with sources
-  (`docs/research` holds the research notes behind them).
-- `src/sim`: the simulation: tactical flight, radar scan, detection and track files, RWR, launch rules,
-  gameplay missile model tuned to the DCS launch-zone numbers, AI pilots, scenarios.
-- `src/render`: the three.js kit (stage, sky, procedural jets, Tacview-style tactical view, radar volume,
-  cameras, replay).
-- `src/ui`: cockpit-styled controls and panels, plus canvas cockpit displays for every radar format and RWR.
-- `src/pages`: one folder per module.
+```
+git clone https://github.com/HDElectronics/Fox3-Academy.git
+cd Fox3-Academy
+npm install
+npm run dev          # http://localhost:5173
+```
 
-`ARCHITECTURE.md` is the design contract. The missile and sensor models are game mechanics tuned to
-reproduce what DCS players see, not models of real weapons; each page says what it simplifies.
+`npm run build` produces one self-contained `dist/index.html` you can open offline or drop on any static host.
 
-## More
+## What it is, and what it is not
 
-- `docs/README.md`: pilot's guide, developer guide, DCS accuracy notes, decisions.
-- `AGENTS.md`: contributor and coding-agent instructions.
-- `BACKLOG.md`: open work, prioritised.
-- `CHANGELOG.md`: versions.
+A tactics trainer for DCS gameplay. Radar, RWR and missiles are tuned to reproduce what DCS players see
+(launch-zone numbers, RWR cues, what defeats a shot). It is not a flight model or a weapons simulation, and
+every page says what it simplifies. Facts are sourced in [`docs/research`](docs/research); anything
+unverified is labelled as such. Details: [DCS accuracy notes](docs/dcs-accuracy.md).
 
-## Development roadmap
+## Get involved
 
-See [ROADMAP.md](ROADMAP.md) for discussion priorities and future additions, and [BACKLOG.md](BACKLOG.md) for the authoritative open work.
+Fox3 Academy is built by DCS pilots for DCS pilots. You don't need to be a TypeScript expert to help.
 
-## Contributing
+- **Fly it and report.** Something behaves differently from DCS? [Open an issue](https://github.com/HDElectronics/Fox3-Academy/issues/new/choose) with the jet, the page and what DCS does.
+- **Bring evidence.** Manual pages, track files, Tacview captures of a specific DCS version. Accuracy is the product.
+- **Pick a task.** [BACKLOG.md](BACKLOG.md) is prioritised; the [project board](https://github.com/HDElectronics/Fox3-Academy/projects) tracks what is in flight. Issues tagged `good first issue` are a good start.
+- **Add your jet.** Adding an aircraft is a well-trodden path: see [AGENTS.md](AGENTS.md#common-tasks).
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, evidence requirements, and validation checks. Planned expansion into flight fundamentals, communications, and other DCS skills is described in [ROADMAP.md](ROADMAP.md). The current simulation uses a tactical autopilot; it is not yet a stick-and-rudder flight model.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), then the [developer guide](docs/developer-guide.md).
+Where it is heading: [ROADMAP.md](ROADMAP.md).
+
+## Built with
+
+TypeScript, three.js and Vite. No UI framework. `npm run check` runs typecheck, tests and the build.
+Architecture: [ARCHITECTURE.md](ARCHITECTURE.md). All docs: [docs/README.md](docs/README.md).
 
 ## License
 
-[MIT](LICENSE). Third-party assets and dependencies retain their own licenses.
+[MIT](LICENSE). Third-party assets and dependencies keep their own licenses. Fox3 Academy is an independent
+fan project, not affiliated with or endorsed by Eagle Dynamics. DCS World is a trademark of its owner.
