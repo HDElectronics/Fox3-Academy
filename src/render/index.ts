@@ -47,3 +47,5 @@ export {
   boostedScale, lerpAngle,
 } from './units';
 export type { XYZ } from './units';
+export { BfmAids, DEFAULT_BFM_AIDS, TRACER_LIFE_S, turnCircle } from './bfmAids';
+export type { BfmAidLayers, BfmAidsOptions, PursuitTone } from './bfmAids';
