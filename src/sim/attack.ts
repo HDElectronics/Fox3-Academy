@@ -18,7 +18,7 @@ export function createAttackState(loadoutId?: string): AttackState {
   }
   const ag: AttackState = {
     master: 'nav', stores, stations, selected: null, station: null, pair: false,
-    pod: stations.some(s => s.weapon === 'l081'), arm: { detecting: false, emitterId: null },
+    pod: stations.some(s => s.weapon === 'l081'), arm: { detecting: false, emitterId: null }, ccrpHeld: false,
     shkval: createShkvalState(),
   };
   selectAgWeapon(ag, AG_WEAPON_ORDER.find(w => w !== 'gun25t' && (stores[w] ?? 0) > 0) ?? null);

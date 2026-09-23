@@ -38,7 +38,7 @@ import {
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
 } from './shkval';
 import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
-import { agLaunch, armLock, canAgLaunch, setArmDetect, stepAgWeapons, type AgLaunchCheck } from './agWeapons';
+import { agLaunch, armLock, canAgLaunch, setArmDetect, setCcrpHold, stepAgWeapons, stepCcrp, type AgLaunchCheck } from './agWeapons';
 
 /** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
 function radarOff(): RadarState {
@@ -189,7 +189,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     stepGuns(this, h);
     if (this.groundUnits.size) stepGroundUnits(this, h);
-    for (const ac of this.aircraft.values()) if (ac.ag) stepShkval(this, ac, h);
+    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); if (ac.ag.ccrpHeld) stepCcrp(this, ac); }
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
@@ -301,6 +301,11 @@ export class World {
   agLaunch(id: EntityId): AgWeapon[] | AgLaunchCheck {
     const ac = this.aircraft.get(id);
     return ac ? agLaunch(this, ac) : this.canAgLaunch(id);
+  }
+
+  /** CCRP: hold (true) or let go of (false) weapon release; the bomb releases itself at the release point. */
+  ccrpHold(id: EntityId, on: boolean): { ok: boolean; reason: string } {
+    const ac = this.attackJet(id); return ac ? setCcrpHold(this, ac, on) : { ok: false, reason: 'No air-to-ground system' };
   }
 
   // Thin delegations so pages only ever talk to World.

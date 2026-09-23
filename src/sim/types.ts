@@ -270,6 +270,8 @@ export interface AttackState {
   pod: boolean;
   /** Anti-radiation passive detection ([I]) and the emitter (SAM site id) locked for the Kh-58. */
   arm: { detecting: boolean; emitterId: EntityId | null };
+  /** CCRP: the pilot holds weapon release; the bomb releases automatically at the release point (S1). */
+  ccrpHeld: boolean;
   shkval: ShkvalState;
 }
 
@@ -474,7 +476,7 @@ export type SimEvent =
   | { t: number; type: 'shkval-lock'; ownerId: EntityId; unitId: EntityId; range: number }
   | { t: number; type: 'shkval-lost'; ownerId: EntityId; unitId: EntityId; why: ShkvalLostReason }
   | { t: number; type: 'laser'; ownerId: EntityId; on: boolean; why: 'pilot' | 'limit' | 'shkval-off' }
-  | { t: number; type: 'ag-launch'; weaponId: EntityId; shooterId: EntityId; targetId: EntityId | null; weapon: AgWeaponId; range: number | null }
+  | { t: number; type: 'ag-launch'; weaponId: EntityId; shooterId: EntityId; targetId: EntityId | null; weapon: AgWeaponId; range: number | null; ccrp?: boolean }
   | { t: number; type: 'ag-impact'; weaponId: EntityId; weapon: AgWeaponId; targetId: EntityId | null; pos: [number, number, number]; killed: EntityId[] }
   | { t: number; type: 'ag-miss'; weaponId: EntityId; weapon: AgWeaponId; reason: AgMissReason }
   /** A ground unit or SAM site destroyed (separate from 'kill', which is for aircraft). */

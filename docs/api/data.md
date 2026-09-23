@@ -268,6 +268,11 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
   Using the IT-23M scales as slew stops, and releasing stabilisation when clamping prevents holding a ground
   point or the sight leaves the ground, are simplified trainer rules, **not verified**.
 - Ground-unit default sizes other than armour 10 m and buildings 60 m (S1); hit points are trainer values.
+- Kh-58 HUD type codes (`KH58_TARGET_CODES`: the SAM NATO number) and which radars the Kh-58 can attack
+  (`kh58CanAttack`: all three sites) are trainer labels, **not verified**; the diamonds' placement is scaled to fit
+  the ±30° zone across the HUD.
+- CCRP: S1 gives the procedure (hold release, keel into the circle, arrow 10 s before release, automatic release).
+  The ±2° director tolerance (`CCRP_TOL_DEG`) and the 0.5 s late-release cut-off are trainer values, **not verified**.
 
 ### SAM sites
 
