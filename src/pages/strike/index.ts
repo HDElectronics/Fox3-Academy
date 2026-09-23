@@ -3,7 +3,11 @@
  * sight on the IT-23M (slew, ground-stabilise, zoom, target size, lock КС → АС), the laser (ЛД), and fires Vikhrs
  * holding lock and laser to impact, then flies a rocket / gun CCIP pass. Keys from PROCEDURES.su25t (S1).
  * Lessons: shkval, laser, vikhr (scored drill), ccip (scored pass), bombs (CCRP + CCIP, scored), sead (Kh-58 with
- * the L-081 pod, scored), threat (tank platoon under an SA-15, SPO-15 cues, scored). Progress: strike:<lesson>:su25t.
+ * the L-081 pod, scored), threat (tank platoon under an SA-15, SPO-15 cues, scored), sortie (brief with a loadout,
+ * low-level ingress to the IP, pop-up attack, egress; plan-view replay debrief, scored). Progress: strike:<lesson>:su25t.
+ *
+ * Sortie params (?lesson=sortie): ?shot=brief|ingress|attack|egress|debrief (scripted pre-rolls, never saved as
+ * progress), ?loadout=<SU25T_LOADOUTS id>, ?sa11=1.
  *
  * URL params: ?lesson=<id>, ?shot=shkval|locked|vikhr-flight|impact|debrief|ccrp|sead|sead-lock|threat|threat-debrief
  * (pre-roll for screenshots), ?cam=chase|target|tv, ?touch=1 (show the touch pad on a fine pointer),
@@ -23,8 +27,9 @@ import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '..
 import { AttackScene, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, eventLog, readouts,
-  callout, placard, bindKeys, keyHint, disclosure, modal, mobileAction, type ModalHandle, type Tone,
+  callout, placard, bindKeys, keyHint, disclosure, modal, mobileAction, select, toggle, type ModalHandle, type Tone,
 } from '../../ui';
+import { readTheme } from '../../ui/theme';
 import { RwrDisplay, It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
 import {
   LESSONS, LESSON_ORDER, MISS_TEXT, STRIKE_CAVEATS, strikeWeaponsResolved, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr,
@@ -33,6 +38,11 @@ import {
 import { pickArmEmitter } from './targeting';
 import { projectArmHudPoint } from '../../ui/displays/su25tHud';
 import { BUNKER_AT, START, TANKS_AT, TRUCKS_AT, buildScenario, centreOf, type Scenario } from './scenario';
+import {
+  IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TIME_S, SortieTracker, navCue, scoreSortie, steerPoint, terrainFollowAlt, type EndReason,
+} from './sortie';
+import { AREA_VIEW, drawPlan, type MapScene } from './sortieMap';
+import { mountSortieDebrief } from './sortieDebrief';
 
 const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
 type Shot = typeof SHOTS[number];
@@ -48,14 +58,19 @@ const ARM_SLEW_DPS = 6;
 /** Trainer estimate of the Vikhr's mean speed for the pre-launch time of flight (not DCS data). */
 const VIKHR_MEAN_MS = 480;
 const STATION_LABEL: Record<string, string> = { r60: '60', r73: '73', l081: 'L-081' };
+const SORTIE_SHOTS = ['brief', 'ingress', 'attack', 'egress', 'debrief'] as const;
+type SortieShotParam = typeof SORTIE_SHOTS[number];
+/** Sortie terrain following: height above the ground the autopilot holds (m), its limits and the key step. */
+const AGL_DEFAULT = 60, AGL_MIN = 50, AGL_MAX = 3000, AGL_STEP = 50;
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
-    const shotParam = SHOTS.find(s => s === params.get('shot')) ?? null;
     const lessonParam = params.get('lesson') as LessonId | null;
+    const sortieShot = lessonParam === 'sortie' ? SORTIE_SHOTS.find(s => s === params.get('shot')) ?? null : null;
+    const shotParam = sortieShot ? null : SHOTS.find(s => s === params.get('shot')) ?? null;
     let lesson: LessonId = shotParam ? SHOT_LESSON[shotParam] : lessonParam && LESSONS[lessonParam] ? lessonParam : 'shkval';
     let cam: Cam = (['chase', 'target', 'tv'] as const).find(c => c === params.get('cam')) ?? 'chase';
     const binds = PROCEDURES.su25t.binds;
@@ -79,6 +94,15 @@ const factory: PageFactory = (): Page => {
     let bombPhase: 'ccrp' | 'ccip' = 'ccrp', phaseAt: number | null = null;
     let ccrpBombs = new Set<EntityId>();
     let armFired = 0, armLaunchRangeM: number | null = null, ringS = 0, samLaunches = 0, hitsTaken = 0;
+    // Sortie: brief, flying, done; loadout; terrain-following height; the tracker and the debrief.
+    let sortieState: 'brief' | 'flying' | 'done' = 'brief';
+    let loadout = SORTIE_LOADOUTS.find(l => l.id === params.get('loadout'))?.id ?? 'vikhr';
+    let sortieSa11 = params.get('sa11') === '1';
+    let aglSet = AGL_DEFAULT, scripted = false;
+    let tracker: SortieTracker | null = null;
+    let sortieDebrief: { dispose(): void } | null = null;
+    let sortieEnd: EndReason = 'pilot';
+    bag.add(() => { tracker?.dispose(); sortieDebrief?.dispose(); });
 
     // ------------------------------------------------------------------ DOM
     const viewport = h('div', { class: 'strk-viewport' });
@@ -128,6 +152,11 @@ const factory: PageFactory = (): Page => {
       onChange: id => { lesson = id; restart(); },
     });
     const coach = coachBox({ id: 'strk-coach' });
+    const sortieHost = h('div', { class: 'strk-sortie', id: 'strk-sortie' });
+    const navBox = h('div', { class: 'strk-nav', role: 'status', 'aria-label': 'Steering cue (trainer)' });
+    const briefMap = h('canvas', { class: 'strk-brief__map', role: 'img', 'aria-label': 'Sortie map: start, IP, target area and threat rings, north up' });
+    const flyOverlayBtn = button({ label: 'Fly the sortie', variant: 'primary', id: 'strk-fly-map', onClick: () => startSortie(false) });
+    const briefOverlay = h('div', { class: 'strk-brief' }, briefMap, h('div', { class: 'strk-brief__go' }, flyOverlayBtn.el));
     let steps = checklist({ steps: LESSONS[lesson].steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
     const stepsHost = h('div', null, steps.el);
     const log = eventLog({ id: 'strk-log', max: 30, title: 'Events' });
@@ -172,13 +201,18 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [tvBezel.el, hudBezel.el, rwrBezel.el, touchPad, h('div', { class: 'ui-strip-block strk-ro' }, placard('Attack'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
+        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', children: [lessonSeg.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
         controls.el, keyList, caveats,
       ],
       mobileActions: [mFire.el, mLock.el, mLaser.el],
     });
     if (params.get('touch') === '1') lab.el.classList.add('strk--touch');
     lab.overlay('tl', camSeg.el);
+    lab.overlay('tr', navBox);
+    lab.view.append(briefOverlay);
+    const briefRo = new ResizeObserver(() => drawBrief());
+    briefRo.observe(briefMap);
+    bag.add(() => briefRo.disconnect());
     ctx.root.append(lab.el);
 
     // ------------------------------------------------------------------ 3D
@@ -228,6 +262,7 @@ const factory: PageFactory = (): Page => {
       'RCtrl+[': () => world().shkvalTargetSize(me.id, { step: -1 }),
       'Space': { down: () => fire(), up: () => fireUp(), inModal: false },
       'I': () => toggleArm(),
+      'Delete': () => { if (world().flare(me.id)) log.push(`Flares: ${me.flares} left`, { t: world().t }); },
       'Left': { down: () => steer(-2), repeat: true },
       'Right': { down: () => steer(2), repeat: true },
       'Up': { down: () => climb(60), repeat: true },
@@ -277,7 +312,10 @@ const factory: PageFactory = (): Page => {
     function cycle(): void { const w = world().cycleAgWeapon(me.id); log.push(w ? `Store: ${AG_WEAPONS[w].hudLabel}` : 'No store left', { t: world().t }); }
     function selectGun(): void { world().selectAgWeapon(me.id, 'gun25t'); log.push('Cannon: ВПУ', { t: world().t }); }
     function steer(deg: number): void { me.cmd.heading = me.cmd.heading + deg * D2R; }
-    function climb(m: number): void { me.cmd.altitude = Math.max(sc.groundM + 150, me.cmd.altitude + m); }
+    function climb(m: number): void {
+      if (lesson === 'sortie') { aglSet = Math.max(AGL_MIN, Math.min(AGL_MAX, aglSet + Math.sign(m) * AGL_STEP)); return; }
+      me.cmd.altitude = Math.max(sc.groundM + 150, me.cmd.altitude + m);
+    }
     function enter(): void {
       if (armMode()) { armEnter(); return; }
       const w = world(), sh = me.ag!.shkval;
@@ -344,7 +382,9 @@ const factory: PageFactory = (): Page => {
     // ------------------------------------------------------------------ lesson lifecycle
     function restart(): void {
       result?.destroy(); result = null;
-      sc = buildScenario(lesson, 7, { sa11 });
+      tracker?.dispose(); tracker = null;
+      sortieDebrief?.dispose(); sortieDebrief = null;
+      sc = buildScenario(lesson, 7, { sa11: lesson === 'sortie' ? sortieSa11 : sa11, loadout });
       me = sc.me;
       view?.setWorld(sc.world);
       scene?.setWorld(sc.world);
@@ -356,6 +396,14 @@ const factory: PageFactory = (): Page => {
       ccrpBombs = new Set(); armFired = 0; armLaunchRangeM = null; ringS = 0; samLaunches = 0; hitsTaken = 0;
       armCursor.x = 0; armCursor.y = -4;
       rwrBezel.el.hidden = !sc.sams.length;
+      sortieState = 'brief'; aglSet = AGL_DEFAULT; scripted = false; sortieEnd = 'pilot';
+      const isSortie = lesson === 'sortie';
+      if (isSortie) tracker = new SortieTracker(sc.world, sc);
+      briefOverlay.hidden = !isSortie;
+      lab.el.classList.toggle('strk--plan', isSortie);
+      navBox.hidden = true;
+      sortieHost.replaceChildren();
+      if (isSortie) renderBrief();
       slew.up = slew.down = slew.left = slew.right = 0;
       const def = LESSONS[lesson];
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
@@ -383,6 +431,104 @@ const factory: PageFactory = (): Page => {
       updateUi(true);
     }
 
+    // ------------------------------------------------------------------ sortie: brief, flight, debrief
+    function mapScene(): MapScene {
+      const w = world();
+      const sites: MapScene['sites'] = sc.sams.map(id => {
+        const site = w.samSites.get(id)!;
+        return { id, unitId: `${id}-radar`, name: site.callsign, x: site.pos.x, z: site.pos.z, ringM: samRingM(site.type), kind: 'sam' as const };
+      });
+      if (sc.aaa && tracker?.aaa) {
+        const u = w.groundUnits.get(sc.aaa)!;
+        sites.push({ id: sc.aaa, unitId: sc.aaa, name: 'ZSU-23-4', x: u.pos.x, z: u.pos.z, ringM: tracker.aaa.ringM, kind: 'aaa' });
+      }
+      const units = [...w.groundUnits.values()].filter(u => u.kind !== 'sam-site' && u.kind !== 'aaa').map(u => ({ id: u.id, kind: u.kind, x: u.pos.x, z: u.pos.z }));
+      return { sites, units };
+    }
+    function drawBrief(): void {
+      if (briefOverlay.hidden) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(briefMap.clientWidth * dpr)), hh = Math.max(1, Math.round(briefMap.clientHeight * dpr));
+      if (briefMap.width !== w || briefMap.height !== hh) { briefMap.width = w; briefMap.height = hh; }
+      const g = briefMap.getContext('2d');
+      if (!g) return;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPlan(g, w / dpr, hh / dpr, readTheme(), mapScene(), AREA_VIEW);
+    }
+    function renderBrief(): void {
+      const ip = steerPoint('ingress'), tgt = steerPoint('attack');
+      const toIp = navCue(me, ip);
+      const ipToTgt = (Math.atan2(tgt.x - ip.x, -(tgt.z - ip.z)) * R2D + 360) % 360;
+      const plan = SORTIE_LOADOUTS.find(l => l.id === loadout)!;
+      const brg = (d: number) => `${String(Math.round(d) % 360).padStart(3, '0')}°`;
+      const loadSel = select<string>({
+        id: 'strk-loadout', label: 'Loadout', value: loadout,
+        options: SORTIE_LOADOUTS.map(l => ({ value: l.id, label: l.name })),
+        onChange: v => { loadout = v; restart(); },
+      });
+      const sa11Tog = toggle({ id: 'strk-sa11', label: 'SA-11 Buk (35 km ring)', style: 'switch', value: sortieSa11, onChange: v => { sortieSa11 = v; restart(); } });
+      sortieHost.replaceChildren(h('div', { class: 'strk-brief__card' },
+        placard('Brief'),
+        h('ul', { class: 'strk-brief__list' },
+          h('li', null, h('strong', null, 'Target: '), 'armour column (4 tanks, 2 APCs) and a bunker, one area.'),
+          h('li', null, h('strong', null, 'Threats: '), `SA-15 Tor 6 km north of the target (12 km ring), ZSU-23-4 beside the column (2.5 km, trainer rule)${sortieSa11 ? ', SA-11 Buk 19 km north (35 km ring)' : ''}. The SPO-15 shows the SAM radars.`),
+          h('li', null, h('strong', null, 'Ingress: '), `${brg(toIp.brgDeg)} for ${(toIp.rangeM / 1000).toFixed(0)} km to the IP at 50–100 m. IP to target ${brg(ipToTgt)}, ${(IP_DIST_M / 1000).toFixed(0)} km.`),
+          h('li', null, h('strong', null, 'Egress: '), `back out past the IP, low. Time limit ${SORTIE_TIME_S / 60} min.`)),
+        loadSel.el,
+        h('p', { class: 'strk-brief__plan' }, plan.plan),
+        sa11Tog.el,
+        callout({ kind: 'simplified', body: 'Trainer steering cue and terrain following: Up / Down set the height above the ground. Flares on Delete (Su-25T binding not verified). The ZSU-23-4 is a simple gun-site rule.' }),
+        button({ label: 'Fly the sortie', variant: 'primary', block: true, id: 'strk-fly', onClick: () => startSortie(false) }).el,
+      ));
+    }
+    function startSortie(byScript: boolean): void {
+      if (lesson !== 'sortie' || sortieState !== 'brief') return;
+      sortieState = 'flying'; scripted = byScript;
+      briefOverlay.hidden = true; navBox.hidden = false;
+      lab.el.classList.remove('strk--plan');
+      sortieHost.replaceChildren();
+      log.push(`Loadout: ${SORTIE_LOADOUTS.find(l => l.id === loadout)!.name}. Fly low to the IP.`, { t: world().t });
+      updateUi(true);
+    }
+    /** Terrain following (trainer autopilot): hold the set height above the highest ground over the next 2 km. */
+    function followTerrain(): void { me.cmd.altitude = terrainFollowAlt(world(), me, aglSet); }
+    function sortieFinish(reason: EndReason): void {
+      const w = world();
+      if (!tracker || sortieState !== 'flying') return;
+      sortieState = 'done'; ended = true;
+      tracker.close(w.t);
+      const summary = tracker.summary(reason, loadout);
+      const score = scoreSortie(summary);
+      if (score.passed && !scripted) ctx.app.setProgress(SORTIE_PROGRESS, true);
+      navBox.hidden = true;
+      lab.el.classList.add('strk--plan');
+      sortieHost.replaceChildren();
+      sortieDebrief?.dispose();
+      sortieDebrief = mountSortieDebrief({
+        view: lab.view, panel: sortieHost, frames: w.recording, scene: mapScene(), meId: me.id, summary, score, markers: tracker.markers,
+        onAgain: () => { restart(); startSortie(false); }, onBrief: () => restart(),
+      });
+      checkSteps();
+      coach.set(`${score.title}: ${score.score} / 100${scripted ? ' (scripted demo, not saved)' : ''}`, 'Scrub the replay, then read the coaching below.', score.passed ? 'ok' : 'caution');
+    }
+    /** Steering cue over the 3D view (trainer aid, not a DCS display). */
+    function updateNav(): void {
+      if (!tracker || sortieState !== 'flying') return;
+      const w = world();
+      const sp = steerPoint(tracker.phase, tracker.phase === 'egress' && Math.hypot(me.pos.x - steerPoint('attack').x, me.pos.z - steerPoint('attack').z) > IP_DIST_M);
+      const c = navCue(me, sp);
+      const agl = me.pos.y - w.groundHeight(me.pos.x, me.pos.z);
+      const turn = Math.abs(c.turnDeg) < 2 ? 'on course' : `${c.turnDeg > 0 ? 'right' : 'left'} ${Math.abs(c.turnDeg).toFixed(0)}°`;
+      const left = Math.max(0, SORTIE_TIME_S - w.t);
+      navBox.replaceChildren(
+        h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, tracker.phase === 'ingress' ? 'Ingress' : tracker.phase === 'attack' ? 'Attack' : 'Egress'),
+          h('span', null, `${sp.name} ${String(Math.round(c.brgDeg) % 360).padStart(3, '0')}° ${(c.rangeM / 1000).toFixed(1)} km`)),
+        h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, 'Steer'), h('span', { class: Math.abs(c.turnDeg) < 2 ? 'is-ok' : undefined }, turn)),
+        h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, 'РВ'), h('span', { class: agl < 30 ? 'is-warn' : undefined }, `${Math.round(agl)} m (set ${aglSet})`)),
+        h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, 'Time'), h('span', null, `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')} left`)),
+      );
+    }
+
     function snap(): StrikeSnap {
       const w = world(), ag = me.ag!, sh = ag.shkval;
       const aim = shkvalAimPoint(w, me);
@@ -400,12 +546,18 @@ const factory: PageFactory = (): Page => {
         pr: w.canAgLaunch(me.id).pr, armFired,
         samsKilled: sc.sams.filter(id => !w.samSites.get(id)?.alive).length,
         tanksKilled: sc.tanks.filter(id => !w.groundUnits.get(id)?.alive).length,
+        ...(lesson === 'sortie' ? {
+          sortiePhase: sortieState === 'brief' ? 'brief' as const : sortieState === 'done' ? 'done' as const : tracker?.phase,
+          ipReached: tracker?.ipAt != null, aglM: me.pos.y - w.groundHeight(me.pos.x, me.pos.z),
+        } : {}),
       };
     }
 
     function tick(dt: number): void {
       const w = world();
-      if (!ended || endAt != null) w.step(dt);
+      if (lesson === 'sortie' && sortieState === 'brief') { uiClock += dt; if (uiClock > 0.5) { uiClock = 0; updateUi(false); } return; }
+      if (lesson === 'sortie' && sortieState === 'flying' && me.alive) followTerrain();
+      if (!ended || endAt != null) { w.step(dt); if (lesson === 'sortie' && sortieState === 'flying') tracker?.step(dt); }
       const sh = me.ag!.shkval;
       if (sh.laserOn) { laserRunS += dt; laserS += dt; if (laserRunS >= 5) lasedLongEnough = true; } else laserRunS = 0;
       if (armMode()) {
@@ -416,7 +568,9 @@ const factory: PageFactory = (): Page => {
       readEvents();
       flyLesson();
       checkSteps();
-      if (endAt != null && w.t >= endAt && strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values())) { endAt = null; finish(); }
+      // Missions end once own weapons and SAMs aimed at the jet are resolved; a time-out or a loss ends at once.
+      const hardEnd = lesson === 'sortie' && (sortieEnd === 'time' || !me.alive);
+      if (endAt != null && w.t >= endAt && (hardEnd || strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values()))) { endAt = null; finish(); }
       uiClock += dt;
       if (uiClock > 0.1) { uiClock = 0; updateUi(false); }
     }
@@ -476,6 +630,12 @@ const factory: PageFactory = (): Page => {
           }
           return;
         }
+      }
+      if (lesson === 'sortie') {
+        if (ended || !tracker || sortieState !== 'flying') return;
+        const why = tracker.endReason();
+        if (why && endAt == null) { sortieEnd = why; endAt = w.t + (why === 'dead' ? 3 : 1); }
+        return;
       }
       if (lesson === 'sead' || lesson === 'threat') {
         if (ended) return;
@@ -589,6 +749,10 @@ const factory: PageFactory = (): Page => {
 
     function finish(): void {
       if (result) return;
+      if (lesson === 'sortie') {
+        if (sortieState === 'flying') sortieFinish(endAt == null && sortieEnd === 'pilot' ? tracker?.endReason() ?? 'pilot' : sortieEnd);
+        return;
+      }
       ended = true;
       const w = world();
       const def = LESSONS[lesson];
@@ -698,7 +862,10 @@ const factory: PageFactory = (): Page => {
       ro.set('store', sel ? `${AG_WEAPONS[sel].hudLabel} ×${ag.stores[sel] ?? 0}` : 'none');
       const list = lesson === 'ccip' || (lesson === 'bombs' && bombPhase === 'ccip') ? sc.trucks : sc.tanks;
       const samTxt = sc.sams.map(id => { const s = w.samSites.get(id)!; return `${s.callsign.split(' ')[0]} ${s.alive ? 'up' : 'down'}`; }).join(', ');
-      ro.set('tgt', lesson === 'sead' ? '—' : `${list.filter(id => w.groundUnits.get(id)?.alive).length} of ${list.length} ${list === sc.trucks ? 'trucks' : 'tanks'}`);
+      const live = (ids: readonly EntityId[]) => ids.filter(id => w.groundUnits.get(id)?.alive).length;
+      ro.set('tgt', lesson === 'sead' ? '—' : lesson === 'sortie'
+        ? `${live([...sc.tanks, ...sc.apcs])}/${sc.tanks.length + sc.apcs.length} · bunker ${w.groundUnits.get(sc.bunker)?.alive ? "up" : "down"}`
+        : `${live(list)} of ${list.length} ${list === sc.trucks ? 'trucks' : 'tanks'}`);
       ro.set('sam', samTxt || '—');
       fireBtn.setLit(check.pr);
       laserBtn.setLit(sh.laserOn);
@@ -720,13 +887,60 @@ const factory: PageFactory = (): Page => {
       const samOnMe = [...w.samMissiles.values()].some(m => m.alive && m.guided && m.targetId === me.id);
       if (samOnMe) { text = `SAM launch: notch it. Put the SAM at 3 or 9 o'clock and descend, or turn out of the ring.`; why = 'Radar guided: the missile needs the site track to impact. Flares do not decoy it.'; tone = 'warning'; }
       else if (insideRing() && !ended) { why = 'Inside the SAM ring: every second counts against you.'; tone = 'caution'; }
+      if (lesson === 'sortie') {
+        if (sortieState === 'done') return;
+        updateNav();
+        if (sortieState === 'brief') { text = 'Brief: pick the loadout, read the threats, then fly.'; why = def.goal; tone = undefined; }
+        else if (!samOnMe && tracker?.aaa && tracker.aaa.intervals.at(-1)?.to === null) { why = 'Inside the ZSU-23-4 envelope: get out of gun range.'; tone = 'warning'; }
+      }
       if (force || text) coach.set(text, why, tone);
     }
 
     // ------------------------------------------------------------------ start, pre-rolls
     restart();
     if (shotParam) preroll(shotParam);
+    if (sortieShot) sortiePreroll(sortieShot);
     if (params.get('cam') === 'target' || params.get('cam') === 'tv') setCam(cam);
+
+    /** Scripted sortie for screenshots: a pilot who flies the plan with Vikhrs (never saved as progress). */
+    function sortiePreroll(s: SortieShotParam): void {
+      if (s === 'brief' || !tracker) { requestAnimationFrame(() => drawBrief()); return; }
+      startSortie(true);
+      const w = world(), id = me.id, tr = tracker;
+      let egressing = false;
+      const steerTo = (p: { x: number; z: number }) => { me.cmd.heading = Math.atan2(p.x - me.pos.x, -(p.z - me.pos.z)); };
+      const fly = (sec: number, stop: () => boolean = () => false) => {
+        for (let i = 0; i < sec * 30 && !stop() && sortieState === 'flying'; i++) {
+          const nearIp = Math.hypot(me.pos.x - steerPoint('ingress').x, me.pos.z - steerPoint('ingress').z) < 1500;
+          steerTo(egressing ? steerPoint('egress', nearIp || tgtRange() > IP_DIST_M) : tr.phase === 'ingress' ? steerPoint('ingress') : steerPoint('attack'));
+          tick(1 / 30);
+        }
+      };
+      const tgtRange = () => Math.hypot(me.pos.x - steerPoint('attack').x, me.pos.z - steerPoint('attack').z);
+      if (s === 'ingress') { fly(40); view?.syncNow(); updateUi(true); return; }
+      fly(200, () => tr.phase !== 'ingress');
+      aglSet = 600;
+      fly(120, () => tgtRange() < 10400);
+      setMaster('ag'); w.selectAgWeapon(id, 'vikhr'); w.shkvalPower(id, true); w.shkvalZoom(id, 1); w.shkvalZoom(id, 1);
+      const shootAt = (tid: EntityId) => {
+        const u = w.groundUnits.get(tid)!;
+        if (me.ag!.shkval.lockedUnitId) w.shkvalUnlock(id);
+        w.shkvalPointAt(id, u.pos); w.shkvalStabilise(id, true); w.shkvalLock(id);
+        if (!me.ag!.shkval.laserOn) w.laser(id, true);
+        fly(30, () => w.canAgLaunch(id).pr);
+        fire();
+      };
+      shootAt(sc.tanks[0]!);
+      if (s === 'attack') { fly(5); setCam('tv'); view?.syncNow(); updateUi(true); return; }
+      fly(40, () => ![...w.agWeapons.values()].some(x => x.alive));
+      shootAt(sc.tanks[1]!);
+      fly(40, () => ![...w.agWeapons.values()].some(x => x.alive));
+      w.laser(id, false); w.shkvalPower(id, false);
+      egressing = true; aglSet = AGL_DEFAULT;
+      if (s === 'egress') { fly(30); view?.syncNow(); updateUi(true); return; }
+      fly(400, () => sortieState !== 'flying');
+      view?.syncNow();
+    }
 
     function preroll(s: Shot): void {
       const w = world(), id = me.id;
