@@ -4,8 +4,8 @@
  * are shown in the app's units.
  */
 import type { Units } from '../../app/format';
-import type { FlightOpsJetData, DemoLeg, NavState, Sourced } from '../../sim/flightOps';
-import { altFtText, flapControl, ktText, navPicture, stepOrder, type StepId } from './logic';
+import { CLIMB_ALT_FT, rotateAtKt, type FlightOpsJetData, type DemoLeg, type FlightOpsPhase, type NavState, type Sourced } from '../../sim/flightOps';
+import { altFtText, flapControl, ktText, navPicture, stepOrder, type LessonKind, type StepId } from './logic';
 
 export interface LessonStep { id: StepId; text: string; keys?: string; note?: string }
 
@@ -20,8 +20,37 @@ function configureText(d: FlightOpsJetData, u: Units): string {
       : `Below ${lim}: gear down, flaps ${d.flapLabels[d.landingFlap]}${unv(d.pattern.gearMaxKt)}`;
 }
 
-/** Steps for the jet and start. `rtb` = the return-to-base start (jets with nav data only). */
-export function lessonSteps(d: FlightOpsJetData, u: Units = 'imperial', rtb = false): LessonStep[] {
+/** Power the takeoff lesson sets: MIL, or MIL then full afterburner. */
+const powerText = (d: FlightOpsJetData) => (d.takeoff.afterburner.value ? 'MIL, then full afterburner' : 'MIL');
+
+/** Takeoff steps (#24), per jet: brakes, power, release, rotate, pitch band, gear up, flaps up. */
+function takeoffSteps(d: FlightOpsJetData, u: Units): Partial<Record<StepId, LessonStep>> {
+  const t = d.takeoff, fc = flapControl(d);
+  const [lo, hi] = t.pitchDeg.value;
+  const at = rotateAtKt(d), early = t.pullEarlyKt;
+  const thrKey = t.keys.throttleMax?.value ?? 'PgUp';
+  return {
+    brakes: { id: 'brakes', text: `Hold the wheel brakes on ${t.keys.brakes.value}${unv(t.keys.brakes)}`, keys: t.keys.brakes.value, note: t.keys.brakes.note },
+    power: { id: 'power', text: `Throttle to ${powerText(d)}, brakes held${unv(t.afterburner)}`, keys: `${thrKey}, Num+`, note: t.afterburner.note },
+    release: { id: 'release', text: 'Release the brakes. Hold the centreline with nosewheel steering', keys: 'Left / Right' },
+    rotate: early
+      ? { id: 'rotate', text: `Pull at ${ktText(at, u)}: Vr ${ktText(t.vrKt.value, u)}, start the pull ${ktText(early.value, u)} early${unv(t.vrKt)}`, keys: 'Down', note: early.note }
+      : { id: 'rotate', text: `Rotate at Vr ${ktText(t.vrKt.value, u)}${unv(t.vrKt)}`, keys: 'Down', note: t.vrKt.note },
+    pitch: { id: 'pitch', text: `Nose to ${lo}–${hi}°${unv(t.pitchDeg)} and hold it. Tail strike at ${t.tailStrikeDeg.value}°${unv(t.tailStrikeDeg)}`, note: t.tailStrikeDeg.note },
+    gearup: { id: 'gearup', text: `Positive climb: gear up before ${ktText(t.gearUpMaxKt.value, u)}${unv(t.gearUpMaxKt)}`, keys: d.keys.gear },
+    flapsup: fc === 'with-gear'
+      ? { id: 'flapsup', text: 'The flaps follow the gear up' }
+      : { id: 'flapsup', text: `Flaps ${d.flapLabels[0]} above ${ktText(t.vrKt.value + 30, u)}`, keys: d.keys.flaps },
+  };
+}
+
+/**
+ * Steps for the jet and start. `kind`: 'pattern', 'rtb' (return to base, jets with nav data only) or
+ * 'takeoff'; `true` / `false` are the older rtb flag.
+ */
+export function lessonSteps(d: FlightOpsJetData, u: Units = 'imperial', kind: boolean | LessonKind = false): LessonStep[] {
+  if (kind === 'takeoff') { const to = takeoffSteps(d, u); return stepOrder('takeoff', d).map(id => to[id]!); }
+  const rtb = kind === true || kind === 'rtb';
   const p = d.pattern;
   const band = d.aoa.band.value;
   const unit = d.aoa.unit === 'deg' ? '°' : ' units';
@@ -53,12 +82,28 @@ export function lessonSteps(d: FlightOpsJetData, u: Units = 'imperial', rtb = fa
   return stepOrder(rtb && !!nav).map(id => byId[id]!).filter(Boolean);
 }
 
-/** Caption for the demo leg (Watch mode). `nav` is the live nav picture on the return-to-base legs. */
-export function legCaption(leg: DemoLeg | null, d: FlightOpsJetData, u: Units = 'imperial', nav?: NavState, heading = 0): { text: string; why: string } {
+/**
+ * Caption for the demo leg (Watch mode). `nav` is the live nav picture on the return-to-base legs; `phase`
+ * and `speedKt` split the takeoff leg into brakes and roll.
+ */
+export function legCaption(leg: DemoLeg | null, d: FlightOpsJetData, u: Units = 'imperial', nav?: NavState, heading = 0,
+  phase?: FlightOpsPhase, speedKt = 0): { text: string; why: string } {
   const p = d.pattern;
   const fc = flapControl(d);
   const cfg = fc === 'selector' ? `gear down, flaps ${d.flapLabels[d.landingFlap]}` : 'gear down';
+  const t = d.takeoff;
   switch (leg) {
+    case 'takeoff': {
+      if (phase === 'ready') return { text: `Holding the brakes on ${t.keys.brakes.value}, throttle to ${powerText(d)}.`, why: 'Release once the power is set.' };
+      const [lo, hi] = t.pitchDeg.value;
+      const at = rotateAtKt(d);
+      if (speedKt < at) return { text: `Takeoff roll: nosewheel steering on the centreline, pull at ${ktText(at, u)}.`, why: at !== t.vrKt.value ? `Vr ${ktText(t.vrKt.value, u)}; the pull starts ${ktText(t.vrKt.value - at, u)} early.` : `Rotate at Vr ${ktText(t.vrKt.value, u)}.` };
+      return { text: `Rotate: nose to ${lo}–${hi}°.`, why: `Hold the attitude; the jet flies off. Tail strike at ${t.tailStrikeDeg.value}°.` };
+    }
+    case 'climbout': {
+      const flaps = fc === 'selector' ? `, then flaps ${d.flapLabels[0]}` : fc === 'with-gear' ? '; the flaps follow' : '';
+      return { text: `Positive climb: gear up${flaps}.`, why: `Gear up before ${ktText(t.gearUpMaxKt.value, u)}. Climb at ${ktText(300, u)}, level at ${altFtText(CLIMB_ALT_FT, u)}.` };
+    }
     case 'nav': {
       if (!nav) return { text: 'Return to base.', why: 'Follow the steering.' };
       const pic = navPicture(nav, heading, u);

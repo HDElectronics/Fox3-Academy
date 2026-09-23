@@ -1,12 +1,12 @@
 /**
- * [OWNER: page-flight-ops] Pattern and landing (#/flight-ops, issues #19 and #22). The overhead break, downwind,
- * final turn and groove for all ten jets, and the return to base with the FC3 nav modes (МРШ / ВЗВ / ПОС,
+ * [OWNER: page-flight-ops] Pattern and landing (#/flight-ops, issues #19, #22 and #24). The runway
+ * takeoff, the overhead break, downwind, final turn and groove for all ten jets, and the return to base with the FC3 nav modes (МРШ / ВЗВ / ПОС,
  * NAV / ILSN) for the jets with nav data: Watch the demo pilot fly it, or Fly it with the keyboard or the
  * on-screen controls, then read the graded debrief. Arcade model, nav and grading live in src/sim/flightOps;
  * the 3D scene in src/render/flightOps; facts in src/data/flightOps.ts.
  *
- * URL params: ?ac=<id> (select a jet once), ?mode=watch|fly, ?start=initial|downwind|final|rtb,
- * ?shot=final|downwind|debrief|rtb|ils (pre-roll the demo for screenshots; mode=fly hands over after the
+ * URL params: ?ac=<id> (select a jet once), ?mode=watch|fly, ?start=initial|downwind|final|rtb|takeoff,
+ * ?shot=final|downwind|debrief|rtb|ils|takeoff-ready|takeoff-rotate|takeoff-climb|takeoff-debrief (pre-roll the demo for screenshots; mode=fly hands over after the
  * pre-roll), ?cam=chase|side|tower|cockpit, ?touch=1 (show the on-screen controls on a fine pointer).
  */
 import './style.css';
@@ -16,8 +16,8 @@ import { AIRCRAFT } from '../../data/aircraft';
 import { FLIGHT_OPS, FLIGHT_OPS_CAVEATS } from '../../data/flightOps';
 import {
   ApproachEvaluator, FLIGHT_OPS_DT, aimPointM, aoaCue, applyAction, approachGeometry, configWarnings, createFlightOpsState,
-  demoLeg, demoPilot, hasNavStart, initNav, stepFlightOps, type ApproachScore, type FlightOpsInput, type FlightOpsJetId,
-  type FlightOpsState, type Sourced,
+  TakeoffEvaluator, demoLeg, demoPilot, hasNavStart, initNav, rotateAtKt, stepFlightOps, takeoffFlapIndex, type ApproachScore, type TakeoffScore, type FlightOpsInput, type FlightOpsJetId,
+  type FlightOpsState, type GateResult, type Sourced,
 } from '../../sim/flightOps';
 import { FlightOpsScene, Stage, isWebGLAvailable, type FlightOpsCamera } from '../../render';
 import {
@@ -29,14 +29,15 @@ import { lessonSteps, legCaption } from './lesson';
 import {
   FLIGHT_OPS_JETS, GLIDE_TOL_DEG, LINEUP_TOL_DEG, PASS_SCORE, altFtText, altVal, aoaText, currentStep, errLevel, flapControl,
   gatesForStart, isFlightOpsJet, kt, ktText, lessonPassed, navMilestones, navPicture, placeGates, plannedGates, spdUnit, spdVal,
-  stepOrder, stepsDone, altUnit, type FlownPoint, type NavMilestones,
+  stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow,
+  type FlownPoint, type LessonKind, type NavMilestones, type TakeoffItem,
 } from './logic';
 import { touchControls, type TouchAction } from './touch';
 
 type Mode = 'watch' | 'fly';
-type Start = 'initial' | 'downwind' | 'final' | 'rtb';
+type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff';
 const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'cockpit'];
-const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils'] as const;
+const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils', 'takeoff-ready', 'takeoff-rotate', 'takeoff-climb', 'takeoff-debrief'] as const;
 type Shot = typeof SHOTS[number];
 const TRAIL_EVERY = 6;          // steps between trail points (0.1 s)
 const TRACK_MAX = 20000;
@@ -90,24 +91,32 @@ const factory: PageFactory = (): Page => {
 
     let mode: Mode = ctx.params.get('mode') === 'fly' ? 'fly' : 'watch';
     const startParam = ctx.params.get('start');
-    let start: Start = startParam === 'downwind' || startParam === 'final' || (startParam === 'rtb' && navOk) ? startParam : 'initial';
+    let start: Start = startParam === 'downwind' || startParam === 'final' || startParam === 'takeoff' || (startParam === 'rtb' && navOk) ? startParam : 'initial';
     const camParam = ctx.params.get('cam') as FlightOpsCamera | null;
     let cam: FlightOpsCamera = camParam && CAMS.includes(camParam) ? camParam : 'chase';
     let showTouch = ctx.params.get('touch') === '1';
 
     let s!: FlightOpsState;
     let ev!: ApproachEvaluator;
+    let tev: TakeoffEvaluator | null = null;
+    let toDone = new Set<TakeoffItem>();
     let started = false, paused = false, finished = false, configured = false;
     let acc = 0, steps = 0, onSpeedRun = 0, uiClock = 0, gatesSeen = -1;
     let track: TracePoint[] = [];
     let flown: FlownPoint[] = [];
     let navMs: NavMilestones = { steering: false, intercept: false, onGlideRunS: 0 };
     let hudStatus = '';
+    let guidesOn = true;
     let navKey = '', lastCall: string | null = null, callAt = -1e9;
     let score: ApproachScore | null = null;
+    let toScore: TakeoffScore | null = null;
     const input: FlightOpsInput = { pitch: 0, roll: 0, throttle: 0.6 };
-    const held = { up: false, down: false, left: false, right: false, thrUp: false, thrDn: false };
+    const held = { up: false, down: false, left: false, right: false, thrUp: false, thrDn: false, brakes: false };
     const rtb = () => start === 'rtb';
+    const kind = (): LessonKind => (start === 'takeoff' ? 'takeoff' : rtb() && navOk ? 'rtb' : 'pattern');
+    const toAb = d.takeoff.afterburner.value;
+    const brakesKey = d.takeoff.keys.brakes.value;
+    const thrMaxKey = d.takeoff.keys.throttleMax?.value ?? 'PgUp';
 
     // ---------------------------------------------------------------- displays (strip)
     const viewport = h('div', { class: 'fo-viewport' });
@@ -124,20 +133,27 @@ const factory: PageFactory = (): Page => {
     const lampFlaps = lamp({ label: fc === 'with-gear' ? 'FLAPS (GEAR)' : 'FLAPS', tone: 'ok', title: 'Landing flaps set' });
     lampFlaps.el.hidden = fc === 'none';
     const lampBrake = lamp({ label: 'SPD BRK', tone: 'caution', title: 'Speed brake out' });
-    const lampOver = lamp({ label: 'OVERSPEED', tone: 'warning', title: `Gear or landing flaps above ${ktText(d.pattern.gearMaxKt.value, units())}` });
+    const lampOver = lamp({ label: 'OVERSPEED', tone: 'warning', title: overspeedTitle(d, ktText(d.pattern.gearMaxKt.value, units())) });
     const cfgRO = readouts({ id: 'fo-cfg', rows: [{ id: 'flap', label: 'Flaps' }, { id: 'thr', label: 'Throttle' }, { id: 'aoa', label: 'AoA' }] });
+    const flapRow = cfgRO.row('flap');
+    if (flapRow) flapRow.hidden = fc === 'none';
     const cfgBlock = h('div', { class: 'ui-strip-block fo-cfg' },
       placard('Configuration'),
       h('div', { class: 'fo-lamps' }, lampGear.el, lampFlaps.el, lampBrake.el, lampOver.el),
       cfgRO.el);
 
+    // Takeoff checklist strip: each item lights as the sim records it.
+    const toLamps = new Map(takeoffItems(d).map(i => [i.id, lamp({ label: i.label, tone: 'ok' })] as const));
+    const toBlock = h('div', { class: 'ui-strip-block fo-to', id: 'fo-to' },
+      placard('Takeoff'), h('div', { class: 'fo-to__row' }, [...toLamps.values()].map(l => l.el)));
+
     // ---------------------------------------------------------------- console: lesson
     const coach = coachBox({ id: 'fo-coach' });
-    let stepsDef = lessonSteps(d, units(), rtb());
+    let stepsDef = lessonSteps(d, units(), kind());
     let steps_: ChecklistHandle = checklist({ id: 'fo-steps', steps: stepsDef });
     const stepsBox = h('div', { class: 'fo-steps' }, steps_.el);
     function rebuildSteps(): void {
-      stepsDef = lessonSteps(d, units(), rtb());
+      stepsDef = lessonSteps(d, units(), kind());
       steps_ = checklist({ id: 'fo-steps', steps: stepsDef });
       stepsBox.replaceChildren(steps_.el);
     }
@@ -146,7 +162,9 @@ const factory: PageFactory = (): Page => {
       options: [{ value: 'watch', label: 'Watch', title: 'The demo pilot flies it' }, { value: 'fly', label: 'Fly', title: 'You fly it with the keyboard or the on-screen controls' }],
       onChange: v => { mode = v; reset(false); },
     });
-    const startOpts: { value: Start; label: string; title?: string }[] = [{ value: 'initial', label: 'Initial' }, { value: 'downwind', label: 'Downwind' }, { value: 'final', label: 'Final' }];
+    const startOpts: { value: Start; label: string; title?: string }[] = [
+      { value: 'takeoff', label: 'Takeoff', title: 'Runway takeoff: brakes, power, rotate, gear and flaps up' },
+      { value: 'initial', label: 'Initial' }, { value: 'downwind', label: 'Downwind' }, { value: 'final', label: 'Final' }];
     if (navOk) startOpts.push({ value: 'rtb', label: 'Return to base', title: `Nav home from 40 km out: ${navLabels.join(' → ')}` });
     const startSeg = segmented<Start>({
       id: 'fo-start', label: 'Start', value: start, fill: true, options: startOpts,
@@ -183,6 +201,13 @@ const factory: PageFactory = (): Page => {
         ['Glide path', `${d.glideDeg.value}°`, d.glideDeg],
         ['Aim point', `${altFtText(d.aimPointFt.value, u)} past the threshold`, d.aimPointFt],
       ];
+      const to = d.takeoff;
+      const at = rotateAtKt(d);
+      rows.push(['Vr', at !== to.vrKt.value ? `${ktText(to.vrKt.value, u)}, pull at ${ktText(at, u)}` : ktText(to.vrKt.value, u), to.vrKt]);
+      rows.push(['Takeoff pitch', `${to.pitchDeg.value[0]}–${to.pitchDeg.value[1]}°, tail strike ${to.tailStrikeDeg.value}°`, to.pitchDeg.verified ? to.tailStrikeDeg : to.pitchDeg]);
+      rows.push(['Gear up before', ktText(to.gearUpMaxKt.value, u), to.gearUpMaxKt]);
+      rows.push(['Takeoff power', to.afterburner.value ? 'Full afterburner' : 'MIL', to.afterburner]);
+      if (fc === 'selector') rows.push(['Takeoff flaps', d.flapLabels[takeoffFlapIndex(d)] ?? '', { value: 0, source: to.pitchDeg.source, verified: true }]);
       if (d.nav) {
         const n = d.nav;
         rows.push(['Nav modes', `${navLabels.join(' → ')} on ${n.keys.modeCycle.value}`, n.keys.modeCycle]);
@@ -196,9 +221,12 @@ const factory: PageFactory = (): Page => {
       keyHint({ label: 'Pitch (stick)', keys: 'Up / Down' }),
       keyHint({ label: 'Roll (stick)', keys: 'Left / Right' }),
       keyHint({ label: 'Throttle up / down', keys: 'Num+ / = , Num- / -' }),
+      keyHint({ label: toAb ? 'Throttle full afterburner' : 'Throttle MIL', keys: thrMaxKey,
+        note: !d.takeoff.keys.throttleMax ? 'trainer key' : d.takeoff.keys.throttleMax.verified ? undefined : 'not verified' }),
+      keyHint({ label: 'Wheel brakes (hold)', keys: brakesKey, note: d.takeoff.keys.brakes.verified ? undefined : 'not verified' }),
       keyHint({ label: 'Gear', keys: d.keys.gear, note: 'not verified' }),
       fc === 'with-gear' ? keyHint({ label: 'Flaps', keys: 'follow the gear' })
-        : fc === 'none' ? keyHint({ label: 'Flaps', keys: 'n/a', note: 'no flap selector' })
+        : fc === 'none' ? null
           : keyHint({ label: 'Flaps (cycle)', keys: d.keys.flaps, note: 'not verified' }),
       keyHint({ label: 'Speed brake', keys: d.keys.speedbrake, note: 'not verified' }),
       d.nav ? keyHint({ label: `Nav mode (${navLabels.join(' / ')})`, keys: d.nav.keys.modeCycle.value, note: d.nav.keys.modeCycle.verified ? undefined : 'not verified' }) : null,
@@ -222,9 +250,9 @@ const factory: PageFactory = (): Page => {
 
     const layout = labLayout({
       id: 'fo-lab', class: 'fo-lab',
-      header: { title: 'Pattern & landing', meta: `${spec.short} · ${d.glideDeg.value}° glide path · ${d.hudCue}`, lede: navOk ? 'Nav home, break, configure, fly the AoA, land in the zone.' : 'Break, configure, fly the AoA, land in the zone.' },
+      header: { title: 'Pattern & landing', meta: `${spec.short} · ${d.glideDeg.value}° glide path · ${d.hudCue}`, lede: navOk ? 'Take off, nav home, break, configure, fly the AoA, land in the zone.' : 'Take off, break, configure, fly the AoA, land in the zone.' },
       viewport,
-      strip: [hudBezel.el, navBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
+      strip: [hudBezel.el, toBlock, navBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
       console: [debriefPanel.el, lessonPanel.el,
         consolePanel({ id: 'fo-numbers-panel', title: `${spec.short} numbers`, children: [numbersBox] }).el,
         disclosure({ title: 'Keys', content: keyList, open: mode === 'fly' }),
@@ -246,11 +274,14 @@ const factory: PageFactory = (): Page => {
     // ---------------------------------------------------------------- touch controls (Fly mode)
     const touch = touchControls({
       flaps: fc === 'selector',
+      afterburner: toAb,
+      brakesKey,
       nav: d.nav ? { title: `Nav mode: ${navLabels.join(' → ')}`, key: d.nav.keys.modeCycle.value } : undefined,
       onAction: (a: TouchAction) => act(() => {
         if (a === 'gear') gearAct();
         else if (a === 'flaps') cycleFlaps();
         else if (a === 'brake') applyAction(s, 'speedbrakeToggle', d);
+        else if (a === 'ab') { input.afterburner = !input.afterburner; if (input.afterburner) input.throttle = 1; }
         else applyAction(s, 'navModeCycle', d);
       })(),
       onThrottle: v => { if (mode === 'fly') input.throttle = v; },
@@ -295,6 +326,11 @@ const factory: PageFactory = (): Page => {
       // Fly the return from МРШ so the lesson starts with selecting ВЗВ (jets with a return mode).
       if (rtb() && mode === 'fly' && d.nav?.modes.some(m => m.id === 'return')) initNav(s, d, 'route');
       ev = new ApproachEvaluator(d);
+      tev = start === 'takeoff' ? new TakeoffEvaluator(d) : null;
+      toScore = null; toDone = new Set();
+      input.afterburner = false; input.brakes = false;
+      toBlock.hidden = start !== 'takeoff';
+      idxBezel.el.hidden = start === 'takeoff';   // the checklist strip takes the indexer's place on the runway
       track = []; flown = []; score = null; finished = false; configured = false; onSpeedRun = 0; acc = 0; steps = 0; gatesSeen = -1;
       navMs = { steering: false, intercept: false, onGlideRunS: 0 };
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
@@ -345,29 +381,36 @@ const factory: PageFactory = (): Page => {
       input.pitch += Math.max(-rate, Math.min(rate, tp * 0.7 - input.pitch));
       input.roll += Math.max(-rate, Math.min(rate, tr - input.roll));
       input.throttle = Math.max(0, Math.min(1, input.throttle + ((held.thrUp ? 1 : 0) - (held.thrDn ? 1 : 0)) * 0.45 * dt));
+      if (held.thrDn) input.afterburner = false;
+      input.brakes = held.brakes || touch.wheelBrakes;
       return input;
     }
 
     function tick(): void {
+      let brakesNow: boolean;
       if (mode === 'watch') {
         const cmd = demoPilot(s, d);
         for (const a of cmd.actions) applyAction(s, a, d);
+        brakesNow = !!cmd.brakes;
         stepFlightOps(s, cmd, FLIGHT_OPS_DT, d);
       } else {
-        stepFlightOps(s, playerInput(FLIGHT_OPS_DT), FLIGHT_OPS_DT, d);
+        const inp = playerInput(FLIGHT_OPS_DT);
+        brakesNow = !!inp.brakes;
+        stepFlightOps(s, inp, FLIGHT_OPS_DT, d);
       }
       ev.update(s);
+      if (tev) { tev.update(s); for (const i of takeoffItemsNow(d, s, brakesNow)) toDone.add(i); }
       steps++;
       const cue = aoaCue(s, d);
       if (s.phase === 'air') onSpeedRun = s.gearDown && cue === 'on' ? onSpeedRun + FLIGHT_OPS_DT : 0;
-      if (!configured && s.gearDown && s.gearPos > 0.99 && s.flapIndex >= d.landingFlap && kt(s.speed) <= d.pattern.gearMaxKt.value) configured = true;
+      if (!configured && landingConfigured(d, s) && kt(s.speed) <= d.pattern.gearMaxKt.value) configured = true;
       if (s.nav) {
         const m = navMilestones(s.nav, d, navMs.onGlideRunS, FLIGHT_OPS_DT);
         navMs = { steering: navMs.steering || m.steering, intercept: navMs.intercept || m.intercept, onGlideRunS: navMs.onGlideRunS >= 3 ? navMs.onGlideRunS : m.onGlideRunS };
         if (s.nav.call && s.nav.call !== lastCall) { lastCall = s.nav.call; callAt = s.t; }
         else if (!s.nav.call) lastCall = null;
       }
-      if (steps % TRAIL_EVERY === 0 && (s.phase === 'air' || s.phase === 'rollout')) {
+      if (steps % TRAIL_EVERY === 0 && (s.phase === 'air' || s.phase === 'rollout' || s.phase === 'roll')) {
         const lvl = errLevel(approachGeometry(s, d), s, cue);
         sc?.overlay.pushTrail(s.pos, lvl);
         if (track.length < TRACK_MAX) {
@@ -375,18 +418,21 @@ const factory: PageFactory = (): Page => {
           flown.push({ t: s.t, x: s.pos.x, y: s.pos.y, z: s.pos.z, heading: s.heading });
         }
       }
-      if (!finished && s.phase !== 'air') {
+      if (!finished && tev) {
+        const sco = tev.score();
+        if (sco.total !== null) finishTakeoff(sco);
+      } else if (!finished && s.phase !== 'air') {
         const sco = ev.score();
         if (sco.total !== null) finish(sco);
       }
     }
 
     function placed() {
-      return placeGates(gatesForStart(planAll, rtb()), score?.gates ?? ev.score().gates, flown);
+      return placeGates(gatesForStart(planAll, kind()), score?.gates ?? ev.score().gates, flown);
     }
 
     function syncGates(): void {
-      const results = ev.score().gates;
+      const results = tev ? tev.score().gates : ev.score().gates;
       if (results.length === gatesSeen) return;
       gatesSeen = results.length;
       sc?.overlay.setGates(placed().map(g => ({ id: g.id, pos: g.pos, radiusM: g.radiusM, headingRad: g.headingRad, state: g.state })));
@@ -414,6 +460,9 @@ const factory: PageFactory = (): Page => {
 
     // ---------------------------------------------------------------- UI refresh (10 Hz)
     function refresh(force: boolean): void {
+      // Takeoff: no glide corridor, approach guides or aim ring until the takeoff is graded.
+      const guides = !(tev && !finished);
+      if (guides !== guidesOn) { guidesOn = guides; sc?.overlay.setGuidesVisible(guides); st?.requestRender(); }
       if (force) { hud.draw(s); indexer.draw(s); }
       syncGates();
       syncNavTarget();
@@ -434,8 +483,16 @@ const factory: PageFactory = (): Page => {
       cfgRO.set('aoa', aoaText(d, s.aoa));
       touch.setThrottle(input.throttle);
 
-      const order = stepOrder(rtb() && navOk);
-      const done = stepsDone({ gates: score?.gates ?? ev.score().gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined });
+      const order = stepOrder(kind(), d);
+      const gates = tev ? (toScore?.gates ?? tev.score().gates) : (score?.gates ?? ev.score().gates);
+      const done = stepsDone({ gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined, takeoff: tev ? toDone : undefined });
+      if (tev) {
+        for (const c of takeoffChecklist(d, toDone)) {
+          const l = toLamps.get(c.id)!;
+          l.set(c.state === 'done' ? 'on' : 'off');
+          l.el.classList.toggle('is-current', c.state === 'current');
+        }
+      }
       for (const id of order) if (done.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
       steps_.setCurrent(currentStep(new Set(order.filter(id => steps_.isDone(id))), order));
 
@@ -451,7 +508,14 @@ const factory: PageFactory = (): Page => {
 
     function coachLine(over: 'gear' | 'flaps' | null): void {
       const u = units();
-      if (finished && score) { coach.set(`${score.total} / 100. ${score.verdict ?? ''}`, 'Read the gates below, then fly it again.', lessonPassed(score.total) ? 'ok' : 'caution'); return; }
+      const fin = toScore ?? score;
+      if (finished && fin) { coach.set(`${fin.total} / 100. ${fin.verdict ?? ''}`, 'Read the gates below, then fly it again.', lessonPassed(fin.total) ? 'ok' : 'caution'); return; }
+      if (!started && tev) {
+        coach.set(mode === 'watch' ? 'Watch the demo take off.' : 'Fly it: runway takeoff.',
+          mode === 'watch' ? 'Captions follow each step. The strip under the view lights each item.'
+            : `Hold ${brakesKey} for the wheel brakes, ${thrMaxKey} or Num+ for power, then release. Down arrow to rotate, ${d.keys.gear} gear.`);
+        return;
+      }
       if (!started) {
         const what = rtb() ? 'the return to base' : 'the overhead pattern';
         coach.set(mode === 'watch' ? `Watch the demo fly ${what}.` : rtb() ? 'Fly it: return to base.' : `Fly it: start from the ${start}.`,
@@ -460,16 +524,22 @@ const factory: PageFactory = (): Page => {
         return;
       }
       if (over) { coach.set(`Overspeed: ${over} out above ${ktText(d.pattern.gearMaxKt.value, u)}.`, 'Slow down first, then configure.', 'warning'); return; }
-      if (mode === 'watch') { const c = legCaption(demoLeg(s), d, u, s.nav, s.heading); coach.set(c.text, c.why); return; }
+      if (mode === 'watch') { const c = legCaption(demoLeg(s), d, u, s.nav, s.heading, s.phase, kt(s.speed)); coach.set(c.text, c.why); return; }
+      if (tev && s.takeoff && (s.phase === 'roll' || s.phase === 'ready')) {
+        const r = s.takeoff, pd = s.pitch * 180 / Math.PI, [lo, hi] = d.takeoff.pitchDeg.value;
+        if (pd >= d.takeoff.tailStrikeDeg.value - 1) { coach.set(`Nose high: ${pd.toFixed(1)}°.`, `Ease the pull. Tail strike at ${d.takeoff.tailStrikeDeg.value}°.`, 'warning'); return; }
+        if (r.rotateT !== undefined) { coach.set(`Rotate: nose to ${lo}–${hi}°, now ${pd.toFixed(1)}°.`, 'Hold the attitude; the jet flies off.', pd >= lo && pd <= hi ? 'ok' : 'caution'); return; }
+        if (s.phase === 'roll' && kt(s.speed) >= rotateAtKt(d) - 3) { coach.set(`Pull: rotate at ${ktText(rotateAtKt(d), u)}.`, `Down arrow; nose to ${lo}–${hi}°.`, 'ok'); return; }
+      }
       const g = approachGeometry(s, d);
-      if (g.onFinal && s.gearDown) {
+      if (!tev && g.onFinal && s.gearDown) {
         const cue = aoaCue(s, d);
         const glide = g.glideErrDeg > GLIDE_TOL_DEG ? 'High: push the marker below the line.' : g.glideErrDeg < -GLIDE_TOL_DEG ? 'Low: raise the marker above the line.' : 'On glide path: marker on the line.';
         const spd = cue === 'on' ? 'On speed.' : cue === 'slow' ? 'Slow: add power.' : 'Fast: reduce power.';
         coach.set(`${glide} ${spd}`, `Lineup ${g.lineupErrDeg > 0 ? 'right' : 'left'} ${Math.abs(g.lineupErrDeg).toFixed(1)}°.`, Math.abs(g.glideErrDeg) > GLIDE_TOL_DEG || cue !== 'on' ? 'caution' : 'ok');
         return;
       }
-      const order = stepOrder(rtb() && navOk);
+      const order = stepOrder(kind(), d);
       const cur = currentStep(new Set(order.filter(id => steps_.isDone(id))), order);
       if (s.nav && s.phase === 'air' && (cur === 'navmode' || cur === 'steer' || cur === 'glidepath')) {
         const pic = navPicture(s.nav, s.heading, u);
@@ -479,7 +549,7 @@ const factory: PageFactory = (): Page => {
         return;
       }
       const stp = stepsDef.find(x => x.id === cur);
-      coach.set(stp ? stp.text + '.' : 'Stop on the runway.', 'The checklist ticks as you pass each gate.');
+      coach.set(stp ? stp.text + '.' : tev ? `Climb out, level at ${altFtText(1500, u)}.` : 'Stop on the runway.', 'The checklist ticks as you pass each gate.');
     }
 
     // ---------------------------------------------------------------- debrief
@@ -494,10 +564,7 @@ const factory: PageFactory = (): Page => {
         h('div', { class: 'fo-score' },
           h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
           h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
-        h('ol', { class: 'fo-gates' }, sco.gates.map(g => h('li', { class: g.ok ? 'is-ok' : 'is-miss' },
-          h('span', { class: 'fo-gates__mark', 'aria-label': g.ok ? 'passed' : 'missed' }, g.ok ? 'OK' : 'MISS'),
-          h('span', { class: 'fo-gates__label' }, g.label),
-          h('span', { class: 'fo-gates__notes' }, g.notes.join(' · '))))),
+        gateList(sco.gates),
         h('dl', { class: 'fo-numbers' },
           h('dt', null, 'Glide path RMS'), h('dd', null, deg(sco.glideRmsDeg)),
           h('dt', null, 'Lineup RMS'), h('dd', null, deg(sco.lineupRmsDeg)),
@@ -508,8 +575,41 @@ const factory: PageFactory = (): Page => {
           : 'Demo flight. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(`flight-ops:${ac}:done`, true);
+      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
       gatesSeen = -1;
+      refresh(true);
+    }
+
+    function gateList(gates: readonly GateResult[]): HTMLElement {
+      return h('ol', { class: 'fo-gates' }, gates.map(g => h('li', { class: g.ok ? 'is-ok' : 'is-miss' },
+        h('span', { class: 'fo-gates__mark', 'aria-label': g.ok ? 'passed' : 'missed' }, g.ok ? 'OK' : 'MISS'),
+        h('span', { class: 'fo-gates__label' }, g.label),
+        h('span', { class: 'fo-gates__notes' }, g.notes.join(' · ')))));
+    }
+
+    /** Takeoff debrief (#24): gates with notes, tail strike, total and verdict. */
+    function finishTakeoff(sco: TakeoffScore): void {
+      finished = true; toScore = sco;
+      startBtn.setLabel(mode === 'watch' ? 'Watch again' : 'Fly again');
+      startBtn.setDisabled(false);
+      const u = units(), r = s.takeoff, t = d.takeoff;
+      const spd = (k: number | undefined) => (k === undefined ? 'n/a' : ktText(Math.round(k), u));
+      debriefBody.replaceChildren(
+        h('div', { class: 'fo-score' },
+          h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
+          h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
+        gateList(sco.gates),
+        h('dl', { class: 'fo-numbers' },
+          h('dt', null, 'Tail strike'), h('dd', { class: sco.tailStrike ? 'fo-bad' : undefined }, sco.tailStrike ? `Yes, ${(r?.maxPitchOnGroundDeg ?? 0).toFixed(1)}° on the runway` : `No, peak ${(r?.maxPitchOnGroundDeg ?? 0).toFixed(1)}°`),
+          h('dt', null, 'Rotate'), h('dd', null, `${spd(r?.rotateKt)}, want ${ktText(rotateAtKt(d), u)}`),
+          h('dt', null, 'Liftoff'), h('dd', null, r?.liftoffKt === undefined ? 'n/a' : `${spd(r.liftoffKt)}, ${(r.liftoffPitchDeg ?? 0).toFixed(1)}°`),
+          h('dt', null, 'Gear up'), h('dd', null, `${spd(r?.gearUpKt)}, limit ${ktText(t.gearUpMaxKt.value, u)}`)),
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+          ? (lessonPassed(sco.total) ? `Takeoff lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the takeoff lesson.`)
+          : 'Demo flight. Switch to Fly to be graded.'),
+      );
+      debriefPanel.el.hidden = false;
+      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'takeoff'), true);
       refresh(true);
     }
 
@@ -521,14 +621,10 @@ const factory: PageFactory = (): Page => {
       if (s.flapIndex < d.flapLabels.length - 1) applyAction(s, 'flapsDown', d);
       else while (s.flapIndex > 0) { const before = s.flapIndex; applyAction(s, 'flapsUp', d); if (s.flapIndex === before) break; }
     }
-    /** Gear; on a jet without a flap selector the data's landing flap follows the gear (grading stand-in). */
-    function gearAct(): void {
-      applyAction(s, 'gearToggle', d);
-      if (fc !== 'none') return;
-      for (let i = 0; i < d.flapLabels.length; i++) applyAction(s, s.gearDown ? 'flapsDown' : 'flapsUp', d);
-    }
+    /** Gear handle. Jets without flap control need nothing else (the sim ignores flaps for them). */
+    function gearAct(): void { applyAction(s, 'gearToggle', d); }
     const keymap: Parameters<typeof bindKeys>[0] = {
-      'Up / W': hold('up'), 'Down / S': hold('down'), 'Left / A': hold('left'), 'Right / D': hold('right'),
+      'Up': hold('up'), 'Down': hold('down'), 'Left': hold('left'), 'Right': hold('right'),
       'Num+ / =': hold('thrUp'), 'Num- / -': hold('thrDn'),
       [d.keys.gear]: act(gearAct),
       [d.keys.speedbrake]: act(() => applyAction(s, 'speedbrakeToggle', d)),
@@ -538,6 +634,9 @@ const factory: PageFactory = (): Page => {
       'C': () => setCam(CAMS[(CAMS.indexOf(cam) + 1) % CAMS.length]!),
     };
     if (fc === 'selector' && /^[A-Z]$/.test(d.keys.flaps)) keymap[d.keys.flaps] = act(cycleFlaps);
+    // Wheel brakes (held): takeoff and landing rollout. Throttle max: MIL, or full afterburner where the takeoff uses it.
+    if (parseChord(brakesKey) && !(brakesKey in keymap)) keymap[brakesKey] = hold('brakes');
+    if (parseChord(thrMaxKey) && !(thrMaxKey in keymap)) keymap[thrMaxKey] = act(() => { input.throttle = 1; input.afterburner = toAb; });
     if (d.nav) {
       const mk = d.nav.keys.modeCycle.value, pk = d.nav.keys.pointCycle?.value;
       if (parseChord(mk)) keymap[mk] = act(() => applyAction(s, 'navModeCycle', d));
@@ -560,12 +659,17 @@ const factory: PageFactory = (): Page => {
     function preroll(which: Shot): void {
       const wantFly = ctx.params.get('mode') === 'fly';
       const navShot = (which === 'rtb' || which === 'ils') && navOk;
+      const toShot = which.startsWith('takeoff-');
       mode = 'watch'; modeSeg.set('watch');
-      start = navShot ? 'rtb' : 'initial'; startSeg.set(start);
+      start = toShot ? 'takeoff' : navShot ? 'rtb' : 'initial'; startSeg.set(start);
       rebuildSteps();
       reset(true);
       const t0 = s.t;
       const doneAt = (): boolean => {
+        if (which === 'takeoff-ready') return wantFly || s.phase !== 'ready' || s.throttle >= 0.9;
+        if (which === 'takeoff-rotate') return s.takeoff?.rotateT !== undefined && s.pitch * 180 / Math.PI >= d.takeoff.pitchDeg.value[0] * 0.7;
+        if (which === 'takeoff-climb') return s.takeoff?.gearUpT !== undefined && s.pos.y > 150;
+        if (which === 'takeoff-debrief') return finished;
         if (which === 'rtb') return s.t - t0 > 4 || !navShot;
         if (which === 'ils') return !navShot || (s.nav?.mode === 'landing' && approachGeometry(s, d).rangeM < 6000);
         if (which === 'final') { const g = approachGeometry(s, d); return demoLeg(s) === 'final' && g.rangeM < 1852; }
@@ -575,7 +679,7 @@ const factory: PageFactory = (): Page => {
       for (let i = 0; i < 60 * 600 && !doneAt(); i++) tick();
       if (wantFly && !finished) {
         mode = 'fly'; modeSeg.set('fly');
-        input.throttle = s.throttle; input.pitch = 0; input.roll = 0;
+        input.throttle = s.throttle; input.pitch = 0; input.roll = 0; input.afterburner = s.afterburner;
         startBtn.setLabel('Fly');
         syncTouch();
       }

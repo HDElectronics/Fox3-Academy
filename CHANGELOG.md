@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Pattern & landing adds a runway Takeoff start for all ten jets (#24): Watch and Fly, wheel brakes on W (also
+  on the landing rollout), a HUD speed tape with VR and PULL bugs, a pitch bracket with the tail-strike line, a
+  BRAKES · POWER · RELEASE · ROTATE · GEAR UP · FLAPS strip, per-jet lesson steps, a graded takeoff debrief and
+  its own progress key. The M-2000C shows no flap lamp, keys or labels.
 - Pattern & landing covers all ten jets and adds a return-to-base start for the FC3 nav jets (МРШ / ВЗВ / ПОС,
   NAV / ILSN): nav display, HUD steering cue, tower calls, nav lesson steps, gate rings where the jet passed them,
   on-screen stick, throttle and buttons for touch screens, and units from the km / nm switch.

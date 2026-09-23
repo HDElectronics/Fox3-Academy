@@ -6,11 +6,15 @@
 import { button, h, slider } from '../../ui';
 import { clamp } from '../../sim/math';
 
-export type TouchAction = 'gear' | 'flaps' | 'brake' | 'nav';
+export type TouchAction = 'gear' | 'flaps' | 'brake' | 'nav' | 'ab';
 
 export interface TouchControlsOptions {
   /** Show the FLAPS button (jets with a flap selector). */
   flaps: boolean;
+  /** Show the AB button (jets whose takeoff uses afterburner). */
+  afterburner?: boolean;
+  /** Wheel-brake key, shown on the BRAKES hold button. */
+  brakesKey?: string;
   /** Nav mode button: title (the modes it cycles) and key; omit for jets without nav. */
   nav?: { title: string; key: string };
   onAction: (a: TouchAction) => void;
@@ -22,6 +26,8 @@ export interface TouchControlsHandle {
   /** Stick deflection, −1..1: x = roll right +, y = pull (stick back, dragged down) +. */
   readonly stick: { x: number; y: number };
   readonly active: boolean;
+  /** BRAKES button held (wheel brakes). */
+  readonly wheelBrakes: boolean;
   setThrottle(v: number): void;
   dispose(): void;
 }
@@ -66,6 +72,28 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
   pad.addEventListener('pointercancel', up);
   pad.addEventListener('lostpointercapture', up);
 
+  // Wheel brakes: held while the button is pressed.
+  let wheel: number | null = null;
+  const brakesBtn = button({ id: 'fo-touch-wheel', label: 'BRAKES', keys: o.brakesKey, title: 'Wheel brakes: hold' });
+  const bEl = brakesBtn.el;
+  bEl.style.touchAction = 'none';
+  const bDown = (e: PointerEvent) => {
+    if (wheel !== null) return;
+    wheel = e.pointerId;
+    try { bEl.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
+    bEl.classList.add('is-held'); bEl.setAttribute('aria-pressed', 'true');
+    e.preventDefault();
+  };
+  const bUp = (e: PointerEvent) => {
+    if (e.pointerId !== wheel) return;
+    wheel = null; bEl.classList.remove('is-held'); bEl.setAttribute('aria-pressed', 'false');
+  };
+  bEl.setAttribute('aria-pressed', 'false');
+  bEl.addEventListener('pointerdown', bDown);
+  bEl.addEventListener('pointerup', bUp);
+  bEl.addEventListener('pointercancel', bUp);
+  bEl.addEventListener('lostpointercapture', bUp);
+
   const thr = slider({
     id: 'fo-touch-thr', label: 'Throttle', min: 0, max: 100, step: 1, value: 60, unit: '%',
     onInput: v => o.onThrottle(v / 100), onChange: v => o.onThrottle(v / 100), class: 'fo-touch__thr',
@@ -73,7 +101,9 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
   const btns = [
     button({ id: 'fo-touch-gear', label: 'GEAR', onClick: () => o.onAction('gear') }),
     o.flaps ? button({ id: 'fo-touch-flaps', label: 'FLAPS', onClick: () => o.onAction('flaps') }) : null,
-    button({ id: 'fo-touch-brake', label: 'BRAKE', title: 'Speed brake', onClick: () => o.onAction('brake') }),
+    brakesBtn,
+    o.afterburner ? button({ id: 'fo-touch-ab', label: 'AB', title: 'Afterburner on or off', onClick: () => o.onAction('ab') }) : null,
+    button({ id: 'fo-touch-brake', label: 'SPD BRK', title: 'Speed brake', onClick: () => o.onAction('brake') }),
     o.nav ? button({ id: 'fo-touch-nav', label: 'NAV', keys: o.nav.key, title: o.nav.title, onClick: () => o.onAction('nav') }) : null,
   ].filter(b => b !== null);
   const el = h('div', { class: 'fo-touch', id: 'fo-touch' },
@@ -84,6 +114,7 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
     el,
     stick,
     get active() { return pointer !== null; },
+    get wheelBrakes() { return wheel !== null; },
     setThrottle(v) { if (document.activeElement !== thr.input) thr.set(Math.round(v * 100), false); },
     dispose() {
       pad.removeEventListener('pointerdown', down);
@@ -91,6 +122,10 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
       pad.removeEventListener('pointerup', up);
       pad.removeEventListener('pointercancel', up);
       pad.removeEventListener('lostpointercapture', up);
+      bEl.removeEventListener('pointerdown', bDown);
+      bEl.removeEventListener('pointerup', bUp);
+      bEl.removeEventListener('pointercancel', bUp);
+      bEl.removeEventListener('lostpointercapture', bUp);
       el.remove();
     },
   };

@@ -8,7 +8,8 @@ import { INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, type FlightOpsJetData
 import { R2D, clamp } from '../../sim/math';
 import type { Units } from '../../app/format';
 import {
-  altUnit, altVal, aoaText, flapControl, indexerLamps, lampToken, navPicture, spdUnit, spdVal, type NavPicture, type PlacedGate,
+  altUnit, altVal, aoaText, flapControl, indexerLamps, lampToken, navPicture, showTakeoffCues, spdUnit, spdVal, takeoffSpeeds, tapeY,
+  type NavPicture, type PlacedGate,
 } from './logic';
 
 function tokenColor(s: Surface, t: 'ok' | 'caution' | 'warning' | 'neutral'): string {
@@ -56,7 +57,9 @@ export class HudDisplay {
     // Fixed text zones: speed box column (left), altitude box column (right), two text rows at the bottom.
     // The ladder is clipped out of them so numbers never collide.
     const bw = fs * 3.6, bh = fs * 1.5, by0 = h * 0.3 - bh / 2;
-    const colW = 8 + bw + 6, textTop = h - fs * 2.6;
+    const toCues = showTakeoffCues(st);
+    // The takeoff speed tape sits in a wider left column so the ladder never covers it.
+    const colW = 8 + bw + (toCues ? 16 : 6), textTop = h - fs * 2.6;
     ctx.save();
     ctx.beginPath(); ctx.rect(colW, 0, w - 2 * colW, textTop); ctx.clip();
     ctx.translate(cx, cy);
@@ -76,9 +79,26 @@ export class HudDisplay {
     // Glide line: the depression line the marker sits on in the groove.
     const gy = yOf(-d.glideDeg.value);
     ctx.strokeStyle = th.symHi; ctx.lineWidth = 1.5; ctx.setLineDash([10, 6]);
-    const gl = Math.max(20, w / 2 - colW - fs * 2.6);
+    const glLabel = `−${d.glideDeg.value}°`;
+    const gl = Math.max(20, w / 2 - colW - ctx.measureText(glLabel).width - 10);
     ctx.beginPath(); ctx.moveTo(-gl, gy); ctx.lineTo(gl, gy); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = th.symHi; ctx.textAlign = 'left'; ctx.fillText(`−${d.glideDeg.value}°`, gl + 4, gy);
+    ctx.fillStyle = th.symHi; ctx.textAlign = 'left'; ctx.fillText(glLabel, gl + 4, gy);
+    // Takeoff: pitch bracket for the target band and the tail-strike line (waterline goes inside the bracket).
+    if (toCues) {
+      const [lo, hi] = d.takeoff.pitchDeg.value;
+      const bx = w * 0.19, tick = 7;
+      ctx.strokeStyle = th.symHi; ctx.lineWidth = 2;
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(sgn * (bx - tick), yOf(hi)); ctx.lineTo(sgn * bx, yOf(hi)); ctx.lineTo(sgn * bx, yOf(lo)); ctx.lineTo(sgn * (bx - tick), yOf(lo));
+        ctx.stroke();
+      }
+      const ts = yOf(d.takeoff.tailStrikeDeg.value);
+      ctx.strokeStyle = th.warning; ctx.fillStyle = th.warning; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(-bx, ts); ctx.lineTo(bx, ts); ctx.stroke(); ctx.setLineDash([]);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`TAIL ${d.takeoff.tailStrikeDeg.value}°`, 0, ts - 3); ctx.textBaseline = 'middle';
+    }
     ctx.restore();
 
     // Waterline (boresight).
@@ -148,6 +168,35 @@ export class HudDisplay {
     const u = this.units();
     ctx.fillText(String(spdVal(st.speed, u)), 8 + bw / 2, by0 + bh / 2);
     ctx.fillText(String(Math.max(0, altVal(st.pos.y, u))), w - 8 - bw / 2, by0 + bh / 2);
+    if (toCues) {
+      // Speed tape along the box's right edge with the Vr bug and the pull mark (display unit).
+      const cur = spdVal(st.speed, u), bcy = by0 + bh / 2;
+      const ppu = (h / 150) * (u === 'metric' ? 1 / 1.852 : 1);
+      const step = u === 'metric' ? 20 : 10;
+      const tx = 8 + bw + 4, top = 4, bot = textTop - 2;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, top, colW, bot - top); ctx.clip();
+      ctx.strokeStyle = th.sym; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(tx, top); ctx.lineTo(tx, bot);
+      for (let v = Math.ceil((cur - 80) / step) * step; v <= cur + 80; v += step) {
+        if (v < 0) continue;
+        const y = tapeY(v, cur, bcy, ppu);
+        ctx.moveTo(tx, y); ctx.lineTo(tx + (v % (step * 5) === 0 ? 8 : 4), y);
+      }
+      ctx.stroke();
+      const sp = takeoffSpeeds(d, u);
+      const bug = (v: number, label: string, col: string) => {
+        const y = tapeY(v, cur, bcy, ppu);
+        ctx.fillStyle = col; ctx.strokeStyle = col;
+        ctx.beginPath(); ctx.moveTo(tx + 1, y); ctx.lineTo(tx + 9, y - 5); ctx.lineTo(tx + 9, y + 5); ctx.closePath(); ctx.fill();
+        // Label left of the tape, in the box column; hidden where the speed box and its unit sit.
+        if (y < by0 - fs * 0.6 || y > by0 + bh + fs * 1.3) { ctx.textAlign = 'right'; ctx.fillText(label, tx - 3, y); }
+      };
+      ctx.font = `${Math.round(fs * 0.75)}px ${th.fontMono}`;
+      if (sp.pull !== null) bug(sp.pull, 'PULL', th.sym);
+      bug(sp.vr, 'VR', th.symHi);
+      ctx.restore();
+    }
     ctx.font = `${Math.round(fs * 0.8)}px ${th.fontMono}`;
     ctx.fillText(spdUnit(u), 8 + bw / 2, by0 + bh + fs * 0.7);
     ctx.fillText(`${altUnit(u)} AGL`, w - 8 - bw / 2, by0 + bh + fs * 0.7);
@@ -156,6 +205,12 @@ export class HudDisplay {
     const fc = flapControl(d);
     const flap = fc === 'none' ? '' : `  FLAP ${fc === 'with-gear' ? (st.flapPos > 0.5 ? 'DN' : 'UP') : d.flapLabels[st.flapIndex] ?? ''}`;
     ctx.fillText(`${st.gearDown ? (st.gearPos > 0.99 ? 'GEAR DN' : 'GEAR ↓') : st.gearPos > 0.01 ? 'GEAR ↑' : 'GEAR UP'}${flap}${st.speedbrakePos > 0.05 ? '  SPD BRK' : ''}`, 8, h - fs * 0.8);
+    if (toCues) {
+      // Pitch against the takeoff band (the bracket on the ladder).
+      const [lo, hi] = d.takeoff.pitchDeg.value;
+      ctx.textAlign = 'center';
+      ctx.fillText(`θ ${(st.pitch * R2D).toFixed(1)}° (${lo}–${hi})`, cx, h - fs * 1.9);
+    }
     ctx.textAlign = 'right';
     ctx.fillText(u === 'metric' ? `${st.vs.toFixed(1)} M/S` : `${Math.round(st.vs * 196.85)} FPM`, w - 8, h - fs * 1.9);
     ctx.fillText(`THR ${Math.round(st.throttle * 100)}${st.afterburner ? ' AB' : ''}`, w - 8, h - fs * 0.8);
