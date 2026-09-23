@@ -14,6 +14,7 @@ export const LESSON_LINKS: readonly NavLink[] = [
   { path: 'radar?ex=low', label: 'Radar' }, { path: 'tws', label: 'TWS' },
   { path: 'missiles', label: 'Missiles' }, { path: 'defense', label: 'Defense' },
   { path: 'rwr', label: 'RWR' }, { path: 'flight-ops', label: 'Pattern & landing' },
+  { path: 'strike', label: 'Shkval & Vikhr' },
 ];
 
 export const PRACTICE_LINKS: readonly NavLink[] = [
