@@ -35,6 +35,8 @@ export interface FlightOpsJetData {
   takeoffFlap: number;
   /** Flaps are not selected by the pilot; they follow the gear handle (F-16C). Flap keys do nothing. */
   flapsWithGear?: boolean;
+  /** No pilot flap control at all (M-2000C: elevons, automatic slats). Flap keys, lamps and grading skip flaps. */
+  noFlapControl?: boolean;
   keys: { gear: string; flaps: string; speedbrake: string; hook?: string };
   aoa: {
     unit: 'deg' | 'units';
@@ -60,6 +62,31 @@ export interface FlightOpsJetData {
   hudCue: string;
   /** Return-to-base navigation as the cockpit presents it (FC3 jets in #22). Absent = no nav lesson yet. */
   nav?: FlightOpsNavData;
+  /** Runway takeoff (#24). */
+  takeoff: FlightOpsTakeoffData;
+}
+
+/** Runway takeoff facts, per jet. Speeds in knots, pitch in degrees, as the manuals give them. */
+export interface FlightOpsTakeoffData {
+  /** Rotation speed at the trainer's standard takeoff weight. */
+  vrKt: Sourced<number>;
+  /** Optional Vr schedule by gross weight, [lb, kt] pairs (F-16C). */
+  vrByWeightLb?: Sourced<readonly (readonly [number, number])[]>;
+  /** Start the pull this many knots before Vr (F-16C: 10 in MIL, 15 in afterburner). */
+  pullEarlyKt?: Sourced<number>;
+  /** Target pitch band after rotation, degrees. */
+  pitchDeg: Sourced<[number, number]>;
+  /** Pitch at which the tail strikes on the runway, degrees (gameplay value where not published). */
+  tailStrikeDeg: Sourced<number>;
+  /** Gear must be up before this speed. */
+  gearUpMaxKt: Sourced<number>;
+  /** Whether the lesson uses afterburner for takeoff. */
+  afterburner: Sourced<boolean>;
+  /** Takeoff flap index into flapLabels (null when the jet has no flap control). */
+  flapIndex: number | null;
+  keys: { brakes: Sourced<string>; throttleMax?: Sourced<string>; steering?: Sourced<string> };
+  /** Short pilot cue for the lesson, e.g. "Rotate at Vr to 8–12°, gear up before 300 kt". */
+  cue: string;
 }
 
 /**
@@ -110,12 +137,18 @@ export interface FlightOpsInput {
   /** 0..1 throttle, 1 = MIL. */
   throttle: number;
   afterburner?: boolean;
+  /** Wheel brakes held (ground only). */
+  brakes?: boolean;
 }
 
 /** Discrete cockpit actions (the keys the lesson teaches). */
 export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle';
 
-export type FlightOpsPhase = 'air' | 'rollout' | 'stopped' | 'crashed';
+/**
+ * 'ready' = on the runway for takeoff, holding brakes; 'roll' = takeoff ground roll before liftoff;
+ * 'air'; 'rollout' after touchdown; 'stopped'; 'crashed'.
+ */
+export type FlightOpsPhase = 'ready' | 'roll' | 'air' | 'rollout' | 'stopped' | 'crashed';
 
 export interface FlightOpsState {
   t: number;
@@ -148,12 +181,22 @@ export interface FlightOpsState {
   touchdown?: { t: number; z: number; x: number; vsMs: number; aoa: number; gearDown: boolean };
   /** Human-readable reason when phase = 'crashed' ("Gear up at touchdown"). */
   crashReason?: string;
+  /** Takeoff records (#24): brake release, first nose-up rotation, liftoff, gear-up command, tail strike. */
+  takeoff?: {
+    brakeReleaseT?: number;
+    rotateT?: number; rotateKt?: number;
+    liftoffT?: number; liftoffKt?: number; liftoffPitchDeg?: number;
+    gearUpT?: number; gearUpKt?: number;
+    maxPitchOnGroundDeg: number;
+    tailStrike: boolean;
+  };
   /** Nav picture when the jet has nav data and a nav start was chosen. */
   nav?: NavState;
 }
 
 /** Pattern gates in flight order. */
-export type GateId = 'initial' | 'break' | 'downwind' | 'abeam' | 'ninety' | 'groove' | 'touchdown';
+export type GateId = 'initial' | 'break' | 'downwind' | 'abeam' | 'ninety' | 'groove' | 'touchdown'
+  | 'brakeRelease' | 'rotate' | 'liftoff' | 'gearUp' | 'climb';
 
 export interface GateResult {
   id: GateId;
@@ -185,6 +228,15 @@ export interface ApproachScore {
   onSpeedFraction: number | null;
   touchdownInZone: boolean | null;
   /** 0..100 overall, null until touchdown or waveoff. */
+  total: number | null;
+  verdict: string | null;
+}
+
+/** Takeoff grade (#24): gates brakeRelease, rotate, liftoff, gearUp, climb. */
+export interface TakeoffScore {
+  gates: GateResult[];
+  tailStrike: boolean;
+  /** 0..100, null until the climb gate or a crash. */
   total: number | null;
   verdict: string | null;
 }

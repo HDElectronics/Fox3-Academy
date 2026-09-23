@@ -10,13 +10,15 @@ direction is −z; left-hand pattern with the downwind at x < 0.
 ## Model (`model.ts`)
 
 ```ts
-createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway' | 'rtb', data?): FlightOpsState
+createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff', data?): FlightOpsState
 stepFlightOps(s, input: FlightOpsInput, dt, data?): void   // mutates s; use FLIGHT_OPS_DT = 1/60
 applyAction(s, action: FlightOpsAction, data?): void        // gear, flaps, speed brake, navModeCycle, navPointCycle
 configWarnings(s, data): { overspeed: 'gear' | 'flaps' | null }
 aoaCue(s, data): 'slow' | 'on' | 'fast'                     // above band = slow
 loadFactor(s, data), aoaForLoad(s, data, n), approachSpeedMs(data), aimPointM(data), flapsFollowGear(data)
 hasNavStart(data), RTB_START                                 // 'rtb' needs data.nav
+noFlapControl(data), hasFlapSelector(data), takeoffFlapIndex(data), rotateAtKt(data)
+ROTATE_RATE_DEG = 5, ROTATE_MIN_VR = 0.8, LIFTOFF_MARGIN_KT = 5, LATE_LIFTOFF_KT = 25, TAKEOFF_START_M = 100
 ```
 
 - Starts: `initial` 2 nm south on the centreline at the initial altitude and speed, clean; `downwind` abeam
@@ -36,6 +38,8 @@ hasNavStart(data), RTB_START                                 // 'rtb' needs data
   `rollout` with wheel braking at low throttle, then `stopped`. Liftoff: above 0.95 × approach speed with
   back stick.
 - F-16C: no flap selector; flaps follow the gear and the flap actions do nothing.
+- M-2000C (`noFlapControl`): no flap control at all. Flap actions do nothing, `flapIndex` stays 0 in every
+  start, `configWarnings` never reports flaps, and the arcade high-lift effect follows the gear position.
 - Overspeed never damages the jet; `configWarnings` reports gear (or landing flaps) above the gear limit.
 
 ## Nav (`nav.ts`)
@@ -92,3 +96,46 @@ the gear down, down to 0.1 nm. Gates appear as they are reached: initial (±100 
 point, ninety (gear down, AoA in band), groove (≥ 60 % on speed, glide RMS ≤ 0.7°, lineup RMS ≤ 1°, graded
 at touchdown), touchdown (in the zone, no crash). Total = 56 × passed-gate fraction + glide (14) + lineup (10)
 + on-speed fraction (10) + zone (10); a crash scores 0. The verdict is a short pilot-vocabulary line.
+
+## Takeoff (#24)
+
+Start `takeoff`: `TAKEOFF_START_M` (100 m) past the threshold on the centreline, heading north, stopped,
+gear down, takeoff flaps (`takeoffFlapIndex`: the data `flapIndex`; F-16C flaps with the gear; M-2000C 0),
+throttle idle, phase `ready`, `s.takeoff = { maxPitchOnGroundDeg: 0, tailStrike: false }`.
+
+- `ready`: `input.brakes` holds the jet at any power. Without brakes the roll starts once the thrust beats the
+  wheel braking (throttle above 0.3); that step records `takeoff.brakeReleaseT` and enters `roll`. A roll that
+  stops (abort) returns to `ready`.
+- `roll`: arcade acceleration from throttle and afterburner at 0.6 of the air thrust (about 25 s to rotation
+  in MIL, 13 s in afterburner), rolling friction, brakes or idle brake; roll input is nosewheel steering.
+  Leaving the runway is the "Off the runway" crash.
+- Rotation: above `ROTATE_MIN_VR` × Vr, back stick raises the nose at up to 5°/s (neutral holds, push lowers);
+  below it the nose stays down. The first nose rise records `rotateT` / `rotateKt`. Pitch on the ground is
+  capped at `tailStrikeDeg`; reaching it sets `tailStrike` (recorded, not a crash). `maxPitchOnGroundDeg`
+  tracks the peak.
+- Liftoff: pitch at or above the band's low edge, speed at least Vr + 5 kt, and the attitude gives 1 g (the
+  cockpit AoA for 1.02 g is within 0.5° of the pitch); or late and shallow at Vr + 25 kt with 3° or more.
+  Records `liftoffT`, `liftoffKt`, `liftoffPitchDeg`; phase `air` with the AoA for 1.02 g and the attitude
+  kept (the nose comes up only on a late liftoff).
+- `gearToggle` up after liftoff records `gearUpT` / `gearUpKt` (first time only). `configWarnings` is
+  unchanged (pattern gear limit). Landing behaviour is unchanged; `input.brakes` also brakes the rollout.
+
+Demo pilot legs `takeoff` (ground) and `climbout` (air after a takeoff start): holds the brakes until the
+throttle is at 95 % (afterburner per data), releases, tracks the centreline, pulls at `rotateAtKt`
+(Vr − early pull) toward the middle of the pitch band, holds that attitude, raises the gear above 30 ft with a
+positive climb, raises the flaps (to AUTO on the Hornet) once the gear is up and above Vr + 30 kt, keeps below
+the gear and flap limits while they travel, then climbs at 300 kt to `CLIMB_ALT_FT` (1500 ft) and levels.
+All ten jets pass every gate without a tail strike.
+
+```ts
+new TakeoffEvaluator(data); ev.update(s) each step; ev.score(): TakeoffScore
+TAKEOFF_CLIMB_FT = 1000, ROTATE_TOL_KT = 5
+```
+
+Gates in order, each appearing when flown: brakeRelease (throttle 90 %+ when the roll starts), rotate (nose
+comes up within ±5 kt of Vr − early pull, or of Vr), liftoff (pitch at liftoff inside the band, no tail
+strike), gearUp (commanded in a climb at or below `gearUpMaxKt`; fails as soon as the jet passes the limit
+gear down, or at 1000 ft with the gear down), climb (1000 ft above the field, climbing, gear up, Vr + 20 kt
+or more, no overspeed warning). Total = 20 per passed gate, set at the climb gate; a crash scores 0. Verdict:
+"Good takeoff." / "Fair takeoff: …" / "Poor takeoff: …" with faults such as "power not set before brake
+release", "early rotation", "tail strike", "over-rotated", "under-rotated", "gear up late".

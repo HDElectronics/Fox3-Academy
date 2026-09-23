@@ -1,15 +1,17 @@
 /**
  * [OWNER: sim] Demo pilot: flies a clean left-hand overhead pattern from the initial to touchdown and rollout,
  * or (from the rtb start) follows the nav steering home and flies a straight-in on the glide path.
+ * From the takeoff start it holds the brakes, sets takeoff power, rotates, raises gear and flaps and climbs
+ * to 1500 ft.
  * Used by the page's demo and the `?shot` pre-roll. Simple gameplay controllers (track, altitude, speed, AoA),
  * not an autopilot model. Per-state leg memory lives in a WeakMap, so the pilot stays deterministic.
  */
-import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, clamp } from '../math';
-import { aimPointM, aoaForLoad, approachSpeedMs, headingErr, loadFactor } from './model';
+import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp } from '../math';
+import { aimPointM, aoaForLoad, approachSpeedMs, hasFlapSelector, headingErr, loadFactor, rotateAtKt } from './model';
 import { NAV_AUTO_SWITCH_M } from './nav';
 import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
 
-export type DemoLeg = 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
+export type DemoLeg = 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
 interface Memory { leg: DemoLeg }
 const memory = new WeakMap<FlightOpsState, Memory>();
 
@@ -19,6 +21,10 @@ const MIN_FINAL_M = 0.75 * M_PER_NM;
 /** Straight-in (rtb): configure inside this range, hand over to the final leg inside FINAL_HANDOVER_M. */
 const CONFIGURE_M = 9000;
 const FINAL_HANDOVER_M = 3500;
+/** Takeoff demo: gear up above this height with a positive climb, level off at the climb altitude. */
+const GEAR_UP_M = 30 * M_PER_FT;
+export const CLIMB_ALT_FT = 1500;
+const CLIMB_KT = 300;
 
 /** Current demo leg for a state (for lesson captions). */
 export function demoLeg(s: FlightOpsState): DemoLeg | null {
@@ -26,6 +32,7 @@ export function demoLeg(s: FlightOpsState): DemoLeg | null {
 }
 
 function initialLeg(s: FlightOpsState): DemoLeg {
+  if (s.phase === 'ready' || s.phase === 'roll') return 'takeoff';
   if (s.phase !== 'air') return 'rollout';
   if (s.nav) return s.nav.mode === 'landing' ? 'approach' : 'nav';
   const north = Math.abs(headingErr(0, s.heading)) < Math.PI / 2;
@@ -55,6 +62,10 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   let m = memory.get(s);
   if (!m) { m = { leg: initialLeg(s) }; memory.set(s, m); }
   const actions: FlightOpsAction[] = [];
+  if (m.leg === 'takeoff' && s.phase === 'air') m.leg = 'climbout';
+  if ((m.leg === 'takeoff' && (s.phase === 'ready' || s.phase === 'roll')) || (m.leg === 'climbout' && s.phase === 'air')) {
+    return takeoffPilot(s, d, m.leg, actions);
+  }
   const kt = s.speed / MPS_PER_KT;
   const va = onSpeedTargetMs(d);
   const geo = finalTurnGeometry(d);
@@ -179,4 +190,44 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   if (m.leg === 'break') throttle = 0;
   if (m.leg === 'final' && s.pos.y < 4) throttle = 0;
   return { pitch, roll, throttle, actions };
+}
+
+/** Takeoff and climb-out: brakes and power, rotate at Vr less the early pull, gear and flaps up, climb to 1500 ft. */
+function takeoffPilot(s: FlightOpsState, d: FlightOpsJetData, leg: DemoLeg, actions: FlightOpsAction[]): FlightOpsInput & { actions: FlightOpsAction[] } {
+  const t = d.takeoff;
+  const kt = s.speed / MPS_PER_KT;
+  const ab = t.afterburner.value;
+  const [lo, hi] = t.pitchDeg.value;
+  const mid = (lo + hi) / 2;
+  const pitchDeg = s.pitch * R2D;
+  if (leg === 'takeoff') {
+    const steer = clamp(headingErr(clamp(-s.pos.x * 0.02, -0.1, 0.1), s.heading) * 10, -1, 1);
+    // Hold the brakes until the engines are at takeoff power, then release.
+    if (s.phase === 'ready') return { pitch: 0, roll: 0, throttle: 1, afterburner: ab, brakes: s.throttle < 0.95, actions };
+    const pitch = kt >= rotateAtKt(d) ? clamp((mid - pitchDeg) * 0.5, -1, 1) : 0;
+    return { pitch, roll: steer, throttle: 1, afterburner: ab, actions };
+  }
+
+  // Climb-out: gear up with a positive climb, then flaps up (AUTO on the Hornet) once clean and accelerating.
+  if (s.gearDown && s.vs > 1 && s.pos.y > GEAR_UP_M) actions.push('gearToggle');
+  if (!s.gearDown && s.gearPos < 0.5 && hasFlapSelector(d) && s.flapIndex > 0 && kt > t.vrKt.value + 30) actions.push('flapsUp');
+
+  const roll = clamp((clamp(headingErr(0, s.heading) * 1.5, -0.3, 0.3) - s.bank) * 3, -1, 1);
+  const clean = !s.gearDown && s.gearPos < 0.05;
+  let pitch: number;
+  if (!clean || s.pos.y < 150) {
+    // Hold the takeoff attitude until clean.
+    pitch = clamp((mid - pitchDeg) * 0.3, -1, 1);
+  } else {
+    const targetY = CLIMB_ALT_FT * M_PER_FT;
+    const gammaCmd = clamp((targetY - s.pos.y) * 0.004, -6 * D2R, 12 * D2R);
+    const n = Math.cos(s.gamma) + (s.speed * (gammaCmd - s.gamma) * 0.5) / G0;
+    const aoaT = aoaForLoad(s, d, clamp(n, 0, 3));
+    pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);
+  }
+  // Speed: climb speed once clean; below the gear and flap limits while they travel.
+  const limitKt = Math.min(d.pattern.gearMaxKt.value, t.gearUpMaxKt.value) - 15;
+  const targetMs = (clean ? CLIMB_KT : limitKt) * MPS_PER_KT;
+  const throttle = clamp(0.45 + (targetMs - s.speed) * 0.15, 0, 1);
+  return { pitch, roll, throttle, afterburner: ab && s.gearDown && kt < limitKt - 30, actions };
 }

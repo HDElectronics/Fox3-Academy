@@ -9,9 +9,11 @@
  * - Load factor from AoA: n = (aoa / onSpeed) · (v / vApproach)² · lift(flaps). Flaps up needs more AoA.
  * - Speed: thrust from throttle minus drag (base, gear, flaps, speed brake, induced ∝ n²) minus g·sin(γ).
  * - Ground contact at wheel height y = 0: gear up, vs < −4.5 m/s or off the runway is a crash; else rollout.
+ * - Takeoff (#24): 'ready' holds the brakes, 'roll' accelerates; the nose rises with back stick above 0.8·Vr,
+ *   liftoff comes at Vr + 5 kt once the pitch is in the band (late fallback Vr + 25 kt at 3°). Arcade rules.
  * Fixed step 1/60 s recommended. Deterministic: no randomness.
  */
-import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, clamp, wrap2Pi, wrapPi } from '../math';
+import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, wrap2Pi, wrapPi } from '../math';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import {
   RUNWAY, type FlightOpsAction, type FlightOpsInput, type FlightOpsJetData, type FlightOpsJetId,
@@ -48,8 +50,20 @@ const WHEEL_BRAKE = 2.5;
 const NWS_RATE = 5 * D2R;
 /** Cockpit-unit to body-degree factor for rendering pitch (F-15C AoA units). */
 const UNITS_TO_DEG = 0.4;
+/** Takeoff roll: rolling friction (m/s²), nose rotation rate at full stick, and liftoff margins (gameplay values). */
+const ROLLING = 0.3;
+export const ROTATE_RATE_DEG = 5;
+/** Thrust fraction on the takeoff roll, so a MIL roll to rotation takes about 25 s and an afterburner roll about 13 s. */
+const ROLL_THRUST = 0.6;
+/** The nose only comes up above this fraction of Vr. */
+export const ROTATE_MIN_VR = 0.8;
+export const LIFTOFF_MARGIN_KT = 5;
+export const LATE_LIFTOFF_KT = 25;
+const LATE_LIFTOFF_PITCH_DEG = 3;
+/** Takeoff start: this far past the threshold, on the centreline, heading north. */
+export const TAKEOFF_START_M = 100;
 
-export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb';
+export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff';
 
 /** 'rtb' start: off-axis south-west of the field, runway frame metres, and speed in knots (gameplay values). */
 export const RTB_START = { x: -12000, z: 38000, altM: 3500, kt: 300 } as const;
@@ -62,6 +76,16 @@ export const approachSpeedMs = (d: FlightOpsJetData) => d.approachKt.value * MPS
 export const aimPointM = (d: FlightOpsJetData) => d.aimPointFt.value * M_PER_FT;
 /** The F-16 has no flap selector: flaps follow the gear. */
 export const flapsFollowGear = (d: FlightOpsJetData) => d.flapsWithGear === true;
+/** No pilot flap control at all (M-2000C): flap actions do nothing, flap state stays at index 0. */
+export const noFlapControl = (d: FlightOpsJetData) => d.noFlapControl === true;
+/** Whether the flap keys do anything. */
+export const hasFlapSelector = (d: FlightOpsJetData) => !flapsFollowGear(d) && !noFlapControl(d);
+/** Flap index the jet takes off with (per the takeoff data and flap semantics). */
+export function takeoffFlapIndex(d: FlightOpsJetData): number {
+  if (noFlapControl(d)) return 0;
+  if (flapsFollowGear(d)) return d.landingFlap;
+  return d.takeoff.flapIndex ?? 0;
+}
 
 /** Flap position (0..1) that counts as landing flaps. */
 function landingFlapFrac(d: FlightOpsJetData) {
@@ -69,6 +93,8 @@ function landingFlapFrac(d: FlightOpsJetData) {
 }
 /** 0..1: how much of the landing-flap effect is out. */
 function flapEffect(s: FlightOpsState, d: FlightOpsJetData) {
+  // No flap control: the automatic high-lift devices are an arcade stand-in that follows the gear.
+  if (noFlapControl(d)) return s.gearPos;
   return clamp(s.flapPos / landingFlapFrac(d), 0, 1);
 }
 const liftFactor = (s: FlightOpsState, d: FlightOpsJetData) => 0.8 + 0.2 * flapEffect(s, d);
@@ -101,7 +127,7 @@ export function configWarnings(s: FlightOpsState, d: FlightOpsJetData): { oversp
   const limit = d.pattern.gearMaxKt.value;
   if (s.phase !== 'air' || kt <= limit) return { overspeed: null };
   if (s.gearPos > 0.02) return { overspeed: 'gear' };
-  if (!flapsFollowGear(d) && s.flapIndex >= d.landingFlap && s.flapPos > 0.02) return { overspeed: 'flaps' };
+  if (hasFlapSelector(d) && s.flapIndex >= d.landingFlap && s.flapPos > 0.02) return { overspeed: 'flaps' };
   return { overspeed: null };
 }
 
@@ -115,6 +141,7 @@ function blank(id: FlightOpsJetId): FlightOpsState {
 
 function setLanding(s: FlightOpsState, d: FlightOpsJetData) {
   s.gearDown = true; s.gearPos = 1;
+  if (noFlapControl(d)) return;
   s.flapIndex = d.landingFlap; s.flapPos = landingFlapFrac(d);
 }
 
@@ -163,9 +190,16 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
     }
     case 'runway':
       s.gearDown = true; s.gearPos = 1;
-      s.flapIndex = d.takeoffFlap; s.flapPos = d.takeoffFlap / Math.max(1, d.flapLabels.length - 1);
+      s.flapIndex = noFlapControl(d) ? 0 : d.takeoffFlap; s.flapPos = s.flapIndex / Math.max(1, d.flapLabels.length - 1);
       s.pos = { x: 0, y: 0, z: -50 };
       s.phase = 'stopped';
+      return s;
+    case 'takeoff':
+      s.gearDown = true; s.gearPos = 1;
+      s.flapIndex = takeoffFlapIndex(d); s.flapPos = s.flapIndex / Math.max(1, d.flapLabels.length - 1);
+      s.pos = { x: 0, y: 0, z: -TAKEOFF_START_M };
+      s.phase = 'ready';
+      s.takeoff = { maxPitchOnGroundDeg: 0, tailStrike: false };
       return s;
   }
   trim(s, d);
@@ -188,6 +222,9 @@ function bodyAoaRad(s: FlightOpsState, d: FlightOpsJetData) {
   return (d.aoa.unit === 'deg' ? s.aoa : s.aoa * UNITS_TO_DEG) * D2R;
 }
 
+/** Rotation target: Vr less the early pull, knots. */
+export const rotateAtKt = (d: FlightOpsJetData) => d.takeoff.vrKt.value - (d.takeoff.pullEarlyKt?.value ?? 0);
+
 /** Apply a cockpit action (gear, flaps, speed brake, nav mode and point). Ignored once crashed; gear stays down on the ground. */
 export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: FlightOpsJetData = FLIGHT_OPS[s.aircraft]): void {
   if (s.phase === 'crashed') return;
@@ -197,12 +234,15 @@ export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: Fl
       if (s.phase !== 'air') return;
       s.gearDown = !s.gearDown;
       if (flapsFollowGear(d)) s.flapIndex = s.gearDown ? d.landingFlap : 0;
+      if (s.takeoff && !s.gearDown && s.takeoff.gearUpT === undefined) {
+        s.takeoff.gearUpT = s.t; s.takeoff.gearUpKt = s.speed / MPS_PER_KT;
+      }
       return;
     case 'flapsDown':
-      if (!flapsFollowGear(d)) s.flapIndex = Math.min(d.flapLabels.length - 1, s.flapIndex + 1);
+      if (hasFlapSelector(d)) s.flapIndex = Math.min(d.flapLabels.length - 1, s.flapIndex + 1);
       return;
     case 'flapsUp':
-      if (!flapsFollowGear(d)) s.flapIndex = Math.max(0, s.flapIndex - 1);
+      if (hasFlapSelector(d)) s.flapIndex = Math.max(0, s.flapIndex - 1);
       return;
     case 'speedbrakeToggle':
       s.speedbrakeOut = !s.speedbrakeOut;
@@ -233,6 +273,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   s.speedbrakePos = approach(s.speedbrakePos, s.speedbrakeOut ? 1 : 0, 1 / SPEEDBRAKE_TIME, dt);
   const thrust = IDLE_ACC + s.throttle * (MIL_ACC - IDLE_ACC) + (s.afterburner ? AB_ACC : 0);
 
+  if (s.phase === 'ready' || s.phase === 'roll') { stepTakeoffRoll(s, input, dt, d, thrust); updateNav(s, d); return; }
   if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); updateNav(s, d); return; }
 
   // Stick: AoA rate and roll rate.
@@ -277,7 +318,7 @@ function touchdown(s: FlightOpsState) {
 /** Rollout, stop and takeoff roll. */
 function stepGround(s: FlightOpsState, input: FlightOpsInput, dt: number, d: FlightOpsJetData, thrust: number) {
   s.pos.y = 0; s.gamma = 0; s.vs = 0; s.bank = 0;
-  const braking = s.throttle < 0.3 ? WHEEL_BRAKE : 0.3;
+  const braking = input.brakes || s.throttle < 0.3 ? WHEEL_BRAKE : ROLLING;
   const acc = thrust - drag(s, d, 1) - braking;
   if (s.phase === 'stopped' && acc <= 0) { s.speed = 0; s.pitch = approach(s.pitch, 0, 0.1, dt); return; }
   s.speed = Math.max(0, s.speed + acc * dt);
@@ -301,6 +342,64 @@ function stepGround(s: FlightOpsState, input: FlightOpsInput, dt: number, d: Fli
   if (Math.abs(s.pos.x) > RUNWAY.widthM / 2 + 5 || s.pos.z < -RUNWAY.lengthM - 300) {
     s.phase = 'crashed'; s.crashReason = 'Off the runway'; s.speed = 0;
   }
+}
+
+/** Ground move with nosewheel steering (roll input, weaker at speed); leaving the runway is a crash. */
+function rollOnRunway(s: FlightOpsState, input: FlightOpsInput, dt: number) {
+  s.heading = wrap2Pi(s.heading + clamp(input.roll, -1, 1) * NWS_RATE * clamp(s.speed / 10, 0, 1) * dt);
+  s.pos.x += s.speed * Math.sin(s.heading) * dt;
+  s.pos.z -= s.speed * Math.cos(s.heading) * dt;
+  if (Math.abs(s.pos.x) > RUNWAY.widthM / 2 + 5 || s.pos.z < -RUNWAY.lengthM - 300) {
+    s.phase = 'crashed'; s.crashReason = 'Off the runway'; s.speed = 0;
+  }
+}
+
+/** Takeoff: brakes in 'ready', ground roll, rotation, tail strike and liftoff (arcade rules, AGENTS.md rule 1). */
+function stepTakeoffRoll(s: FlightOpsState, input: FlightOpsInput, dt: number, d: FlightOpsJetData, thrust: number) {
+  const t = d.takeoff;
+  const rec = (s.takeoff ??= { maxPitchOnGroundDeg: 0, tailStrike: false });
+  s.pos.y = 0; s.gamma = 0; s.vs = 0; s.bank = 0; s.aoa = 0;
+  const braking = input.brakes || s.throttle < 0.3 ? WHEEL_BRAKE : ROLLING;
+  if (s.phase === 'ready') {
+    // Brakes hold the jet at any power; releasing with power above the brake-away level starts the roll.
+    if (input.brakes || thrust * ROLL_THRUST - braking <= 0) { s.speed = 0; s.pitch = approach(s.pitch, 0, 3 * D2R, dt); return; }
+    s.phase = 'roll';
+    rec.brakeReleaseT ??= s.t;
+  }
+  const acc = thrust * ROLL_THRUST - drag(s, d, 1) - braking;
+  s.speed = Math.max(0, s.speed + acc * dt);
+  if (s.speed < 0.5 && acc <= 0) { s.speed = 0; s.phase = 'ready'; }
+  const kt = s.speed / MPS_PER_KT;
+  const vr = t.vrKt.value;
+
+  // Rotation: back stick raises the nose above 0.8·Vr; neutral holds it; below that the nose stays down.
+  const tail = t.tailStrikeDeg.value * D2R;
+  const rate = kt >= ROTATE_MIN_VR * vr ? clamp(input.pitch, -1, 1) * ROTATE_RATE_DEG * D2R : -3 * D2R;
+  const was = s.pitch;
+  s.pitch = clamp(s.pitch + rate * dt, 0, tail);
+  if (was <= 0 && s.pitch > 0 && rec.rotateT === undefined) { rec.rotateT = s.t; rec.rotateKt = kt; }
+  const pDeg = s.pitch * R2D;
+  rec.maxPitchOnGroundDeg = Math.max(rec.maxPitchOnGroundDeg, pDeg);
+  if (s.pitch >= tail - 1e-9) rec.tailStrike = true;
+
+  rollOnRunway(s, input, dt);
+  if (s.phase === 'crashed') return;
+
+  // Liftoff: in the pitch band at Vr + margin with enough wing for 1 g at this attitude, or late and shallow.
+  const need = aoaForLoad(s, d, 1.02);
+  const needDeg = d.aoa.unit === 'deg' ? need : need * UNITS_TO_DEG;
+  const inBand = pDeg >= t.pitchDeg.value[0] && kt >= vr + LIFTOFF_MARGIN_KT && needDeg <= pDeg + 0.5;
+  const late = pDeg >= LATE_LIFTOFF_PITCH_DEG && kt >= vr + LATE_LIFTOFF_KT;
+  if (!inBand && !late) return;
+  rec.liftoffT = s.t; rec.liftoffKt = kt; rec.liftoffPitchDeg = pDeg;
+  s.phase = 'air';
+  s.aoa = need;
+  const body = bodyAoaRad(s, d);
+  // Keep the attitude; where the wing needs more AoA than the attitude gives (late liftoff), the nose comes up.
+  s.gamma = Math.max(0, s.pitch - body);
+  s.pitch = s.gamma + body;
+  s.vs = s.speed * Math.sin(s.gamma);
+  s.pos.y = 0.1;
 }
 
 /** Heading error helper for pilots and evaluators, radians (−π..π). */
