@@ -6,3 +6,4 @@ export { PROCEDURES, procedureFor } from './procedures';
 export { SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor, type SourceKey, type SourceTopic } from './sources';
 
 export { cockpitFor, F16_COCKPIT, COCKPIT_CAVEATS } from './cockpit';
+export { FLIGHT_OPS, FLIGHT_OPS_CAVEATS } from './flightOps';

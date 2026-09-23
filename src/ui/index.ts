@@ -4,6 +4,7 @@
  * Theme tokens for canvas/WebGL: ./theme (readTheme, alpha).
  */
 export * from './dom';
+export * from './jetName';
 export * from './keys';
 export * from './controls';
 export * from './panels';

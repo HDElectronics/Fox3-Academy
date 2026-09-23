@@ -28,8 +28,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B15. Hyphenated jet names wrap** ("Su-" / "27") in narrow prose. A no-break hyphen falls back to another font;
-  a `white-space: nowrap` span around jet names in copy would work.
+No open items.
 
 ## P3 — Quality and infrastructure
 

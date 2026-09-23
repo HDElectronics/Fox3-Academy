@@ -20,7 +20,11 @@ export {
   JetMesh, getJetModel, jetMaterials, JET_DIMENSIONS, NOMINAL_JET_M, NOMINAL_MISSILE_M, createMissileMesh, getMissileGeometry,
   missileMaterials, smokeDensity, f14SweepForMach, solidMaterial,
 } from './jets';
-export type { JetModel } from './jets';
+export type { JetModel, JetConfig, JetPart, JetParts, JetPartDrive } from './jets';
+export { FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint } from './flightOps';
+export type {
+  FlightOpsCamera, FlightOpsSceneOptions, RunwayOptions, ApproachGate, ApproachGeometryOptions, ErrLevel, GateState,
+} from './flightOps';
 export { LineBatch } from './lines';
 export type { LineStyle, LineBatchOptions } from './lines';
 export { SymbolLayer, Shape } from './symbols';
