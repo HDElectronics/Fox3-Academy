@@ -13,7 +13,7 @@ import { h, cleanup, setText, type Child } from '../../ui/dom';
 import { docLayout, type DocLayoutHandle } from '../../ui/layout';
 import { bindKeys, kbd } from '../../ui/keys';
 import { AIRCRAFT, RWRS } from '../../data';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { queryTokens } from './model';
 import type { Filterable, RefCtx } from './common';
 import { bindingsSection, proceduresSection } from './kneeboard';
@@ -65,7 +65,7 @@ const factory: PageFactory = (): Page => {
     const params = ctx.params;
 
     // ?ac=<id>: select that jet once. The router remounts us synchronously, so stop here.
-    const want = params.get('ac') as AircraftId | null;
+    const want = params.get('ac') as FighterId | null;
     if (want) {
       cleanHash(['ac']);
       if (AIRCRAFT[want] && want !== ctx.app.aircraft) { ctx.app.setAircraft(want); return; }

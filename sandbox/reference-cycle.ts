@@ -3,7 +3,7 @@ import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import '../src/styles/components.css';
 import { AppStore } from '../src/app/store';
-import { AIRCRAFT_ORDER } from '../src/data/aircraft';
+import { FIGHTER_ORDER } from '../src/data/aircraft';
 
 let live = 0;
 for (const target of [window, document] as EventTarget[]) {
@@ -36,7 +36,7 @@ const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 const ctx = () => ({ root: outlet, app, params: new URLSearchParams(), navigate: (p: string) => console.log('navigate', p) });
 const problems: string[] = [];
 
-for (const ac of AIRCRAFT_ORDER) {
+for (const ac of FIGHTER_ORDER) {
   app.setAircraft(ac);
   document.documentElement.dataset.cockpit = app.spec.cockpit;
   const page = factory();
@@ -80,4 +80,4 @@ for (const ac of AIRCRAFT_ORDER) {
   outlet.replaceChildren();
 }
 await wait(400);
-console.warn(`REFERENCE CYCLE ${AIRCRAFT_ORDER.length} jets: listenersNet=${live} observersNet=${observers} canvases=${document.querySelectorAll('canvas').length} errors=${errors} problems=${JSON.stringify(problems)}`);
+console.warn(`REFERENCE CYCLE ${FIGHTER_ORDER.length} jets: listenersNet=${live} observersNet=${observers} canvases=${document.querySelectorAll('canvas').length} errors=${errors} problems=${JSON.stringify(problems)}`);

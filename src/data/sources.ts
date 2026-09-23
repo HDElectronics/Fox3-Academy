@@ -137,6 +137,7 @@ const LIST = {
   airgoonsAirDefences: ['Airgoons wiki, "DCS Reference: Air Defences" (Eastern systems, compiled from game files)', 'https://www.airgoons.com/w/DCS_Reference/Air_Defences/Eastern'],
   simtutsDefending: ['SimTuts, "DCS Missile Defense Guide: How to Defeat SAMs and Air-to-Air Missiles"', 'https://simtuts.com/guides/defending-against-missiles-dcs'],
   fThreatRingChart: ['ED Forums, "DCS World Mission Editor Threat Range Ring Chart" (not opened: access refused)', 'https://forum.dcs.world/topic/284720-dcs-world-mission-editor-threat-range-ring-chart/'],
+  edSu25tManual: ['ED, DCS World Su-25T Flight Manual (EN, 68 pages)', 'https://www.digitalcombatsimulator.com/upload/iblock/61b/DCS%20World%20Su-25T%20Flight%20Manual%20EN.pdf'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type SourceKey = keyof typeof LIST;
@@ -165,6 +166,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   f14b: ['hbF14Manual', 'hbRadarGeneral', 'hbRadarInterface', 'hbAcm', 'hbAim54', 'hbAim7', 'hbJester', 'hbJesterBU', 'chucksF14', 'fawRio'],
   jf17: ['chucksJf17', 'edShopThunder', 'fawKlj7Search', 'fawKlj7Track', 'dmKlj7', 'dmSd10'],
   m2000c: ['chucksM2000', 'dmMirage', 'fseliteRazbam'],
+  su25t: ['edSu25tManual'],
 
   r27r: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],
   r27er: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],
@@ -184,7 +186,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   s530d: ['dmMirage', 'chucksM2000'],
   magic2: ['dmMirage', 'chucksM2000'],
 
-  spo15: ['edFc3Manual', 'edSu27Fc3Manual', 'edMig29Manual', 'edNewsSpo15', 'fawSpo15', 'edNewsMig29a', 'edShopFulcrum', 'stormbirdsMig29'],
+  spo15: ['edFc3Manual', 'edSu27Fc3Manual', 'edMig29Manual', 'edNewsSpo15', 'fawSpo15', 'edNewsMig29a', 'edShopFulcrum', 'stormbirdsMig29', 'edSu25tManual'],
   alr56c: ['edF15cManual'],
   alr67: ['edHornetGuide', 'hbAlr67', 'chucksHornet', 'hoggitRwr', 'fRwrSymbol'],
   alr56m: ['edViperGuide'],

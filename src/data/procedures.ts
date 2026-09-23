@@ -10,6 +10,7 @@
  * - Procedure ids used on every jet: 'search', 'stt-shot', 'support', 'defend'. 'tws-multi' only where the
  *   jet can engage several targets. Extra ids: 'tws-designate' (FC3 Russian single-target СНП),
  *   'dt-sam' (F-16C two-target SAM).
+ * - Attack jets (Su-25T) have no BVR procedures: 'shkval-lock', 'laser-shot', 'tv-shot', 'sead'.
  */
 import type { AircraftId, AircraftProcedures, KeyBind, Procedure, ProcedureStep } from './types';
 
@@ -603,6 +604,67 @@ const M2K_PROCEDURES: Procedure[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------------------------------------
+// Su-25T (free attack jet, FC3-level keys). Source: ED DCS World Su-25T Flight Manual (docs/research/su25t.md).
+// ---------------------------------------------------------------------------------------------------------
+
+const SU25T_BINDS: KeyBind[] = [
+  { group: 'weapons', keyboard: '1', action: 'Navigation mode', keys: '1' },
+  { group: 'weapons', keyboard: '7', action: 'Air-to-ground mode (ОПТ-ЗЕМЛЯ)', keys: '7' },
+  { group: 'weapons', keyboard: '2 / 4 / 6', action: 'Air-to-air modes (R-60 / R-73, gun)', keys: '2 / 4 / 6', note: 'No radar: missiles are cued by their own seeker. ПР shows when the seeker has locked.' },
+  { group: 'weapons', keyboard: '8', action: 'Fixed reticle on / off', keys: '8', note: 'Backup sight from any combat mode.' },
+  { group: 'weapons', keyboard: 'D / C', action: 'Weapon cycle / cannon', keys: 'D / C', note: 'The HUD shows the store label: АБ, С-8, 9А4172, 25МЛ, 29Л, 29Т, 500Кр, 58; ВПУ for the cannon.' },
+  { group: 'weapons', keyboard: 'Space', action: 'Weapon release', keys: 'Space', note: 'CCRP: hold until the bombs release automatically.' },
+  { group: 'targeting', keyboard: 'O', action: 'Shkval on / off', keys: 'O', note: 'TV picture on the IT-23M display, laser cursor on the HUD.' },
+  { group: 'targeting', keyboard: 'RCtrl + O', action: 'Mercury night pod on / off', keys: 'RCtrl + O' },
+  { group: 'targeting', keyboard: '; , . /', action: 'Slew the sight', keys: '; , . /' },
+  { group: 'targeting', keyboard: 'Enter', action: 'Ground-stabilise / lock', keys: 'Enter', note: 'КС: manual, no lock. АС: target locked.' },
+  { group: 'targeting', keyboard: '= / -', action: 'Zoom in / out (wide, 8x, 23x)', keys: '= / -', note: 'The manual writes both [+] and [=] for zoom in.' },
+  { group: 'targeting', keyboard: 'RCtrl + ] / RCtrl + [', action: 'Target size larger / smaller', keys: 'RCtrl + ] / RCtrl + [', note: 'Locks only an object within 5 m of the set size. Armour about 10 m, ships and buildings 60 m.' },
+  { group: 'targeting', keyboard: 'RShift + O', action: 'Laser rangefinder / designator', keys: 'RShift + O', note: 'ЛД on the IT-23M. Keep it on to impact for Vikhr, Kh-25ML and Kh-29L. Limit not verified (see caveats).' },
+  { group: 'targeting', keyboard: 'I', action: 'Anti-radiation passive detection', keys: 'I', note: 'Needs the L-081 Fantasmagoria pod on station 6.' },
+  { group: 'defence', keyboard: 'RShift + R / RAlt + , and RAlt + .', action: 'RWR mode / volume', keys: 'RShift + R / RAlt + , and RAlt + .', note: 'SPO-15 Beryoza. The mode filter hides search radars.' },
+];
+
+const SU25T_PROCEDURES: Procedure[] = [
+  {
+    id: 'shkval-lock', title: 'Find and lock with Shkval',
+    steps: [
+      s('Select air-to-ground mode and a guided weapon.', { keys: '7, D' }),
+      s('Switch the Shkval on; the laser cursor appears on the HUD and the TV picture on the IT-23M.', { keys: 'O' }),
+      s('Slew onto the target area and ground-stabilise the sight.', { keys: '; , . /, Enter' }),
+      s('Zoom to identify the target: wide, 8x, 23x.', { keys: '= / -' }),
+      s('Set the target size (armour about 10 m). The sight locks only an object within 5 m of that size; АС shows the lock.', { keys: 'RCtrl + ] / RCtrl + [' }),
+    ],
+  },
+  {
+    id: 'laser-shot', title: 'Vikhr and laser missiles',
+    steps: [
+      s('Lock the target with Shkval and select 9А4172, 25МЛ or 29Л.', { keys: 'D' }),
+      s('Switch the laser on; ЛД and the slant range appear on the IT-23M.', { keys: 'RShift + O' }),
+      s('Launch when the HUD range scale and the launch-authorised cue allow it.', { keys: 'Space' }),
+      s('Hold the lock and the laser until impact; the IT-23M counts down the time of flight.'),
+      s('Switch the laser off to cool it.', { keys: 'RShift + O' }),
+    ],
+  },
+  {
+    id: 'tv-shot', title: 'Kh-29T and KAB-500Kr',
+    steps: [
+      s('Lock the target with Shkval and select 29Т or 500Кр.', { keys: 'D' }),
+      s('Launch or release when the HUD allows it. No laser needed.', { keys: 'Space' }),
+    ],
+  },
+  {
+    id: 'sead', title: 'Kh-58 against a radar',
+    steps: [
+      s('Carry the L-081 Fantasmagoria pod. Select air-to-ground mode and 58.', { keys: '7, D' }),
+      s('Switch on passive detection and steer by the SPO-15 toward the emitter.', { keys: 'I' }),
+      s('Inside ±30° a diamond marks the emitter on the HUD (ПРГ mode). Slew onto it and lock.', { keys: '; , . /, Enter' }),
+      s('Launch when in range.', { keys: 'Space' }),
+    ],
+  },
+];
+
 export const PROCEDURES: Record<AircraftId, AircraftProcedures> = {
   su27: { aircraft: 'su27', binds: ruBinds('su27'), procedures: ruProcedures('su27') },
   su33: { aircraft: 'su33', binds: ruBinds('su33'), procedures: ruProcedures('su33') },
@@ -614,6 +676,7 @@ export const PROCEDURES: Record<AircraftId, AircraftProcedures> = {
   f14b: { aircraft: 'f14b', binds: F14B_BINDS, procedures: F14B_PROCEDURES },
   jf17: { aircraft: 'jf17', binds: JF17_BINDS, procedures: JF17_PROCEDURES },
   m2000c: { aircraft: 'm2000c', binds: M2K_BINDS, procedures: M2K_PROCEDURES },
+  su25t: { aircraft: 'su25t', binds: SU25T_BINDS, procedures: SU25T_PROCEDURES },
 };
 
 /** A procedure by id for a jet, or undefined (e.g. 'tws-multi' on the Su-27). */

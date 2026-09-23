@@ -3,8 +3,8 @@
  * and a sandbox plan where you place threats (type, state, bearing, range, altitude) and watch the
  * RWR react. Coach lines explain what changed and why, including the classic misreads.
  */
-import type { AircraftId } from '../../data/types';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS, RWR_CAVEATS, rwrSymbol } from '../../data/rwr';
 import type { RwrContact } from '../../sim/types';
@@ -60,9 +60,9 @@ export function mountLearn(host: ModeHost): ModeController {
 
   // ------------------------------------------------------------------ threat helpers
 
-  const adv: AircraftId = defaultAdversary(spec.id);
+  const adv: FighterId = defaultAdversary(spec.id);
   const capable = (state: ThreatState, prefer: EmitterKind[]): EmitterKind =>
-    [...prefer, ...AIRCRAFT_ORDER].find(k => canBe(k, state, rwrId)) ?? 'f15c';
+    [...prefer, ...FIGHTER_ORDER].find(k => canBe(k, state, rwrId)) ?? 'f15c';
   const norm = (t: Threat): Threat => normalizeThreat(t, rwrId);
   const hasSams = kinds.includes('sam-short');
   /** Another fighter, with a different code where the RWR has one (on the SPO every fighter is П). */

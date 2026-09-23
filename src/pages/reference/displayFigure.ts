@@ -11,7 +11,7 @@ import { World } from '../../sim/world';
 import { twsDrill } from '../../sim/scenarios';
 import { buildRadarPicture } from '../../sim/picture';
 import { radarRules } from '../../sim/radar';
-import type { AircraftId, DisplayFormat } from '../../data/types';
+import type { FighterId, DisplayFormat } from '../../data/types';
 import type { RefCtx } from './common';
 
 interface Legend { label: string; lines: string[]; simplified?: string }
@@ -27,7 +27,7 @@ const RU_HUD: Legend = {
   simplified: 'The missile counter on the ИЛС is a trainer addition: DCS shows only the flashing lock mark. Every contact is drawn with two dots, and no PRF legend is drawn.',
 };
 
-const LEGENDS: Record<Exclude<DisplayFormat, 'mfd' | 'ru-hud'>, Legend> & Partial<Record<AircraftId, Legend>> = {
+const LEGENDS: Record<Exclude<DisplayFormat, 'mfd' | 'ru-hud'>, Legend> & Partial<Record<FighterId, Legend>> = {
   'f15-vsd': {
     label: 'VSD',
     lines: [
@@ -91,7 +91,7 @@ const LEGENDS: Record<Exclude<DisplayFormat, 'mfd' | 'ru-hud'>, Legend> & Partia
   },
 };
 
-function legendFor(ac: AircraftId, format: DisplayFormat): Legend {
+function legendFor(ac: FighterId, format: DisplayFormat): Legend {
   if (format === 'ru-hud') {
     if (ac !== 'mig29s') return RU_HUD;
     return { ...RU_HUD, lines: [...RU_HUD.lines, 'СНП2: primary diamond, secondary cross, Ц1 Ц2 with ПР.'] };
@@ -100,7 +100,7 @@ function legendFor(ac: AircraftId, format: DisplayFormat): Legend {
   return LEGENDS[format];
 }
 
-export function displayLabel(ac: AircraftId, format: DisplayFormat): string {
+export function displayLabel(ac: FighterId, format: DisplayFormat): string {
   return legendFor(ac, format).label;
 }
 

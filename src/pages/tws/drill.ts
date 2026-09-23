@@ -12,7 +12,7 @@ import { rwrRank } from '../../sim/rwr';
 import { D2R, R2D, relBearing, wrapPi } from '../../sim/math';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
-import type { AircraftId, AircraftSpec, MissileId, SeekerKind } from '../../data/types';
+import type { FighterId, AircraftSpec, MissileId, SeekerKind } from '../../data/types';
 import type { Aircraft, EntityId, LaunchCheck, Missile, RadarPicture, RwrContact, SimEvent } from '../../sim/types';
 import { fmtRange, type Units } from '../../app/format';
 import { canLaunchSnp2, launchSnp2, type Snp2LaunchCheck as Snp2Check } from '../../sim/launch';
@@ -90,7 +90,7 @@ export interface TwsLessonOptions {
 }
 
 export class TwsLesson {
-  readonly ac: AircraftId;
+  readonly ac: FighterId;
   readonly spec: AircraftSpec;
   readonly units: Units;
   world!: World;
@@ -125,7 +125,7 @@ export class TwsLesson {
   private lastSnp2: Snp2Check | null = null;
   private centroid = new Vector3();
 
-  constructor(ac: AircraftId, o: TwsLessonOptions = {}) {
+  constructor(ac: FighterId, o: TwsLessonOptions = {}) {
     this.ac = ac;
     this.spec = AIRCRAFT[ac];
     this.units = o.units ?? this.spec.units;
@@ -834,7 +834,7 @@ function missText(reason: string): string {
 }
 
 /** What the jet calls designation number `i`. */
-export function designationName(ac: AircraftId, i: number, snp2 = false): string {
+export function designationName(ac: FighterId, i: number, snp2 = false): string {
   if (i < 0) return '';
   if (snp2) return i === 0 ? ': lead (Ц1)' : ': Ц2';
   switch (ac) {

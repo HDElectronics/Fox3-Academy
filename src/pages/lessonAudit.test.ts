@@ -6,9 +6,9 @@
  * lesson for every jet and checks each number a step prints against that jet's own radar options.
  */
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
-import type { AircraftId, MissileId } from '../data/types';
+import type { FighterId, MissileId } from '../data/types';
 import { EXERCISE_DEFS, EXERCISES, type StepKeys } from './radar-lab/exercises';
 import { bugOnlyOptions } from './radar-lab/geometry';
 import { stepsFor } from './tws/lesson';
@@ -20,7 +20,7 @@ const KEYS: StepKeys = { elev: 'Q / A', zone: 'Z / X', width: 'C / V', cursor: '
 interface Named { id: string; text: string; auto?: true }
 
 /** Every graded step the player reads, tagged with where it comes from. */
-function lessonSteps(ac: AircraftId): { lesson: string; steps: Named[] }[] {
+function lessonSteps(ac: FighterId): { lesson: string; steps: Named[] }[] {
   const out: { lesson: string; steps: Named[] }[] = [];
   for (const id of EXERCISES) {
     const def = EXERCISE_DEFS[id];
@@ -45,7 +45,7 @@ function azNamed(text: string): number[] {
 }
 
 describe('lessons fit the selected jet', () => {
-  for (const ac of AIRCRAFT_ORDER) {
+  for (const ac of FIGHTER_ORDER) {
     const spec = AIRCRAFT[ac];
     const bug = bugOnlyOptions(ac);
 

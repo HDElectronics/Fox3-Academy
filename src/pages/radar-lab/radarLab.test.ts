@@ -1,7 +1,7 @@
 /** [OWNER: page-radar-lab] Scan geometry, key mapping, Why sentences, and every exercise on every jet. */
 import { describe, expect, test } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
-import type { AircraftId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
 import { setManeuver } from '../../sim/scenarios';
 import { D2R, M_PER_NM } from '../../sim/math';
 import {
@@ -47,7 +47,7 @@ describe('scan geometry', () => {
     expect(azCenterLimitDeg(AIRCRAFT.f16c.radar, 60)).toBe(0);
   });
   test('Flankers cannot shorten their frame', () => {
-    for (const ac of ['su27', 'su33', 'j11a', 'mig29s'] as AircraftId[]) expect(minFrame(ac)).toBeCloseTo(5, 5);
+    for (const ac of ['su27', 'su33', 'j11a', 'mig29s'] as FighterId[]) expect(minFrame(ac)).toBeCloseTo(5, 5);
     expect(minFrame('f15c')).toBeCloseTo(2.5, 5);
   });
   test('nice ranges round down in the pilot units', () => {
@@ -71,7 +71,7 @@ describe('DCS keys per jet', () => {
     expect(k.range).toMatchObject({ a: '=', b: '-' });
   });
   test('Hornet and Viper antenna elevation on = / -, no clash with a range fallback', () => {
-    for (const ac of ['fa18c', 'f16c'] as AircraftId[]) {
+    for (const ac of ['fa18c', 'f16c'] as FighterId[]) {
       const k = labKeys(ac);
       expect(k.elev).toMatchObject({ a: '=', b: '-', fallback: false });
       expect(k.range).toBeNull();
@@ -85,7 +85,7 @@ describe('DCS keys per jet', () => {
     expect(k.cursor.fallback).toBe(false);
   });
   test('every jet gets unique chords', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const k = labKeys(ac);
       const all = [k.elev, k.zone, k.width, k.range, k.expRange].flatMap(p => (p ? [p.a, p.b] : []));
       if (k.mode) all.push(k.mode.key);
@@ -121,7 +121,7 @@ describe('Why sentences', () => {
 // ------------------------------------------------------------------------------------------ exercises
 
 /** Fly an exercise with a pilot who sets the scan correctly; returns the time it took (s) or null. */
-function flyExercise(ac: AircraftId, id: Exclude<ExerciseId, 'free'>): number | null {
+function flyExercise(ac: FighterId, id: Exclude<ExerciseId, 'free'>): number | null {
   const def = EXERCISE_DEFS[id];
   const units = AIRCRAFT[ac].units;
   const scene = def.scene(ac, units);
@@ -177,11 +177,11 @@ describe('exercises on every jet', () => {
   test('availability is data-driven: Flankers cannot trade frame time', () => {
     expect(availableExercises('su27')).not.toContain('revisit');
     expect(availableExercises('mig29s')).not.toContain('revisit');
-    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as AircraftId[]) expect(availableExercises(ac)).toHaveLength(5);
+    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(5);
     expect(EXERCISE_DEFS.revisit.unavailable('su27')).toMatch(/fixed/);
   });
   test('scenes start with the problem visible: low bandit below the bars, notch bandit painted in the bars', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const sc = EXERCISE_DEFS.low.scene(ac, AIRCRAFT[ac].units);
       const lw = buildLabWorld(ac, AIRCRAFT[ac].units, sc, sc.scan);
       const snap = buildSnap(lw.world, lw.me, 'metric', sc, lw.targetIds, new Map(), new Set(), null);
@@ -191,7 +191,7 @@ describe('exercises on every jet', () => {
     }
   });
   test('free scan shows every reason on every jet, for the whole scene', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const sc = EXERCISE_DEFS.free.scene(ac, AIRCRAFT[ac].units);
       const lw = buildLabWorld(ac, AIRCRAFT[ac].units, sc, sc.scan);
       for (let t = 2; t < sc.maxTime; t += 4) {
@@ -207,7 +207,7 @@ describe('exercises on every jet', () => {
       }
     }
   });
-  for (const ac of AIRCRAFT_ORDER) {
+  for (const ac of FIGHTER_ORDER) {
     for (const id of availableExercises(ac)) {
       test(`${ac} ${id} can be completed`, () => {
         const t = flyExercise(ac, id);
@@ -246,13 +246,13 @@ describe('review fixes', () => {
     inBars: true, beyond: false, notched: false, detectable: true, detectRange: 70000, radial: 200, groundSpeed: 250,
     seenNow: false, lastPaint: null, firstSeenRange: null, inspected: false, ...o,
   });
-  const snap = (ac: AircraftId, targets: TargetSnap[], o: Partial<Snap> = {}): Snap => ({
+  const snap = (ac: FighterId, targets: TargetSnap[], o: Partial<Snap> = {}): Snap => ({
     t: 10, ac, units: 'metric', mode: 'rws', ownAlt: 9000, frame: 8, revisit: 8, bars: 4, azHalfDeg: 60, azCenterDeg: 0,
     elCenterDeg: 0, cursorRange: 60000, covTop: 12000, covBottom: 6000, selectedId: null, targets, ...o,
   });
 
   test('aspect coach never prints "×1" for a radar without a look-down penalty', () => {
-    for (const ac of ['f15c', 'mig29s'] as AircraftId[]) {
+    for (const ac of ['f15c', 'mig29s'] as FighterId[]) {
       const ts = ['hot-high', 'hot-low', 'cold-high', 'cold-low'].map((role, i) => tgt({ id: role, role, firstSeenRange: i === 0 ? 50000 : null }));
       const ev = EXERCISE_DEFS.aspect.evaluate(snap(ac, ts), { latched: [] });
       expect(ev.why, ac).not.toMatch(/×1\b/);
@@ -271,7 +271,7 @@ describe('review fixes', () => {
   });
 
   test('corrected N-001 geometry no longer carries the obsolete look-down caveat', () => {
-    for (const ac of ['su27', 'su33', 'j11a'] as AircraftId[]) {
+    for (const ac of ['su27', 'su33', 'j11a'] as FighterId[]) {
       expect(lookDownCaveat(ac)).toBeNull();
       expect(simplifiedLines(ac).some(l => /applies ×0.7 at every aspect/.test(l))).toBe(false);
     }

@@ -5,7 +5,7 @@
  * (notch / drag / chaff), how the fight ended, and sanity (no NaN, no missile outliving its battery).
  */
 import type { AiSkill, Aircraft, EntityId, Missile, SimEvent } from '../../src/sim/types';
-import type { AircraftId, MissileId } from '../../src/data/types';
+import type { FighterId, MissileId } from '../../src/data/types';
 import { MISSILES } from '../../src/data/missiles';
 import { World } from '../../src/sim/world';
 import { configureAi, aiStatus, type AiConfig } from '../../src/sim/ai';
@@ -36,8 +36,8 @@ export interface ShotRecord {
 export interface DuelResult {
   label: string;
   seed: number;
-  blue: AircraftId;
-  red: AircraftId;
+  blue: FighterId;
+  red: FighterId;
   skill: AiSkill;
   commitT: { blue: number | null; red: number | null };
   shots: ShotRecord[];
@@ -65,7 +65,7 @@ export interface DuelOptions {
 
 const sideOf = (w: World, id: EntityId | null | undefined): 'blue' | 'red' | null => (id ? w.get(id)?.side ?? null : null);
 
-export function runDuel(blueType: AircraftId, redType: AircraftId, skill: AiSkill, o: DuelOptions = {}): DuelResult {
+export function runDuel(blueType: FighterId, redType: FighterId, skill: AiSkill, o: DuelOptions = {}): DuelResult {
   const seed = o.seed ?? 1;
   const w = new World(seed);
   w.record = false;

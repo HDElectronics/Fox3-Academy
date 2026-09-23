@@ -4,8 +4,8 @@
  */
 import { h } from '../../ui/dom';
 import { callout } from '../../ui/panels';
-import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, RWRS } from '../../data';
-import type { AircraftId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER, MISSILES, RWRS } from '../../data';
+import type { FighterId } from '../../data/types';
 import { aircraftHaystack, fox3Of, matches, rangeNum, rangeUnit, simultaneousText } from './model';
 import { hl, tag, type RefCtx } from './common';
 
@@ -13,7 +13,7 @@ const rwrShort = (name: string) => name.replace(/\s*".*"/, '').replace(/\s*\(.*\
 
 export function fleetSection(rc: RefCtx): HTMLElement {
   const u = rangeUnit(rc.units);
-  const rows = AIRCRAFT_ORDER.map(id => {
+  const rows = FIGHTER_ORDER.map(id => {
     const s = AIRCRAFT[id];
     const rwr = RWRS[s.rwr].name;
     const selected = id === rc.ac;
@@ -22,7 +22,7 @@ export function fleetSection(rc: RefCtx): HTMLElement {
     const btn = h('button', {
       type: 'button', class: 'ref-jet', 'aria-current': selected ? 'true' : undefined,
       title: selected ? `${s.name}: your selected jet` : `Switch to the ${s.name}`,
-      onclick: () => { if (!selected) rc.switchJet(id as AircraftId, 'ref-jets'); },
+      onclick: () => { if (!selected) rc.switchJet(id as FighterId, 'ref-jets'); },
     }, nameEl, h('span', { class: 'ref-jet__name' }, s.name));
     const tws = s.radar.tws;
     const tr = h('tr', { class: selected ? 'is-hl' : undefined },

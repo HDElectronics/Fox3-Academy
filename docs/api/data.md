@@ -7,7 +7,7 @@ of this page. Types are in `src/data/types.ts` (shared contract).
 
 ```ts
 import {
-  AIRCRAFT, AIRCRAFT_ORDER, AIRCRAFT_CAVEATS,          // aircraft.ts
+  AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER, ATTACK_ORDER, AIRCRAFT_CAVEATS, isFighter, // aircraft.ts
   MISSILES, MISSILE_REF_NOTE, FLARE_SUSCEPTIBILITY,    // missiles.ts
   RWRS, RWR_CAVEATS, rwrSymbol,                        // rwr.ts
   SAMS, SAM_ORDER, SAM_CAVEATS, samForClass, samRwrSymbol, // sams.ts
@@ -20,8 +20,11 @@ import {
 
 | Export | Type | What it is |
 |---|---|---|
-| `AIRCRAFT` | `Record<AircraftId, AircraftSpec>` | Radar rules, loadout, CMs, rough perf, RCS, blurb, strengths, limits. |
-| `AIRCRAFT_ORDER` | `AircraftId[]` | Display order (Russian FC3, F-15C, full-fidelity). |
+| `AIRCRAFT` | `JetTable` | Every jet. Indexed by a `FighterId` it is an `AircraftSpec` (radar rules, loadout, missiles); by any `AircraftId` it is the `JetSpec` union (narrow on `role` before reading `radar`). |
+| `FIGHTER_ORDER` | `FighterId[]` | The fighters in display order (Russian FC3, F-15C, full-fidelity). Every BVR page, table and test iterates this. |
+| `ATTACK_ORDER` | `AttackId[]` | Attack jets (no air-to-air radar), shown only on air-to-ground routes. |
+| `AIRCRAFT_ORDER` | `AircraftId[]` | Every jet: fighters, then attack jets. Picker and 3D models only. |
+| `isFighter(id)` | `id is FighterId` | Role guard for code that holds any `AircraftId`. |
 | `AIRCRAFT_CAVEATS` | `Record<AircraftId, string[]>` | "Simplified here" sentences: every aircraft value research could not confirm. Show the relevant ones in Hangar/Reference/lab callouts. |
 | `MISSILES` | `Record<MissileId, MissileSpec>` | Seeker, midcourse, loft, pitbull, seeker range/gimbal, mass, size, burn, Mach/g, reference ranges, chaff factor, guidance rule, DCS notes. |
 | `MISSILE_REF_NOTE` | `string` | Caption to show next to `ref` ranges (they are ED's launch table, not flight results). |
@@ -38,6 +41,18 @@ import {
 | `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
 | `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
+
+### Roles: fighters and attack jets
+
+`AircraftId = FighterId | AttackId`. `FighterId` is the ten air-to-air jets; `AttackId` holds jets without an
+air-to-air radar (the Su-25T). `JetSpec = AircraftSpec | AttackSpec` is discriminated on `role`
+(`'fighter' | 'attack'`): `AircraftSpec` keeps its name and every field (radar, display, loadout, missiles) and
+gains `role: 'fighter'`; `AttackSpec` has `radar: null` and a `weapons` label list. BVR-only maps and the sim key
+on `FighterId` (`src/sim/types.ts` aircraft `type`, radar rules, DLZ, scenarios `ADVERSARY`, radar-lab notes,
+RWR emitter symbols, flight ops). `BindGroup` gains `'targeting'` for optical sight keys (Su-25T Shkval);
+Su-25T procedures are `'shkval-lock'`, `'laser-shot'`, `'tv-shot'`, `'sead'` instead of the BVR set. Maps every jet needs (`AIRCRAFT_CAVEATS`, `PROCEDURES`, `JET_DIMENSIONS`,
+source topics) key on `AircraftId`. `RwrSymbol.emitter` uses `FighterId`: an attack jet with no radar is never an
+RWR emitter.
 
 ## Conventions
 
@@ -165,6 +180,13 @@ specify its repetition sequence. Keyboard defaults beyond explicitly sourced ent
 KY-58 internal selectors, exhaustive HOTAS context tables and software page trees are outside mapped coverage.
 
 ### Aircraft
+- **Su-25T** (`AIRCRAFT_CAVEATS.su25t`): perf and RCS are rough gameplay numbers; chaff load not in the manual
+  (shown as 0); the manual documents separate laser limits of about 1 min continuous with cooling (printed
+  p. 57) and 20 min total per flight (printed p. 32), with current-game enforcement not verified; gun conflict (30 mm
+  twin-barrel with 200 rounds in the manual vs GSh-30 with 150); no guided air-to-ground launch ranges in the
+  manual. Target-size presets are documented in the manual (printed pp. 56–57); current-game behavior is
+  not verified. See
+  `docs/research/su25t.md`.
 - **Russian FC3 detection** (68.4/38 km N-001, 60/30 km N-019M): AI sensor tables; whether the player radars read
   them is not confirmed. ED's Su-33 manual gives the real N001K ≥ 100 km head-on vs 3 m².
 - **Russian FC3 bars/beam/scan speed**: bars are not selectable and the count is undocumented; 4 × 2.5° assumed,

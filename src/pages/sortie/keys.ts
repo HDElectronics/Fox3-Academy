@@ -3,7 +3,7 @@
  * Keyboard defaults come from KeyBind.keyboard; null means absent or unverified.
  * Trainer keys (steering, throttle, time, camera) are added only where they do not collide with the jet's keys.
  */
-import type { AircraftId, KeyBind, MissileId } from '../../data/types';
+import type { FighterId, KeyBind, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
 import { parseChord, parseKeyList, splitAlternatives } from '../../ui/keys';
@@ -38,7 +38,7 @@ export interface WeaponSelectKey {
 }
 
 export interface JetKeyMap {
-  aircraft: AircraftId;
+  aircraft: FighterId;
   module: 'fc3' | 'full';
   keys: Partial<Record<ActionId, JetKey>>;
   selects: WeaponSelectKey[];
@@ -77,7 +77,7 @@ function holdOf(action: string): number | undefined {
 }
 
 /** Build the sortie key map for one jet. */
-export function jetKeyMap(ac: AircraftId): JetKeyMap {
+export function jetKeyMap(ac: FighterId): JetKeyMap {
   const module = AIRCRAFT[ac].module;
   const binds = PROCEDURES[ac].binds;
   const keys: Partial<Record<ActionId, JetKey>> = {};

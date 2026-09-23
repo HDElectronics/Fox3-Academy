@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { AIRCRAFT_ORDER, MISSILES } from '../../data';
-import type { AircraftId, MissileId } from '../../data/types';
+import { FIGHTER_ORDER, MISSILES } from '../../data';
+import type { FighterId, MissileId } from '../../data/types';
 import { dlzTargetType, findRange } from '../../sim/dlz';
 import {
   ASPECT_DEG, PRESET_IDS, buildPreset, cueNames, defaultMissile, defaultSetup, dlzAt, flyShot, guidanceRuleFor, launchKey, missileChoices,
@@ -11,7 +11,7 @@ import { rangeSearch } from './exact';
 import { shotRecording } from './frames';
 import { niceStep, sampleAt } from './plots';
 
-const ALL = AIRCRAFT_ORDER as AircraftId[];
+const ALL = FIGHTER_ORDER as FighterId[];
 
 describe('model', () => {
   test('passes the lab radar-support and Phoenix selection through to the shot', () => {
@@ -82,7 +82,7 @@ describe('model', () => {
 });
 
 describe('presets fly the lesson they promise', () => {
-  const checks: [AircraftId, 'metric' | 'imperial'][] = [['su27', 'metric'], ['f15c', 'imperial'], ['fa18c', 'imperial'], ['m2000c', 'imperial'], ['mig29s', 'metric'], ['f14b', 'imperial']];
+  const checks: [FighterId, 'metric' | 'imperial'][] = [['su27', 'metric'], ['f15c', 'imperial'], ['fa18c', 'imperial'], ['m2000c', 'imperial'], ['mig29s', 'metric'], ['f14b', 'imperial']];
   for (const [ac, u] of checks) {
     test(ac, () => {
       const base = defaultSetup(ac, u);
@@ -119,7 +119,7 @@ describe('lessons', () => {
   });
 
   test('a turn-cold miss explains the energy at the end in pilot words', () => {
-    const ac: AircraftId = 'f15c';
+    const ac: FighterId = 'f15c';
     const base = defaultSetup(ac, 'imperial', 'aim120c');
     const [, cold] = buildPreset('rmax-cold', base, ac, 'imperial').shots;
     const r = flyShot(cold.setup);
@@ -141,7 +141,7 @@ describe('lessons', () => {
   });
 
   test('takeaways for every preset', () => {
-    const ac: AircraftId = 'fa18c';
+    const ac: FighterId = 'fa18c';
     const base = defaultSetup(ac, 'imperial');
     for (const id of PRESET_IDS) {
       const p = buildPreset(id, base, ac, 'imperial');
@@ -240,7 +240,7 @@ describe('review fixes', () => {
   });
 
   test('a straight-flying hit only claims a cold turn would beat it when that shot really misses', () => {
-    for (const [ac, m] of [['su27', 'r27er'], ['f15c', 'aim120c'], ['su27', 'r73']] as [AircraftId, MissileId][]) {
+    for (const [ac, m] of [['su27', 'r27er'], ['f15c', 'aim120c'], ['su27', 'r73']] as [FighterId, MissileId][]) {
       const s = defaultSetup(ac, 'metric', m);
       for (const frac of [0.4, 0.8]) {
         const shot = { ...s, range: frac * dlzAt(s).rmax };

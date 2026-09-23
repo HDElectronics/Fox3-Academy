@@ -11,7 +11,7 @@
 import './style.css';
 import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT, AIRCRAFT_CAVEATS, MISSILES, MISSILE_REF_NOTE } from '../../data';
 import type { Dlz } from '../../sim/types';
 import type { ShotResult } from '../../sim/dlz';
@@ -80,7 +80,7 @@ const factory: PageFactory = (): Page => {
     mount(ctx: PageContext) {
       // ?ac=<id>: select the jet once. Drop it from the URL first, or every later remount (the top-bar jet
       // picker, units) would switch straight back to it. The router remounts the page for the new jet.
-      const acParam = ctx.params.get('ac') as AircraftId | null;
+      const acParam = ctx.params.get('ac') as FighterId | null;
       if (acParam !== null) {
         const rest = new URLSearchParams(ctx.params);
         rest.delete('ac');

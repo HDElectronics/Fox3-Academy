@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER } from './aircraft';
+import { AIRCRAFT, AIRCRAFT_CAVEATS, FIGHTER_ORDER } from './aircraft';
 import { MISSILES, FLARE_SUSCEPTIBILITY } from './missiles';
 import { PROCEDURES } from './procedures';
 
 describe('data contracts', () => {
+  it('attributes both Su-25T laser limits to the manual while retaining the game caveat', () => {
+    const laser = AIRCRAFT_CAVEATS.su25t.find(note => note.includes('laser'));
+    expect(laser).toMatch(/manual.*1 minute.*continuous.*p\. 57.*20 minutes total per flight.*p\. 32/);
+    expect(laser).toContain('separate limits');
+    expect(laser).toContain('current-game behavior is not verified');
+    expect(laser).not.toMatch(/conflict/i);
+  });
   it('keeps known keyboard defaults explicit and uncertain defaults absent', () => {
     const bind = (ac: keyof typeof PROCEDURES, action: RegExp) => PROCEDURES[ac].binds.find(b => action.test(b.action));
     expect(bind('f16c', /^FCR as sensor/)?.keyboard).toBe('RAlt + .');
@@ -12,7 +19,7 @@ describe('data contracts', () => {
     expect(bind('f14b', /^Launch/)?.keyboard).toBeNull();
     expect(bind('jf17', /^Countermeasures/)?.keyboard).toBeNull();
     expect(bind('f15c', /^Remove one TWS/)?.keyboard).toBeNull();
-    for (const ac of AIRCRAFT_ORDER) for (const b of PROCEDURES[ac].binds) {
+    for (const ac of FIGHTER_ORDER) for (const b of PROCEDURES[ac].binds) {
       expect(b.note ?? '', `${ac}: ${b.action}`).not.toMatch(/^Keyboard:/);
       expect(['radar', 'weapons', 'defence']).toContain(b.group);
       expect(b.keyboard === null || b.keyboard.length > 0).toBe(true);

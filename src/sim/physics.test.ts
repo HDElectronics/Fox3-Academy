@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { World, type GuidanceSupport } from './world';
 import type { Aircraft, Missile, SimEvent } from './types';
-import type { AircraftId, MissileId } from '../data/types';
+import type { FighterId, MissileId } from '../data/types';
 import { MISSILES } from '../data/missiles';
 import { AIRCRAFT } from '../data/aircraft';
 import { availableG, stepAircraft } from './flight';
@@ -23,7 +23,7 @@ import { D2R, dirFrom, wrapPi } from './math';
 
 const DT = 1 / 60;
 
-function spawn(w: World, type: AircraftId, side: 'blue' | 'red', x: number, y: number, z: number, heading: number, speed: number): Aircraft {
+function spawn(w: World, type: FighterId, side: 'blue' | 'red', x: number, y: number, z: number, heading: number, speed: number): Aircraft {
   return w.spawnAircraft({ side, type, controller: 'script', pos: { x, y, z }, heading, speed });
 }
 

@@ -3,7 +3,7 @@ import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import '../src/styles/components.css';
 import { AppStore } from '../src/app/store';
-import type { AircraftId } from '../src/data/types';
+import type { FighterId } from '../src/data/types';
 import factory from '../src/pages/radar-lab/index';
 
 const q = new URLSearchParams(location.search);
@@ -26,7 +26,7 @@ const val = (id: string) => (document.getElementById(id) as HTMLInputElement | n
 const checked = (id: string) => document.getElementById(id)?.getAttribute('aria-checked') === 'true';
 
 async function run(): Promise<void> {
-  const ac = (q.get('ac') ?? 'f15c') as AircraftId;
+  const ac = (q.get('ac') ?? 'f15c') as FighterId;
   const app = new AppStore();
   app.setAircraft(ac);
   const root = document.getElementById('app') as HTMLElement;

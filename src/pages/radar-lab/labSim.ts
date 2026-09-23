@@ -4,7 +4,7 @@
  */
 import { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { radarLab } from '../../sim/scenarios';
 import { explainDetection, revisitTime, scanElevationLimits } from '../../sim/radar';
@@ -20,7 +20,7 @@ export interface PaintRec { first: number | null; firstRange: number | null; las
 export interface LabWorld { world: World; me: Aircraft; targetIds: EntityId[] }
 
 /** A fresh World for the scene, own radar set to the preset (MAN centring: the scan stays where it is put). */
-export function buildLabWorld(ac: AircraftId, units: Units, scene: Scene, preset: ScanPreset, seed = 7): LabWorld {
+export function buildLabWorld(ac: FighterId, units: Units, scene: Scene, preset: ScanPreset, seed = 7): LabWorld {
   const world = new World(seed);
   const lab = radarLab(world, ac, scene.targets, { playerAlt: scene.playerAlt, playerMach: scene.playerMach, units, playerStores: {} });
   const me = world.get(PLAYER);
@@ -29,7 +29,7 @@ export function buildLabWorld(ac: AircraftId, units: Units, scene: Scene, preset
   return { world, me, targetIds: lab.targetIds };
 }
 
-export function applyPreset(world: World, ac: AircraftId, p: ScanPreset): void {
+export function applyPreset(world: World, ac: FighterId, p: ScanPreset): void {
   const r = AIRCRAFT[ac].radar;
   world.setRadarMode(PLAYER, r.modes.includes(p.mode) ? p.mode : 'rws');
   world.setScan(PLAYER, {

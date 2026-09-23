@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
 import { parseKeyList } from '../../ui/keys';
 import { alternative, isBindable, resolveBinds } from './binds';
@@ -50,7 +50,7 @@ describe('tws binds', () => {
   });
 
   it('gives every jet a bindable designate, unlock and fire key, and never binds one key twice by accident', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const b = resolveBinds(ac);
       for (const act of ['designate', 'unlock', 'fire'] as const) {
         const k = b.acts[act]?.keys;

@@ -4,7 +4,7 @@
  * settings the pilot has not selected yet (frame-time table, "what would this cover" readouts).
  */
 import { AIRCRAFT } from '../../data/aircraft';
-import type { AircraftId, AircraftSpec, RadarSpec } from '../../data/types';
+import type { FighterId, AircraftSpec, RadarSpec } from '../../data/types';
 import { D2R, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, lerp } from '../../sim/math';
 import type { Units } from '../../app/format';
 
@@ -62,7 +62,7 @@ export function elevationFor(heightDiffM: number, groundRangeM: number): number 
 }
 
 /** Detection range (km), as radar.ts detectionRange: head-on → tail by aspect, × look-down, × RCS^¼. */
-export function detectKm(r: RadarSpec, targetType: AircraftId, aspectDeg: number, lookDown: boolean): number {
+export function detectKm(r: RadarSpec, targetType: FighterId, aspectDeg: number, lookDown: boolean): number {
   const d = r.detectKm;
   const hot = d.headOn * (lookDown ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
   const cold = d.tail * (lookDown ? d.lookDownFactor : 1);
@@ -81,12 +81,12 @@ export function beamWindowDeg(gateKts: number, groundSpeedKts: number): number {
  * F-16C A2 (±25°) and 3B exist only in TWS with a bugged or cursor target (data.md gotcha). The lab has
  * no bug, so they are shown but not selectable on the Viper.
  */
-export function bugOnlyOptions(ac: AircraftId): { az: number[]; bars: number[] } {
+export function bugOnlyOptions(ac: FighterId): { az: number[]; bars: number[] } {
   return ac === 'f16c' ? { az: [25], bars: [3] } : { az: [], bars: [] };
 }
 
 /** Detection now preserves the table's separate hot/cold look-down endpoints. */
-export function lookDownCaveat(_ac: AircraftId, _short = false): string | null {
+export function lookDownCaveat(_ac: FighterId, _short = false): string | null {
   return null;
 }
 
@@ -112,7 +112,7 @@ export function twsAllows(r: RadarSpec, azHalfDeg: number, bars: number): boolea
  * (±az half-width, bars). F-14: only ±20° 4-bar and ±40° 2-bar (tomcat-thunder-mirage.md). F/A-18C: 2B up to
  * 80°, 4B up to 40°, 6B at 20° total, no 1B (hornet-viper.md). null = the data limits decide.
  */
-export function twsPatterns(ac: AircraftId): readonly (readonly [number, number])[] | null {
+export function twsPatterns(ac: FighterId): readonly (readonly [number, number])[] | null {
   return AIRCRAFT[ac].radar.twsPatterns ?? null;
 }
 
@@ -120,7 +120,7 @@ export function twsPatterns(ac: AircraftId): readonly (readonly [number, number]
  * The TWS pattern to use when the pilot picks a width or a bar count in TWS: the same width (or bars) with the
  * other value kept if DCS offers that pair, else the first listed pair. Null when the jet has no pattern list.
  */
-export function twsPatternFor(ac: AircraftId, cur: { azHalfDeg: number; bars: number }, want: { azHalfDeg?: number; bars?: number }): { azHalfDeg: number; bars: number } | null {
+export function twsPatternFor(ac: FighterId, cur: { azHalfDeg: number; bars: number }, want: { azHalfDeg?: number; bars?: number }): { azHalfDeg: number; bars: number } | null {
   const pats = twsPatterns(ac);
   if (!pats) return null;
   const az = want.azHalfDeg ?? cur.azHalfDeg, bars = want.bars ?? cur.bars;
@@ -136,7 +136,7 @@ export function twsPatternFor(ac: AircraftId, cur: { azHalfDeg: number; bars: nu
 export interface ScanCombo { azHalfDeg: number; bars: number; frame: number; revisit: number; tws: boolean; bugOnly: boolean }
 
 /** Every width × bars pair this jet offers, with its frame time and whether TWS accepts it. */
-export function scanCombos(ac: AircraftId): ScanCombo[] {
+export function scanCombos(ac: FighterId): ScanCombo[] {
   const r = AIRCRAFT[ac].radar;
   const bug = bugOnlyOptions(ac);
   const out: ScanCombo[] = [];
@@ -152,7 +152,7 @@ export function scanCombos(ac: AircraftId): ScanCombo[] {
 }
 
 /** Shortest frame time the pilot can select (RWS, no bug-only options). */
-export function minFrame(ac: AircraftId): number {
+export function minFrame(ac: FighterId): number {
   const c = scanCombos(ac).filter(x => !x.bugOnly);
   return Math.min(...c.map(x => x.frame));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { parseKeyList } from '../../ui/keys';
 import { jetKeyMap, trainerKeys, usedChords } from './keys';
 
@@ -82,7 +82,7 @@ describe('jetKeyMap', () => {
   });
 
   test('every jet: no chord bound twice, launch and designate exist', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const m = jetKeyMap(ac);
       expect(m.keys.launch, ac).toBeDefined();
       expect(m.keys.designate, ac).toBeDefined();
@@ -102,7 +102,7 @@ describe('jetKeyMap', () => {
     expect(trainerKeys(jetKeyMap('su27')).climb).toBe('Up / W');
     expect(trainerKeys(jetKeyMap('fa18c')).climb).toBe('Up');           // S is undesignate
     expect(trainerKeys(jetKeyMap('f14b')).left).toBe('Left / A');
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const used = usedChords(jetKeyMap(ac));
       const t = trainerKeys(jetKeyMap(ac));
       for (const s of [t.left, t.right, t.climb, t.descend, t.afterburner ?? '']) {

@@ -10,7 +10,7 @@
  * - defence: beam (notch) at once with chaff, below the missile; drag if there is time;
  * - timeline: do not sit hot inside the bandit's Rne; do not hold STT long before the shot.
  */
-import type { AircraftId, MissileId, RadarModeId, SeekerKind } from '../../data/types';
+import type { FighterId, MissileId, RadarModeId, SeekerKind } from '../../data/types';
 import { MISSILES } from '../../data/missiles';
 import type { AiSkill, EntityId, MissReason, SimEvent, Side } from '../../sim/types';
 import { fmtRange, fmtTime, type Units } from '../../app/format';
@@ -93,7 +93,7 @@ export interface PlayerAction {
 
 export interface CoachInput {
   playerId: EntityId;
-  playerType: AircraftId;
+  playerType: FighterId;
   friends: EntityId[];
   enemies: EntityId[];
   names: Record<EntityId, string>;

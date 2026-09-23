@@ -5,8 +5,8 @@
  * Every question is built, then verified against the contacts the RWR will actually show (priority
  * order from the display kit's rwrPriority), and rebuilt if it would be ambiguous.
  */
-import type { AircraftId, MissileId, RwrId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId, MissileId, RwrId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS, rwrSymbol } from '../../data/rwr';
 import type { RwrContact } from '../../sim/types';
@@ -92,7 +92,7 @@ export interface Question {
 
 export interface QuizOptions {
   rwr: RwrId;
-  own: AircraftId;
+  own: FighterId;
   difficulty: Difficulty;
   seed: number;
   kind?: QuestionKind;
@@ -137,7 +137,7 @@ export const TELL: Record<RwrId, { lock: string; launch: string; active: string 
 // ---------------------------------------------------------------------------------------- helpers
 
 /** Missile the own jet would be supporting (first radar missile in its loadout). */
-export function ownRadarMissile(own: AircraftId): MissileId | null {
+export function ownRadarMissile(own: FighterId): MissileId | null {
   const spec = AIRCRAFT[own];
   const all = [...spec.loadout.map(l => l.missile), ...spec.missiles];
   return all.find(m => MISSILES[m].seeker !== 'ir') ?? null;
@@ -311,7 +311,7 @@ interface Ctx {
   /** Threat id counter (T1, T2, ...), per question. */
   ids: number;
   rwr: RwrId;
-  own: AircraftId;
+  own: FighterId;
   diff: Difficulty;
   rng: Rng;
   lamps: boolean;

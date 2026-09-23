@@ -1,7 +1,8 @@
 # Render kit (`src/render`): API
 
 The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
-high-altitude `Environment`, procedural jets and missiles for all ten `AircraftId`s, `WorldView`
+high-altitude `Environment`, procedural jets and missiles for every `AircraftId` (ten fighters and the Su-25T, straight wing,
+wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
 
 ```ts
@@ -488,7 +489,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
-- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any AircraftId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
+- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
   `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts.
 
 ## Low-level pieces (for page-specific symbology)

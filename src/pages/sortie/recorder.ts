@@ -6,7 +6,7 @@
  * player's radar actions. The analysis itself is pure (coach.ts).
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import type { World } from '../../sim/world';
@@ -55,7 +55,7 @@ export class SortieRecorder {
   private playerShots = 0;
   private off: () => void;
 
-  constructor(private world: World, readonly eng: Engagement, readonly playerType: AircraftId, readonly units: Units) {
+  constructor(private world: World, readonly eng: Engagement, readonly playerType: FighterId, readonly units: Units) {
     this.lastTick = world.t;
     this.off = world.on(e => this.onEvent(e));
   }

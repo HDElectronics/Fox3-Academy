@@ -2,8 +2,8 @@
  * Hangar facts: everything the hangar says about a jet, derived from src/data (no DOM, no three.js).
  * Pure functions so every jet can be checked in tests (facts.test.ts).
  */
-import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
-import type { AircraftId, AircraftSpec, MissileId, MissileSpec, RadarModeId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
+import type { FighterId, AircraftSpec, MissileId, MissileSpec, RadarModeId } from '../../data/types';
 import { fmtRange, fmtSpeed, rangeUnit, rangeValue, type Units } from '../../app/format';
 import { MPS_PER_KT } from '../../sim/math';
 import { createRadarState } from '../../sim/radar';
@@ -11,7 +11,7 @@ import { createRadarState } from '../../sim/radar';
 const R2D = 180 / Math.PI;
 
 /** Where the detection numbers come from, when it is not the DCS AI sensor table. */
-const DETECT_SOURCE: Partial<Record<AircraftId, string>> = { f14b: 'Heatblur manual', m2000c: 'Guide figure' };
+const DETECT_SOURCE: Partial<Record<FighterId, string>> = { f14b: 'Heatblur manual', m2000c: 'Guide figure' };
 export const detectSource = (spec: AircraftSpec): string => DETECT_SOURCE[spec.id] ?? 'DCS AI table';
 
 // ------------------------------------------------------------------------------------------ capability flags
@@ -51,7 +51,7 @@ const pct = (f: number) => Math.round(f * 100) + ' %';
 // ------------------------------------------------------------------------------------------ jet tiles
 
 export interface TileFacts {
-  id: AircraftId;
+  id: FighterId;
   short: string;
   module: string;
   fox3: boolean;
@@ -60,14 +60,14 @@ export interface TileFacts {
   title: string;
 }
 
-export function tileFacts(id: AircraftId): TileFacts {
+export function tileFacts(id: FighterId): TileFacts {
   const spec = AIRCRAFT[id];
   const fox3 = hasFox3(spec), multi = isMultiTarget(spec);
   const title = `${spec.name} · ${moduleLabel(spec)} · ${fox3 ? 'Fox 3' : 'no Fox 3'} · ${multi ? 'several targets at once' : 'one target at a time'}`;
   return { id, short: spec.short, module: moduleShort(spec), fox3, multi, title };
 }
 
-export const allTiles = (): TileFacts[] => AIRCRAFT_ORDER.map(tileFacts);
+export const allTiles = (): TileFacts[] => FIGHTER_ORDER.map(tileFacts);
 
 // ------------------------------------------------------------------------------------------ radar summary
 
@@ -201,7 +201,7 @@ export const scaleFrac = (m: number, s: Scale, units: Units) => Math.max(0, Math
 
 /** Detection axis shared by every jet (so switching jets shows the real difference). */
 export const detectionScale = (units: Units): Scale =>
-  niceScale(Math.max(...AIRCRAFT_ORDER.map(id => AIRCRAFT[id].radar.detectKm.headOn)) * 1000, units);
+  niceScale(Math.max(...FIGHTER_ORDER.map(id => AIRCRAFT[id].radar.detectKm.headOn)) * 1000, units);
 
 /** Number for a range readout: whole units from 10 up, one decimal below. */
 export function rangeNum(m: number, units: Units): string {
@@ -291,25 +291,25 @@ export const LESSON_PATH: LessonRoute[] = ['radar', 'tws', 'missiles', 'defense'
 
 /** Progress keys the lesson pages may write: '<route>:<aircraft>:done' (and the page-folder name as a fallback). */
 const ALT_KEY: Partial<Record<LessonRoute, string>> = { radar: 'radar-lab', missiles: 'missile-lab', rwr: 'rwr-trainer' };
-export function progressKeys(route: LessonRoute, id: AircraftId): string[] {
+export function progressKeys(route: LessonRoute, id: FighterId): string[] {
   const keys = [`${route}:${id}:done`];
   const alt = ALT_KEY[route];
   if (alt) keys.push(`${alt}:${id}:done`);
   return keys;
 }
 export type ProgressReader = (key: string) => number | boolean | string | undefined;
-export function isDone(route: LessonRoute, id: AircraftId, get: ProgressReader): boolean {
+export function isDone(route: LessonRoute, id: FighterId, get: ProgressReader): boolean {
   return progressKeys(route, id).some(k => {
     const v = get(k);
     return v !== undefined && v !== false && v !== 0 && v !== '' && v !== 'false';
   });
 }
 /** Other jets that have this lesson done. */
-export const doneElsewhere = (route: LessonRoute, id: AircraftId, get: ProgressReader): AircraftId[] =>
-  AIRCRAFT_ORDER.filter(o => o !== id && isDone(route, o, get));
+export const doneElsewhere = (route: LessonRoute, id: FighterId, get: ProgressReader): FighterId[] =>
+  FIGHTER_ORDER.filter(o => o !== id && isDone(route, o, get));
 
 /** First lesson in the path not done for this jet; null when all are done. */
-export function nextLesson(id: AircraftId, get: ProgressReader): LessonRoute | null {
+export function nextLesson(id: FighterId, get: ProgressReader): LessonRoute | null {
   return LESSON_PATH.find(r => !isDone(r, id, get)) ?? null;
 }
 
@@ -323,7 +323,7 @@ export const LESSON_TITLE: Record<LessonRoute, string> = {
   reference: 'Keys and procedures',
 };
 
-const TWS_VOCAB: Partial<Record<AircraftId, string>> = {
+const TWS_VOCAB: Partial<Record<FighterId, string>> = {
   f15c: 'Learn the PDT and SDT order.',
   fa18c: 'Learn L&S, DT2 and Undesignate.',
   f16c: 'Learn the TMS shoot list: bug, fire, step.',
@@ -403,7 +403,7 @@ export function headlineBind(spec: AircraftSpec): { action: string; keys: string
  * option on the shared AIM-7M rule) are dropped.
  */
 export function guidanceRuleFor(m: MissileSpec, spec: AircraftSpec): string {
-  const others = AIRCRAFT_ORDER.filter(id => id !== spec.id).map(id => AIRCRAFT[id].short);
+  const others = FIGHTER_ORDER.filter(id => id !== spec.id).map(id => AIRCRAFT[id].short);
   const parts = m.guidanceRule.split(/;\s+/);
   let out = parts.filter((p, i) => i === 0 || !others.some(o => p.includes(o))).join('; ').trim();
   if (!/[.]$/.test(out)) out += '.';

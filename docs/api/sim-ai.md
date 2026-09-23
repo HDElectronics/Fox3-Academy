@@ -58,7 +58,7 @@ interface Engagement {
   wingmanId: EntityId | null;   // 'wingman' in twoVTwo
   friendIds: EntityId[];        // blue AI (the wingman), not the player
   enemyIds: EntityId[];         // ['bandit1'] or ['bandit1', 'bandit2']
-  enemyType: AircraftId; skill: AiSkill; range: number;
+  enemyType: FighterId; skill: AiSkill; range: number;
   samIds: EntityId[];           // SAM sites from opts.sams: ['sam1', …], [] without
 }
 ```
@@ -176,10 +176,10 @@ defend, carry no missiles.
 ### Helpers
 
 ```ts
-defaultAdversary(player: AircraftId): AircraftId   // f15c→su27, fa18c→mig29s, f16c→j11a, f14b→su27, jf17→mig29s,
+defaultAdversary(player: FighterId): FighterId   // f15c→su27, fa18c→mig29s, f16c→j11a, f14b→su27, jf17→mig29s,
                                                    // m2000c→mig29s, su27→f15c, su33→fa18c, j11a→f16c, mig29s→f16c
 defaultThreatMissile(player): MissileId            // Western jets: 'r27er'; Russian/Chinese jets: 'aim120c'
-carriersOf(missile, player?): AircraftId[]         // jets that carry it, opponents of `player` first
+carriersOf(missile, player?): FighterId[]         // jets that carry it, opponents of `player` first
 cruiseFor(type): { alt, mach, speed }              // ~0.6 × ceiling clamped to 7.5–10.5 km, cruise Mach + 0.05
 blocOf(type): 'east' | 'west'
 setManeuver(world, id, maneuver, extra?, announce = true)   // change a scripted aircraft's manoeuvre

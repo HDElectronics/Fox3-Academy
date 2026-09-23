@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { Aircraft, SimEvent } from './types';
-import type { AircraftId, MissileId } from '../data/types';
+import type { FighterId, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import {
   cycleDesignation, designate, detectionRange, explainDetection, frameTimeFor, guidanceSupport, lastPainted, lockTarget, radarRules,
@@ -31,7 +31,7 @@ function run(w: World, seconds: number, move = true): void {
   }
 }
 
-function jet(w: World, type: AircraftId, side: 'blue' | 'red', pos: { x: number; y: number; z: number }, heading: number, stores?: Partial<Record<MissileId, number>>): Aircraft {
+function jet(w: World, type: FighterId, side: 'blue' | 'red', pos: { x: number; y: number; z: number }, heading: number, stores?: Partial<Record<MissileId, number>>): Aircraft {
   return w.spawnAircraft({ side, type, controller: 'script', pos, heading, speed: 250, stores });
 }
 
@@ -44,7 +44,7 @@ function off(from: Aircraft, range: number, azDeg: number, alt: number): { x: nu
 }
 
 /** Spawn a bandit pointing straight at `from` (hot). */
-function bandit(w: World, from: Aircraft, range: number, azDeg: number, alt: number, type: AircraftId = 'su27'): Aircraft {
+function bandit(w: World, from: Aircraft, range: number, azDeg: number, alt: number, type: FighterId = 'su27'): Aircraft {
   const p = off(from, range, azDeg, alt);
   const b = jet(w, type, from.side === 'blue' ? 'red' : 'blue', p, 0);
   b.heading = bearingTo(b.pos, from.pos);
@@ -58,7 +58,7 @@ function collect(w: World): SimEvent[] {
   return ev;
 }
 
-const evenBars = (type: AircraftId) => AIRCRAFT[type].radar.barOptions.find(b => b % 2 === 0) ?? AIRCRAFT[type].radar.barOptions[0];
+const evenBars = (type: FighterId) => AIRCRAFT[type].radar.barOptions.find(b => b % 2 === 0) ?? AIRCRAFT[type].radar.barOptions[0];
 
 /** Build firm TWS tracks on everything in front of `me`. */
 function buildTracks(w: World, me: Aircraft, move = false): void {
@@ -214,7 +214,7 @@ describe('TWS track files', () => {
 });
 
 describe('designation', () => {
-  function twoBandits(type: AircraftId) {
+  function twoBandits(type: FighterId) {
     const w = new World();
     const me = jet(w, type, 'blue', { x: 0, y: 9000, z: 0 }, 0);
     me.selectedWeapon = null; // no FC3 auto-lock while we test designation
@@ -259,7 +259,7 @@ describe('designation', () => {
   });
 
   it('unlock from STT: F-15C keeps the target designated in TWS, Su-27 clears its track', () => {
-    for (const type of ['f15c', 'su27'] as AircraftId[]) {
+    for (const type of ['f15c', 'su27'] as FighterId[]) {
       const { w, me, a } = twoBandits(type);
       designate(w, me, a.id);
       expect(lockTarget(w, me, a.id)).toBe(true);
@@ -448,7 +448,7 @@ describe('RWR', () => {
 });
 
 describe('launch rules', () => {
-  function setup(type: AircraftId, stores: Partial<Record<MissileId, number>>, range = 20000) {
+  function setup(type: FighterId, stores: Partial<Record<MissileId, number>>, range = 20000) {
     const w = new World();
     const me = jet(w, type, 'blue', { x: 0, y: 9000, z: 0 }, 0, stores);
     me.selectedWeapon = null;

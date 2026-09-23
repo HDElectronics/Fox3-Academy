@@ -4,7 +4,7 @@
  * cards (range vs Rmax / Rne at launch, radar mode, aspect, outcome, F-pole, warning), and the
  * coaching list from coach.ts. Saves 'sortie:<ac>:best' and 'sortie:<ac>:done' on a win.
  */
-import type { AircraftId, RadarModeId } from '../../data/types';
+import type { FighterId, RadarModeId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import type { PageContext } from '../../app/page';
@@ -36,7 +36,7 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   const bag = cleanup();
   const { ctx, outcome } = o;
   const { world, eng, recorder: rec, result, setup } = outcome;
-  const ac: AircraftId = ctx.app.aircraft;
+  const ac: FighterId = ctx.app.aircraft;
   const spec = ctx.app.spec, units = ctx.app.units;
   const inp: CoachInput = rec.input();
   const items = coachSortie(inp);
