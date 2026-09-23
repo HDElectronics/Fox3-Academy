@@ -30,6 +30,31 @@ bandit.rwr;                                       // what the bandit's RWR shows
 explainDetection(world, me, bandit).reasons;      // ["In the notch: 12 kt radial speed, gate 54 kt"]
 ```
 
+## Close-range acquisition and the IR seeker (`acm.ts`)
+
+Gameplay-level ACM for the Merge page (issue #11); no change to `Aircraft` or `RadarState`: the page owns an
+`AcmState` from `newAcmState(type)` (null without data in `src/data/acm.ts`).
+
+- `setAcmMode(world, me, st, id | null)`: select a mode; drops any lock. Radar modes put the radar in search; FC3
+  IRST and Fi0 modes switch it off (silent).
+- `stepAcm(world, me, st, dt)` after `World.step`: validates the lock (dead, beyond 1.5 × lock range, 60° off the
+  nose, radar STT lost), locks the closest hostile held in the area for the mode's dwell (`auto` modes), and steps
+  the seeker. Radar locks go through `World.lock` (STT, so the target's RWR sees it); IRST locks are internal.
+  ACM passes `frame: 'aircraft'` to the optional third argument of `World.lock` / `World.canLock`: acquisition
+  and subsequent STT gimbal checks use the shared flight-path/lift-vector frame, including pitch and roll.
+  The default remains `'horizon'` for existing BVR consumers; each successful lock records its own frame.
+- `AcmState.helmetLookId` is the look/designation target, separate from `candidateId` and `lockedId`. Merge
+  supplies the drill bandit; standalone mode entry defaults to the nearest hostile if there is no live look
+  target. HELMET acquisition still requires its area/range, but the look direction survives failed/lost locks.
+- `acmPressLock` (Enter; FC3 BORE / HELMET), `acmUnlock`, `toggleUncage` (cage / uncage).
+- Seeker: `caged` on the boresight, `slaved` to the lock inside the missile gimbal, `track` once it tracks. Tone
+  `none` / `growl` (heat inside the field of view and IR acquisition range, `launch.irAcquisitionRange`) / `lock`
+  (tracking: auto after 0.3 s on FC3 and Magic II, on uncage for AIM-9 and PL-5).
+- `irShotCheck` = `World.canLaunch` for the IR missile plus the jet's off-boresight limit; `inZone` also needs the
+  tone. `fireIr` launches through `World.launch`. Angles are in the HUD frame (flight path, lift vector): `acmAngles`.
+  GACQ is guns-only: it suppresses the IR seeker and rejects IR launch checks, including direct runner calls.
+- Deterministic, no randomness. Tests: `src/sim/acm.test.ts`.
+
 ## Recorded sensor state
 
 `World.recording` samples each aircraft's `radarContacts` every 0.25 s alongside its existing radar mode,
@@ -105,8 +130,8 @@ detection range to 0 at 100 % (`world.rand()`). Painting (for RWRs) happens on e
 | `designate(world, ac, targetId)` | RWS/VS: lock (STT). TWS: see the per-jet table. STT/ACM/off: no-op. **Designating an already designated track goes STT on F-15C, FC3 Russian and JF-17** (Enter twice); Hornet/F-16/F-14 promote it to primary first. |
 | `undesignate(world, ac, targetId)` | Remove one designation (F-15C "Unlock TWS Target"). |
 | `cycleDesignation(world, ac)` | Next primary: rotates the list (Hornet swaps L&S/DT2), or with one designation steps to the next firm hostile track by range (Hornet Undesignate, F-16 TMS Right, JF-17 S2 Left). |
-| `canLock(world, ac, targetId)` | `{ ok, reason }`: radar on, has STT, target alive, inside gimbal, range ≤ `LOCK_RANGE_FACTOR (0.85) × detectionRange`, not notched. |
-| `lockTarget(world, ac, targetId)` | STT if `canLock`. Emits `lock` `locked` (and `unlocked` for a previous STT target). |
+| `canLock(world, ac, targetId, frame?)` | `{ ok, reason }`: radar on, has STT, target alive, inside gimbal, range ≤ `LOCK_RANGE_FACTOR (0.85) × detectionRange`, not notched. `LockFrame` defaults to `'horizon'`; `'aircraft'` is the close-combat opt-in. |
+| `lockTarget(world, ac, targetId, frame?)` | STT if `canLock`. Records the gimbal frame for maintenance. Emits `lock` `locked` (and `unlocked` for a previous STT target). |
 | `unlock(world, ac)` | STT → previous search mode (ACM lock → last BVR mode). TWS → drops all designations (F-15C Return To Search/NDTWS); FC3 Russian also drops those tracks. ACM → last BVR mode. |
 | `setScan(world, ac, change)` | `ScanChange { azHalf?, bars?, azCenter?, elCenter?, rangeScale?, expectedRange?, cursor?, autoCenter? }`. azHalf/bars/rangeScale snap to the jet's options; TWS limits apply (changing only bars shrinks azimuth to fit the frame limit, otherwise bars shrink). FC3 Russian azCenter snaps to −30° / 0 / +30° (three scan positions). Centres clamp so the pattern stays inside the gimbal. |
 | `setCursor(world, ac, { az, range })` | Moves only the display cursor (clamped to ±gimbal and the longest range scale). No TWS limits, no scan recompute: call it on every pointer move. `setScan({ cursor })` does the same plus the rest. |

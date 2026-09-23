@@ -8,10 +8,12 @@ import type { Circle } from '../../sim/bfmAi';
 import type { BanditMode } from './bandit';
 import type { Pursuit } from './bfm';
 
-export type LessonId = 'corner' | 'pursuit' | 'merge' | 'circles' | 'yoyo' | 'tracking' | 'defence' | 'fight';
-export const LESSON_ORDER: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'fight'];
+export type LessonId = 'corner' | 'pursuit' | 'merge' | 'circles' | 'yoyo' | 'tracking' | 'defence' | 'ir' | 'fight';
+export const LESSON_ORDER: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'ir', 'fight'];
 /** Lessons that count toward the page's done flag (the free fight does not). */
-export const SCORED_LESSONS: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence'];
+export const SCORED_LESSONS: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'ir'];
+/** Lessons where the IR missile can be selected. */
+export const IR_LESSONS: LessonId[] = ['ir', 'fight'];
 
 export interface LessonDef {
   id: LessonId;
@@ -24,7 +26,7 @@ export interface LessonDef {
   /** Run length (s). */
   durationS: number;
   /** Start geometry. */
-  start: 'solo' | 'behind' | 'close-behind' | 'defend' | 'merge' | 'overshoot';
+  start: 'solo' | 'behind' | 'close-behind' | 'defend' | 'merge' | 'overshoot' | 'ir';
 }
 
 export const LESSONS: Record<LessonId, LessonDef> = {
@@ -35,6 +37,7 @@ export const LESSONS: Record<LessonId, LessonDef> = {
   yoyo: { id: 'yoyo', n: 5, title: 'High yo-yo', bandit: 'hard', banditModes: ['hard'], durationS: 25, start: 'overshoot' },
   tracking: { id: 'tracking', n: 6, title: 'Guns tracking', bandit: 'turn', banditModes: ['straight', 'turn', 'reverse'], durationS: 45, start: 'close-behind' },
   defence: { id: 'defence', n: 7, title: 'Guns defence', bandit: 'guns', banditModes: ['guns'], durationS: 30, start: 'defend' },
+  ir: { id: 'ir', n: 8, title: 'Close-range lock and IR shot', bandit: 'turn', banditModes: ['straight', 'turn', 'reverse'], durationS: 60, start: 'ir' },
   fight: { id: 'fight', n: null, title: 'Free fight', bandit: 'regular', banditModes: ['rookie', 'regular', 'veteran'], durationS: 120, start: 'merge' },
 };
 
@@ -101,6 +104,18 @@ export interface MergeMetrics {
   recoveredS: number;
   /** Fighting AI moves seen (free fight). */
   aiMoves: Record<string, number>;
+  /** IR shot: close-combat mode used, seconds to the first lock (or seeker track), shots, shots in the zone. */
+  acmMode: string | null;
+  lockS: number | null;
+  irShots: number;
+  irInZone: number;
+  /** First shot: off-boresight (deg) and range (m) at launch. */
+  irOffDeg: number | null;
+  irRangeM: number | null;
+  /** Missile results: hits, decoyed by flares, other misses. */
+  irHits: number;
+  irFlared: number;
+  irMissed: number;
 }
 
 export function emptyMetrics(): MergeMetrics {
@@ -111,6 +126,7 @@ export function emptyMetrics(): MergeMetrics {
     passT: null, passRange: Infinity, leadTurnDeg: 0, vertical: null, circleFlown: null, circleAdvised: null,
     secondPassT: null, anglesDeg: 0, myAtaDeg: 180, aotDeg: 180, rangeM: Infinity, overshoots: 0, heldS: 0, climbM: 0,
     outOfPlane: false, recoveredS: 0, aiMoves: {},
+    acmMode: null, lockS: null, irShots: 0, irInZone: 0, irOffDeg: null, irRangeM: null, irHits: 0, irFlared: 0, irMissed: 0,
   };
 }
 
@@ -156,6 +172,13 @@ export function scoreLesson(id: LessonId, m: MergeMetrics): number {
     }
     case 'defence':
       return Math.round(70 * (1 - pct(m.damageTaken)) + 30 * (1 - pct(m.hisSolutionS / 6)));
+    case 'ir': {
+      const lock = m.lockS === null ? 0 : 30 * pct((25 - m.lockS) / 20);
+      const zone = m.irShots > 0 ? 40 * m.irInZone / m.irShots : 0;
+      const result = m.irHits > 0 ? 30 : m.irFlared > 0 ? 10 : 0;
+      const score = Math.round(lock + zone + result);
+      return m.lockS !== null && m.irShots > 0 && m.irInZone > 0 ? score : Math.min(49, score);
+    }
     case 'fight':
       if (m.killed === 'bandit') return 100;
       return Math.round(60 * pct(m.damageDealt) + 40 * (1 - pct(m.damageTaken)));
@@ -183,6 +206,10 @@ export interface DebriefContext {
   bandit?: string;
   /** Fighting AI skill label (free fight). */
   skill?: string;
+  /** IR lesson: the jet's IR missile name, its uncage and fire keys, and whether it is an FC3 jet (ПР). */
+  irMissile?: string;
+  uncageKey?: string | null;
+  fc3?: boolean;
 }
 
 const s1 = (x: number) => `${x.toFixed(1)} s`;
@@ -268,8 +295,25 @@ export function debrief(id: LessonId, m: MergeMetrics, c: DebriefContext): Debri
       if (m.hisSolutionS > 3) coaching.push('Get out of his plane: roll your lift vector off his plane and pull, or unload and change planes.');
       coaching.push('A predictable turn is a gun solution for him. Change planes when you see his nose come to lead.');
       break;
+    case 'ir': {
+      const dist = c.dist ?? ((x: number) => `${Math.round(x)} m`);
+      const msl = c.irMissile ?? 'IR missile';
+      const result = m.irHits > 0 ? 'Hit' : m.irFlared > 0 ? 'Decoyed by flares' : m.irMissed > 0 ? 'Missed' : m.irShots > 0 ? 'In flight' : 'No shot';
+      stats.push(['Mode', m.acmMode ?? '-'], ['Time to lock', m.lockS === null ? 'No lock' : s1(m.lockS)],
+        ['Shots', String(m.irShots)], ['Shots in the zone', String(m.irInZone)],
+        ['Off the nose at launch', m.irOffDeg === null ? '-' : deg(m.irOffDeg)], ['Range at launch', m.irRangeM === null ? '-' : dist(m.irRangeM)],
+        ['Result', result]);
+      if (m.lockS === null) coaching.push('Pick the mode for the geometry: boresight for a bandit on the nose, the vertical scan for one above the nose in a turn. Roll him into the area and hold him there.');
+      else if (m.lockS > 5) coaching.push('Faster lock: put him in the mode area first, then select it. The vertical scan wants him in the strip: roll your lift vector onto him.');
+      if (m.irShots === 0) coaching.push(c.fc3 ? 'Fire when ПР shows.' : `Get the growl, uncage${c.uncageKey ? ` (${c.uncageKey})` : ''}, wait for the high tone, then fire.`);
+      else if (m.irInZone < m.irShots) coaching.push(c.fc3 ? `Wait for ПР: the ${msl} seeker has not locked, or he is out of range or too far off the nose.` : `Fire on the high tone, inside range and the off-boresight limit. Without the tone the ${msl} guides on whatever heat it sees.`);
+      if (m.irFlared > 0) coaching.push('His flares decoyed it. Shoot closer, from nearer his tail, or when he is slow to flare; follow up with a second shot.');
+      coaching.push(c.fc3 ? 'IRST and Fi0 shots give him no RWR warning. His only cue is the missile: shoot from his blind side.' : 'The IR missile gives no RWR launch warning, but your radar lock shows on his RWR.');
+      break;
+    }
     case 'fight': {
       shots();
+      if (m.irShots > 0) stats.push(['IR shots', `${m.irShots} (${m.irInZone} in the zone, ${m.irHits} hit${m.irHits === 1 ? '' : 's'})`]);
       stats.push(['Hits taken', String(m.hitsTaken)], ['Result', m.killed === 'bandit' ? 'Bandit destroyed' : m.killed === 'me' ? 'You were shot down' : 'Time up']);
       if (c.skill) stats.push(['Bandit', c.skill]);
       const mv = m.aiMoves;
