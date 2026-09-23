@@ -15,8 +15,8 @@
  */
 import type { AircraftId } from '../../data/types';
 
-/** Jets with flight-ops data in the MVP. */
-export type FlightOpsJetId = Extract<AircraftId, 'fa18c' | 'f16c' | 'f15c'>;
+/** Jets with flight-ops data: all ten since issue #22 (the MVP covered fa18c, f16c, f15c). */
+export type FlightOpsJetId = AircraftId;
 
 export const RUNWAY = { lengthM: 2500, widthM: 45 } as const;
 
@@ -58,6 +58,47 @@ export interface FlightOpsJetData {
   aimPointFt: Sourced<number>;
   /** Short HUD cue the lesson teaches, e.g. "E-bracket on the flight path marker". */
   hudCue: string;
+  /** Return-to-base navigation as the cockpit presents it (FC3 jets in #22). Absent = no nav lesson yet. */
+  nav?: FlightOpsNavData;
+}
+
+/**
+ * Nav modes the player cycles. FC3 Russian jets: route (МРШ) → return (ВЗВ) → landing (ПОС) on one key.
+ * F-15C: NAV (route/return) → ILSN (landing). Labels are the cockpit's own text.
+ */
+export type NavModeId = 'route' | 'return' | 'landing';
+
+export interface FlightOpsNavData {
+  modes: readonly { id: NavModeId; label: string }[];
+  /** Key that cycles the nav modes, and the key that cycles waypoints / airfields. */
+  keys: { modeCycle: Sourced<string>; pointCycle?: Sourced<string> };
+  /**
+   * Return mode steers to the glide-slope intercept point on the extended centreline, then the jet
+   * switches to landing mode (automatically where the manual says so).
+   */
+  interceptPointM: Sourced<number>;
+  interceptAltM: Sourced<number>;
+  autoLandingSwitch: Sourced<boolean>;
+  /** HUD / HSI cue names the lesson teaches, e.g. ["GSUP", "GSDN"]. */
+  cues: readonly string[];
+}
+
+/** Live nav picture (what the cockpit shows), computed each step when the jet has nav data. */
+export interface NavState {
+  mode: NavModeId;
+  label: string;
+  /** Current steer point in the runway frame (metres) and its name ("IAF", "Glide-slope intercept"). */
+  target: { x: number; z: number; name: string };
+  distM: number;
+  /** Bearing to the target and the commanded steering heading, radians clockwise from north. */
+  bearing: number;
+  steerHeading: number;
+  commandAltM: number | null;
+  /** Landing mode only: glide-slope and localizer deviation in degrees (+ = high / right). */
+  glideDevDeg: number | null;
+  locDevDeg: number | null;
+  /** Latest tower / nav call in pilot vocabulary ("On glide path"), or null. */
+  call: string | null;
 }
 
 /** Player (or demo autopilot) input each step. Arcade stick and throttle. */
@@ -72,7 +113,7 @@ export interface FlightOpsInput {
 }
 
 /** Discrete cockpit actions (the keys the lesson teaches). */
-export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle';
+export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle';
 
 export type FlightOpsPhase = 'air' | 'rollout' | 'stopped' | 'crashed';
 
@@ -107,6 +148,8 @@ export interface FlightOpsState {
   touchdown?: { t: number; z: number; x: number; vsMs: number; aoa: number; gearDown: boolean };
   /** Human-readable reason when phase = 'crashed' ("Gear up at touchdown"). */
   crashReason?: string;
+  /** Nav picture when the jet has nav data and a nav start was chosen. */
+  nav?: NavState;
 }
 
 /** Pattern gates in flight order. */

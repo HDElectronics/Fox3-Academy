@@ -17,6 +17,7 @@ import {
   RUNWAY, type FlightOpsAction, type FlightOpsInput, type FlightOpsJetData, type FlightOpsJetId,
   type FlightOpsState,
 } from './types';
+import { cycleNavMode, cycleNavPoint, initNav, navRoute, updateNav } from './nav';
 
 export const FLIGHT_OPS_DT = 1 / 60;
 /** Sink rate beyond which a touchdown is a crash, m/s (about 890 ft/min). */
@@ -48,7 +49,13 @@ const NWS_RATE = 5 * D2R;
 /** Cockpit-unit to body-degree factor for rendering pitch (F-15C AoA units). */
 const UNITS_TO_DEG = 0.4;
 
-export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway';
+export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb';
+
+/** 'rtb' start: off-axis south-west of the field, runway frame metres, and speed in knots (gameplay values). */
+export const RTB_START = { x: -12000, z: 38000, altM: 3500, kt: 300 } as const;
+
+/** Whether the jet has the 'rtb' (return-to-base nav) start. */
+export const hasNavStart = (d: FlightOpsJetData) => d.nav !== undefined;
 export type AoaCue = 'slow' | 'on' | 'fast';
 
 export const approachSpeedMs = (d: FlightOpsJetData) => d.approachKt.value * MPS_PER_KT;
@@ -143,6 +150,17 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
       s.speed = va;
       break;
     }
+    case 'rtb': {
+      const nav = d.nav;
+      if (!nav) throw new Error(`No nav data for ${id}: the 'rtb' start needs FlightOpsJetData.nav`);
+      s.pos = { x: RTB_START.x, y: RTB_START.altM, z: RTB_START.z };
+      s.speed = RTB_START.kt * MPS_PER_KT;
+      // Return mode where the cockpit has it (ВЗВ), else route mode on the IAF (F-15C NAV).
+      if (nav.modes.some(m => m.id === 'return')) initNav(s, d, 'return');
+      else initNav(s, d, 'route', navRoute(nav).length - 1);
+      s.heading = s.nav!.steerHeading;
+      break;
+    }
     case 'runway':
       s.gearDown = true; s.gearPos = 1;
       s.flapIndex = d.takeoffFlap; s.flapPos = d.takeoffFlap / Math.max(1, d.flapLabels.length - 1);
@@ -151,6 +169,7 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
       return s;
   }
   trim(s, d);
+  updateNav(s, d);
   return s;
 }
 
@@ -169,7 +188,7 @@ function bodyAoaRad(s: FlightOpsState, d: FlightOpsJetData) {
   return (d.aoa.unit === 'deg' ? s.aoa : s.aoa * UNITS_TO_DEG) * D2R;
 }
 
-/** Apply a cockpit action (gear, flaps, speed brake). Ignored once crashed; gear stays down on the ground. */
+/** Apply a cockpit action (gear, flaps, speed brake, nav mode and point). Ignored once crashed; gear stays down on the ground. */
 export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: FlightOpsJetData = FLIGHT_OPS[s.aircraft]): void {
   if (s.phase === 'crashed') return;
   const d = data;
@@ -187,6 +206,12 @@ export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: Fl
       return;
     case 'speedbrakeToggle':
       s.speedbrakeOut = !s.speedbrakeOut;
+      return;
+    case 'navModeCycle':
+      cycleNavMode(s, d);
+      return;
+    case 'navPointCycle':
+      cycleNavPoint(s, d);
   }
 }
 
@@ -208,7 +233,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   s.speedbrakePos = approach(s.speedbrakePos, s.speedbrakeOut ? 1 : 0, 1 / SPEEDBRAKE_TIME, dt);
   const thrust = IDLE_ACC + s.throttle * (MIL_ACC - IDLE_ACC) + (s.afterburner ? AB_ACC : 0);
 
-  if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); return; }
+  if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); updateNav(s, d); return; }
 
   // Stick: AoA rate and roll rate.
   const on = d.aoa.onSpeed.value;
@@ -230,6 +255,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   s.pos.y += s.vs * dt;
 
   if (s.pos.y <= 0) touchdown(s);
+  updateNav(s, d);
 }
 
 function touchdown(s: FlightOpsState) {

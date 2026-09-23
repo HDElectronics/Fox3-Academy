@@ -243,6 +243,16 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 - F-15C: approach 180 kt (the quick start flies about 150 kt at the outer beacon); the whole overhead pattern
   (350 kt / 800 ft initial, 3.5 g break, 600 ft downwind, 1.2 nm abeam, 250 kt gear limit) and the 500 ft aim
   point are Hornet stand-ins.
+- F-14B: on speed 15 units and the 800 ft, 300–350 KIAS break are sourced (carrier break); the ±1 unit band,
+  135 kt approach, 250 kt gear limit, 3° glide, aim point and the rest of the field pattern are not.
+- JF-17: about 10° (E-bracket) sourced; band 9–11°, 150 kt, 250 kt gear limit, pattern and flap labels are not.
+- M-2000C: about 14° and gear below 230 kt sourced; band 13–15°, 145 kt, pattern and flap labels are not.
+- Su-27, J-11A, Su-33, MiG-29S: on speed 10° (band 9–11°), approach 146 / 146 / 130 / 140 kt, 250 kt gear
+  limit, 3° glide, aim point, pattern and the UP / TAKEOFF / LANDING flap labels are all gameplay values.
+  The Su-33 manual's history quotes 240 km/h (Su-33) and 270 km/h (Su-27) approaches: background only.
+  Su-33 indexer colours (yellow fast, green on, red slow) come from the ISM-1 description.
+- Nav (FC3 jets): mode key `1` is sourced (ru-fc3.md, f15c-fc3.md). Not verified: `LCtrl+~` point cycle, the
+  automatic ВЗВ → ПОС switch, the 12 km / 600 m intercept point, the lesson waypoints and the tower call wording.
 - Touchdown zone (350 ft short to 1000 ft past the aim point) is a trainer choice, not a DCS number.
 
 ## Requests (to the architect)
