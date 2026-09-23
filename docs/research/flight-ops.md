@@ -16,6 +16,8 @@ Values the data file marks `verified: false` are listed in `docs/api/data.md` ("
 4. Heatblur, *F-14 Tomcat Manual*, Landing Procedures (github.com/Heatblur-Simulations/f-14-manual).
 5. Chuck's Guides: *DCS F-16C Viper*, *DCS JF-17 Thunder*, *DCS Mirage 2000C*.
 6. ED, *DCS Supercarrier Operations Guide* (carrier pattern, LSO thresholds; for later carrier work).
+7. ED, *F-15C FC3 Flight Manual*, "Quick Start" and "Takeoff"; ED *F/A-18C Early Access Guide*, "Takeoff";
+   Chuck's Guides F-16C, JF-17, M-2000C, "Takeoff"; Heatblur F-14 manual, "Takeoff" (work-in-progress stub).
 
 ## Pattern and approach by jet
 
@@ -50,3 +52,19 @@ section); the Viper target (11°) versus its band (11–14°).
 Gear `G`, flaps `F` and airbrake `B` are used for every jet in the trainer. `src/data/procedures.ts` does not
 carry these binds and no manual in this pass confirmed them per module: not verified. The stick and
 throttle keys on the page are trainer keys, not DCS defaults.
+
+## Takeoff (#24)
+
+| Jet | What the source gives | Source |
+|---|---|---|
+| F-15C | Quick start: hold `W` (wheel brakes), throttle up, release, rotate at 150 kt. Detailed section: pull the stick half back at 100 kt, hold 10° after nosewheel lift-off (conflict with the quick start) | 7 |
+| F/A-18C | Flaps HALF, T/O trim, rotate to 6–8° nose-high; gear up, then flaps AUTO. No rotation speed | 7 |
+| F-16C | Vr by weight 128 kt (20000 lb) to 198 kt (44000 lb); start the pull 10 kt early in MIL, 15 kt in afterburner; 8–12° pitch; gear up before 300 kt | 7 |
+| JF-17 | Takeoff trim set automatically above 41 kt; start pulling at 120 kt, lift off about 140 kt; gear up at 30 ft and below 300 kt | 7 |
+| M-2000C | Full afterburner; nose-wheel steering for the start of the roll; keep pitch below 13° (tail strike); gear up before 260 kt. No flap control (elevons, automatic slats) | 7 |
+| F-14B | Heatblur takeoff page is a stub: nothing sourced | 7 |
+| Su-27, J-11A, Su-33, MiG-29S | No rotation speed or attitude in the FC3 manual reading; the brake key `W` is not confirmed in ru-fc3.md | 3 |
+
+The trainer's rotation speeds, pitch bands and tail-strike attitudes where no source gives them are gameplay
+values (`verified: false`). The ground roll, rotation rate and liftoff rule are arcade rules tied to Vr and the
+pitch band (AGENTS.md rule 1), not takeoff performance data.

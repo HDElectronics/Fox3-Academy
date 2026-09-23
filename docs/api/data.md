@@ -254,6 +254,16 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 - Nav (FC3 jets): mode key `1` is sourced (ru-fc3.md, f15c-fc3.md). Not verified: `LCtrl+~` point cycle, the
   automatic ВЗВ → ПОС switch, the 12 km / 600 m intercept point, the lesson waypoints and the tower call wording.
 - Touchdown zone (350 ft short to 1000 ft past the aim point) is a trainer choice, not a DCS number.
+- Takeoff (`takeoff` on every jet). Sourced: F-16C Vr table (128 kt at 20000 lb to 198 kt at 44000 lb; the
+  148 kt Vr is that table at the trainer's 27000 lb), 10 kt early pull in MIL (15 in afterburner), 8–12°,
+  gear up before 300 kt; Hornet 6–8° and HALF flaps; JF-17 about 140 kt, pull at 120 kt, gear up at 30 ft and
+  below 300 kt; M-2000C full afterburner, 13° tail strike, gear up before 260 kt; F-15C `W` wheel brakes.
+  Not verified: Vr for the Hornet (145), F-15C (150; the detailed section pulls at 100 kt and holds 10°),
+  F-14B (145), M-2000C (150), Su-27 / J-11A (140), Su-33 and MiG-29S (135); pitch bands for the F-15C, F-14B,
+  JF-17, M-2000C (10–12.5°) and Russian jets; every other tail-strike attitude (12–15°); gear-up limits for
+  the Hornet, F-15C, F-14B (250) and Russian jets (270); MIL or afterburner choice except F-16C and M-2000C;
+  brake key `W` for every jet but the F-15C; `PgUp` throttle key for the FC3 jets. The whole F-14B takeoff
+  (Heatblur's takeoff page is a work in progress).
 
 ## Requests (to the architect)
 

@@ -5,7 +5,7 @@
  * Anything not taken from a source is `verified: false` and listed in FLIGHT_OPS_CAVEATS and in
  * docs/api/data.md ("Uncertain values", "Flight ops").
  */
-import type { FlightOpsJetData, FlightOpsJetId, FlightOpsNavData, Sourced } from '../sim/flightOps/types';
+import type { FlightOpsJetData, FlightOpsJetId, FlightOpsNavData, FlightOpsTakeoffData, Sourced } from '../sim/flightOps/types';
 
 const HORNET = 'ED F/A-18C Early Access Guide, Airfield VFR Landing';
 const VIPER = "Chuck's Guides, DCS F-16C Viper, Landing";
@@ -19,8 +19,30 @@ const MIG29 = 'ED MiG-29 Flaming Cliffs 3 manual';
 const RU_KEYS = 'docs/research/ru-fc3.md, key table (Nav mode = 1)';
 const EAGLE_KEYS = 'docs/research/f15c-fc3.md, key table (Navigation mode = 1)';
 
+const HORNET_TO = 'ED F/A-18C Early Access Guide, Takeoff';
+const VIPER_TO = "Chuck's Guides, DCS F-16C Viper, Takeoff";
+const EAGLE_TO = 'ED F-15C Flaming Cliffs 3 manual, Quick Start and Takeoff';
+const TOMCAT_TO = 'Heatblur DCS F-14 manual, Takeoff (work-in-progress page)';
+const THUNDER_TO = "Chuck's Guides, DCS JF-17 Thunder, Takeoff";
+const MIRAGE_TO = "Chuck's Guides, DCS M-2000C, Takeoff";
+/** Trainer standard takeoff weight for the F-16C Vr lookup, lb (a trainer choice). */
+export const F16_TAKEOFF_WEIGHT_LB = 27000;
+const F16_VR: readonly (readonly [number, number])[] = [[20000, 128], [44000, 198]];
+
 const ok = <T>(value: T, source: string, note?: string): Sourced<T> => ({ value, source, verified: true, note });
 const nv = <T>(value: T, source: string, note?: string): Sourced<T> => ({ value, source, verified: false, note });
+
+/** Linear lookup in a [lb, kt] Vr schedule (clamped at the ends), rounded to the knot. */
+export function vrAtWeight(table: readonly (readonly [number, number])[], lb: number): number {
+  let i = 1;
+  while (i < table.length - 1 && lb > table[i]![0]) i++;
+  const p = table[i - 1]!, q = table[i]!;
+  const f = Math.min(1, Math.max(0, (lb - p[0]) / (q[0] - p[0])));
+  return Math.round(p[1] + f * (q[1] - p[1]));
+}
+
+const WHEEL_BRAKE_KEY = 'DCS common default wheel-brake key; not in the source for this module.';
+const NO_TAILSTRIKE = 'Not published; gameplay value above the rotation band.';
 
 const NO_PATTERN = 'Pattern not published for this jet; Hornet value used.';
 /** Hornet-like overhead pattern stand-in for jets whose manuals publish none. */
@@ -64,10 +86,27 @@ const EAGLE_NAV: FlightOpsNavData = {
 };
 
 const ruKeys = { gear: 'G', flaps: 'F', speedbrake: 'B' };
+
+/** FC3 Russian jets: the manuals give no rotation speed or attitude; gameplay values, all not verified. */
+function ruTakeoff(source: string, vrKt: number, kmh: number, extra = ''): FlightOpsTakeoffData {
+  return {
+    vrKt: nv(vrKt, source, `Not published; gameplay value (about ${kmh} km/h).${extra}`),
+    pitchDeg: nv([8, 12], source, 'Not published; gameplay band around 10°.'),
+    tailStrikeDeg: nv(15, source, NO_TAILSTRIKE),
+    gearUpMaxKt: nv(270, source, 'Not published; gameplay value (about 500 km/h).'),
+    afterburner: nv(true, source, 'Full afterburner assumed; not published in the FC3 manual reading.'),
+    flapIndex: 1,
+    keys: {
+      brakes: nv('W', source, 'FC3 wheel-brake key as the F-15C quick start gives it; not confirmed in docs/research/ru-fc3.md.'),
+      throttleMax: nv('PgUp', source, 'FC3 default throttle key; not in docs/research.'),
+    },
+    cue: `Flaps TAKEOFF, hold W, full afterburner, release. Rotate at about ${kmh} km/h to 8–12°, gear up with a positive climb`,
+  };
+}
 const RU_FLAPS = ['UP', 'TAKEOFF', 'LANDING'] as const;
 
 function ruJet(id: 'su27' | 'j11a' | 'su33' | 'mig29s', source: string, approachKt: Sourced<number>,
-  colors: FlightOpsJetData['aoa']['colors'], aoaNote: string): FlightOpsJetData {
+  colors: FlightOpsJetData['aoa']['colors'], aoaNote: string, takeoff: FlightOpsTakeoffData): FlightOpsJetData {
   return {
     id,
     flapLabels: RU_FLAPS,
@@ -86,6 +125,7 @@ function ruJet(id: 'su27' | 'j11a' | 'su33' | 'mig29s', source: string, approach
     aimPointFt: nv(500, source, 'Not given; Hornet value used.'),
     hudCue: 'ПОС: fly the director to the glide path, AoA about 10°',
     nav: ruNav(source),
+    takeoff,
   };
 }
 
@@ -114,6 +154,16 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(3, HORNET),
     aimPointFt: ok(500, HORNET, 'Past the threshold.'),
     hudCue: 'E-bracket on the flight path marker',
+    takeoff: {
+      vrKt: nv(145, HORNET_TO, 'The guide gives no rotation speed; gameplay value.'),
+      pitchDeg: ok([6, 8], HORNET_TO, 'Rotate to 6–8° nose-high.'),
+      tailStrikeDeg: nv(12, HORNET_TO, NO_TAILSTRIKE),
+      gearUpMaxKt: nv(250, HORNET_TO, 'Not given in the takeoff section; the landing gear limit is used.'),
+      afterburner: nv(false, HORNET_TO, 'MIL used; the guide reading does not fix MIL or MAX.'),
+      flapIndex: 1,
+      keys: { brakes: nv('W', HORNET_TO, WHEEL_BRAKE_KEY) },
+      cue: 'Flaps HALF, T/O trim. Rotate to 6–8° nose-high, gear up, then flaps AUTO',
+    },
   },
   f16c: {
     id: 'f16c',
@@ -140,6 +190,18 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(2.5, VIPER, 'Final on the 2.5° line.'),
     aimPointFt: nv(500, VIPER, 'Not given; Hornet value used.'),
     hudCue: 'Flight path marker on the 2.5° line, AoA bracket',
+    takeoff: {
+      vrKt: ok(vrAtWeight(F16_VR, F16_TAKEOFF_WEIGHT_LB), VIPER_TO, `Interpolated from the guide's Vr table at ${F16_TAKEOFF_WEIGHT_LB} lb (the trainer's standard weight).`),
+      vrByWeightLb: ok(F16_VR, VIPER_TO, 'Rotation speed from 128 kt at 20000 lb to 198 kt at 44000 lb.'),
+      pullEarlyKt: ok(10, VIPER_TO, 'Start the pull 10 kt before Vr in MIL, 15 kt in afterburner. The lesson flies MIL.'),
+      pitchDeg: ok([8, 12], VIPER_TO),
+      tailStrikeDeg: nv(15, VIPER_TO, NO_TAILSTRIKE),
+      gearUpMaxKt: ok(300, VIPER_TO, 'Gear up before 300 kt.'),
+      afterburner: ok(false, VIPER_TO, 'The guide gives MIL and afterburner takeoffs; the lesson uses MIL.'),
+      flapIndex: 1,
+      keys: { brakes: nv('W', VIPER_TO, WHEEL_BRAKE_KEY) },
+      cue: 'MIL, release brakes. Pull 10 kt before Vr to 8–12°, gear up before 300 kt; the flaps follow',
+    },
   },
   f15c: {
     id: 'f15c',
@@ -166,6 +228,19 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     aimPointFt: nv(500, EAGLE, 'Not given; Hornet value used.'),
     hudCue: 'ILSN: GSUP / GSDN glide-slope cues',
     nav: EAGLE_NAV,
+    takeoff: {
+      vrKt: nv(150, EAGLE_TO, 'Quick start rotates at 150 kt; the detailed takeoff section instead pulls the stick half back at 100 kt and holds 10° after nosewheel lift-off.'),
+      pitchDeg: nv([8, 12], EAGLE_TO, 'Band around the 10° hold of the detailed takeoff section.'),
+      tailStrikeDeg: nv(15, EAGLE_TO, NO_TAILSTRIKE),
+      gearUpMaxKt: nv(250, EAGLE_TO, 'Not given; the landing gear limit is used.'),
+      afterburner: nv(false, EAGLE_TO, 'MIL used; not fixed in this reading.'),
+      flapIndex: 1,
+      keys: {
+        brakes: ok('W', EAGLE_TO, 'Hold W (wheel brakes) while the engines spool up.'),
+        throttleMax: nv('PgUp', EAGLE_TO, 'FC3 default throttle key; not confirmed in this reading.'),
+      },
+      cue: 'Flaps DOWN, hold W, throttle up, release. Rotate at 150 kt, hold 10°, gear and flaps up',
+    },
   },
   f14b: {
     id: 'f14b',
@@ -191,6 +266,16 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, TOMCAT, 'Not given; 3° used.'),
     aimPointFt: nv(500, TOMCAT, 'Not given; Hornet value used.'),
     hudCue: 'On speed at 15 units AoA',
+    takeoff: {
+      vrKt: nv(145, TOMCAT_TO, 'Heatblur takeoff page is a work in progress; gameplay value.'),
+      pitchDeg: nv([8, 12], TOMCAT_TO, 'Not published; gameplay band.'),
+      tailStrikeDeg: nv(14, TOMCAT_TO, NO_TAILSTRIKE),
+      gearUpMaxKt: nv(250, TOMCAT_TO, 'Not published; the landing gear limit is used.'),
+      afterburner: nv(false, TOMCAT_TO, 'Not published; MIL used.'),
+      flapIndex: 1,
+      keys: { brakes: nv('W', TOMCAT_TO, WHEEL_BRAKE_KEY) },
+      cue: 'Flaps DN, MIL, release brakes. Rotate to 8–12°, gear and flaps up with a positive climb',
+    },
   },
   jf17: {
     id: 'jf17',
@@ -209,9 +294,21 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, THUNDER, 'Not given; 3° used.'),
     aimPointFt: nv(500, THUNDER, 'Not given; Hornet value used.'),
     hudCue: 'Flight path marker in the E-bracket',
+    takeoff: {
+      vrKt: ok(140, THUNDER_TO, 'About 140 kt. Takeoff trim is set automatically above 41 kt.'),
+      pullEarlyKt: ok(20, THUNDER_TO, 'Start pulling at 120 kt.'),
+      pitchDeg: nv([8, 12], THUNDER_TO, 'Pitch attitude not given; gameplay band.'),
+      tailStrikeDeg: nv(14, THUNDER_TO, NO_TAILSTRIKE),
+      gearUpMaxKt: ok(300, THUNDER_TO, 'Gear up at 30 ft and below 300 kt.'),
+      afterburner: nv(false, THUNDER_TO, 'MIL used; not fixed in this reading.'),
+      flapIndex: 1,
+      keys: { brakes: nv('W', THUNDER_TO, WHEEL_BRAKE_KEY) },
+      cue: 'Release brakes, auto T/O trim above 41 kt. Pull at 120 kt, lift off about 140 kt, gear up at 30 ft',
+    },
   },
   m2000c: {
     id: 'm2000c',
+    noFlapControl: true,
     flapLabels: ['UP', 'DOWN'],
     landingFlap: 1,
     takeoffFlap: 1,
@@ -227,15 +324,29 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, MIRAGE, 'Not given; 3° used.'),
     aimPointFt: nv(500, MIRAGE, 'Not given; Hornet value used.'),
     hudCue: 'Trim to about 14° AoA, velocity vector on the aim point',
+    takeoff: {
+      vrKt: nv(150, MIRAGE_TO, 'Rotation speed not given; gameplay value.'),
+      pitchDeg: nv([10, 12.5], MIRAGE_TO, 'Band not given; kept below the 13° tail-strike attitude.'),
+      tailStrikeDeg: ok(13, MIRAGE_TO, 'Keep pitch below 13° to avoid a tail strike.'),
+      gearUpMaxKt: ok(260, MIRAGE_TO, 'Gear up before 260 kt.'),
+      afterburner: ok(true, MIRAGE_TO, 'Full afterburner.'),
+      flapIndex: null,
+      keys: { brakes: nv('W', MIRAGE_TO, WHEEL_BRAKE_KEY) },
+      cue: 'Nose-wheel steering for the start of the roll, full afterburner. Rotate below 13°, gear up before 260 kt',
+    },
   },
   su27: ruJet('su27', SU27, nv(146, SU27, 'Su-33 manual history quotes 270 km/h for the Su-27 approach; background only.'),
-    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.'),
+    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
+    ruTakeoff(SU27, 140, 260)),
   j11a: ruJet('j11a', SU27, nv(146, SU27, 'Su-27 value used; background only.'),
-    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.'),
+    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
+    ruTakeoff(SU27, 140, 260, ' Su-27 value used.')),
   su33: ruJet('su33', SU33, nv(130, SU33, 'Manual history quotes 240 km/h for the Su-33 approach; background only.'),
-    { slow: 'red', on: 'green', fast: 'yellow' }, 'ISM-1 indexer: yellow fast, green optimal, red slow; the manual gives no on-speed number, gameplay value.'),
+    { slow: 'red', on: 'green', fast: 'yellow' }, 'ISM-1 indexer: yellow fast, green optimal, red slow; the manual gives no on-speed number, gameplay value.',
+    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the carrier ski-jump is not in the trainer.')),
   mig29s: ruJet('mig29s', MIG29, nv(140, MIG29, 'Not given; gameplay value.'),
-    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.'),
+    { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
+    ruTakeoff(MIG29, 135, 250)),
 };
 
 export const FLIGHT_OPS_CAVEATS: string[] = [
@@ -249,5 +360,8 @@ export const FLIGHT_OPS_CAVEATS: string[] = [
   'Su-27, J-11A, Su-33, MiG-29S: the manuals give no approach AoA or pattern; 10° on speed, the pattern and the gear limit are gameplay values. Flap labels UP / TAKEOFF / LANDING are English stand-ins.',
   'Su-33: indexer colours (yellow fast, green on, red slow) are from the ISM-1 description; the on-speed number is not.',
   'Nav: the mode key 1 is sourced; LCtrl+~ for waypoints, the automatic ВЗВ → ПОС switch, the 12 km / 600 m intercept point and the tower call wording are not verified. Route waypoints are lesson points, not DCS mission data.',
+  'Takeoff: the F-16C Vr table, 10 kt early pull, 8–12° and 300 kt gear limit, the Hornet 6–8° and HALF flaps, the JF-17 120 kt pull, about 140 kt and 300 kt gear limit, the M-2000C full afterburner, 13° tail strike and 260 kt gear limit, and the F-15C W brake key are sourced. Other rotation speeds, pitch bands, tail-strike attitudes, gear limits and brake keys are gameplay values. F-15C: the quick start rotates at 150 kt; the detailed section pulls at 100 kt and holds 10°.',
+  'M-2000C: no pilot flap control (elevons, automatic slats); the trainer has no flap keys or flap grading for it.',
+  'Takeoff ground roll, rotation and liftoff are arcade rules tied to Vr and the pitch band, not a takeoff performance model.',
   'Touchdown zone is a trainer choice: 350 ft short to 1000 ft past the aim point, never short of the threshold.',
 ];
