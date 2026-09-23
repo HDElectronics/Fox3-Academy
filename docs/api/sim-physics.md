@@ -15,6 +15,8 @@ When a page shows these numbers, say they are the game's launch-zone values, sim
 ```ts
 stepAircraft(world, ac, dt)   // World calls it every tick for every live jet
 availableG(ac): number        // load factor the jet can pull right now (lift-limited below corner speed)
+liftVector(ac, out?): Vector3 // unit lift direction ("canopy up") now: BFM lift vector, else from path + roll
+sustainedGAt(ac, mach, altM)  // sustained g at full afterburner from data TURN_PERF (not verified)
 MIN_ALT_AGL                   // 150: jets never go below world.groundAlt + 150 m
 ```
 
@@ -27,6 +29,22 @@ Every jet (player, AI, script) flies through `ac.cmd`:
 | `altitude` | Altitude hold. Climb angle ≤ 18° (military) / 25° (afterburner), less when slow; dives up to 45° (dive to the notch). Clamped to `groundAlt + 150 m` .. `perf.ceilingFt`. |
 | `speed` | Autothrottle (idle + speed brake down to −1.5 m/s²). |
 | `afterburner` | Allows max thrust. Without it the jet tops out around Mach 0.95–1.05 at altitude. |
+| `bfm` | Optional BFM mode (below). Set = heading / altitude / speed / afterburner are ignored. `null` or absent = autopilot. |
+| `trigger` | Optional. Gun trigger held (the gun model lands separately; `ac.gun` holds rounds). |
+
+**BFM mode** (`cmd.bfm = { bank, g, throttle, speedbrake? }`, contract added for issue #11): a 3D point-mass
+manoeuvre, still arcade.
+- `bank` (rad): lift-vector roll angle around the flight path from straight up, + right; π = lift vector on the
+  ground. Rolls at 150°/s. Within ~1.8° of the vertical the bank is undefined and the jet holds its roll. Over the
+  top of a loop the angle reads π, so a loop is `bank: |ac.roll| > π/2 ? π : 0` with `g: 'max'`.
+- `g`: number or `'max'`; capped by `cmd.maxG`, `perf.maxG` and the lift limit below corner speed, never below 0.
+- `throttle`: `'idle' | 'mil' | 'ab'`; `speedbrake` adds 60 % parasitic drag.
+- No climb or dive clamp (loops, yo-yos, split-S). Floor `groundAlt + 150 m` and the ceiling still apply.
+- Energy: induced drag is set each tick so that full afterburner gives zero specific excess power exactly at the
+  jet's sustained g (`data/wvr.ts` `TURN_PERF`, trainer estimate). Above it the jet bleeds, below it accelerates.
+- `ac.roll` = the flown lift-vector bank; `pitch` and `heading` follow the velocity. Clearing `bfm` hands the jet
+  back to the autopilot, which eases the path angle back into its climb/dive limits.
+- The autopilot's energy model is unchanged (BFM-only drag setting), so AI, DLZ and tuning results are not affected.
 
 Energy feel: hard turns bleed speed (a max-g 180° at 5 km loses about 100 m/s at military power), climbs
 trade speed for height, thin air lets the jet go faster. Each jet's drag is set so that with afterburner it
@@ -292,6 +310,7 @@ the old tables. Both are approximations.
   - inputs outside the grid are clamped (above 15 km altitude, Mach 0.5–1.5, offsets beyond ±6 km);
   - a few low-and-slow IR cells, and some low R-27R/AIM-7 climbing shots, are empty (genuine no-shot geometry in the model), where Rmax falls back to Rmin.
 - **Flight model:**
+  - BFM sustained-turn tables are trainer estimates (not verified); the autopilot does not use them;
   - every jet has the same thrust-to-weight (≈1), climb-angle limits and roll rate; jets differ only by `perf` (maxMach, maxG, corner speed, ceiling);
   - no fuel, no stall or departure (speed floor 60 m/s), no AoA (pitch = flight-path angle);
   - acceleration to top speed is on the quick side (M0.9 → M1.5 at 11 km in 40–70 s).

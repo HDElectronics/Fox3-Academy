@@ -24,6 +24,41 @@ export interface FlightCommand {
   speed: number;        // m/s TAS, desired speed (autothrottle)
   maxG: number;         // load-factor limit used for turns and pull-ups
   afterburner: boolean; // allow max thrust (burns faster, accelerates harder)
+  /**
+   * Close-combat manoeuvring (BFM). When set, flight.ts ignores heading/altitude/speed and flies this instead:
+   * rolls the lift vector to `bank` and pulls `g` in 3D with no climb or dive limit (loops, yo-yos).
+   * Absent or null = the tactical autopilot above. Arcade model, see docs/api/sim-physics.md.
+   */
+  bfm?: BfmCommand | null;
+  /** Gun trigger held (guns.ts). Fires while rounds remain; see Aircraft.gun. */
+  trigger?: boolean;
+}
+
+/** Throttle for BFM mode: idle, military power, or full afterburner. */
+export type BfmThrottle = 'idle' | 'mil' | 'ab';
+
+export interface BfmCommand {
+  /**
+   * Lift-vector roll angle (rad) measured from straight up around the flight path, + right: 0 = lift up,
+   * ±π/2 = knife edge, π = lift vector on the ground (inverted). Near the vertical the jet holds its roll.
+   * Over the top of a loop the angle reads π: fly a loop by commanding the current `ac.roll` side.
+   */
+  bank: number;
+  /** Load factor to pull; 'max' = everything available (lift-limited below corner, capped by cmd.maxG and perf.maxG). */
+  g: number | 'max';
+  throttle: BfmThrottle;
+  speedbrake?: boolean;
+}
+
+/** Gun state of one jet (guns.ts). Arcade model: no ballistics, see docs/api/sim-physics.md. */
+export interface GunState {
+  rounds: number;
+  /** Rounds fired this tick > 0: the gun is firing right now. */
+  firing: boolean;
+  /** Seconds the trigger has been held in the current burst (burst limiter, tracers). */
+  burst: number;
+  /** Rounds this gun has put into targets, for coaching. */
+  hits: number;
 }
 
 export interface RadarBrick {
@@ -126,6 +161,9 @@ export interface Aircraft {
   selectedWeapon: MissileId | null;
   chaff: number;
   flares: number;
+  gun: GunState;
+  /** Gun damage taken, 0..1; the jet dies at 1 (missiles kill outright). */
+  damage: number;
   ai: AiMemory | null;
 }
 
@@ -296,6 +334,10 @@ export type SimEvent =
   | { t: number; type: 'cm'; ownerId: EntityId; what: 'chaff' | 'flare' }
   | { t: number; type: 'ai'; ownerId: EntityId; state: AiMemory['state']; text: string; targetId?: EntityId; missileId?: EntityId; missile?: MissileId; range?: number }
   | { t: number; type: 'sam'; siteId: EntityId; what: 'track' | 'launch' | 'lost'; targetId: EntityId; missileId?: EntityId; why?: SamLostReason; range?: number }
+  | { t: number; type: 'gun'; shooterId: EntityId; what: 'burst' | 'cease' | 'empty' }
+  /** One tracer every GUN_TRACER_S while firing: muzzle position and velocity (m, m/s) for the renderer. */
+  | { t: number; type: 'tracer'; shooterId: EntityId; pos: [number, number, number]; vel: [number, number, number] }
+  | { t: number; type: 'gun-hit'; shooterId: EntityId; targetId: EntityId; hits: number; damage: number }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
@@ -333,6 +375,8 @@ export interface RecordFrame {
     radarMode: RadarModeId; sttTarget: EntityId | null;
     radar: { azCenter: number; azHalf: number; elCenter: number; bars: number; beamAz: number; beamEl: number };
     designated: EntityId[];
+    /** Gun firing at this sample (absent in older recordings). */
+    firing?: boolean;
     /** Optional for older recordings and synthetic Missile Lab replays. */
     radarContacts?: RecordedRadarContacts;
   }[];

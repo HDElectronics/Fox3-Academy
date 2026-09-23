@@ -29,6 +29,7 @@ import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
+import { gunSpecFor } from '../data/wvr';
 
 export const SIM_HZ = 60;
 const RECORD_EVERY = 0.25;
@@ -102,6 +103,7 @@ export class World {
       stores: o.stores ?? stores,
       selectedWeapon: null,
       chaff: spec.cms.chaff, flares: spec.cms.flares,
+      gun: { rounds: gunSpecFor(o.type)?.rounds.value ?? 0, firing: false, burst: 0, hits: 0 }, damage: 0,
       ai: o.controller === 'ai' ? { skill: o.skill ?? 'regular', state: 'patrol', stateSince: this.t, data: {} } : null,
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
@@ -257,6 +259,7 @@ export class World {
         alive: a.alive, radarMode: r.mode, sttTarget: r.stt.targetId,
         radar: { azCenter: r.azCenter, azHalf: r.azHalf, elCenter: r.elCenter, bars: r.bars, beamAz: r.beamAz, beamEl: r.beamEl },
         designated: r.designated.slice(),
+        firing: a.gun.firing,
         radarContacts: {
           bricks: r.bricks.map(b => ({ targetId: b.targetId, t: b.t, pos: [b.pos.x, b.pos.y, b.pos.z] })),
           tracks: r.tracks.map(tr => ({

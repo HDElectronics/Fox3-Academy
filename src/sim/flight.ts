@@ -9,12 +9,17 @@
  * - Speed: autothrottle toward cmd.speed. Afterburner accelerates hard; military power tops out around
  *   Mach 1; hard turns and climbs bleed speed; thin air lets the jet go faster, so perf.maxMach is only
  *   reachable high with afterburner. Each jet's drag is set so that it tops out at perf.maxMach at 11 km.
+ * - BFM mode (cmd.bfm set): rolls the lift vector to cmd.bfm.bank and pulls cmd.bfm.g in 3D, no climb or dive
+ *   clamp, so loops and yo-yos fly. Same lift limit below corner, same g caps; induced drag is set per tick so
+ *   that full afterburner holds speed exactly at the jet's sustained g (data/wvr.ts TURN_PERF, not verified).
  * Updates pos, vel, heading, pitch (= flight-path angle), roll (visual bank) and g. No allocations per tick.
  */
 import type { World } from './world';
 import type { Aircraft } from './types';
 import type { AircraftId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
+import { sustainedG, turnPerfFor, type TurnPerf } from '../data/wvr';
+import { Vector3 } from 'three';
 import { D2R, G0, M_PER_FT, MPS_PER_KT, clamp, wrap2Pi, wrapPi } from './math';
 import { sigma, soundSpeed } from './atmosphere';
 
@@ -48,6 +53,8 @@ interface FlightConst {
   Ci: number;
   /** Dynamic-pressure limit (Pa) above which drag climbs steeply (low-altitude speed limit). */
   qMax: number;
+  /** Sustained-turn table for BFM mode (derived from maxG when the jet has none). */
+  turn: TurnPerf;
 }
 
 const consts = new Map<AircraftId, FlightConst>();
@@ -83,10 +90,15 @@ function constsFor(type: AircraftId): FlightConst {
   const qRef = 0.5 * RHO0 * sRef * vMax * vMax;
   const K = Math.max(1e-6, (thrustAB(sRef, perf.maxMach) - Ci / qRef) / (cd(perf.maxMach) * qRef));
   const vEasMax = 340 * Math.min(1.15, 0.55 * perf.maxMach + 0.1);
+  const turn = turnPerfFor(type) ?? {
+    altFt: [5000, 20000], mach: [0.3, 0.9, 1.4],
+    sustainedG: [[0.35 * maxG * 0.85, maxG * 0.85, 0.65 * maxG * 0.85], [0.35 * maxG * 0.58, maxG * 0.58, 0.65 * maxG * 0.58]],
+    verified: false, note: 'Derived from perf.maxG.',
+  } satisfies TurnPerf;
   c = {
     maxG, cornerEas, maxMach: perf.maxMach,
     ceiling: Math.max(8000, perf.ceilingFt * M_PER_FT),
-    K, Ci, qMax: 0.5 * RHO0 * vEasMax * vEasMax,
+    K, Ci, qMax: 0.5 * RHO0 * vEasMax * vEasMax, turn,
   };
   consts.set(type, c);
   return c;
@@ -105,6 +117,8 @@ export function stepAircraft(world: World, ac: Aircraft, dt: number): void {
   if (!ac.alive || dt <= 0) return;
   const c = constsFor(ac.type);
   const cmd = ac.cmd;
+  if (cmd.bfm) { stepBfm(world, ac, c, dt); return; }
+  bfmLift.delete(ac);
   let v = Math.max(MIN_SPEED, ac.vel.length());
   let gamma = Math.asin(clamp(ac.vel.y / Math.max(v, 1e-6), -1, 1));
   const alt = Math.max(0, ac.pos.y);
@@ -155,7 +169,8 @@ export function stepAircraft(world: World, ac: Aircraft, dt: number): void {
   v = clamp(v + (thrust - drag - grav) * dt, MIN_SPEED, c.maxMach * a);
 
   // ---- integrate ----------------------------------------------------------------------------------------
-  gamma = clamp(gamma + gammaDot * dt, -MAX_DIVE - 0.1, MAX_CLIMB_AB + 0.1);
+  // (the wider bound only matters right after BFM mode left the jet steeper than the autopilot flies)
+  gamma = clamp(gamma + gammaDot * dt, Math.min(-MAX_DIVE - 0.1, gamma), Math.max(MAX_CLIMB_AB + 0.1, gamma));
   ac.heading = wrap2Pi(ac.heading + omega * dt);
   const cg = Math.cos(gamma);
   ac.vel.set(Math.sin(ac.heading) * cg * v, Math.sin(gamma) * v, -Math.cos(ac.heading) * cg * v);
@@ -166,5 +181,103 @@ export function stepAircraft(world: World, ac: Aircraft, dt: number): void {
   }
   if (ac.pos.y > c.ceiling + 200 && ac.vel.y > 0) { ac.vel.y = 0; gamma = 0; ac.vel.setLength(v); }
   ac.pitch = gamma;
+  ac.g = n;
+}
+
+// ---- BFM mode ------------------------------------------------------------------------------------------------
+
+const IDLE_THRUST = 0.3;          // m/s², idle thrust as an acceleration
+const SPEEDBRAKE_DRAG = 0.6;      // extra fraction of parasitic drag with the speed brake out
+const VERTICAL = 0.9995;          // |u.y| above this: the horizon bank is undefined, the jet holds its roll
+/** Lift direction (unit, perpendicular to the velocity) of each jet flying BFM. */
+const bfmLift = new WeakMap<Aircraft, Vector3>();
+const _u = new Vector3(), _l0 = new Vector3(), _r0 = new Vector3(), _a = new Vector3(), _tmp = new Vector3();
+
+/** Horizon frame around unit velocity u: l0 = "lift up" at zero bank, r0 = right wing. False near the vertical. */
+function horizonFrame(u: Vector3, l0: Vector3, r0: Vector3): boolean {
+  const h = 1 - u.y * u.y;
+  if (h < 1 - VERTICAL * VERTICAL) return false;
+  const k = 1 / Math.sqrt(h);
+  l0.set(-u.y * u.x * k, h * k, -u.y * u.z * k);
+  r0.crossVectors(u, l0);
+  return true;
+}
+
+/**
+ * The jet's lift direction (unit vector, "top of the canopy") right now, for HUD and gun-sight geometry.
+ * BFM mode: the flown lift vector. Autopilot: from the flight path and the visual bank.
+ */
+export function liftVector(ac: Aircraft, out = new Vector3()): Vector3 {
+  const l = bfmLift.get(ac);
+  if (l && ac.cmd.bfm) return out.copy(l);
+  const u = _tmp.copy(ac.vel).normalize();
+  if (!horizonFrame(u, _l0, _r0)) return out.set(0, 0, -1).projectOnPlane(u).normalize();
+  return out.copy(_l0).multiplyScalar(Math.cos(ac.roll)).addScaledVector(_r0, Math.sin(ac.roll));
+}
+
+/** Sustained g at full afterburner for this jet at a Mach and altitude (m), from the data turn table. */
+export function sustainedGAt(ac: Aircraft, mach: number, altM: number): number {
+  return sustainedG(constsFor(ac.type).turn, mach, altM / M_PER_FT);
+}
+
+function stepBfm(world: World, ac: Aircraft, c: FlightConst, dt: number): void {
+  const b = ac.cmd.bfm!;
+  let v = Math.max(MIN_SPEED, ac.vel.length());
+  const u = _u.copy(ac.vel).divideScalar(v);
+  const alt = Math.max(0, ac.pos.y);
+  const s = sigma(alt);
+  const a = soundSpeed(alt);
+  const M = v / a;
+  const q = Math.max(200, 0.5 * RHO0 * s * v * v);
+  const vEas = v * Math.sqrt(s);
+  const gLim = Math.max(1.05, Math.min(Number.isFinite(ac.cmd.maxG) ? ac.cmd.maxG : c.maxG, c.maxG));
+  const gAvail = clamp(gLim * (vEas / c.cornerEas) ** 2, 1.05, gLim);
+
+  // lift direction: continue from the last BFM tick, or start from the visual bank
+  let lift = bfmLift.get(ac);
+  if (!lift) { lift = liftVector(ac, new Vector3()); bfmLift.set(ac, lift); }
+  lift.projectOnPlane(u);
+  if (lift.lengthSq() < 1e-8) lift.set(0, 1, 0).projectOnPlane(u);
+  lift.normalize();
+
+  // roll toward the commanded bank (not near the vertical, where the bank is undefined)
+  if (horizonFrame(u, _l0, _r0)) {
+    const cur = Math.atan2(lift.dot(_r0), lift.dot(_l0));
+    const d = clamp(wrapPi(b.bank - cur), -ROLL_RATE * dt, ROLL_RATE * dt);
+    lift.applyAxisAngle(u, d);    // about u, l0 turns toward r0 = u × l0: + bank = right
+    ac.roll = wrapPi(cur + d);
+  }
+
+  const n = b.g === 'max' ? gAvail : clamp(Number.isFinite(b.g) ? b.g : 1, 0, gAvail);
+
+  // speed: induced drag set so that full afterburner holds speed at the sustained g
+  const tAb = thrustAB(s, M);
+  const d0 = c.K * cd(M) * q + (q > c.qMax ? 40 * (q / c.qMax - 1) : 0);
+  const ns = Math.max(1.05, sustainedG(c.turn, M, alt / M_PER_FT));
+  const ci = Math.max(c.Ci * 0.2, (tAb - d0) * q / (ns * ns));
+  const drag = d0 * (b.speedbrake ? 1 + SPEEDBRAKE_DRAG : 1) + ci * n * n / q;
+  const thrust = b.throttle === 'ab' ? tAb : b.throttle === 'mil' ? thrustMil(s, M) : IDLE_THRUST;
+  const vNew = clamp(v + (thrust - drag - G0 * u.y) * dt, MIN_SPEED, c.maxMach * a);
+
+  // turn: lift plus the part of gravity across the flight path
+  _a.copy(lift).multiplyScalar(n * G0);
+  _a.y -= G0 * (1 - u.y * u.y);
+  _a.x += G0 * u.y * u.x;
+  _a.z += G0 * u.y * u.z;
+  u.addScaledVector(_a, dt / v).normalize();
+  lift.projectOnPlane(u).normalize();
+  v = vNew;
+
+  ac.vel.copy(u).multiplyScalar(v);
+  ac.pos.addScaledVector(ac.vel, dt);
+  const floor = world.groundAlt + FLOOR_AGL;
+  if (ac.pos.y < floor) {
+    ac.pos.y = floor;
+    if (ac.vel.y < 0) { ac.vel.y = 0; ac.vel.setLength(v); }
+  }
+  if (ac.pos.y > c.ceiling + 200 && ac.vel.y > 0) { ac.vel.y = 0; ac.vel.setLength(v); }
+  const hs = Math.hypot(ac.vel.x, ac.vel.z);
+  if (hs > 1e-3) ac.heading = wrap2Pi(Math.atan2(ac.vel.x, -ac.vel.z));
+  ac.pitch = Math.asin(clamp(ac.vel.y / v, -1, 1));
   ac.g = n;
 }
