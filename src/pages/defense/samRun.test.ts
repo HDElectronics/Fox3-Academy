@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import {
   SAM_DRILLS, SamRunner, emptySamMetrics, isSamDrill, samBrief, samCoach, samDebrief, samSetupFor, type SamCoachInput, type SamMetrics,
 } from './samRun';
@@ -22,7 +22,7 @@ describe('SAM drill setup and brief', () => {
   });
 
   it('briefs ring, band and RWR symbol for every jet', () => {
-    for (const ac of AIRCRAFT_ORDER) for (const sam of SAM_DRILLS) {
+    for (const ac of FIGHTER_ORDER) for (const sam of SAM_DRILLS) {
       const b = samBrief(sam, ac, 'metric');
       expect(b.ring).toMatch(/km$/);
       expect(b.defeat.length).toBeGreaterThan(0);

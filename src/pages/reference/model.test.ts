@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
+import { AIRCRAFT, FIGHTER_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
 import {
   beamWindowDeg, filterMissiles, groupBinds, matches, queryTokens, rangeNum, rwrRows, samRows,
   scanMatrix, simultaneousText, sortMissiles, speedText, splitControlsName, splitHits, twsAllows, twsPatternText, twsPatternsOf, ALL_MISSILES,
@@ -52,7 +52,7 @@ describe('binds', () => {
     const fcr = PROCEDURES.f16c.binds.find(b => b.action === 'FCR as sensor of interest');
     expect(fcr?.keyboard).toBe('RAlt + .');
     expect(PROCEDURES.f14b.binds.find(b => /^Launch/.test(b.action))?.keyboard).toBeNull();
-    for (const ac of AIRCRAFT_ORDER) for (const b of PROCEDURES[ac].binds) {
+    for (const ac of FIGHTER_ORDER) for (const b of PROCEDURES[ac].binds) {
       expect(b.note ?? '').not.toMatch(/^Keyboard:/);
       expect(['radar', 'weapons', 'defence']).toContain(b.group);
     }
@@ -65,7 +65,7 @@ describe('binds', () => {
     expect(splitControlsName('Hold for at least 1 s.').menu).toBe('');
   });
   it('groups binds into radar, weapons and countermeasures for every jet', () => {
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const g = groupBinds(PROCEDURES[ac].binds);
       expect(g.radar.length, ac).toBeGreaterThan(2);
       expect(g.weapons.length, ac).toBeGreaterThan(0);
@@ -117,7 +117,7 @@ describe('radar and RWR', () => {
     expect(twsPatternText(twsPatternsOf('f14b') ?? [])).toBe('±20° 4-bar or ±40° 2-bar');
     expect(twsPatternText(twsPatternsOf('fa18c') ?? [])).toBe('2 bars up to ±40°, 4 bars up to ±20°, 6 bars at ±10°');
     // Every listed DCS pattern is a cell the table can show.
-    for (const ac of AIRCRAFT_ORDER) {
+    for (const ac of FIGHTER_ORDER) {
       const list = twsPatternsOf(ac);
       if (!list) continue;
       const mx = scanMatrix(AIRCRAFT[ac], radarRules(ac).bugScan);

@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { AiSkill, SimEvent } from '../../src/sim/types';
-import type { AircraftId } from '../../src/data/types';
+import type { FighterId } from '../../src/data/types';
 import { MISSILES } from '../../src/data/missiles';
 import { World } from '../../src/sim/world';
 import { configureAi } from '../../src/sim/ai';
@@ -25,7 +25,7 @@ const MATCH = process.env.MATCH ?? '';
 const SEEDS = Number(process.env.SEEDS ?? 1);
 const SECONDS = Number(process.env.DUEL_SECONDS ?? 360);
 
-const MATRIX: [AircraftId, AircraftId][] = [
+const MATRIX: [FighterId, FighterId][] = [
   ['su27', 'f15c'], ['f15c', 'su27'], ['j11a', 'f16c'], ['fa18c', 'mig29s'], ['f14b', 'su27'], ['m2000c', 'mig29s'], ['jf17', 'j11a'],
   ['su33', 'fa18c'], ['mig29s', 'f16c'], ['f16c', 'j11a'],
 ];

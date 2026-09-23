@@ -2,7 +2,7 @@
  * [OWNER: displays] Pure helpers shared by the display renderers: coordinate mappings, unit and
  * label formatting, RWR threat ordering, hit-testing. No DOM here, so it is unit-tested in node.
  */
-import type { AircraftId, MissileId, RwrSpec, RwrSymbol } from '../../data/types';
+import type { FighterId, MissileId, RwrSpec, RwrSymbol } from '../../data/types';
 import type { EntityId, RwrContact } from '../../sim/types';
 import { M_PER_FT, M_PER_NM, MPS_PER_KT, wrapPi } from '../../sim/math';
 
@@ -317,6 +317,6 @@ export function niceCeil(v: number): number {
 
 /** Which label family a jet uses for its radar display wording. */
 export type MfdFamily = 'hornet' | 'viper' | 'jf17';
-export function mfdFamily(a: AircraftId): MfdFamily {
+export function mfdFamily(a: FighterId): MfdFamily {
   return a === 'f16c' ? 'viper' : a === 'jf17' ? 'jf17' : 'hornet';
 }

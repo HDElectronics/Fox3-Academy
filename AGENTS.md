@@ -88,7 +88,7 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
 
 ## Common tasks
 
-- **Add a jet:** add the id to `AircraftId` in `src/data/types.ts`; add its spec in `src/data/aircraft.ts`,
+- **Add a jet:** add the id to `FighterId` (or `AttackId` for a jet with no air-to-air radar) in `src/data/types.ts`; add its spec in `src/data/aircraft.ts`,
   binds and procedures in `procedures.ts`, RWR symbols in `rwr.ts`; add a model in `src/render/jets.ts`; add
   per-jet radar rules in `src/sim/radar.ts` (`radarRules`) if it behaves differently; run all tests
   (several iterate over every jet) and screenshot every page with `?ac=<id>`.

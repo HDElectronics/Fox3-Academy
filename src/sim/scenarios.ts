@@ -8,9 +8,9 @@
  */
 import type { World } from './world';
 import type { AiSkill, EntityId, Missile, SamMissile, SamSite, Side } from './types';
-import type { AircraftId, MissileId, RadarModeId, SamId } from '../data/types';
+import type { FighterId, MissileId, RadarModeId, SamId } from '../data/types';
 import { SAMS } from '../data/sams';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { speedFromMach } from './atmosphere';
 import { D2R, clamp, wrap2Pi } from './math';
@@ -20,37 +20,37 @@ import { configureAi, setScript, type AiConfig, type AiScript, type ScriptManeuv
 
 /** East = Russian/Chinese-built, West = the rest. Used to pick sensible opponents. */
 export type Bloc = 'east' | 'west';
-export function blocOf(type: AircraftId): Bloc {
+export function blocOf(type: FighterId): Bloc {
   const n = AIRCRAFT[type].nation;
   return n === 'ru' || n === 'cn' ? 'east' : 'west';
 }
 
-const ADVERSARY: Record<AircraftId, AircraftId> = {
+const ADVERSARY: Record<FighterId, FighterId> = {
   su27: 'f15c', su33: 'fa18c', j11a: 'f16c', mig29s: 'f16c',
   f15c: 'su27', fa18c: 'mig29s', f16c: 'j11a', f14b: 'su27', jf17: 'mig29s', m2000c: 'mig29s',
 };
 
 /** A sensible default opponent for the player's jet (Flanker/Fulcrum for Western jets, Eagle/Viper/Hornet for Russian ones). */
-export function defaultAdversary(player: AircraftId): AircraftId {
+export function defaultAdversary(player: FighterId): FighterId {
   return ADVERSARY[player];
 }
 
 /** A sensible default threat missile for defence drills: the classic SARH vs Western jets, the AMRAAM vs Eastern jets. */
-export function defaultThreatMissile(player: AircraftId): MissileId {
+export function defaultThreatMissile(player: FighterId): MissileId {
   return blocOf(player) === 'west' ? 'r27er' : 'aim120c';
 }
 
 /** Every jet that carries `missile` in DCS, opponents of `player` first. */
-export function carriersOf(missile: MissileId, player?: AircraftId): AircraftId[] {
-  const all = AIRCRAFT_ORDER.filter(id => AIRCRAFT[id].missiles.includes(missile));
+export function carriersOf(missile: MissileId, player?: FighterId): FighterId[] {
+  const all = FIGHTER_ORDER.filter(id => AIRCRAFT[id].missiles.includes(missile));
   if (!player) return all;
   const bloc = blocOf(player);
-  const score = (id: AircraftId) => (id === player ? 2 : blocOf(id) === bloc ? 1 : 0);
+  const score = (id: FighterId) => (id === player ? 2 : blocOf(id) === bloc ? 1 : 0);
   return [...all].sort((a, b) => score(a) - score(b));
 }
 
 /** Sensible cruise altitude (m), Mach and TAS (m/s) for a jet at the start of a BVR scenario. */
-export function cruiseFor(type: AircraftId): { alt: number; mach: number; speed: number } {
+export function cruiseFor(type: FighterId): { alt: number; mach: number; speed: number } {
   const p = AIRCRAFT[type].perf;
   const alt = Math.round(clamp(p.ceilingFt * 0.3048 * 0.6, 7500, 10500) / 500) * 500;
   const mach = clamp(p.cruiseMach + 0.05, 0.8, 0.95);
@@ -89,7 +89,7 @@ function place(from: { x: number; z: number }, bearing: number, range: number, a
   return { x: from.x + Math.sin(bearing) * range, y: alt, z: from.z - Math.cos(bearing) * range };
 }
 
-function spawnPlayer(world: World, type: AircraftId, o: ScenarioCommon, heading = 0) {
+function spawnPlayer(world: World, type: FighterId, o: ScenarioCommon, heading = 0) {
   const c = cruiseFor(type);
   const alt = o.playerAlt ?? c.alt;
   const speed = speedFromMach(o.playerMach ?? c.mach, alt);
@@ -99,7 +99,7 @@ function spawnPlayer(world: World, type: AircraftId, o: ScenarioCommon, heading 
   });
 }
 
-function unitsFor(playerType: AircraftId, o: ScenarioCommon): 'metric' | 'imperial' {
+function unitsFor(playerType: FighterId, o: ScenarioCommon): 'metric' | 'imperial' {
   return o.units ?? AIRCRAFT[playerType].units;
 }
 
@@ -142,7 +142,7 @@ export interface EngagementOptions extends ScenarioCommon {
   /** AI defends against missiles (default true). */
   evade?: boolean;
   /** 2v2: the player's AI wingman type and skill (default: same jet, 'veteran'). */
-  wingmanType?: AircraftId;
+  wingmanType?: FighterId;
   wingmanSkill?: AiSkill;
   /** Optional SAM sites in the fight (ids 'sam1', 'sam2'…), placed relative to the player's start. */
   sams?: SamPlacement[];
@@ -169,7 +169,7 @@ export interface Engagement {
   /** Blue AI aircraft (the wingman), not the player. */
   friendIds: EntityId[];
   enemyIds: EntityId[];
-  enemyType: AircraftId;
+  enemyType: FighterId;
   skill: AiSkill;
   /** Start separation actually used, m. */
   range: number;
@@ -190,7 +190,7 @@ function placeSams(world: World, sams: SamPlacement[] | undefined): EntityId[] {
   });
 }
 
-function engagement(world: World, playerType: AircraftId, enemyType: AircraftId, skill: AiSkill, n: 1 | 2, wing: boolean, o: EngagementOptions): Engagement {
+function engagement(world: World, playerType: FighterId, enemyType: FighterId, skill: AiSkill, n: 1 | 2, wing: boolean, o: EngagementOptions): Engagement {
   const units = unitsFor(playerType, o);
   const range = o.range ?? 100_000;
   const player = spawnPlayer(world, playerType, o);
@@ -233,24 +233,24 @@ function engagement(world: World, playerType: AircraftId, enemyType: AircraftId,
 
 
 /** 1v1 at ~100 km head-on. */
-export function duel(world: World, playerType: AircraftId, enemyType: AircraftId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
+export function duel(world: World, playerType: FighterId, enemyType: FighterId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
   return engagement(world, playerType, enemyType, skill, 1, false, opts);
 }
 
 /** 1v2: you against a pair (line abreast 5 km, or trail 8 km). */
-export function pair(world: World, playerType: AircraftId, enemyType: AircraftId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
+export function pair(world: World, playerType: FighterId, enemyType: FighterId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
   return engagement(world, playerType, enemyType, skill, 2, false, opts);
 }
 
 /** 2v2: you and an AI wingman (3 km off your right wing) against a pair. */
-export function twoVTwo(world: World, playerType: AircraftId, enemyType: AircraftId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
+export function twoVTwo(world: World, playerType: FighterId, enemyType: FighterId = defaultAdversary(playerType), skill: AiSkill = 'regular', opts: EngagementOptions = {}): Engagement {
   return engagement(world, playerType, enemyType, skill, 2, true, opts);
 }
 
 // ───────────────────────────────────────────────────────────── TWS drill
 
 export interface TwsDrillOptions extends ScenarioCommon {
-  enemyType?: AircraftId;
+  enemyType?: FighterId;
   /** Mean range of the group, m (default 80 km; the four spread over ~70–100 km). */
   range?: number;
   /** Lateral spread multiplier (default 1 = about ±22 km). */
@@ -268,7 +268,7 @@ export interface TwsDrillOptions extends ScenarioCommon {
 export interface TwsDrill {
   playerId: EntityId;
   banditIds: EntityId[];
-  enemyType: AircraftId;
+  enemyType: FighterId;
   /** Per-bandit manoeuvre (Notch toggle → 'beam', back → 'hot' or 'straight'). */
   setManeuver(id: EntityId, maneuver: ScriptManeuver): void;
 }
@@ -277,7 +277,7 @@ export interface TwsDrill {
 const TWS_SEED: [number, number, number][] = [[-21, 78, 0.6], [-6, 72, -1], [8, 84, 2], [22, 76, -0.4]];
 
 /** Four scripted bandits in a spread at 70–100 km, flying hot, slightly different altitudes. */
-export function twsDrill(world: World, playerType: AircraftId, opts: TwsDrillOptions = {}): TwsDrill {
+export function twsDrill(world: World, playerType: FighterId, opts: TwsDrillOptions = {}): TwsDrill {
   const units = unitsFor(playerType, opts);
   const player = spawnPlayer(world, playerType, opts);
   const enemyType = opts.enemyType ?? defaultAdversary(playerType);
@@ -325,7 +325,7 @@ export interface DefenseGeometry {
 
 export interface DefenseDrillOptions extends ScenarioCommon {
   /** Jet that fires the threat missile (default: an opponent jet that carries it). */
-  shooterType?: AircraftId;
+  shooterType?: FighterId;
   /** Shooter skill: how well it cranks and supports (default 'veteran'). */
   skill?: AiSkill;
   /** Missiles it fires (default 1). */
@@ -335,7 +335,7 @@ export interface DefenseDrillOptions extends ScenarioCommon {
 export interface DefenseDrill {
   playerId: EntityId;
   shooterId: EntityId;
-  shooterType: AircraftId;
+  shooterType: FighterId;
   threat: MissileId;
   /** Requested launch range, m. The actual one is in the 'launch' SimEvent (range). */
   launchRange: number;
@@ -346,7 +346,7 @@ export interface DefenseDrill {
 }
 
 /** A scripted shooter locks you up, fires `threat` at the chosen range/aspect and supports it correctly. */
-export function defenseDrill(world: World, playerType: AircraftId, threat: MissileId = defaultThreatMissile(playerType), geometry: DefenseGeometry, opts: DefenseDrillOptions = {}): DefenseDrill {
+export function defenseDrill(world: World, playerType: FighterId, threat: MissileId = defaultThreatMissile(playerType), geometry: DefenseGeometry, opts: DefenseDrillOptions = {}): DefenseDrill {
   const units = unitsFor(playerType, opts);
   const shooterType = opts.shooterType ?? carriersOf(threat, playerType)[0] ?? defaultAdversary(playerType);
   const player = spawnPlayer(world, playerType, { ...opts, playerAlt: geometry.playerAlt ?? opts.playerAlt, playerMach: geometry.playerMach ?? opts.playerMach });
@@ -419,7 +419,7 @@ export interface SamDrill {
  * ring): the RWR shows its search radar first, a lock inside the ring and a launch after the acquisition delay.
  * Defend by notch + chaff, terrain (maskAltM), descending under the radar horizon, or turning out of the ring.
  */
-export function samDrill(world: World, playerType: AircraftId, sam: SamId = 'sa11', opts: SamDrillOptions = {}): SamDrill {
+export function samDrill(world: World, playerType: FighterId, sam: SamId = 'sa11', opts: SamDrillOptions = {}): SamDrill {
   const player = spawnPlayer(world, playerType, opts);
   const ringM = SAMS[sam].threatRingKm * 1000;
   const at = place({ x: 0, z: 0 }, (opts.offsetDeg ?? 0) * D2R, opts.range ?? ringM * 1.15, world.groundAlt);
@@ -451,7 +451,7 @@ export interface RadarLabTarget {
   /** TAS m/s. Default Mach 0.85 at its altitude. */
   speed?: number;
   /** Default: the player's usual adversary. */
-  type?: AircraftId;
+  type?: FighterId;
   /** Scripted flight (default 'straight'). */
   maneuver?: ScriptManeuver;
   /** Target radar (default 'off': silent). */
@@ -471,7 +471,7 @@ export interface RadarLab {
 }
 
 /** Targets at chosen range/altitude/aspect flying scripted paths, for the radar lab. */
-export function radarLab(world: World, playerType: AircraftId, targets: RadarLabTarget[], opts: RadarLabOptions = {}): RadarLab {
+export function radarLab(world: World, playerType: FighterId, targets: RadarLabTarget[], opts: RadarLabOptions = {}): RadarLab {
   const units = unitsFor(playerType, opts);
   const ph = opts.playerHeading ?? 0;
   const player = spawnPlayer(world, playerType, { ...opts, playerAlt: opts.playerAlt ?? 9000 }, ph);

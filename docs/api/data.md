@@ -7,7 +7,7 @@ of this page. Types are in `src/data/types.ts` (shared contract).
 
 ```ts
 import {
-  AIRCRAFT, AIRCRAFT_ORDER, AIRCRAFT_CAVEATS,          // aircraft.ts
+  AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER, ATTACK_ORDER, AIRCRAFT_CAVEATS, isFighter, // aircraft.ts
   MISSILES, MISSILE_REF_NOTE, FLARE_SUSCEPTIBILITY,    // missiles.ts
   RWRS, RWR_CAVEATS, rwrSymbol,                        // rwr.ts
   SAMS, SAM_ORDER, SAM_CAVEATS, samForClass, samRwrSymbol, // sams.ts
@@ -20,8 +20,11 @@ import {
 
 | Export | Type | What it is |
 |---|---|---|
-| `AIRCRAFT` | `Record<AircraftId, AircraftSpec>` | Radar rules, loadout, CMs, rough perf, RCS, blurb, strengths, limits. |
-| `AIRCRAFT_ORDER` | `AircraftId[]` | Display order (Russian FC3, F-15C, full-fidelity). |
+| `AIRCRAFT` | `JetTable` | Every jet. Indexed by a `FighterId` it is an `AircraftSpec` (radar rules, loadout, missiles); by any `AircraftId` it is the `JetSpec` union (narrow on `role` before reading `radar`). |
+| `FIGHTER_ORDER` | `FighterId[]` | The fighters in display order (Russian FC3, F-15C, full-fidelity). Every BVR page, table and test iterates this. |
+| `ATTACK_ORDER` | `AttackId[]` | Attack jets (no air-to-air radar), shown only on air-to-ground routes. |
+| `AIRCRAFT_ORDER` | `AircraftId[]` | Every jet: fighters, then attack jets. Picker and 3D models only. |
+| `isFighter(id)` | `id is FighterId` | Role guard for code that holds any `AircraftId`. |
 | `AIRCRAFT_CAVEATS` | `Record<AircraftId, string[]>` | "Simplified here" sentences: every aircraft value research could not confirm. Show the relevant ones in Hangar/Reference/lab callouts. |
 | `MISSILES` | `Record<MissileId, MissileSpec>` | Seeker, midcourse, loft, pitbull, seeker range/gimbal, mass, size, burn, Mach/g, reference ranges, chaff factor, guidance rule, DCS notes. |
 | `MISSILE_REF_NOTE` | `string` | Caption to show next to `ref` ranges (they are ED's launch table, not flight results). |
@@ -38,6 +41,17 @@ import {
 | `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
 | `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
+
+### Roles: fighters and attack jets
+
+`AircraftId = FighterId | AttackId`. `FighterId` is the ten air-to-air jets; `AttackId` holds jets without an
+air-to-air radar (the Su-25T). `JetSpec = AircraftSpec | AttackSpec` is discriminated on `role`
+(`'fighter' | 'attack'`): `AircraftSpec` keeps its name and every field (radar, display, loadout, missiles) and
+gains `role: 'fighter'`; `AttackSpec` has `radar: null` and a `weapons` label list. BVR-only maps and the sim key
+on `FighterId` (`src/sim/types.ts` aircraft `type`, radar rules, DLZ, scenarios `ADVERSARY`, radar-lab notes,
+RWR emitter symbols, flight ops). Maps every jet needs (`AIRCRAFT_CAVEATS`, `PROCEDURES`, `JET_DIMENSIONS`,
+source topics) key on `AircraftId`. `RwrSymbol.emitter` uses `FighterId`: an attack jet with no radar is never an
+RWR emitter.
 
 ## Conventions
 

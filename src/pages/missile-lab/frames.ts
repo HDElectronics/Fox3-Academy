@@ -3,7 +3,7 @@
  * three entities (shooter, target, missile) sampled every 0.25 s, plus a few seconds of tail so the
  * end of the shot (explosion, or the target flying on) is visible.
  */
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import type { MissileGuidance, MissReason, RecordFrame, SimEvent } from '../../sim/types';
 import type { ShotResult } from '../../sim/dlz';
 import type { ReplayRoster } from '../../render';
@@ -55,7 +55,7 @@ export interface ShotRecording {
   last: number;
 }
 
-export function shotRecording(r: ShotResult, missile: MissileId, shooterType: AircraftId, targetType: AircraftId, tailS = 4): ShotRecording {
+export function shotRecording(r: ShotResult, missile: MissileId, shooterType: FighterId, targetType: FighterId, tailS = 4): ShotRecording {
   const n = r.trace.length;
   const frames: RecordFrame[] = [];
   if (!n) return { frames, roster: { aircraft: {}, missiles: {} }, events: [], end: 0, last: 0 };

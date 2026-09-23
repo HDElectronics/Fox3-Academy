@@ -3,13 +3,13 @@
  * recorder and end rules as the page, and the debrief analysis runs on the result.
  */
 import { describe, expect, test } from 'vitest';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { simulateSortie } from './headless';
 import { defaultSetup, SORTIE_LIMIT_S } from './setup';
 import { coachSortie, describeShot, scoreSortie } from './coach';
 
 describe('sortie end to end', () => {
-  for (const ac of AIRCRAFT_ORDER) {
+  for (const ac of FIGHTER_ORDER) {
     test(`${ac}: 1v1 flies to an end and debriefs`, () => {
       const setup = defaultSetup(ac);
       const o = simulateSortie(ac, setup, 'metric');

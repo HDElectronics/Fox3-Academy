@@ -3,7 +3,7 @@
  * Facts from docs/research/bvr-mechanics.md, ru-fc3.md, f15c-fc3.md, hornet-viper.md, missiles.md.
  * `jets` marks the terms your own cockpit uses, so the page can tag them for the selected jet.
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 
 export type GlossaryCat = 'radar' | 'missiles' | 'zone' | 'defence' | 'brevity';
 
@@ -21,11 +21,11 @@ export interface GlossaryEntry {
   aka?: string;
   def: string;
   cat: GlossaryCat;
-  jets?: AircraftId[];
+  jets?: FighterId[];
 }
 
-const RU: AircraftId[] = ['su27', 'su33', 'j11a', 'mig29s'];
-const ALL_FOX3: AircraftId[] = ['j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17'];
+const RU: FighterId[] = ['su27', 'su33', 'j11a', 'mig29s'];
+const ALL_FOX3: FighterId[] = ['j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17'];
 
 export const GLOSSARY: GlossaryEntry[] = [
   // ---- radar and tracking

@@ -3,9 +3,9 @@
  * text matching for the quick filter, missile sorting, unit formatting and radar arithmetic.
  * No DOM here, so it is unit-tested in model.test.ts.
  */
-import type { AircraftId, AircraftSpec, BindGroup, KeyBind, MissileId, MissileSpec, RwrId, RwrSpec, RwrSymbol, SamId } from '../../data/types';
+import type { FighterId, AircraftSpec, BindGroup, KeyBind, MissileId, MissileSpec, RwrId, RwrSpec, RwrSymbol, SamId } from '../../data/types';
 import { SAMS, SAM_ORDER, samRwrSymbol } from '../../data/sams';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 
 export type Units = 'metric' | 'imperial';
@@ -131,8 +131,8 @@ export const MIDCOURSE_LABEL: Record<MissileSpec['midcourse'], string> = { none:
 
 export const ALL_MISSILES: MissileId[] = Object.keys(MISSILES) as MissileId[];
 
-export function carriersOfMissile(id: MissileId): AircraftId[] {
-  return AIRCRAFT_ORDER.filter(ac => AIRCRAFT[ac].missiles.includes(id));
+export function carriersOfMissile(id: MissileId): FighterId[] {
+  return FIGHTER_ORDER.filter(ac => AIRCRAFT[ac].missiles.includes(id));
 }
 
 function sortValue(m: MissileSpec, key: MissileSortKey): string | number {
@@ -171,7 +171,7 @@ export function missileHaystack(m: MissileSpec): string {
 
 export interface MissileFilter { scope: 'jet' | 'all'; fox: 0 | 1 | 2 | 3; tokens: string[] }
 
-export function filterMissiles(aircraft: AircraftId, f: MissileFilter): MissileSpec[] {
+export function filterMissiles(aircraft: FighterId, f: MissileFilter): MissileSpec[] {
   const own = new Set(AIRCRAFT[aircraft].missiles);
   return ALL_MISSILES.map(id => MISSILES[id]).filter(m =>
     (f.scope === 'all' || own.has(m.id)) && (f.fox === 0 || m.fox === f.fox) && matches(missileHaystack(m), f.tokens));
@@ -217,7 +217,7 @@ export function frameTimeS(spec: AircraftSpec, azHalfDeg: number, bars: number):
  * - JF-17 KLJ-7: ±60° 2-bar, ±25° 3-bar, ±10° 4-bar (Chuck and FlyAndWire disagree slightly; medium).
  */
 /** The TWS patterns DCS lists for this jet, or null when only the sim's limits apply. */
-export function twsPatternsOf(ac: AircraftId): readonly (readonly [number, number])[] | null {
+export function twsPatternsOf(ac: FighterId): readonly (readonly [number, number])[] | null {
   return AIRCRAFT[ac].radar.twsPatterns ?? null;
 }
 
@@ -265,7 +265,7 @@ export function scanMatrix(spec: AircraftSpec, bugScan: { azHalfDeg: number; bar
 
 // ---- RWR ---------------------------------------------------------------------------------------
 
-export const EMITTER_NAME: Record<Exclude<RwrSymbol['emitter'], AircraftId>, string> = {
+export const EMITTER_NAME: Record<Exclude<RwrSymbol['emitter'], FighterId>, string> = {
   missile: 'Active radar missile seeker',
   awacs: 'AWACS',
   'sam-long': 'Long-range SAM',

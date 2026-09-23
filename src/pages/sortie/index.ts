@@ -3,7 +3,7 @@
  * Tacview-style debrief with coaching.
  *
  * Query params (for links and screenshots):
- *   ?ac=<AircraftId>      select the jet once on mount
+ *   ?ac=<FighterId>      select the jet once on mount
  *   ?shot=fly&t=80        open the fly screen after a scripted pre-roll of t sim seconds
  *   ?shot=debrief&t=120   fly the whole sortie with the scripted pilot, open the debrief at t
  *   ?shot=debrief&view=radar   show the player's recorded radar estimates instead of truth
@@ -12,7 +12,7 @@
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { AiSkill } from '../../sim/types';
 import { h } from '../../ui';
@@ -30,7 +30,7 @@ function applyParams(s: SortieSetup, p: URLSearchParams): SortieSetup {
   if (sc === '1v1' || sc === '1v2' || sc === '2v2') out.scenario = sc;
   const en = p.get('enemy');
   // A different adversary flies at its own cruise altitude, as when you pick it in the brief.
-  if (en && Object.hasOwn(AIRCRAFT, en) && en !== out.enemy) { out.enemy = en as AircraftId; out.enemyAlt = cruiseFor(out.enemy).alt; }
+  if (en && Object.hasOwn(AIRCRAFT, en) && en !== out.enemy) { out.enemy = en as FighterId; out.enemyAlt = cruiseFor(out.enemy).alt; }
   const sk = p.get('skill');
   if (sk && SKILLS.includes(sk as AiSkill)) out.skill = sk as AiSkill;
   const r = Number(p.get('range'));
@@ -53,7 +53,7 @@ const factory: PageFactory = (): Page => {
       const acParam = ctx.params.get('ac');
       if (acParam && Object.hasOwn(AIRCRAFT, acParam) && acParam !== ctx.app.aircraft) {
         // The router remounts the page for the new jet; build nothing now.
-        ctx.app.setAircraft(acParam as AircraftId);
+        ctx.app.setAircraft(acParam as FighterId);
         return;
       }
       alive = true;

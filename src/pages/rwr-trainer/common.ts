@@ -2,7 +2,7 @@
  * [OWNER: page-rwr-trainer] Shared bits for the Learn and Quiz modes: the RWR bezel, per-jet binds
  * (RWR mode, chaff) read from PROCEDURES, and the mode-controller contract.
  */
-import type { AircraftId, AircraftSpec, RwrId } from '../../data/types';
+import type { FighterId, AircraftSpec, RwrId } from '../../data/types';
 import { PROCEDURES } from '../../data/procedures';
 import { RWRS } from '../../data/rwr';
 import type { RwrContact } from '../../sim/types';
@@ -25,7 +25,7 @@ export const RWR_SHORT: Record<RwrId, string> = {
 };
 
 /** FC3 jets: the RWR/SPO mode bind (All / Lock only). Null where the jet's binds have none. */
-export function rwrModeKeys(ac: AircraftId): string | null {
+export function rwrModeKeys(ac: FighterId): string | null {
   const b = PROCEDURES[ac].binds.find(x => /^RWR mode/i.test(x.action));
   if (!b) return null;
   const first = b.keys.split(' / ')[0]?.trim();
@@ -40,7 +40,7 @@ export interface ChaffBind { keys: string; hotas: string | null; note: string | 
  * alternatives such as the Mirage's "Decoy Program release / Decoy PANIC" = "Delete / Insert" come back
  * as two binds). Without a known default key the HOTAS name comes back with a caveat.
  */
-export function chaffBinds(ac: AircraftId): ChaffBind[] {
+export function chaffBinds(ac: FighterId): ChaffBind[] {
   const binds = PROCEDURES[ac].binds;
   const b = binds.find(x => /^chaff/i.test(x.action)) ?? binds.find(x => /countermeasure|decoy/i.test(x.action));
   if (!b) return [];

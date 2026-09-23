@@ -5,9 +5,18 @@
  * All numbers here are "as seen by the pilot" facts: km, degrees, seconds, knots.
  */
 
-export type AircraftId =
+/** Air-to-air fighters: every BVR page, the sim radar, launch zones and scenarios use these. */
+export type FighterId =
   | 'su27' | 'su33' | 'j11a' | 'mig29s'
   | 'f15c' | 'fa18c' | 'f16c' | 'f14b' | 'jf17' | 'm2000c';
+
+/** Attack jets: no air-to-air radar. Shown only on air-to-ground routes. */
+export type AttackId = never;
+
+/** Every jet in the picker. BVR code keys on FighterId; the shell, store and 3D models key on this. */
+export type AircraftId = FighterId | AttackId;
+
+export type AircraftRole = 'fighter' | 'attack';
 
 export type MissileId =
   | 'r27r' | 'r27er' | 'r27t' | 'r27et' | 'r77' | 'r73'
@@ -100,8 +109,10 @@ export interface RadarSpec {
 
 export interface WeaponLoad { missile: MissileId; count: number }
 
-export interface AircraftSpec {
+/** Fields every jet in the picker has, whatever its role. */
+interface JetSpecBase {
   id: AircraftId;
+  role: AircraftRole;
   name: string;               // 'Su-27S Flanker-B'
   short: string;              // 'Su-27'
   nation: 'ru' | 'us' | 'cn' | 'pk' | 'fr';
@@ -109,23 +120,41 @@ export interface AircraftSpec {
   developer: string;          // 'Eagle Dynamics', 'Heatblur', 'Deka Ironwork', 'Razbam'
   cockpit: CockpitSkin;
   units: 'metric' | 'imperial';
-  display: DisplayFormat;
   rwr: RwrId;
+  cms: { chaff: number; flares: number };
+  /** Rough performance for the tactical flight model. */
+  perf: { maxMach: number; cruiseMach: number; maxG: number; cornerKts: number; ceilingFt: number };
+  rcsM2: number;              // frontal RCS, for detection scaling
+  /** One-paragraph "what this jet can and cannot do" in plain words. */
+  blurb: string;
+  /** Short bullets: strengths / limits in DCS. */
+  strengths: string[];
+  limits: string[];
+}
+
+/** A fighter: air-to-air radar, BVR missiles. Every BVR page, the sim and the DLZ tables use this shape. */
+export interface AircraftSpec extends JetSpecBase {
+  id: FighterId;
+  role: 'fighter';
+  display: DisplayFormat;
   radar: RadarSpec;
   /** Default BVR loadout used by scenarios. */
   loadout: WeaponLoad[];
   /** Every air-to-air missile the jet can carry in DCS. */
   missiles: MissileId[];
-  cms: { chaff: number; flares: number };
-  /** Rough performance for the tactical flight model. */
-  perf: { maxMach: number; cruiseMach: number; maxG: number; cornerKts: number; ceilingFt: number };
-  rcsM2: number;              // frontal RCS, for detection scaling
-  /** One-paragraph "what this jet can and cannot do in BVR" in plain words. */
-  blurb: string;
-  /** Short bullets: strengths / limits for BVR in DCS. */
-  strengths: string[];
-  limits: string[];
 }
+
+/** An attack jet: no air-to-air radar. Shown only on air-to-ground routes. */
+export interface AttackSpec extends JetSpecBase {
+  id: AttackId;
+  role: 'attack';
+  radar: null;
+  /** Air-to-ground stores as the HUD labels them, for the hangar card. Placeholder until the weapons slice. */
+  weapons: string[];
+}
+
+/** Any jet in the picker. Narrow on `role` before reading radar or missile fields. */
+export type JetSpec = AircraftSpec | AttackSpec;
 
 export interface MissileSpec {
   id: MissileId;
@@ -166,7 +195,7 @@ export interface MissileSpec {
 
 /** One threat as it appears on an RWR. */
 export interface RwrSymbol {
-  emitter: AircraftId | 'missile' | 'awacs' | 'sam-long' | 'sam-medium' | 'sam-short' | 'unknown';
+  emitter: FighterId | 'missile' | 'awacs' | 'sam-long' | 'sam-medium' | 'sam-short' | 'unknown';
   /** Text shown (e.g. '29', '27', 'U', 'M') or for SPO-15 the type-letter lamp (e.g. 'П'). */
   symbol: string;
 }

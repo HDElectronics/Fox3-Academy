@@ -7,8 +7,8 @@
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import type { AircraftId, MissileId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId, MissileId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS } from '../../data/rwr';
 import { CameraRig, FramePriority, Stage, WorldView, isWebGLAvailable } from '../../render';
@@ -55,7 +55,7 @@ function setWhy(b: { el: HTMLElement }, why: string | null): void {
   if (b.el.title !== t) b.el.title = t;
 }
 
-function displayName(ac: AircraftId): string {
+function displayName(ac: FighterId): string {
   switch (AIRCRAFT[ac].display) {
     case 'ru-hud': return 'ИЛС (HUD)';
     case 'f15-vsd': return 'VSD';
@@ -83,8 +83,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     rest.delete('ac');
     const qs = rest.toString();
     try { history.replaceState(history.state, '', `#/tws${qs ? '?' + qs : ''}`); } catch { /* sandboxed frame: fine */ }
-    if (want !== ctx.app.aircraft && (AIRCRAFT_ORDER as string[]).includes(want)) {
-      ctx.app.setAircraft(want as AircraftId);   // the router remounts this page with the new jet
+    if (want !== ctx.app.aircraft && (FIGHTER_ORDER as string[]).includes(want)) {
+      ctx.app.setAircraft(want as FighterId);   // the router remounts this page with the new jet
       return;
     }
   }
@@ -385,7 +385,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
 
   // ------------------------------------------------------------------ displays
   const radar = new RadarDisplay(radarCv, { format: spec.display, units, aircraft: ac, manualCursor: L.freeLab && !L.dcsCursorSnap });
-  let rwrFor: AircraftId | null = null;
+  let rwrFor: FighterId | null = null;
   const rwr = new RwrDisplay(rwrCv, { rwr: spec.rwr });
   bag.add(() => radar.dispose());
   bag.add(() => rwr.dispose());

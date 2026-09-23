@@ -6,7 +6,7 @@
  */
 import { AIRCRAFT } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
-import type { AircraftId, KeyBind } from '../../data/types';
+import type { FighterId, KeyBind } from '../../data/types';
 import { parseChord, splitAlternatives } from '../../ui/keys';
 
 export interface KeyPair {
@@ -49,11 +49,11 @@ function pairOf(text: string | null, fallback: boolean): KeyPair | null {
   return { a: a.text, b: b.text, text, fallback };
 }
 
-function find(ac: AircraftId, re: RegExp): KeyBind | undefined {
+function find(ac: FighterId, re: RegExp): KeyBind | undefined {
   return PROCEDURES[ac].binds.find(b => re.test(b.action));
 }
 
-export function labKeys(ac: AircraftId): LabKeys {
+export function labKeys(ac: FighterId): LabKeys {
   const own = (re: RegExp) => { const b = find(ac, re); return b ? b.keyboard : null; };
   const spec = AIRCRAFT[ac];
   const out: LabKeys = {

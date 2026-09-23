@@ -4,7 +4,7 @@
  * Game tutorial scope: what the RWR shows and which defences work in DCS (beam and chaff, terrain, leaving
  * the ring). Ring sizes and altitude bands come from src/data/sams.ts and are not verified in the Mission Editor.
  */
-import type { AircraftId, SamId } from '../../data/types';
+import type { FighterId, SamId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { SAMS, SAM_ORDER, samRwrSymbol } from '../../data/sams';
 import { World } from '../../sim/world';
@@ -62,7 +62,7 @@ export interface SamBrief {
 }
 
 /** The brief for a site, in the player's units and RWR symbols. */
-export function samBrief(sam: SamId, ac: AircraftId, units: Units): SamBrief {
+export function samBrief(sam: SamId, ac: FighterId, units: Units): SamBrief {
   const s = SAMS[sam];
   const sym = samRwrSymbol(AIRCRAFT[ac].rwr, sam);
   return {
@@ -144,7 +144,7 @@ export class SamRunner {
     return true;
   }
 
-  constructor(readonly ac: AircraftId, readonly setup: SamSetup, readonly units: Units, seed: number, private hooks: SamHooks = {}) {
+  constructor(readonly ac: FighterId, readonly setup: SamSetup, readonly units: Units, seed: number, private hooks: SamHooks = {}) {
     this.world = new World(seed);
     const alt = SAM_ALT_M[setup.alt];
     this.drill = samDrill(this.world, ac, setup.sam, { playerAlt: alt, playerMach: cruiseFor(ac).mach, maskAltM: setup.terrain ? RIDGE_M : 0, units });

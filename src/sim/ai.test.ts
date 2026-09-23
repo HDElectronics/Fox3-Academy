@@ -9,7 +9,7 @@ import {
 import { D2R, R2D, aspectAngle, bearingTo, relBearing, wrapPi } from './math';
 import type { Aircraft, AiMemory, Missile, MissileGuidance, RwrContact, SimEvent } from './types';
 import type { MissileId } from '../data/types';
-import { AIRCRAFT_ORDER } from '../data/aircraft';
+import { FIGHTER_ORDER } from '../data/aircraft';
 
 type AiEvent = Extract<SimEvent, { type: 'ai' }>;
 type LaunchEvent = Extract<SimEvent, { type: 'launch' }>;
@@ -126,7 +126,7 @@ describe('scenario builders', () => {
   });
 
   it('every jet gets a cruise state, an adversary and a carrier for its default threat', () => {
-    for (const id of AIRCRAFT_ORDER) {
+    for (const id of FIGHTER_ORDER) {
       const c = cruiseFor(id);
       expect(c.alt).toBeGreaterThanOrEqual(7500);
       expect(c.speed).toBeGreaterThan(200);

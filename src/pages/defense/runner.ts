@@ -3,7 +3,7 @@
  * player through the autopilot, unlocks controls at the drill's cue, fills RunMetrics from sim events and
  * gate reads, and ends the run. The page drives it from its frame loop; tests drive it headless.
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { World } from '../../sim/world';
@@ -56,7 +56,7 @@ export class DrillRunner {
   result: Debrief | null = null;
   private reachedGate = false;
 
-  constructor(readonly ac: AircraftId, readonly setup: Setup, readonly units: Units, seed: number, private hooks: RunnerHooks = {}) {
+  constructor(readonly ac: FighterId, readonly setup: Setup, readonly units: Units, seed: number, private hooks: RunnerHooks = {}) {
     this.world = new World(seed);
     const a = altitudes(setup, ac);
     const asp = ASPECTS.find(x => x.value === setup.aspect) ?? ASPECTS[0];

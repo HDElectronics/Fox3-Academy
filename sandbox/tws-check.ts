@@ -7,7 +7,7 @@ import '../src/styles/base.css';
 import '../src/styles/components.css';
 import { AppStore } from '../src/app/store';
 import { AIRCRAFT } from '../src/data/aircraft';
-import type { AircraftId } from '../src/data/types';
+import type { FighterId } from '../src/data/types';
 import factory from '../src/pages/tws/index';
 import { resolveBinds } from '../src/pages/tws/binds';
 import { parseChord, splitAlternatives } from '../src/ui/keys';
@@ -55,7 +55,7 @@ async function run(): Promise<void> {
   const app = new AppStore();
   const root = document.getElementById('app') as HTMLElement;
   root.style.cssText = 'display:flex;flex-direction:column;height:900px';
-  const jets: AircraftId[] = ['su27', 'f15c', 'fa18c', 'f16c', 'mig29s', 'm2000c'];
+  const jets: FighterId[] = ['su27', 'f15c', 'fa18c', 'f16c', 'mig29s', 'm2000c'];
   for (const ac of jets) {
     app.setAircraft(ac);
     document.documentElement.dataset.cockpit = AIRCRAFT[ac].cockpit;

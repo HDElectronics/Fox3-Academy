@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER } from './aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from './aircraft';
 import { MISSILES, FLARE_SUSCEPTIBILITY } from './missiles';
 import { PROCEDURES } from './procedures';
 
@@ -12,7 +12,7 @@ describe('data contracts', () => {
     expect(bind('f14b', /^Launch/)?.keyboard).toBeNull();
     expect(bind('jf17', /^Countermeasures/)?.keyboard).toBeNull();
     expect(bind('f15c', /^Remove one TWS/)?.keyboard).toBeNull();
-    for (const ac of AIRCRAFT_ORDER) for (const b of PROCEDURES[ac].binds) {
+    for (const ac of FIGHTER_ORDER) for (const b of PROCEDURES[ac].binds) {
       expect(b.note ?? '', `${ac}: ${b.action}`).not.toMatch(/^Keyboard:/);
       expect(['radar', 'weapons', 'defence']).toContain(b.group);
       expect(b.keyboard === null || b.keyboard.length > 0).toBe(true);

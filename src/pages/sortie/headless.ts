@@ -2,7 +2,7 @@
  * Fly a whole sortie without a screen, with the scripted pilot: used for the ?shot=debrief screenshot
  * state and the end-to-end test. Same World seed, builder and end rules as the fly screen.
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import type { Units } from '../../app/format';
 import { buildSortie, sortieEnd, sortieWorld, type SortieSetup } from './setup';
 import { SortieRecorder } from './recorder';
@@ -10,7 +10,7 @@ import { ScriptedPilot } from './autopilot';
 import type { FlyOutcome } from './fly';
 import type { SortieResult } from './coach';
 
-export function simulateSortie(ac: AircraftId, setup: SortieSetup, units: Units): FlyOutcome {
+export function simulateSortie(ac: FighterId, setup: SortieSetup, units: Units): FlyOutcome {
   const world = sortieWorld(ac, setup);
   const eng = buildSortie(world, ac, setup, units);
   const recorder = new SortieRecorder(world, eng, ac, units);

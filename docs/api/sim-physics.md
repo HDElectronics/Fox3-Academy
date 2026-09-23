@@ -151,7 +151,7 @@ standalone Phoenix shots.
 
 ```ts
 platformsFor(missile): { shooter, target }   // the jets the DLZ tables were flown with
-dlzTargetType(missile): AircraftId           // = platformsFor(missile).target: F-15C for Russian/Chinese missiles, Su-27 for the rest
+dlzTargetType(missile): FighterId           // = platformsFor(missile).target: F-15C for Russian/Chinese missiles, Su-27 for the rest
 ```
 
 The scripted target flies each manoeuvre after `reactAfter`:

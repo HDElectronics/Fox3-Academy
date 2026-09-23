@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES } from '../../data';
+import { AIRCRAFT, FIGHTER_ORDER, MISSILES } from '../../data';
 import type { Units } from '../../app/format';
 import {
   LESSON_PATH, capFacts, detectSource, detectionScale, guidanceRuleFor, headlineBind, isDone, lessonLine, modeChips,
@@ -29,7 +29,7 @@ describe('jet tiles', () => {
 
 describe('capability readout', () => {
   it('works for every jet in both units', () => {
-    for (const id of AIRCRAFT_ORDER) for (const u of UNITS) {
+    for (const id of FIGHTER_ORDER) for (const u of UNITS) {
       const c = capFacts(AIRCRAFT[id], u);
       clean(c.tws.rule);
       expect(c.modes.length).toBeGreaterThanOrEqual(3);
@@ -65,7 +65,7 @@ describe('capability readout', () => {
     expect(lessonLine('tws', m, 'imperial')).toContain('no multi-target TWS');
   });
   it('never says a TWS target hears nothing (his RWR still shows your search)', () => {
-    for (const id of AIRCRAFT_ORDER) for (const u of UNITS) {
+    for (const id of FIGHTER_ORDER) for (const u of UNITS) {
       const texts = [twsRule(AIRCRAFT[id], u).rule, weaponsSummary(AIRCRAFT[id]), ...LESSON_PATH.map(r => lessonLine(r, AIRCRAFT[id], u))];
       for (const t of texts) expect(t).not.toMatch(/hears nothing|silent until/);
     }
@@ -113,7 +113,7 @@ describe('scales', () => {
 
 describe('weapons', () => {
   it('one card per carried missile, every jet', () => {
-    for (const id of AIRCRAFT_ORDER) for (const u of UNITS) {
+    for (const id of FIGHTER_ORDER) for (const u of UNITS) {
       const w = weaponFacts(AIRCRAFT[id], u);
       expect(w.map(x => x.id)).toEqual(AIRCRAFT[id].missiles);
       for (const x of w) {
@@ -142,13 +142,13 @@ describe('weapons', () => {
   });
   it('lays weapon cards out in full rows', () => {
     expect([2, 4, 5, 6].map(weaponCols)).toEqual([2, 4, 5, 3]);
-    for (const id of AIRCRAFT_ORDER) {
+    for (const id of FIGHTER_ORDER) {
       const n = AIRCRAFT[id].missiles.length, c = weaponCols(n);
       expect(n % c === 0 || n % c >= c - 1).toBe(true);
     }
   });
   it('uses missile confidence when marking pitbull distances', () => {
-    for (const id of AIRCRAFT_ORDER) for (const w of weaponFacts(AIRCRAFT[id], 'metric')) {
+    for (const id of FIGHTER_ORDER) for (const w of weaponFacts(AIRCRAFT[id], 'metric')) {
       if (MISSILES[w.id].seeker === 'arh') expect(w.pitbull.startsWith('~')).toBe(MISSILES[w.id].pitbullApprox);
     }
   });
@@ -163,7 +163,7 @@ describe('weapons', () => {
 describe('lessons', () => {
   it('has jet-aware copy for every route, jet and unit', () => {
     const routes: LessonRoute[] = [...LESSON_PATH, 'reference'];
-    for (const id of AIRCRAFT_ORDER) for (const u of UNITS) for (const r of routes) clean(lessonLine(r, AIRCRAFT[id], u));
+    for (const id of FIGHTER_ORDER) for (const u of UNITS) for (const r of routes) clean(lessonLine(r, AIRCRAFT[id], u));
     expect(lessonLine('tws', AIRCRAFT.su27, 'metric')).toContain('0.85 Rmax');
     expect(lessonLine('tws', AIRCRAFT.m2000c, 'imperial')).toContain('no multi-target TWS');
     expect(lessonLine('defense', AIRCRAFT.su27, 'metric')).not.toMatch(/drag cold when it runs out/);
@@ -185,7 +185,7 @@ describe('lessons', () => {
     expect(isDone('radar', 'su27', () => false)).toBe(false);
   });
   it('has a headline bind for every jet', () => {
-    for (const id of AIRCRAFT_ORDER) {
+    for (const id of FIGHTER_ORDER) {
       const b = headlineBind(AIRCRAFT[id]);
       expect(b).not.toBeNull();
       expect(b?.action.length).toBeGreaterThan(2);

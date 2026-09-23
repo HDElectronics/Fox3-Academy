@@ -4,7 +4,7 @@
  * data, so the text changes with the jet in the top bar.
  */
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data/aircraft';
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { defaultAdversary } from '../../sim/scenarios';
 import { M_PER_FT, M_PER_NM, MPS_PER_KT } from '../../sim/math';
 import type { Units } from '../../app/format';
@@ -16,7 +16,7 @@ import {
 import { JET_NOTES } from './notes';
 
 /** "Simplified here" lines for this page: the sim's radar model plus the jet's scan/detection caveats. */
-export function simplifiedLines(ac: AircraftId): string[] {
+export function simplifiedLines(ac: FighterId): string[] {
   const spec = AIRCRAFT[ac];
   const lines = [
     'Detection is a range test with a short probability edge, not a signal-to-noise model: no PRF, jamming, burn-through or terrain masking.',
@@ -35,7 +35,7 @@ export function simplifiedLines(ac: AircraftId): string[] {
   return lines;
 }
 
-export function buildExplainer(ac: AircraftId, u: Units): HTMLElement {
+export function buildExplainer(ac: FighterId, u: Units): HTMLElement {
   const spec = AIRCRAFT[ac], r = spec.radar;
   const opp = defaultAdversary(ac), oppSpec = AIRCRAFT[opp];
   const combos = scanCombos(ac);

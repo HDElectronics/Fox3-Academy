@@ -4,7 +4,7 @@
  * and optional commands for the scripted bandits. The page turns the world into Snap objects.
  */
 import { AIRCRAFT } from '../../data/aircraft';
-import type { AircraftId, RadarModeId } from '../../data/types';
+import type { FighterId, RadarModeId } from '../../data/types';
 import type { RadarLabTarget } from '../../sim/scenarios';
 import { defaultAdversary } from '../../sim/scenarios';
 import { M_PER_FT, MPS_PER_KT, R2D } from '../../sim/math';
@@ -79,7 +79,7 @@ export interface TargetSnap {
 
 export interface Snap {
   t: number;
-  ac: AircraftId;
+  ac: FighterId;
   units: Units;
   mode: RadarModeId;
   ownAlt: number;
@@ -125,9 +125,9 @@ export interface ExerciseDef {
   /** One-line purpose for the picker. */
   short: string;
   /** null when the jet can do it, else a plain sentence why not. */
-  unavailable(ac: AircraftId): string | null;
-  scene(ac: AircraftId, u: Units): Scene;
-  steps(ac: AircraftId, u: Units, keys: StepKeys): StepText[];
+  unavailable(ac: FighterId): string | null;
+  scene(ac: FighterId, u: Units): Scene;
+  steps(ac: FighterId, u: Units, keys: StepKeys): StepText[];
   evaluate(s: Snap, mem: Mem): Eval;
 }
 
@@ -139,31 +139,31 @@ export interface StepKeys { elev: string | null; zone: string | null; width: str
 const PLAYER_MACH = 0.8;
 const FRAME_GOAL = 3;
 
-function r(ac: AircraftId) { return AIRCRAFT[ac].radar; }
-function opp(ac: AircraftId): AircraftId { return defaultAdversary(ac); }
+function r(ac: FighterId) { return AIRCRAFT[ac].radar; }
+function opp(ac: FighterId): FighterId { return defaultAdversary(ac); }
 
 /** Widest azimuth ≤ gimbal and 4 bars when offered: the sim's own default scan. */
-function defaultScan(ac: AircraftId): { azHalfDeg: number; bars: number } {
+function defaultScan(ac: FighterId): { azHalfDeg: number; bars: number } {
   const rs = r(ac);
   return { azHalfDeg: Math.min(Math.max(...rs.azHalfWidthOptionsDeg), rs.gimbalAzDeg), bars: rs.barOptions.includes(4) ? 4 : rs.barOptions[0] };
 }
 
 /** The selectable azimuth option closest to `want` (ties go wide). */
-function azNear(ac: AircraftId, want: number): number {
+function azNear(ac: FighterId, want: number): number {
   const bug = bugOnlyOptions(ac).az;
   const opts = r(ac).azHalfWidthOptionsDeg.filter(a => !bug.includes(a));
   return opts.reduce((best, a) => (Math.abs(a - want) < Math.abs(best - want) - 1e-9 || (Math.abs(a - want) === Math.abs(best - want) && a > best) ? a : best), opts[0]);
 }
 
 /** Smallest selectable azimuth option ≥ want (else the widest). */
-function azAtLeast(ac: AircraftId, want: number): number {
+function azAtLeast(ac: FighterId, want: number): number {
   const bug = bugOnlyOptions(ac).az;
   const opts = r(ac).azHalfWidthOptionsDeg.filter(a => !bug.includes(a)).sort((a, b) => a - b);
   return opts.find(a => a >= want) ?? opts[opts.length - 1];
 }
 
 /** Smallest selectable bar count whose pattern is at least `heightDeg` tall (else the most bars). */
-function barsForHeight(ac: AircraftId, heightDeg: number): number {
+function barsForHeight(ac: FighterId, heightDeg: number): number {
   const bug = bugOnlyOptions(ac).bars;
   const opts = r(ac).barOptions.filter(b => !bug.includes(b)).sort((a, b) => a - b);
   return opts.find(b => 2 * patternHalfDeg(r(ac), b) >= heightDeg) ?? opts[opts.length - 1];
@@ -181,9 +181,9 @@ function firstOpen(steps: boolean[]): number | null {
   return i < 0 ? null : i;
 }
 
-const isRu = (ac: AircraftId) => AIRCRAFT[ac].display === 'ru-hud';
+const isRu = (ac: FighterId) => AIRCRAFT[ac].display === 'ru-hud';
 /** ' Simplified: …' for jets whose DCS look-down rule differs from the sim's flat factor, else ''. */
-const ldNote = (ac: AircraftId) => { const c = lookDownCaveat(ac, true); return c ? ' ' + c : ''; };
+const ldNote = (ac: FighterId) => { const c = lookDownCaveat(ac, true); return c ? ' ' + c : ''; };
 
 // ------------------------------------------------------------------------------------------ free scan
 
@@ -641,6 +641,6 @@ const centre: ExerciseDef = {
 export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre };
 
 /** Exercises this jet can do (graded only). */
-export function availableExercises(ac: AircraftId): Exclude<ExerciseId, 'free'>[] {
+export function availableExercises(ac: FighterId): Exclude<ExerciseId, 'free'>[] {
   return EXERCISES.filter(id => EXERCISE_DEFS[id].unavailable(ac) === null);
 }

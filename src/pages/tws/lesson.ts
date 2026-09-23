@@ -5,7 +5,7 @@
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS, rwrSymbol } from '../../data/rwr';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import type { EntityId, Missile } from '../../sim/types';
 import { dlzFor } from '../../sim/dlz';
 import { explainDetection, trackOf } from '../../sim/radar';
@@ -70,7 +70,7 @@ const twsTargets = (L: TwsLesson) => distinct(twsShots(L).map(s => s.targetId));
 const twsActiveTargets = (L: TwsLesson) => distinct(twsShots(L).filter(s => L.flags.activeSupported.has(s.missileId)).map(s => s.targetId));
 
 /** The per-jet checklist, from DCS procedures (docs/research). */
-export function stepsFor(ac: AircraftId, b: JetBinds): LessonStep[] {
+export function stepsFor(ac: FighterId, b: JetBinds): LessonStep[] {
   const spec = AIRCRAFT[ac], fc3 = spec.module === 'fc3';
   const k = (act: PageAct) => stepKeys(b, act, fc3);
   const lbl = spec.radar.modeLabels;
@@ -169,12 +169,12 @@ export interface JetIntro {
 }
 
 /** Main radar missile the lesson is about. */
-export function mainMissile(ac: AircraftId): MissileId {
+export function mainMissile(ac: FighterId): MissileId {
   const load = AIRCRAFT[ac].loadout;
   return (load.find(w => MISSILES[w.missile].seeker !== 'ir') ?? load[0]).missile;
 }
 
-export function introFor(ac: AircraftId): JetIntro {
+export function introFor(ac: FighterId): JetIntro {
   const spec = AIRCRAFT[ac], ms = MISSILES[mainMissile(ac)];
   const tws = spec.radar.tws;
   let lede: string;
@@ -205,7 +205,7 @@ export function introFor(ac: AircraftId): JetIntro {
 }
 
 /** Another jet worth flying on the same picture, and why. */
-export function suggestion(ac: AircraftId): { ac: AircraftId; why: string } {
+export function suggestion(ac: FighterId): { ac: FighterId; why: string } {
   switch (ac) {
     case 'su27': case 'su33': return { ac: 'f15c', why: 'same FC3 keys, real multi-target TWS: four AIM-120s and nobody hears a lock' };
     case 'j11a': return { ac: 'mig29s', why: 'СНП2 puts two R-77s on two bandits in one trigger pull' };

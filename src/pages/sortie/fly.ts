@@ -4,7 +4,7 @@
  * The World steps inside the frame loop in chunks of at most 0.25 s of sim time; the recorder samples
  * after each chunk. UI text updates at ~8 Hz, coach hints at 2 Hz.
  */
-import type { AircraftId, MissileId, RadarModeId, RwrId } from '../../data/types';
+import type { FighterId, MissileId, RadarModeId, RwrId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { mobileAction } from '../../ui/mobileAction';
@@ -55,7 +55,7 @@ export interface FlyOptions {
 type Aid = 'hot' | 'crank' | 'notch' | 'cold' | null;
 
 const RADAR_LABEL: Record<string, string> = { 'ru-hud': 'ИЛС', 'f15-vsd': 'VSD', tid: 'TID', vtb: 'VTB' };
-const MFD_LABEL: Partial<Record<AircraftId, string>> = { fa18c: 'DDI · RDR', f16c: 'MFD · FCR', jf17: 'MFCD · RDR' };
+const MFD_LABEL: Partial<Record<FighterId, string>> = { fa18c: 'DDI · RDR', f16c: 'MFD · FCR', jf17: 'MFCD · RDR' };
 const RWR_LABEL: Record<RwrId, string> = { spo15: 'СПО-15', alr56c: 'TEWS', alr67: 'ALR-67', alr56m: 'ALR-56M', jf17rwr: 'RWR', serval: 'SERVAL' };
 const SEARCH_MODES: RadarModeId[] = ['rws', 'tws', 'vs'];
 /** LShift / LCtrl throttle starts after this hold, so a quick chord (LShift + D) does not move it. */
@@ -64,14 +64,14 @@ const THROTTLE_DELAY_MS = 250;
  * Jets whose DCS radar can step the TWS target, and the function that does it. The F-15C cannot reorder
  * its designations and the FC3 Russians track one target: they re-designate by clicking another contact.
  */
-const STEP_FN: Partial<Record<AircraftId, string>> = {
+const STEP_FN: Partial<Record<FighterId, string>> = {
   fa18c: 'Undesignate: step the L&S down the tracks, or swap L&S and DT2',
   f16c: 'TMS Right, short press: step the bug to the next track',
   jf17: 'S2 Left: swap HPT and SPT',
   f14b: 'NEXT LAUNCH (RIO): the next target in the firing order becomes priority 1',
 };
 
-export function radarLabel(ac: AircraftId): string {
+export function radarLabel(ac: FighterId): string {
   const spec = AIRCRAFT[ac];
   return spec.display === 'mfd' ? MFD_LABEL[ac] ?? 'MFD' : RADAR_LABEL[spec.display] ?? 'RADAR';
 }
@@ -860,7 +860,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
 }
 
 /** Collapsible key map: the jet's DCS keys (from its binds) and the trainer keys. */
-function buildKeyHelp(ac: AircraftId, map: JetKeyMap): HTMLElement {
+function buildKeyHelp(ac: FighterId, map: JetKeyMap): HTMLElement {
   const spec = AIRCRAFT[ac];
   const tk = trainerKeys(map);
   const K = map.keys;

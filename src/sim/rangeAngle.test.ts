@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT } from '../data/aircraft';
-import type { AircraftId } from '../data/types';
+import type { FighterId } from '../data/types';
 import { D2R } from './math';
 import { radarRules, setCursor } from './radar';
 import { World } from './world';
 
-function setup(type: AircraftId = 'su27') {
+function setup(type: FighterId = 'su27') {
   const world = new World();
   const ac = world.spawnAircraft({ type, side: 'blue', controller: 'player', pos: { x: 0, y: 5000, z: 0 }, heading: 0, speed: 250 });
   return { world, ac };

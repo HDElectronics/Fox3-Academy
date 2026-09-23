@@ -4,7 +4,7 @@
  * launch-zone tables (dlzFor), altitudes from cruiseFor().
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { blocOf, carriersOf, cruiseFor } from '../../sim/scenarios';
@@ -74,7 +74,7 @@ export const DRILLS: Record<DrillId, DrillDef> = {
 export interface Setup {
   drill: DrillId;
   threat: MissileId;
-  shooter: AircraftId;
+  shooter: FighterId;
   /** Launch range, m. */
   range: number;
   aspect: AspectSetup;
@@ -109,7 +109,7 @@ export function threatsFor(drill: DrillId): MissileId[] {
 }
 
 /** A sensible threat for this drill and the player's side: Western jets face Eastern missiles and vice versa. */
-export function defaultThreat(drill: DrillId, player: AircraftId): MissileId {
+export function defaultThreat(drill: DrillId, player: FighterId): MissileId {
   const west = blocOf(player) === 'west';
   switch (drill) {
     case 'lock': return west ? 'r27er' : 'aim7m';
@@ -119,19 +119,19 @@ export function defaultThreat(drill: DrillId, player: AircraftId): MissileId {
 }
 
 /** Jets that fire this missile, opponents of the player first. */
-export function shootersFor(threat: MissileId, player: AircraftId): AircraftId[] {
+export function shootersFor(threat: MissileId, player: FighterId): FighterId[] {
   const list = carriersOf(threat, player);
   return list.length ? list : [player];
 }
 
 /** Can this shooter fire an ARH from TWS (silent until pitbull)? */
-export function canTwsShot(shooter: AircraftId): boolean {
+export function canTwsShot(shooter: FighterId): boolean {
   const r = AIRCRAFT[shooter].radar;
   return !!r.tws && r.tws.launchFromTws && r.modes.includes('tws');
 }
 
 /** How the shot will actually leave: STT (lock + warnings) or TWS (silent until pitbull). */
-export function launchMethod(threat: MissileId, shooter: AircraftId, method: MethodSetup): 'stt' | 'tws' {
+export function launchMethod(threat: MissileId, shooter: FighterId, method: MethodSetup): 'stt' | 'tws' {
   if (MISSILES[threat].seeker !== 'arh') return 'stt';
   if (method === 'stt') return 'stt';
   return canTwsShot(shooter) ? 'tws' : 'stt';
@@ -149,12 +149,12 @@ export function normalizeSetup(s: Setup): Setup {
 }
 
 /** Does his STT shot of this missile light up your RWR's launch warning at once? */
-export function sttLaunchWarns(threat: MissileId, shooter: AircraftId): boolean {
+export function sttLaunchWarns(threat: MissileId, shooter: FighterId): boolean {
   return MISSILES[threat].seeker === 'sarh' || AIRCRAFT[shooter].radar.sttArhLaunchWarning;
 }
 
 /** Start altitudes (m) and Mach for both jets. */
-export function altitudes(setup: Pick<Setup, 'alt' | 'shooter'>, player: AircraftId): { playerAlt: number; shooterAlt: number; playerMach: number; shooterMach: number } {
+export function altitudes(setup: Pick<Setup, 'alt' | 'shooter'>, player: FighterId): { playerAlt: number; shooterAlt: number; playerMach: number; shooterMach: number } {
   const pc = cruiseFor(player), sc = cruiseFor(setup.shooter);
   switch (setup.alt) {
     case 'high': return { playerAlt: pc.alt, shooterAlt: sc.alt, playerMach: pc.mach, shooterMach: sc.mach };
@@ -165,7 +165,7 @@ export function altitudes(setup: Pick<Setup, 'alt' | 'shooter'>, player: Aircraf
 }
 
 /** The shooter's launch zone against you, hot, for this geometry (the sim's own DLZ tables). */
-export function zoneFor(setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: AircraftId): { rmax: number; rne: number; rmin: number } {
+export function zoneFor(setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: FighterId): { rmax: number; rne: number; rmin: number } {
   const a = altitudes(setup, player);
   const d = 40_000;
   const sPos = new Vector3(0, a.shooterAlt, -d), pPos = new Vector3(0, a.playerAlt, 0);
@@ -176,14 +176,14 @@ export function zoneFor(setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player
 }
 
 /** Allowed launch-range bounds (m) for the slider. */
-export function rangeBounds(setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: AircraftId): { min: number; max: number } {
+export function rangeBounds(setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: FighterId): { min: number; max: number } {
   const z = zoneFor(setup, player);
   const min = Math.max(8000, z.rmin * 1.5);
   return { min, max: Math.max(min + 2000, z.rmax) };
 }
 
 /** The drill's default launch range (m) for this geometry. */
-export function defaultRange(drill: DrillId, setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: AircraftId): number {
+export function defaultRange(drill: DrillId, setup: Pick<Setup, 'alt' | 'shooter' | 'threat'>, player: FighterId): number {
   const z = zoneFor(setup, player);
   const b = rangeBounds(setup, player);
   const pit = (MISSILES[setup.threat].pitbullKm ?? 0) * 1000;
@@ -200,13 +200,13 @@ export function defaultRange(drill: DrillId, setup: Pick<Setup, 'alt' | 'shooter
 }
 
 /** A complete default setup for a drill and a jet. */
-export function defaultSetup(drill: DrillId, player: AircraftId): Setup {
+export function defaultSetup(drill: DrillId, player: FighterId): Setup {
   const threat = defaultThreat(drill, player);
   return setupFor(drill, player, threat);
 }
 
 /** Defaults for a drill with a chosen threat (shooter, altitude, range follow). */
-export function setupFor(drill: DrillId, player: AircraftId, threat: MissileId, keep: Partial<Setup> = {}): Setup {
+export function setupFor(drill: DrillId, player: FighterId, threat: MissileId, keep: Partial<Setup> = {}): Setup {
   const shooters = shootersFor(threat, player);
   const shooter = keep.shooter && shooters.includes(keep.shooter) ? keep.shooter : shooters[0];
   const alt = keep.alt ?? DRILLS[drill].alt;

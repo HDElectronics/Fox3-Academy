@@ -10,7 +10,7 @@
  * - Frame time = bars × 2 × azHalf / scanRateDegPerS. scanRate is chosen so documented frame times
  *   come out right (FC3 ~5 s, Viper A6/4B 8 s, AWG-9 TWS 2 s).
  */
-import type { AircraftId, AircraftSpec, RadarSpec } from './types';
+import type { AircraftId, AircraftSpec, AttackId, AttackSpec, FighterId, RadarSpec } from './types';
 
 /** Kilometres per nautical mile. */
 const NM = 1.852;
@@ -256,10 +256,13 @@ const RDI: RadarSpec = {
   sttArhLaunchWarning: false,
 };
 
-export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
+/** Indexed by a FighterId it gives a fighter spec; by any AircraftId it gives the JetSpec union. */
+export type JetTable = { [K in FighterId]: AircraftSpec } & { [K in AttackId]: AttackSpec };
+
+export const AIRCRAFT: JetTable = {
   su27: {
     id: 'su27', name: 'Su-27S Flanker-B', short: 'Su-27', nation: 'ru', module: 'fc3', developer: 'Eagle Dynamics',
-    cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
+    role: 'fighter', cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
     radar: fc3RuRadar({ name: 'N001', ...N001 }),
     loadout: [{ missile: 'r27er', count: 4 }, { missile: 'r27et', count: 2 }, { missile: 'r73', count: 4 }],
     missiles: ['r27r', 'r27er', 'r27t', 'r27et', 'r73'],
@@ -286,7 +289,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   su33: {
     id: 'su33', name: 'Su-33 Flanker-D', short: 'Su-33', nation: 'ru', module: 'fc3', developer: 'Eagle Dynamics',
-    cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
+    role: 'fighter', cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
     radar: fc3RuRadar({ name: 'N001K', ...N001 }),
     loadout: [{ missile: 'r27er', count: 6 }, { missile: 'r27et', count: 2 }, { missile: 'r73', count: 4 }],
     missiles: ['r27r', 'r27er', 'r27t', 'r27et', 'r73'],
@@ -311,7 +314,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   j11a: {
     id: 'j11a', name: 'J-11A Flanker-L', short: 'J-11A', nation: 'cn', module: 'fc3', developer: 'Eagle Dynamics',
-    cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
+    role: 'fighter', cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
     radar: fc3RuRadar({ name: 'N001VE', ...N001 }),
     loadout: [{ missile: 'r77', count: 6 }, { missile: 'r73', count: 4 }],
     missiles: ['r27r', 'r27er', 'r27t', 'r27et', 'r73', 'r77'],
@@ -337,7 +340,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   mig29s: {
     id: 'mig29s', name: 'MiG-29S Fulcrum-C', short: 'MiG-29S', nation: 'ru', module: 'fc3', developer: 'Eagle Dynamics',
-    cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
+    role: 'fighter', cockpit: 'ru', units: 'metric', display: 'ru-hud', rwr: 'spo15',
     radar: fc3RuRadar({ name: 'N019M', headOn: 60, tail: 30, lookDownFactor: 1, notchKts: 81, gimbalElDeg: 50, mig29s: true }),
     loadout: [{ missile: 'r77', count: 4 }, { missile: 'r73', count: 2 }],
     missiles: ['r27r', 'r27er', 'r27t', 'r27et', 'r73', 'r77'],
@@ -363,7 +366,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   f15c: {
     id: 'f15c', name: 'F-15C Eagle', short: 'F-15C', nation: 'us', module: 'fc3', developer: 'Eagle Dynamics',
-    cockpit: 'us', units: 'imperial', display: 'f15-vsd', rwr: 'alr56c', radar: APG63,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'f15-vsd', rwr: 'alr56c', radar: APG63,
     loadout: [{ missile: 'aim120c', count: 6 }, { missile: 'aim9m', count: 2 }],
     missiles: ['aim120b', 'aim120c', 'aim7m', 'aim9m'],
     cms: { chaff: 120, flares: 60 },
@@ -389,7 +392,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   fa18c: {
     id: 'fa18c', name: 'F/A-18C Hornet Lot 20', short: 'F/A-18C', nation: 'us', module: 'full', developer: 'Eagle Dynamics',
-    cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'alr67', radar: APG73,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'alr67', radar: APG73,
     loadout: [{ missile: 'aim120c', count: 6 }, { missile: 'aim9x', count: 2 }],
     missiles: ['aim120b', 'aim120c', 'aim7m', 'aim9m', 'aim9x'],
     cms: { chaff: 60, flares: 60 },
@@ -414,7 +417,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   f16c: {
     id: 'f16c', name: 'F-16C Viper Block 50', short: 'F-16C', nation: 'us', module: 'full', developer: 'Eagle Dynamics',
-    cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'alr56m', radar: APG68,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'alr56m', radar: APG68,
     loadout: [{ missile: 'aim120c', count: 4 }, { missile: 'aim9x', count: 2 }],
     missiles: ['aim120b', 'aim120c', 'aim9m', 'aim9x'],
     cms: { chaff: 60, flares: 60 },
@@ -439,7 +442,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   f14b: {
     id: 'f14b', name: 'F-14B Tomcat', short: 'F-14B', nation: 'us', module: 'full', developer: 'Heatblur',
-    cockpit: 'us', units: 'imperial', display: 'tid', rwr: 'alr67', radar: AWG9,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'tid', rwr: 'alr67', radar: AWG9,
     loadout: [{ missile: 'aim54c', count: 4 }, { missile: 'aim7m', count: 2 }, { missile: 'aim9m', count: 2 }],
     missiles: ['aim54a', 'aim54c', 'aim7m', 'aim9m'],
     cms: { chaff: 60, flares: 60 },
@@ -464,7 +467,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   jf17: {
     id: 'jf17', name: 'JF-17 Thunder', short: 'JF-17', nation: 'pk', module: 'full', developer: 'Deka Ironwork',
-    cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'jf17rwr', radar: KLJ7,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'mfd', rwr: 'jf17rwr', radar: KLJ7,
     loadout: [{ missile: 'sd10', count: 4 }, { missile: 'pl5e', count: 2 }],
     missiles: ['sd10', 'pl5e'],
     cms: { chaff: 36, flares: 32 },
@@ -489,7 +492,7 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
   m2000c: {
     id: 'm2000c', name: 'Mirage 2000C', short: 'M-2000C', nation: 'fr', module: 'full', developer: 'Razbam',
-    cockpit: 'us', units: 'imperial', display: 'vtb', rwr: 'serval', radar: RDI,
+    role: 'fighter', cockpit: 'us', units: 'imperial', display: 'vtb', rwr: 'serval', radar: RDI,
     loadout: [{ missile: 's530d', count: 2 }, { missile: 'magic2', count: 2 }],
     missiles: ['s530d', 'magic2'],
     cms: { chaff: 112, flares: 16 },
@@ -514,7 +517,14 @@ export const AIRCRAFT: Record<AircraftId, AircraftSpec> = {
   },
 };
 
-export const AIRCRAFT_ORDER: AircraftId[] = ['su27', 'su33', 'j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'];
+/** Fighters in picker order. BVR pages, tests and tables iterate this. */
+export const FIGHTER_ORDER: FighterId[] = ['su27', 'su33', 'j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'];
+/** Attack jets in picker order (air-to-ground routes only). */
+export const ATTACK_ORDER: AttackId[] = [];
+/** Every jet: fighters first, then attack jets. The picker and the 3D models use this. */
+export const AIRCRAFT_ORDER: AircraftId[] = [...FIGHTER_ORDER, ...ATTACK_ORDER];
+
+export const isFighter = (id: AircraftId): id is FighterId => AIRCRAFT[id].role === 'fighter';
 
 const PERF_NOTE = 'Performance numbers are rough public figures for the tactical flight model, not the DCS flight model.';
 const RCS_NOTE = 'Radar cross-section is a relative estimate; only the F-15C\'s 5 m² comes from the DCS unit table.';
