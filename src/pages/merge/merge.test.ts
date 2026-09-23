@@ -7,7 +7,7 @@ import type { FighterId } from '../../data/types';
 import { FIGHTER_ORDER } from '../../data/aircraft';
 import { atCorner, classifyPursuit, levelG, newStick, stepStick } from './bfm';
 import { banditStep, newBandit, REVERSE_S, type BanditMode } from './bandit';
-import { debrief, emptyMetrics, LESSON_ORDER, PURSUIT_HOLD_S, scoreLesson, stepPursuitPhase, type LessonId } from './lessons';
+import { debrief, emptyMetrics, LESSON_ORDER, PURSUIT_HOLD_S, rangeScore, scoreLesson, stepPursuitPhase, type LessonId } from './lessons';
 import { MergeRun, type Autopilot } from './runner';
 
 const v = (x: number, y: number, z: number) => new Vector3(x, y, z);
@@ -161,5 +161,67 @@ describe('lesson runs (demo autopilot)', () => {
     const broke = run('f15c', 'defence', 'guns', 'defend', 20).metrics.damageTaken;
     expect(straight).toBeGreaterThan(0);
     expect(broke).toBeLessThan(straight);
+  });
+});
+
+describe('merge, circle and yo-yo drills', () => {
+  it('scores reward angles, the advised circle, and no overshoot', () => {
+    const m = emptyMetrics();
+    expect(scoreLesson('merge', m)).toBe(0);
+    expect(scoreLesson('circles', m)).toBe(0);
+    m.passT = 10; m.passRange = 400; m.leadTurnDeg = 40; m.anglesDeg = 90;
+    expect(scoreLesson('merge', m)).toBe(100);
+    m.anglesDeg = -60;
+    expect(scoreLesson('merge', m)).toBe(40);
+    m.aotDeg = 0; m.myAtaDeg = 0; m.rangeM = 900; m.circleFlown = 'two'; m.circleAdvised = 'two';
+    expect(scoreLesson('circles', m)).toBe(100);
+    m.circleFlown = 'one';
+    expect(scoreLesson('circles', m)).toBe(90);
+    expect(rangeScore(900)).toBe(1);
+    expect(rangeScore(4000)).toBe(0);
+    expect(rangeScore(Infinity)).toBe(0);
+    m.heldS = 15; m.climbM = 300;
+    expect(scoreLesson('yoyo', m)).toBe(100);
+    m.overshoots = 1;
+    expect(scoreLesson('yoyo', m)).toBe(50);
+  });
+
+  it('the merge bandit turns toward you after the pass (two-circle) or away (one-circle)', () => {
+    const two = run('f16c', 'circles', 'two-circle', null, 20).banditState;
+    const one = run('f16c', 'circles', 'one-circle', null, 20).banditState;
+    expect(two.passed && one.passed).toBe(true);
+    expect(two.dir).toBe(-one.dir);
+  });
+
+  it('the fighting AI flying your jet lead turns the merge and records the pass', () => {
+    const r = run('f16c', 'merge', 'two-circle', 'ai', 60);
+    expect(r.metrics.passT).not.toBeNull();
+    expect(r.metrics.leadTurnDeg).toBeGreaterThan(10);
+    expect(r.metrics.passRange).toBeLessThan(1500);
+    expect(r.metrics.vertical).not.toBeNull();
+  });
+
+  it('one vs two circle records the circle flown and ends 30 s after the pass', () => {
+    const r = run('fa18c', 'circles', 'two-circle', 'ai', 60);
+    expect(r.metrics.circleAdvised).toBe('one');
+    expect(r.metrics.circleFlown).not.toBeNull();
+    expect(r.phase).toBe('end');
+    expect(r.metrics.t - r.metrics.passT!).toBeCloseTo(30, 0);
+  });
+
+  it('a yo-yo avoids the overshoot that holding the turn gives', () => {
+    const held = run('fa18c', 'yoyo', 'hard', null, 25).metrics;
+    const yoyo = run('fa18c', 'yoyo', 'hard', 'ai', 25).metrics;
+    expect(held.overshoots).toBeGreaterThan(0);
+    expect(yoyo.overshoots).toBe(0);
+    expect(yoyo.climbM).toBeGreaterThan(held.climbM);
+    expect(scoreLesson('yoyo', yoyo)).toBeGreaterThan(scoreLesson('yoyo', held));
+  });
+
+  it.each(['rookie', 'regular', 'veteran'] as const)('free fight against the %s fighting AI runs and names its moves', skill => {
+    const r = run('m2000c', 'fight', skill, 'ai', 40);
+    expect(Object.keys(r.metrics.aiMoves).length).toBeGreaterThan(0);
+    const d = debrief('fight', r.metrics, { corner: '360 kt', minSpeed: '200 kt', skill });
+    expect(d.stats.find(([k]) => k === 'Bandit moves')?.[1]).not.toBe('-');
   });
 });

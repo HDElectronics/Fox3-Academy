@@ -1,15 +1,17 @@
 /**
  * [OWNER: page-merge] Lesson definitions, run metrics, scoring and the debrief for Merge & guns. Pure (no DOM, no
  * World): the runner fills MergeMetrics, these functions grade it. Score rules follow the issue #11 plan: time near
- * corner, time in the requested pursuit, hits / time in solution / rounds, hits taken.
+ * corner, time in the requested pursuit, angles gained by the second pass, angle off and range after a circle
+ * fight, no overshoot on a yo-yo, hits / time in solution / rounds, hits taken. Trainer scoring, simplified.
  */
+import type { Circle } from '../../sim/bfmAi';
 import type { BanditMode } from './bandit';
 import type { Pursuit } from './bfm';
 
-export type LessonId = 'corner' | 'pursuit' | 'tracking' | 'defence' | 'fight';
-export const LESSON_ORDER: LessonId[] = ['corner', 'pursuit', 'tracking', 'defence', 'fight'];
+export type LessonId = 'corner' | 'pursuit' | 'merge' | 'circles' | 'yoyo' | 'tracking' | 'defence' | 'fight';
+export const LESSON_ORDER: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'fight'];
 /** Lessons that count toward the page's done flag (the free fight does not). */
-export const SCORED_LESSONS: LessonId[] = ['corner', 'pursuit', 'tracking', 'defence'];
+export const SCORED_LESSONS: LessonId[] = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence'];
 
 export interface LessonDef {
   id: LessonId;
@@ -22,16 +24,25 @@ export interface LessonDef {
   /** Run length (s). */
   durationS: number;
   /** Start geometry. */
-  start: 'solo' | 'behind' | 'close-behind' | 'defend' | 'merge';
+  start: 'solo' | 'behind' | 'close-behind' | 'defend' | 'merge' | 'overshoot';
 }
 
 export const LESSONS: Record<LessonId, LessonDef> = {
   corner: { id: 'corner', n: 1, title: 'Corner speed', bandit: 'turn', banditModes: ['turn', 'straight'], durationS: 45, start: 'solo' },
   pursuit: { id: 'pursuit', n: 2, title: 'Pursuit', bandit: 'turn', banditModes: ['turn', 'reverse'], durationS: 80, start: 'behind' },
-  tracking: { id: 'tracking', n: 3, title: 'Guns tracking', bandit: 'turn', banditModes: ['straight', 'turn', 'reverse'], durationS: 45, start: 'close-behind' },
-  defence: { id: 'defence', n: 4, title: 'Guns defence', bandit: 'guns', banditModes: ['guns'], durationS: 30, start: 'defend' },
-  fight: { id: 'fight', n: null, title: 'Free fight', bandit: 'reverse', banditModes: ['straight', 'turn', 'reverse'], durationS: 120, start: 'merge' },
+  merge: { id: 'merge', n: 3, title: 'The merge', bandit: 'two-circle', banditModes: ['two-circle', 'one-circle'], durationS: 60, start: 'merge' },
+  circles: { id: 'circles', n: 4, title: 'One vs two circle', bandit: 'two-circle', banditModes: ['two-circle', 'one-circle'], durationS: 60, start: 'merge' },
+  yoyo: { id: 'yoyo', n: 5, title: 'High yo-yo', bandit: 'hard', banditModes: ['hard'], durationS: 25, start: 'overshoot' },
+  tracking: { id: 'tracking', n: 6, title: 'Guns tracking', bandit: 'turn', banditModes: ['straight', 'turn', 'reverse'], durationS: 45, start: 'close-behind' },
+  defence: { id: 'defence', n: 7, title: 'Guns defence', bandit: 'guns', banditModes: ['guns'], durationS: 30, start: 'defend' },
+  fight: { id: 'fight', n: null, title: 'Free fight', bandit: 'regular', banditModes: ['rookie', 'regular', 'veteran'], durationS: 120, start: 'merge' },
 };
+
+/** One vs two circle: the fight is scored this long after the first pass (s). */
+export const CIRCLE_EVAL_S = 30;
+/** High yo-yo: range band that counts as held behind him (m). */
+export const HOLD_MIN_M = 300;
+export const HOLD_MAX_M = 1500;
 
 export const PURSUIT_ORDER: Pursuit[] = ['lead', 'pure', 'lag'];
 /** Seconds to hold each requested pursuit, and the most a phase may take. */
@@ -62,6 +73,27 @@ export interface MergeMetrics {
   maxG: number;
   minKts: number;
   killed: 'bandit' | 'me' | null;
+  /** First pass: time, closest range (m), how far you had turned before it (deg), nose high or low after it. */
+  passT: number | null;
+  passRange: number;
+  leadTurnDeg: number;
+  vertical: 'high' | 'low' | 'level' | null;
+  /** Circle you flew after the first pass (toward him = two, away = one) and the trainer's advice for the matchup. */
+  circleFlown: Circle | null;
+  circleAdvised: Circle | null;
+  /** Second pass time and the angles gained there (his nose angle minus yours, deg); end state if no second pass. */
+  secondPassT: number | null;
+  anglesDeg: number;
+  /** Angle from your nose to him and from his tail to you (deg), and range (m), at the scoring moment. */
+  myAtaDeg: number;
+  aotDeg: number;
+  rangeM: number;
+  /** High yo-yo: overshoots, seconds in the range band behind him, most height gained (m). */
+  overshoots: number;
+  heldS: number;
+  climbM: number;
+  /** Fighting AI moves seen (free fight). */
+  aiMoves: Record<string, number>;
 }
 
 export function emptyMetrics(): MergeMetrics {
@@ -69,6 +101,9 @@ export function emptyMetrics(): MergeMetrics {
     t: 0, cornerS: 0, turningS: 0, pursuitS: { lead: 0, pure: 0, lag: 0 }, phase: 0, held: [0, 0, 0], phaseT: 0,
     solutionS: 0, roundsFired: 0, roundsInSolution: 0, hits: 0, damageDealt: 0, hitsTaken: 0, damageTaken: 0,
     hisSolutionS: 0, maxG: 1, minKts: Infinity, killed: null,
+    passT: null, passRange: Infinity, leadTurnDeg: 0, vertical: null, circleFlown: null, circleAdvised: null,
+    secondPassT: null, anglesDeg: 0, myAtaDeg: 180, aotDeg: 180, rangeM: Infinity, overshoots: 0, heldS: 0, climbM: 0,
+    aiMoves: {},
   };
 }
 
@@ -83,6 +118,13 @@ export function stepPursuitPhase(m: MergeMetrics, kind: Pursuit, dt: number): bo
 
 const pct = (x: number) => Math.max(0, Math.min(1, x));
 
+/** Range score for the circle fight: 1 inside 1500 m, 0 at 4000 m and beyond, half inside 200 m (trainer choice). */
+export function rangeScore(r: number): number {
+  if (!Number.isFinite(r)) return 0;
+  if (r < 200) return 0.5;
+  return pct((4000 - r) / 2500);
+}
+
 /** Score 0..100 per lesson. */
 export function scoreLesson(id: LessonId, m: MergeMetrics): number {
   switch (id) {
@@ -90,6 +132,15 @@ export function scoreLesson(id: LessonId, m: MergeMetrics): number {
       return Math.round(100 * pct(m.cornerS / 25));
     case 'pursuit':
       return Math.round(100 * m.held.reduce((a, h) => a + pct(h / PURSUIT_HOLD_S), 0) / PURSUIT_ORDER.length);
+    case 'merge':
+      if (m.passT === null) return 0;
+      return Math.round(60 * pct((m.anglesDeg + 30) / 120) + 20 * pct((1500 - m.passRange) / 1000) + 20 * pct(m.leadTurnDeg / 30));
+    case 'circles':
+      if (m.passT === null) return 0;
+      return Math.round(45 * pct(1 - m.aotDeg / 180) + 25 * pct(1 - m.myAtaDeg / 180) + 20 * rangeScore(m.rangeM)
+        + (m.circleFlown !== null && m.circleFlown === m.circleAdvised ? 10 : 0));
+    case 'yoyo':
+      return Math.round((m.overshoots === 0 ? 50 : 0) + 35 * pct(m.heldS / 15) + 15 * pct(m.climbM / 300));
     case 'tracking': {
       const economy = m.roundsFired > 0 ? m.roundsInSolution / m.roundsFired : 0;
       return Math.round(30 * pct(m.solutionS / 2) + 50 * pct(m.damageDealt) + 20 * economy);
@@ -116,9 +167,20 @@ export interface DebriefContext {
   corner: string;
   /** Minimum speed flown, formatted. */
   minSpeed: string;
+  /** Range and height formatter (m in, pilot units out); defaults to metres. */
+  dist?: (m: number) => string;
+  /** Your jet and the bandit's, short names. */
+  me?: string;
+  bandit?: string;
+  /** Fighting AI skill label (free fight). */
+  skill?: string;
 }
 
 const s1 = (x: number) => `${x.toFixed(1)} s`;
+const deg = (x: number) => `${Math.round(x)}°`;
+const CIRCLE_NAME: Record<Circle, string> = { one: 'One-circle', two: 'Two-circle' };
+/** Fighting AI modes worth naming in the debrief. */
+const AI_MOVES: [string, string][] = [['lead-turn', 'lead turn'], ['turn-away', 'one-circle turn'], ['yoyo', 'high yo-yo'], ['jink', 'jink'], ['guns', 'guns attack']];
 
 /** Debrief text for a finished run. */
 export function debrief(id: LessonId, m: MergeMetrics, c: DebriefContext): Debrief {
@@ -147,6 +209,43 @@ export function debrief(id: LessonId, m: MergeMetrics, c: DebriefContext): Debri
       coaching.push('Lead closes and sets up a gun shot, lag holds range and saves energy, pure sits between them.');
       break;
     }
+    case 'merge': {
+      const dist = c.dist ?? ((x: number) => `${Math.round(x)} m`);
+      stats.push(['First pass', m.passT === null ? 'No pass' : dist(m.passRange)], ['Turned before the pass', deg(m.leadTurnDeg)],
+        ['After the pass', m.vertical === null ? '-' : m.vertical === 'high' ? 'Nose high' : m.vertical === 'low' ? 'Nose low' : 'Level'],
+        [m.secondPassT === null ? 'Angles gained at the end' : 'Angles gained at the second pass', deg(m.anglesDeg)]);
+      if (m.passT === null) coaching.push('Fly to the merge: point at him and pass close.');
+      else {
+        if (m.passRange > 1500) coaching.push('Pass closer. A wide pass gives him turning room: pass about 300 to 500 m off his side.');
+        if (m.leadTurnDeg < 15) coaching.push('Lead turn: start the turn toward his side just before he passes your wing line. Too early and you give him your nose.');
+        if (m.anglesDeg < 0) coaching.push('He gained angles. Turn at corner and stay in the turn: nose low to keep speed, nose high to tighten the circle.');
+      }
+      coaching.push('Nose high: tighter turn, speed into height. Nose low: gravity adds turn rate and keeps speed. Either gains angles when flown at corner.');
+      break;
+    }
+    case 'circles': {
+      const dist = c.dist ?? ((x: number) => `${Math.round(x)} m`);
+      stats.push(['You fought', m.circleFlown ? CIRCLE_NAME[m.circleFlown] : '-'],
+        ['Trainer advice', m.circleAdvised ? `${CIRCLE_NAME[m.circleAdvised]}${c.me && c.bandit ? ` (${c.me} vs ${c.bandit})` : ''}` : '-'],
+        [`Angle off his tail after ${CIRCLE_EVAL_S} s`, m.passT === null ? '-' : deg(m.aotDeg)], ['Your nose to him', m.passT === null ? '-' : deg(m.myAtaDeg)],
+        ['Range', Number.isFinite(m.rangeM) ? dist(m.rangeM) : '-']);
+      if (m.circleFlown && m.circleAdvised && m.circleFlown !== m.circleAdvised) {
+        coaching.push(m.circleAdvised === 'two'
+          ? 'Your jet out-rates him: turn toward him after the pass (two-circle) and win on sustained turn rate.'
+          : 'Your jet wins on radius, not rate: turn away after the pass (one-circle), slow toward corner and win on the smaller circle.');
+      }
+      if (m.aotDeg > 90) coaching.push('He is not yet in front of you. Hold corner speed in the turn and do not bleed below it.');
+      coaching.push('Two-circle is a rate fight: best sustained turn rate wins. One-circle is a radius fight: the smaller circle wins, and both jets end slow.');
+      break;
+    }
+    case 'yoyo': {
+      const dist = c.dist ?? ((x: number) => `${Math.round(x)} m`);
+      stats.push(['Overshoots', String(m.overshoots)], ['Time behind him in range', s1(m.heldS)], ['Height gained out of plane', dist(m.climbM)]);
+      if (m.overshoots > 0) coaching.push('Too fast inside his turn: before you pass his wing line, roll your lift vector above his plane and pull.');
+      if (m.climbM < 150) coaching.push('Go out of plane: raise the nose above his turn, then roll back down onto him when the closure is gone.');
+      coaching.push('A high yo-yo trades closure and speed for height, then turns the height back into position behind him.');
+      break;
+    }
     case 'tracking':
       shots();
       if (m.solutionS < 2) coaching.push('Get in his plane of motion first, then pull the pipper or funnel onto him.');
@@ -160,11 +259,18 @@ export function debrief(id: LessonId, m: MergeMetrics, c: DebriefContext): Debri
       if (m.hisSolutionS > 3) coaching.push('Get out of his plane: roll your lift vector off his plane and pull, or unload and change planes.');
       coaching.push('A predictable turn is a gun solution for him. Change planes when you see his nose come to lead.');
       break;
-    case 'fight':
+    case 'fight': {
       shots();
       stats.push(['Hits taken', String(m.hitsTaken)], ['Result', m.killed === 'bandit' ? 'Bandit destroyed' : m.killed === 'me' ? 'You were shot down' : 'Time up']);
+      if (c.skill) stats.push(['Bandit', c.skill]);
+      const mv = m.aiMoves;
+      const seen = AI_MOVES.filter(([k]) => (mv[k] ?? 0) > 0).map(([k, t]) => `${t}${mv[k]! > 1 ? ` × ${mv[k]}` : ''}`);
+      stats.push(['Bandit moves', seen.length ? seen.join(', ') : '-']);
+      if ((mv.jink ?? 0) > 0) coaching.push('He jinked when your sight came on: short bursts as he settles, and stay in his plane.');
+      if ((mv.yoyo ?? 0) > 0) coaching.push('He flew a high yo-yo when he overshot: watch his lift vector come back down and turn into him.');
       coaching.push('Use what you drilled: corner speed in the turn, lead to close, lag to hold, guns in his plane.');
       break;
+    }
   }
   const title = id === 'fight' ? (m.killed === 'bandit' ? 'Splash' : m.killed === 'me' ? 'Shot down' : 'Knock it off') : `${LESSONS[id].title}: ${score}`;
   return { lesson: id, score, title, tone, stats, coaching };
