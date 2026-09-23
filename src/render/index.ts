@@ -21,9 +21,12 @@ export {
   missileMaterials, smokeDensity, f14SweepForMach, solidMaterial,
 } from './jets';
 export type { JetModel, JetConfig, JetPart, JetParts, JetPartDrive } from './jets';
-export { FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint } from './flightOps';
+export {
+  FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint, CarrierMesh, deckOutline, landingLocal, landingPaint,
+  lensCell, shipLocal, shipToLanding, LSO_EYE, CARRIER_CORRIDOR_M,
+} from './flightOps';
 export type {
-  FlightOpsCamera, FlightOpsSceneOptions, RunwayOptions, ApproachGate, ApproachGeometryOptions, ErrLevel, GateState,
+  FlightOpsCamera, FlightOpsSceneOptions, RunwayOptions, ApproachGate, ApproachGeometryOptions, ErrLevel, GateState, DeckStrip,
 } from './flightOps';
 export { LineBatch } from './lines';
 export type { LineStyle, LineBatchOptions } from './lines';
