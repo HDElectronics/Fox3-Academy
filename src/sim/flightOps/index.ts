@@ -4,3 +4,5 @@ export * from './model';
 export * from './pilot';
 export * from './evaluate';
 export * from './nav';
+export * from './carrier';
+export * from './lso';

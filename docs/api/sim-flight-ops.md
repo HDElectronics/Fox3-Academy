@@ -10,9 +10,9 @@ direction is −z; left-hand pattern with the downwind at x < 0.
 ## Model (`model.ts`)
 
 ```ts
-createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff', data?): FlightOpsState
+createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff' | 'caseI' | 'carrierGroove', data?): FlightOpsState
 stepFlightOps(s, input: FlightOpsInput, dt, data?): void   // mutates s; use FLIGHT_OPS_DT = 1/60
-applyAction(s, action: FlightOpsAction, data?): void        // gear, flaps, speed brake, navModeCycle, navPointCycle
+applyAction(s, action: FlightOpsAction, data?): void        // gear, flaps, speed brake, navModeCycle, navPointCycle, hookToggle, callBall
 configWarnings(s, data): { overspeed: 'gear' | 'flaps' | null }
 aoaCue(s, data): 'slow' | 'on' | 'fast'                     // above band = slow
 loadFactor(s, data), aoaForLoad(s, data, n), approachSpeedMs(data), aimPointM(data), flapsFollowGear(data)
@@ -139,3 +139,79 @@ gear down, or at 1000 ft with the gear down), climb (1000 ft above the field, cl
 or more, no overspeed warning). Total = 20 per passed gate, set at the climb gate; a crash scores 0. Verdict:
 "Good takeoff." / "Fair takeoff: …" / "Poor takeoff: …" with faults such as "power not set before brake
 release", "early rotation", "tail strike", "over-rotated", "under-rotated", "gear up late".
+
+## Carrier Case I (#26): `carrier.ts`, `lso.ts`
+
+Starts (jets with `carrier` data: fa18c, f14b on the CVN; su33 on the Kuznetsov; `hasCarrierStart(data)`, else
+`createFlightOpsState` throws):
+- `caseI`: 3 nm astern, 150 m starboard, at the carrier initial altitude and speed on the BRC, clean, hook up.
+- `carrierGroove`: ¾ nm astern on the glide path and the landing centreline (crab for the ship's drift), gear,
+  landing flaps and hook down, on the approach speed.
+
+Both set `s.ship` (ramp at the origin, BRC north, `speedMs` from `SHIPS[id].speedKt`), `hookDown`/`hookPos`
+and `s.lso`. `pos` is then a world frame (x east, y above the sea, z south); `s.ship.x/z` is the ramp (stern on
+the ship centreline) and moves on the BRC every step.
+
+```ts
+shipFrame(s): { a, c, h }            // a ahead of the ramp, c to starboard, h above the deck
+landingFrame(s): { u, v, h }         // u along the angled axis from the ramp, v right of it
+landingToWorld(s, u, v), shipToWorld(s, a, c)   // for the render: wires, landing-area corners, hull
+carrierGeometry(s): CarrierGeometry  // rangeM to the ramp, glideErrDeg / lineupErrDeg (+ high / right),
+                                     // closureMs, glideSinkMs, headingErr, inGroove
+landingHeading(s), crabHeading(s), wireU(ship, i), wireAt(ship, u), aimPointU(ship), targetWire(ship)
+moveShip(s, dt), carrierContact(s, prevU), stepCarrierDeck(s, dt)   // called by stepFlightOps
+CARRIER_HARD_MS = 6, ARREST_DECEL = 25, HOOK_TIME_S = 1.5, HOOK_DOWN_POS = 0.95, TARGET_WIRE = 3,
+CASE_I_START, GROOVE_START_NM = 0.75, GROOVE_MAX_NM = 1.25
+```
+
+- Geometry: the landing area runs from the ramp along heading − `angledDeckDeg`, `landingAreaLengthM` ×
+  `landingAreaWidthM`, at `deckHeightM`. Wire i at `firstWireFromRampM + (i − 1) · wireSpacingM`. The glide
+  path meets the deck half a spacing before wire 3 (`aimPointU`). Glide error is measured from that point,
+  lineup from the far end of the landing area. Hull outline for drawing: `SHIP_HULL` (src/data/ships.ts).
+- Actions: `hookToggle` (air only; hook travels in 1.5 s), `callBall` (sets `lso.ballCalled`).
+- Deck contact on the landing area records `touchdown` and `trap` once: gear up → "Gear up at touchdown";
+  sink beyond 6 m/s → "Hard landing"; hook down (`hookPos` ≥ 0.95) catches the first wire at or ahead of the
+  touchdown point, else a bolter (`trap.wire` null, `bolter` true). `trap.powerAtTouchdown` = throttle
+  (+0.5 in afterburner). Trap: phase `rollout`, `s.speed` becomes the deck-relative speed and decays at
+  25 m/s², then `stopped`; the jet rides with the ship. Bolter: phase stays `air`, held on the deck until it
+  flies off. Crossing the ramp below deck height → "Ramp strike"; below deck height over the hull off the
+  landing area → "Off the landing area"; y ≤ 0 → "In the water". Later deck contacts after a bolter only hold
+  the jet on the deck (one trap record per pass).
+
+LSO and ball (`updateLso(s, data, dt)`, run by `stepFlightOps`):
+- `s.lso.ball` (null outside the groove: astern within 1.25 nm, within 30° of the axis and 10° of lineup,
+  gear handle down or ball called): `cell` = round(glide error / 0.3°) clamped ±5 (`BALL_CELL_DEG`,
+  `IFLOLS_RED_CELL` = −4 and below are the red low cells); `luna` (Kuznetsov) green within ±0.5°, yellow high,
+  red low; `waveoffLights` after an LSO waveoff; `cutLights` for 1 s with "Roger ball" and "Power" (IFLOLS).
+- Calls (`LSO_CALLS`, CVN only; the Kuznetsov gives none): "Roger ball" answers the ball call. Once the ball
+  is called or inside the jet's ball range: "Power" beyond 1.5° low, "You're high" beyond 2.5° high (wording
+  not verified), "Right for lineup" left of centreline beyond 1.7°, "Come left" right beyond 1.7°. Inside
+  0.35 nm (`WAVEOFF_RANGE_NM`), 2.7° low, 4.9° high, 2.9° lineup or gear not down → "Wave off" (once,
+  `lso.waveoff`). After the ball call and outside 150 m: pitch rate above 5°/s "Easy with the nose", bank
+  above 20° "Easy with your wings", throttle change above 30 %/s "Easy with it". A call fires when its metric
+  passes the threshold, re-arms below 0.8 × threshold, repeats after 4 s while beyond; at most one call every
+  2 s. "Bolter, bolter, bolter" on a bolter. `ballInRange(s, data)` tells the page when to prompt the call.
+
+Demo pilot (`carrierPilot` inside `demoPilot`, legs initial → break → downwind → turn → final → rollout, or
+`bolter`): breaks 2000 m ahead of the ramp with a turn as wide as the abeam distance (at most the jet's break
+g), hook down in the break, gear and landing flaps below the carrier limit, holds the abeam distance at 600 ft,
+rolls into a constant-bank 180 (`carrierTurn(s, data)`: radius, bank, roll-in point for wings level at the
+groove distance) with a lead-in onto the centreline, calls the ball, flies the glide path to the deck without
+a flare and sets touchdown power 6 m above the deck. After a bolter or waveoff: MIL and climb ahead. Traps
+wire 3 in all three jets.
+
+Grading (`new CarrierEvaluator(data)`, `update(s)`, `score(): CarrierScore`):
+- Gates: initial (passing the ramp on the BRC: ±100 ft, ±20 kt), break (ahead of the ramp and within 4 nm;
+  published interval as a note), downwind (±50 ft) and abeam (published band ±0.1 nm, gear, flaps, hook down)
+  passing the ramp southbound, ninety (heading 90° off BRC: band ±50 ft, gear down, on speed), groove (wings
+  level to touchdown within the band ±2 s on Case I passes; ball called 0.15 nm early to 0.25 nm late of the
+  ball range), touchdown (wire caught, throttle ≥ 0.85 and no afterburner for the Tomcat).
+- Comments (`grooveComments`, `commentText`, `commentWords`): segment means by range to the ramp, X > 0.45 nm,
+  IM 0.2–0.45, IC 0.05–0.2, AR inside 0.05. H, LO, LUL, LUR from the LSO thresholds (a little = 0.4 ×), F / SLO
+  from AoA in half-band widths (1, 2, 3), NERD / TMRD from the sink against the glide-path sink (< 0.5, > 1.6).
+  "(LO)IC" a little, "LOIC", "_LO_IC" a lot.
+- Grade (`carrierGrade`): crash C; LSO waveoff WO; own waveoff OWO (leaving the groove or passing the landing
+  area without touching); bolter B. Traps: penalties 1 (a little), 3 (normal; 4 in close or at the ramp),
+  6 (a lot), +2 no ball call, +2 power not set; a lot in close or at the ramp is C. 0 on wire 3 → _OK_, ≤ 3 OK,
+  ≤ 6 (OK), else ---. total = 0.75 × grade base (_OK_ 100, OK 90, (OK) 75, --- 55, B 40, OWO 40, WO 30, C 10)
+  + 25 × passed-gate fraction; a crash scores 0. Verdict: "OK pass, 3 wire: a little low in close."

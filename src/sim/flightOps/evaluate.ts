@@ -14,13 +14,16 @@
  * Jets without flap control (M-2000C) are graded on the gear only; their notes never mention flaps.
  *
  * TakeoffEvaluator (#24) grades brakeRelease, rotate, liftoff, gearUp and climb; see its class comment.
+ * CarrierEvaluator (#26) grades the Case I pass and gives the DCS-format LSO grade; see its class comment.
  */
 import { M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, D2R, clamp } from '../math';
 import { aimPointM, aoaCue, configWarnings, loadFactor, noFlapControl, rotateAtKt } from './model';
 import {
-  RUNWAY, type ApproachGeometry, type ApproachScore, type FlightOpsJetData, type FlightOpsState, type GateId,
-  type GateResult, type TakeoffScore,
+  RUNWAY, type ApproachGeometry, type ApproachScore, type CarrierGradeMark, type CarrierScore, type FlightOpsJetData,
+  type FlightOpsState, type GateId, type GateResult, type LsoCall, type TakeoffScore,
 } from './types';
+import { carrierData, carrierGeometry, shipData, shipFrame, targetWire } from './carrier';
+import { LSO_THRESHOLDS } from './lso';
 
 export const TOUCHDOWN_ZONE_FT = { short: 350, long: 1000 } as const;
 const FINAL_M = M_PER_NM;
@@ -330,5 +333,280 @@ export class TakeoffEvaluator {
     const head = total >= 100 ? 'Good takeoff' : total >= 80 ? 'Fair takeoff' : 'Poor takeoff';
     const verdict = faults.length ? `${head}: ${faults.join(', ')}.` : `${head}. Power set, rotated on speed, gear up in the climb.`;
     return { ...base, total, verdict };
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- carrier (#26)
+
+export type GrooveMark = 'X' | 'IM' | 'IC' | 'AR';
+/** Groove segments by range to the ramp, nm: X start, IM in the middle, IC in close, AR at the ramp. */
+export const GROOVE_SEGMENTS: readonly { id: GrooveMark; fromNm: number }[] = [
+  { id: 'X', fromNm: 0.45 }, { id: 'IM', fromNm: 0.2 }, { id: 'IC', fromNm: 0.05 }, { id: 'AR', fromNm: 0 },
+];
+/** Comment bands (a little, normal, a lot), from the LSO thresholds: a little = 0.4 × the call threshold. */
+export const GRADE_BANDS = {
+  H: [1.0, LSO_THRESHOLDS.highDeg, LSO_THRESHOLDS.highFarDeg],
+  LO: [0.6, LSO_THRESHOLDS.lowDeg, LSO_THRESHOLDS.lowFarDeg],
+  LU: [0.7, LSO_THRESHOLDS.lineupDeg, LSO_THRESHOLDS.lineupFarDeg],
+  /** AoA off the middle of the on-speed band, in half-band widths. */
+  AOA: [1, 2, 3],
+} as const;
+/** Sink rate against the glide-path sink: NERD below, TMRD above. */
+export const SINK_BANDS = { nerd: 0.5, tmrd: 1.6 } as const;
+/** Throttle at touchdown that counts as the touchdown power (the throttle lags the lever). */
+export const TOUCHDOWN_POWER_MIN = 0.85;
+/** Trainer tolerance on the groove time band, seconds; ball call window around the ball range, nm. */
+export const GROOVE_TOL_S = 2;
+export const BALL_WINDOW_NM = { early: 0.15, late: 0.25 } as const;
+const GRADE_BASE: Record<CarrierGradeMark, number> = { _OK_: 100, OK: 90, '(OK)': 75, '---': 55, B: 40, OWO: 40, WO: 30, C: 10 };
+
+type Magnitude = 0 | 1 | 2 | 3;
+export interface CarrierComment { code: 'H' | 'LO' | 'F' | 'SLO' | 'LUL' | 'LUR' | 'NERD' | 'TMRD'; mark: GrooveMark; mag: 1 | 2 | 3 }
+
+/** DCS comment text: "(LO)IC" a little, "LOIC", "_LO_IC" a lot. */
+export const commentText = (c: CarrierComment) =>
+  c.mag === 1 ? `(${c.code})${c.mark}` : c.mag === 3 ? `_${c.code}_${c.mark}` : `${c.code}${c.mark}`;
+
+const mag = (v: number, bands: readonly number[]): Magnitude => (v > bands[2]! ? 3 : v > bands[1]! ? 2 : v > bands[0]! ? 1 : 0);
+
+/** Time-integrated groove samples for one segment. */
+export interface GrooveSegment { t: number; glide: number; lineup: number; aoa: number; sink: number; ideal: number }
+const emptySeg = (): GrooveSegment => ({ t: 0, glide: 0, lineup: 0, aoa: 0, sink: 0, ideal: 0 });
+
+/** Comments from per-segment means (pure; exported for tests). */
+export function grooveComments(segs: Partial<Record<GrooveMark, GrooveSegment>>): CarrierComment[] {
+  const out: CarrierComment[] = [];
+  for (const { id } of GROOVE_SEGMENTS) {
+    const s = segs[id];
+    if (!s || s.t <= 0) continue;
+    const g = s.glide / s.t, l = s.lineup / s.t, a = s.aoa / s.t;
+    const add = (code: CarrierComment['code'], m: Magnitude) => { if (m) out.push({ code, mark: id, mag: m }); };
+    add('H', mag(g, GRADE_BANDS.H));
+    add('LO', mag(-g, GRADE_BANDS.LO));
+    add('LUL', mag(-l, GRADE_BANDS.LU));
+    add('LUR', mag(l, GRADE_BANDS.LU));
+    add('SLO', mag(a, GRADE_BANDS.AOA));
+    add('F', mag(-a, GRADE_BANDS.AOA));
+    if (s.ideal > 0) {
+      const r = s.sink / s.ideal;
+      if (r < SINK_BANDS.nerd) add('NERD', 2);
+      else if (r > SINK_BANDS.tmrd) add('TMRD', 2);
+    }
+  }
+  return out;
+}
+
+export interface CarrierPassSummary {
+  crashed: boolean; waveoff: boolean; ownWaveoff: boolean; bolter: boolean; wire: number | null;
+  targetWire: number; comments: CarrierComment[]; ballCalled: boolean; powerOk: boolean;
+}
+
+/**
+ * DCS-format grade from a finished pass (pure; exported for tests):
+ * crash → C; LSO waveoff → WO; own waveoff → OWO; bolter → B. A trap scores penalties: 1 per "a little",
+ * 3 per normal comment (4 in close or at the ramp), 6 per "a lot", 2 each for no ball call and power not
+ * at the touchdown setting. A lot in close or at the ramp → C (cut pass). 0 on the target wire → _OK_;
+ * ≤ 3 → OK; ≤ 6 → (OK); else --- (no grade).
+ */
+export function carrierGrade(p: CarrierPassSummary): { grade: CarrierGradeMark; penalty: number } {
+  if (p.crashed) return { grade: 'C', penalty: 99 };
+  if (p.waveoff) return { grade: 'WO', penalty: 0 };
+  if (p.ownWaveoff) return { grade: 'OWO', penalty: 0 };
+  if (p.bolter || p.wire === null) return { grade: 'B', penalty: 0 };
+  let pen = 0;
+  for (const c of p.comments) {
+    const late = c.mark === 'IC' || c.mark === 'AR';
+    if (c.mag === 3 && late) return { grade: 'C', penalty: 99 };
+    pen += c.mag === 1 ? 1 : c.mag === 2 ? (late ? 4 : 3) : 6;
+  }
+  if (!p.ballCalled) pen += 2;
+  if (!p.powerOk) pen += 2;
+  const grade: CarrierGradeMark = pen === 0 && p.wire === p.targetWire ? '_OK_' : pen <= 3 ? 'OK' : pen <= 6 ? '(OK)' : '---';
+  return { grade, penalty: pen };
+}
+
+const CODE_WORDS: Record<CarrierComment['code'], string> = {
+  H: 'high', LO: 'low', F: 'fast', SLO: 'slow', LUL: 'lined up left', LUR: 'lined up right',
+  NERD: 'not enough rate of descent', TMRD: 'too much rate of descent',
+};
+const MARK_WORDS: Record<GrooveMark, string> = { X: 'at the start', IM: 'in the middle', IC: 'in close', AR: 'at the ramp' };
+export const commentWords = (c: CarrierComment) =>
+  `${c.mag === 1 ? 'a little ' : c.mag === 3 ? 'very ' : ''}${CODE_WORDS[c.code]} ${MARK_WORDS[c.mark]}`;
+
+/**
+ * Case I grading (#26). Gates in flight order, each appearing when flown (ship frame: a ahead of the ramp,
+ * c to starboard):
+ * - initial: passing the ramp on the BRC, gear up. Altitude ±100 ft, speed ±20 kt.
+ * - break: bank past 45° after the initial; graded on reaching downwind. Ahead of the ramp and within 4 nm.
+ *   The published interval (between jets) is a note.
+ * - downwind, abeam: passing the ramp southbound on the port side. Altitude ±50 ft; abeam distance inside the
+ *   published band ±0.1 nm with gear, landing flaps and hook down.
+ * - ninety: heading passes 90° off the BRC in the 180. Altitude inside the band ±50 ft, gear down, on speed.
+ * - groove: wings level on the centreline to touchdown. Time inside the band ±GROOVE_TOL_S (Case I passes
+ *   only); ball called inside the ball range window (0.15 nm early to 0.25 nm late).
+ * - touchdown: wire caught, touchdown power (MIL for the Tomcat, no afterburner).
+ * The pass ends at a trap or bolter, a crash, or on leaving the groove (or flying past the landing area): after
+ * an LSO waveoff that is WO, else an own waveoff (OWO). Grade and comments: `carrierGrade`, `grooveComments`. total = 0.75 × grade base +
+ * 25 × passed-gate fraction; a crash scores 0.
+ */
+export class CarrierEvaluator {
+  private readonly gates = new Map<GateId, GateResult>();
+  private prev: { a: number; heading: number; t: number } | null = null;
+  private initialT: number | null = null;
+  private breakStart: { t: number; a: number } | null = null;
+  private grooveT: number | null = null;
+  private ballRangeNm: number | null = null;
+  private readonly segs: Partial<Record<GrooveMark, GrooveSegment>> = {};
+  private done = false;
+  private summary: CarrierPassSummary | null = null;
+  private calls: LsoCall[] = [];
+  private crash: string | null = null;
+
+  constructor(private readonly d: FlightOpsJetData) {}
+
+  private pass(id: GateId, t: number, ok: boolean, notes: string[]) {
+    if (!this.gates.has(id)) this.gates.set(id, { id, label: LABELS[id], passedAt: t, ok, notes });
+  }
+
+  update(s: FlightOpsState): void {
+    if (this.done || !s.ship) return;
+    const d = this.d;
+    const c = carrierData(d);
+    const sf = shipFrame(s);
+    const g = carrierGeometry(s);
+    const brc = s.ship.heading;
+    const off = (h: number, from = s.heading) => Math.abs(Math.atan2(Math.sin(from - h), Math.cos(from - h)));
+    const p = this.prev;
+    const dt = p ? Math.max(0, s.t - p.t) : 0;
+    if (s.lso) this.calls = s.lso.calls;
+
+    if (s.phase === 'air' && p) {
+      if (!this.gates.has('initial') && p.a < 0 && sf.a >= 0 && off(brc) < 45 * D2R && !s.gearDown) {
+        this.initialT = s.t;
+        const alt = ft(s.pos.y), want = c.pattern.initialAltFt.value;
+        const spd = kts(s.speed), wantKt = c.pattern.initialKt.value;
+        this.pass('initial', s.t, Math.abs(alt - want) <= 100 && Math.abs(spd - wantKt) <= 20,
+          [`${alt} ft, want ${want} ±100`, `${spd} kt, want ${wantKt} ±20`]);
+      }
+      if (this.gates.has('initial') && !this.breakStart && s.bank < -45 * D2R) this.breakStart = { t: s.t, a: sf.a };
+      if (this.breakStart && !this.gates.has('break') && off(brc + Math.PI) < 45 * D2R) {
+        const nm = Math.round((this.breakStart.a / M_PER_NM) * 100) / 100;
+        const after = Math.round(this.breakStart.t - (this.initialT ?? this.breakStart.t));
+        const [i0, i1] = c.pattern.breakIntervalS.value;
+        this.pass('break', this.breakStart.t, nm >= 0 && nm <= 4,
+          [nm >= 0 ? `Broke ${nm} nm ahead of the ramp, ${after} s after it` : 'Broke before passing the ramp',
+            `Break interval ${i0}–${i1} s between jets; break before 4 nm`]);
+      }
+      if (!this.gates.has('abeam') && p.a > 0 && sf.a <= 0 && sf.c < 0 && off(brc + Math.PI) < 45 * D2R) {
+        const alt = ft(s.pos.y), want = c.pattern.downwindAltFt.value;
+        this.pass('downwind', s.t, Math.abs(alt - want) <= 50, [`${alt} ft, want ${want} ±50`, `${kts(s.speed)} kt`]);
+        const nm = Math.round((-sf.c / M_PER_NM) * 100) / 100;
+        const [lo, hi] = c.pattern.abeamNm.value;
+        const flaps = noFlapControl(d) || s.flapIndex >= d.landingFlap;
+        const cfg = s.gearDown && flaps && !!s.hookDown;
+        const missing = [!s.gearDown && 'gear', !flaps && 'landing flaps', !s.hookDown && 'hook'].filter(Boolean).join(', ');
+        this.pass('abeam', s.t, nm >= lo - 0.1 && nm <= hi + 0.1 && cfg,
+          [`${nm} nm abeam, want ${lo}–${hi}`, cfg ? 'Gear, flaps and hook down' : `Not configured: ${missing}`]);
+      }
+      if (!this.gates.has('ninety') && this.gates.has('abeam') && off(brc) <= Math.PI / 2 && off(brc, p.heading) > Math.PI / 2) {
+        const alt = ft(s.pos.y);
+        const [n0, n1] = c.pattern.ninetyAltFt.value;
+        const cue = aoaCue(s, d);
+        this.pass('ninety', s.t, alt >= n0 - 50 && alt <= n1 + 50 && s.gearDown && cue === 'on',
+          [`${alt} ft, want ${n0}–${n1}`, `AoA ${s.aoa.toFixed(1)} ${d.aoa.unit === 'deg' ? '°' : 'units'} (${cue === 'on' ? 'on speed' : cue})`]);
+      }
+      // Groove: from wings level on the centreline.
+      if (this.grooveT === null && g.inGroove && Math.abs(s.bank) < 10 * D2R && Math.abs(g.headingErr) < 10 * D2R) this.grooveT = s.t;
+      if (s.lso?.ballCalled && this.ballRangeNm === null) this.ballRangeNm = Math.round((g.rangeM / M_PER_NM) * 100) / 100;
+      if (this.grooveT !== null && g.inGroove) {
+        const nm = g.rangeM / M_PER_NM;
+        const mark = GROOVE_SEGMENTS.find(x => nm >= x.fromNm)?.id ?? 'AR';
+        const seg = (this.segs[mark] ??= emptySeg());
+        const [lo, hi] = d.aoa.band.value;
+        seg.t += dt;
+        seg.glide += g.glideErrDeg * dt;
+        seg.lineup += g.lineupErrDeg * dt;
+        seg.aoa += ((s.aoa - (lo + hi) / 2) / Math.max(0.1, (hi - lo) / 2)) * dt;
+        seg.sink += -s.vs * dt;
+        seg.ideal += g.glideSinkMs * dt;
+      }
+    }
+
+    // Pass end. A waveoff ends the pass once the jet leaves the groove (or crashes, or lands anyway).
+    const waveoff = !!s.lso?.waveoff;
+    const left = s.phase === 'air' && (this.grooveT !== null || waveoff)
+      && ((g.u < 0 && !g.inGroove) || g.u > shipData(s).landingAreaLengthM);
+    if (s.phase === 'crashed') this.finish(s, { crash: s.crashReason ?? 'Crashed', waveoff });
+    else if (s.trap) this.finish(s, { waveoff });
+    else if (left) this.finish(s, waveoff ? { waveoff } : { own: true });
+    this.prev = { a: sf.a, heading: s.heading, t: s.t };
+  }
+
+  private finish(s: FlightOpsState, o: { crash?: string; own?: boolean; waveoff: boolean } | { own: true }) {
+    this.done = true;
+    const endT = s.trap?.t ?? s.t;
+    this.crash = 'crash' in o ? o.crash ?? null : null;
+    const c = carrierData(this.d);
+    if (this.grooveT !== null) {
+      const notes: string[] = [];
+      let ok = true;
+      const [g0, g1] = c.pattern.grooveS.value;
+      const secs = Math.round(endT - this.grooveT);
+      if (this.gates.has('ninety')) {
+        ok = secs >= g0 - GROOVE_TOL_S && secs <= g1 + GROOVE_TOL_S;
+        notes.push(`${secs} s in the groove, want ${g0}–${g1}`);
+      } else notes.push(`${secs} s in the groove (started in the groove)`);
+      const ball = c.pattern.ballNm.value;
+      if (this.ballRangeNm === null) { ok = false; notes.push('No ball call'); }
+      else {
+        ok &&= this.ballRangeNm <= ball + BALL_WINDOW_NM.early && this.ballRangeNm >= ball - BALL_WINDOW_NM.late;
+        notes.push(`Ball called at ${this.ballRangeNm} nm, want about ${ball}`);
+      }
+      this.pass('groove', this.grooveT, ok, notes);
+    }
+    const trap = s.trap;
+    const wantMil = c.touchdownPower.value === 'MIL';
+    const powerOk = !!trap && trap.powerAtTouchdown >= TOUCHDOWN_POWER_MIN && !(wantMil && trap.powerAtTouchdown > 1);
+    if (trap || this.crash) {
+      const notes: string[] = [];
+      if (trap) {
+        notes.push(trap.wire !== null ? `${trap.wire} wire` : 'Bolter');
+        const pct = Math.round(Math.min(1, trap.powerAtTouchdown) * 100);
+        notes.push(trap.powerAtTouchdown > 1 ? (wantMil ? 'Afterburner at touchdown: MIL only' : 'Afterburner at touchdown')
+          : powerOk ? `${wantMil ? 'MIL' : 'Max power'} at touchdown` : `${pct} % power at touchdown, want ${wantMil ? 'MIL' : 'max'}`);
+      }
+      if (this.crash) notes.push(this.crash);
+      this.pass('touchdown', trap?.t ?? s.t, !!trap && trap.wire !== null && powerOk && !this.crash, notes);
+    }
+    this.summary = {
+      crashed: !!this.crash, waveoff: 'waveoff' in o && o.waveoff, ownWaveoff: 'own' in o && !!o.own, bolter: !!trap?.bolter,
+      wire: trap?.wire ?? null, targetWire: targetWire(shipData(s)), comments: grooveComments(this.segs),
+      ballCalled: this.ballRangeNm !== null, powerOk,
+    };
+  }
+
+  score(): CarrierScore {
+    const gates = [...this.gates.values()].sort((a, b) => a.passedAt - b.passedAt);
+    const sm = this.summary;
+    const base: CarrierScore = {
+      gates, grade: null, comments: [], wire: sm?.wire ?? null, bolter: sm?.bolter ?? false,
+      waveoff: sm?.waveoff ?? false, calls: [...this.calls], total: null, verdict: null,
+    };
+    if (!this.done || !sm) return base;
+    const { grade } = carrierGrade(sm);
+    const words = sm.comments.map(commentWords);
+    const trapped = sm.wire !== null && !sm.crashed;
+    if (trapped && !sm.ballCalled) words.push('no ball call');
+    if (trapped && !sm.powerOk) words.push('power not set at touchdown');
+    const okFrac = gates.length ? gates.filter(g => g.ok).length / gates.length : 0;
+    const total = this.crash ? 0 : Math.round(clamp(0.75 * GRADE_BASE[grade] + 25 * okFrac, 0, 100));
+    const tail = words.length ? `: ${words.join(', ')}.` : '.';
+    const wire = sm.wire !== null ? `, ${sm.wire} wire` : '';
+    const lead: Record<CarrierGradeMark, string> = {
+      _OK_: 'Perfect pass', OK: 'OK pass', '(OK)': 'Fair pass', '---': 'No grade', C: 'Cut pass', B: 'Bolter',
+      WO: 'Waved off', OWO: 'Own waveoff',
+    };
+    const verdict = this.crash ? `Cut pass: ${this.crash.toLowerCase()}.` : `${lead[grade]}${wire}${tail}`;
+    return { ...base, grade, comments: sm.comments.map(commentText), total, verdict };
   }
 }

@@ -236,7 +236,7 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 ### Flight ops
 
 `src/data/flightOps.ts` (`FLIGHT_OPS`, `FLIGHT_OPS_CAVEATS`); every `Sourced` value with `verified: false`:
-- Keys: gear `G`, flaps `F`, speed brake `B` are common DCS defaults, not verified per module. No hook key is given.
+- Keys: gear `G`, flaps `F`, speed brake `B` are common DCS defaults, not verified per module. Hook keys: see Carrier.
 - F/A-18C: approach speed 140 kt; gear and FULL-flap limit 250 kt (the guide's carrier section says 150 KIAS).
 - F-16C: approach speed 150 kt; abeam 1.2 nm, gear limit 300 kt and aim point 500 ft are not in Chuck's guide.
   The on-speed value is 11° with the 11–14° green band as the guide gives it; no flap selector (flaps follow gear).
@@ -264,6 +264,20 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
   the Hornet, F-15C, F-14B (250) and Russian jets (270); MIL or afterburner choice except F-16C and M-2000C;
   brake key `W` for every jet but the F-15C; `PgUp` throttle key for the FC3 jets. The whole F-14B takeoff
   (Heatblur's takeoff page is a work in progress).
+- Carrier (#26; `carrier` on fa18c, f14b, su33; `SHIPS`, `SHIP_HULL`, `SHIP_CAVEATS` in `src/data/ships.ts`).
+  Sourced: Hornet hook `H`, 350 KIAS initial, gear and FULL flaps below 150 KIAS; Supercarrier 800 ft initial
+  3 nm astern, break interval 15–20 s and before 4 nm, 600 ft downwind 1¼–1½ nm abeam, ball at ¾ nm, max power
+  at touchdown, CVN four wires; Tomcat 800 ft 300–350 KIAS break, 15–17 s interval, 90 at 450–500 ft, ball at
+  about 0.6 nm, 15–18 s groove, MIL at touchdown; Su-33 hook `LAlt+G`, Kuznetsov four wires 12 m apart, Luna-3
+  colours. Not verified: glide slope 3.5° (Hornet guide; the Supercarrier LSO section says 3.6°, the Kuznetsov
+  uses the same value); ship speed 15 kt (no wind: wind over the deck = ship speed); angled deck 9° (CVN) and
+  7° (Kuznetsov); CVN wire spacing 12 m; first wire 55 m / 50 m from the ramp; landing-area sizes, deck
+  heights and hull dimensions (drawing values); ball-call key `Y` for every jet (DCS uses the radio menu);
+  Tomcat hook key `H`, gear/flap limit 250 kt; Hornet 90 at 450–500 ft (Tomcat value) and groove 18–24 s
+  (trainer band); the whole Su-33 Case I pattern (Hornet / Supercarrier stand-ins), its touchdown power and any
+  Kuznetsov LSO calls or grades (`lso: false`, the trainer grades the pass itself). Trainer rules, not DCS
+  numbers: ball cell 0.3°, Luna-3 green band ±0.5°, waveoff range 0.35 nm, call hysteresis and intervals, the
+  "You're high" wording, grade comment bands, penalties and totals, the 6 m/s deck sink limit.
 
 ## Requests (to the architect)
 

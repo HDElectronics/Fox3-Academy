@@ -20,6 +20,8 @@ import {
   type FlightOpsState,
 } from './types';
 import { cycleNavMode, cycleNavPoint, initNav, navRoute, updateNav } from './nav';
+import { HOOK_TIME_S, carrierContact, landingFrame, moveShip, placeCarrierStart, stepCarrierDeck } from './carrier';
+import { updateLso } from './lso';
 
 export const FLIGHT_OPS_DT = 1 / 60;
 /** Sink rate beyond which a touchdown is a crash, m/s (about 890 ft/min). */
@@ -63,7 +65,8 @@ const LATE_LIFTOFF_PITCH_DEG = 3;
 /** Takeoff start: this far past the threshold, on the centreline, heading north. */
 export const TAKEOFF_START_M = 100;
 
-export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff';
+/** 'caseI' and 'carrierGroove' (#26) need `FlightOpsJetData.carrier` (fa18c, f14b, su33). */
+export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff' | 'caseI' | 'carrierGroove';
 
 /** 'rtb' start: off-axis south-west of the field, runway frame metres, and speed in knots (gameplay values). */
 export const RTB_START = { x: -12000, z: 38000, altM: 3500, kt: 300 } as const;
@@ -194,6 +197,13 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
       s.pos = { x: 0, y: 0, z: -50 };
       s.phase = 'stopped';
       return s;
+    case 'caseI':
+      placeCarrierStart(s, d, 'caseI', va);
+      break;
+    case 'carrierGroove':
+      setLanding(s, d);
+      placeCarrierStart(s, d, 'carrierGroove', va);
+      break;
     case 'takeoff':
       s.gearDown = true; s.gearPos = 1;
       s.flapIndex = takeoffFlapIndex(d); s.flapPos = s.flapIndex / Math.max(1, d.flapLabels.length - 1);
@@ -252,6 +262,12 @@ export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: Fl
       return;
     case 'navPointCycle':
       cycleNavPoint(s, d);
+      return;
+    case 'hookToggle':
+      if (s.hookDown !== undefined && s.phase === 'air') s.hookDown = !s.hookDown;
+      return;
+    case 'callBall':
+      if (s.lso && s.phase === 'air') s.lso.ballCalled = true;
   }
 }
 
@@ -271,10 +287,13 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   const nFlap = Math.max(1, d.flapLabels.length - 1);
   s.flapPos = approach(s.flapPos, s.flapIndex / nFlap, 1 / FLAP_TIME, dt);
   s.speedbrakePos = approach(s.speedbrakePos, s.speedbrakeOut ? 1 : 0, 1 / SPEEDBRAKE_TIME, dt);
+  if (s.hookDown !== undefined) s.hookPos = approach(s.hookPos ?? 0, s.hookDown ? 1 : 0, 1 / HOOK_TIME_S, dt);
   const thrust = IDLE_ACC + s.throttle * (MIL_ACC - IDLE_ACC) + (s.afterburner ? AB_ACC : 0);
 
   if (s.phase === 'ready' || s.phase === 'roll') { stepTakeoffRoll(s, input, dt, d, thrust); updateNav(s, d); return; }
+  if (s.ship && s.phase !== 'air') { stepCarrierDeck(s, dt); updateLso(s, d, dt); return; }
   if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); updateNav(s, d); return; }
+  const prevU = s.ship ? landingFrame(s).u : 0;
 
   // Stick: AoA rate and roll rate.
   const on = d.aoa.onSpeed.value;
@@ -295,6 +314,12 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   s.vs = v * Math.sin(s.gamma);
   s.pos.y += s.vs * dt;
 
+  if (s.ship) {
+    moveShip(s, dt);
+    carrierContact(s, prevU);
+    updateLso(s, d, dt);
+    return;
+  }
   if (s.pos.y <= 0) touchdown(s);
   updateNav(s, d);
 }
