@@ -13,7 +13,7 @@
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import type { FighterId } from '../../data/types';
-import { AIRCRAFT } from '../../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import type { AiSkill } from '../../sim/types';
 import { h } from '../../ui';
 import { jetKeyMap } from './keys';
@@ -28,9 +28,9 @@ function applyParams(s: SortieSetup, p: URLSearchParams): SortieSetup {
   const out = { ...s };
   const sc = p.get('scenario');
   if (sc === '1v1' || sc === '1v2' || sc === '2v2') out.scenario = sc;
-  const en = p.get('enemy');
+  const en = FIGHTER_ORDER.find(id => id === p.get('enemy'));
   // A different adversary flies at its own cruise altitude, as when you pick it in the brief.
-  if (en && Object.hasOwn(AIRCRAFT, en) && en !== out.enemy) { out.enemy = en as FighterId; out.enemyAlt = cruiseFor(out.enemy).alt; }
+  if (en && en !== out.enemy) { out.enemy = en; out.enemyAlt = cruiseFor(out.enemy).alt; }
   const sk = p.get('skill');
   if (sk && SKILLS.includes(sk as AiSkill)) out.skill = sk as AiSkill;
   const r = Number(p.get('range'));

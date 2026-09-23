@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { article, briefFacts, defaultSetup, multiShot, parseSetup } from './setup';
+import { article, briefFacts, buildSortie, defaultSetup, multiShot, parseSetup } from './setup';
+import { World } from '../../sim/world';
 import { simulateSortie } from './headless';
 
 describe('brief facts', () => {
@@ -29,6 +30,16 @@ describe('brief facts', () => {
 });
 
 describe('parseSetup', () => {
+  test('replaces a stored attack opponent with the default fighter for the brief and fight', () => {
+    const s = parseSetup('f15c', JSON.stringify({ enemy: 'su25t', skill: 'veteran' }));
+    expect(s.enemy).toBe(defaultSetup('f15c').enemy);
+    expect(s.skill).toBe('veteran');
+    expect(() => briefFacts('f15c', s, 'imperial')).not.toThrow();
+    expect(() => buildSortie(new World(1), 'f15c', s, 'imperial')).not.toThrow();
+  });
+  test('retains a valid stored fighter opponent', () => {
+    expect(parseSetup('f15c', JSON.stringify({ enemy: 'm2000c' })).enemy).toBe('m2000c');
+  });
   test('rejects prototype keys and clamps numbers', () => {
     const s = parseSetup('su27', JSON.stringify({ enemy: 'constructor', range: 1e9, playerAlt: -5, skill: 'god' }));
     const d = defaultSetup('su27');
