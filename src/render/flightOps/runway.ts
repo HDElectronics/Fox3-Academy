@@ -86,7 +86,7 @@ export class RunwayMesh extends Group {
     const L = this.lengthM, W = this.widthM;
     const asphalt = new MeshStandardMaterial({ color: palette.dark.clone().lerp(palette.smoke, 0.16), roughness: 0.95, metalness: 0, side: DoubleSide });
     const paint = new MeshStandardMaterial({ color: palette.missile.clone(), roughness: 0.8, metalness: 0, side: DoubleSide });
-    const grass = new MeshStandardMaterial({ color: palette.earth.clone().lerp(palette.ok, 0.12), roughness: 1, metalness: 0, side: DoubleSide });
+    const grass = new MeshStandardMaterial({ color: palette.earth.clone().lerp(palette.ok, 0.04), roughness: 1, metalness: 0, side: DoubleSide });
     this.mats = [asphalt, paint, grass];
     // Heights keep each layer clear of the environment ground (log depth, no polygon offset).
     this.infield = new Mesh(quads([[-220, 220, -L - 600, 600]], 0.06), grass);

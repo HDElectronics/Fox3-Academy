@@ -83,6 +83,12 @@ Learn mode explains your jet's RWR part by part (the SPO-15 lamp panel, or the r
 sandbox where you drag threats around your jet and set them to search, lock, launch or active. Quiz mode asks you
 to read the display: who is locking you, where the launch is, which jet is at 2 o'clock, and what to do now.
 
+### Pattern & landing
+F/A-18C, F-16C and F-15C. Watch the demo fly the overhead pattern (initial, break, downwind, abeam, final turn,
+groove) or fly it yourself from the initial, downwind or final: arrows for the stick, Num+ / Num- for the throttle,
+G gear, F flaps, B speed brake. The HUD, AoA indexer and a top-down trace guide you; the debrief grades each gate,
+the glide path, lineup, on-speed time and the touchdown zone. A score of 70 or more in Fly mode completes it.
+
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and
 drops chaff, scaled by skill (rookie to ace). The brief compares your launch zone with his. You fly a tactical
