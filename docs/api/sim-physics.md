@@ -1,6 +1,6 @@
 # sim-physics — flight, missiles, countermeasures, launch zones
 
-Owner: sim-physics. Files: `src/sim/flight.ts`, `missile.ts`, `missileModel.ts`, `countermeasures.ts`,
+Owner: sim-physics. Files: `src/sim/flight.ts`, `guns.ts`, `missile.ts`, `missileModel.ts`, `countermeasures.ts`,
 `dlz.ts`, `dlzTables.ts` (generated), tests in `src/sim/physics.test.ts` and `tests/tune/*.test.ts`.
 
 Everything here is a **game mechanic tuned to what DCS players see**, not a weapon model (see
@@ -15,6 +15,8 @@ When a page shows these numbers, say they are the game's launch-zone values, sim
 ```ts
 stepAircraft(world, ac, dt)   // World calls it every tick for every live jet
 availableG(ac): number        // load factor the jet can pull right now (lift-limited below corner speed)
+liftVector(ac, out?): Vector3 // unit lift direction ("canopy up") now: BFM lift vector, else from path + roll
+sustainedGAt(ac, mach, altM)  // sustained g at full afterburner from data TURN_PERF (not verified)
 MIN_ALT_AGL                   // 150: jets never go below world.groundAlt + 150 m
 ```
 
@@ -27,12 +29,64 @@ Every jet (player, AI, script) flies through `ac.cmd`:
 | `altitude` | Altitude hold. Climb angle ≤ 18° (military) / 25° (afterburner), less when slow; dives up to 45° (dive to the notch). Clamped to `groundAlt + 150 m` .. `perf.ceilingFt`. |
 | `speed` | Autothrottle (idle + speed brake down to −1.5 m/s²). |
 | `afterburner` | Allows max thrust. Without it the jet tops out around Mach 0.95–1.05 at altitude. |
+| `bfm` | Optional BFM mode (below). Set = heading / altitude / speed / afterburner are ignored. `null` or absent = autopilot. |
+| `trigger` | Optional. Gun trigger held (`guns.ts`). |
+
+**BFM mode** (`cmd.bfm = { bank, g, throttle, speedbrake? }`, contract added for issue #11): a 3D point-mass
+manoeuvre, still arcade.
+- `bank` (rad): lift-vector roll angle around the flight path from straight up, + right; π = lift vector on the
+  ground. Rolls at 150°/s. Within ~1.8° of the vertical the bank is undefined and the jet holds its roll. Over the
+  top of a loop the angle reads π, so a loop is `bank: |ac.roll| > π/2 ? π : 0` with `g: 'max'`.
+  Non-finite commands hold the current bank.
+- `g`: number or `'max'`; capped by `cmd.maxG`, `perf.maxG` and the lift limit below corner speed, never below 0.
+  Non-finite numeric commands fall back to 1 g before applying the limits.
+- `throttle`: `'idle' | 'mil' | 'ab'`; `speedbrake` adds 60 % parasitic drag.
+- No climb or dive clamp (loops, yo-yos, split-S). Floor `groundAlt + 150 m` and the ceiling still apply.
+  Speed stays at least 60 m/s; a degenerate velocity (including after a vertical boundary clamp) resumes
+  horizontally along the current heading.
+- Energy: induced drag is set each tick so that full afterburner gives zero specific excess power exactly at the
+  jet's sustained g (`data/wvr.ts` `TURN_PERF`, trainer estimate). Above it the jet bleeds, below it accelerates.
+- `ac.roll` = the flown lift-vector bank; `pitch` and `heading` follow the velocity. Clearing `bfm` hands the jet
+  back to the autopilot, which eases the path angle back into its climb/dive limits.
+- The autopilot's energy model is unchanged (BFM-only drag setting), so AI, DLZ and tuning results are not affected.
 
 Energy feel: hard turns bleed speed (a max-g 180° at 5 km loses about 100 m/s at military power), climbs
 trade speed for height, thin air lets the jet go faster. Each jet's drag is set so that with afterburner it
 tops out at `perf.maxMach` at 11 km. At sea level jets top out at about M1.0–1.2.
 Outputs: `pos`, `vel`, `heading`, `pitch` (= flight-path angle), `roll` (visual bank; beyond ±90° when
 pulling down inverted), `g`. No allocations per tick.
+
+### Guns (`guns.ts`)
+
+Arcade model for the WVR lessons (issue #11). No ballistics: every gun fires straight along the flight path at
+`BULLET_SPEED` (1000 m/s) on top of the jet's velocity, flat time of flight `range / BULLET_SPEED`, no gravity drop.
+
+```ts
+stepGuns(world, dt)              // World calls it each tick after flight
+gunSolution(shooter, target)     // { range, tof, lead (unit), missAngle, missM, sizeAngle, inRange, inSolution }
+sightPoint(ac, range, spanM?)    // { range, tof, right, up, halfSpan } rad from the gun line, HUD axes
+funnelPoints(ac, steps?, spanM?) // sightPoint from data funnel near..far, sized for the data wingspan
+createGunState(type), gunOf(ac), hitDamage(calibreMm)
+BULLET_SPEED, GUN_TARGET_SPAN_M (13 m), GUN_TRACER_S (0.1 s), GUN_P_CENTRE (0.35)
+```
+
+- `ac.gun: GunState = { rounds, firing, burst, hits }`; `ac.damage` 0..1. Jets without `GUNS` data have 0 rounds.
+- While `cmd.trigger` is held and rounds remain, rounds go at the data rate of fire (HI where selectable).
+  The first round is immediately available; releasing the trigger preserves the remaining shot cooldown.
+  Cooldown elapses while released, without stockpiling rounds. Non-positive `dt` leaves gun processing untouched.
+- Hit rule per tick, for every other live jet inside the data max range: lead = relative position + relative
+  velocity × TOF; if the gun line is within the target's angular size (13 m span) of the lead point, each round
+  hits with `GUN_P_CENTRE × (1 − (miss / size)²)` (`world.rand`). Damage per hit: 30 mm 0.25, 23 mm 0.14,
+  20 mm 0.1. Damage saturates at 1 with tolerance for floating-point rounding; at 1 the jet dies (`kill` event,
+  `by` = shooter). Friendly jets in the line can be hit.
+- Events: `gun` (`burst` starts trigger activity with ammo; `cease` ends it on release/death; `empty` ends it
+  when no ammo remains), `tracer` (muzzle pos and velocity, first shot then every 0.1 s of trigger activity,
+  emitted on the next shot tick), `gun-hit` (hits this tick, target damage). Burst activity includes ticks
+  between rounds. `firing` and its recorded value are true only when at least one round leaves that tick.
+- Sight geometry: the nose turn rate from load factor, lift vector and gravity; a point for range R sits at
+  −turn rate × TOF from the gun line (below it in a pull). A target in the same turn under that point is in the
+  hit rule's solution. Simplified, not any jet's real sight law; the HUD labels it that way.
+- JF-17 burst limiter is data only (`GUNS.jf17.burstLimitS`); the sim does not enforce it yet.
 
 ### Missiles (`missile.ts`)
 
@@ -291,7 +345,9 @@ the old tables. Both are approximations.
   - it is an interpolation of 800-cell tables (IR: 90 cells, coarse), with first-order corrections for target speed and nose-off angle;
   - inputs outside the grid are clamped (above 15 km altitude, Mach 0.5–1.5, offsets beyond ±6 km);
   - a few low-and-slow IR cells, and some low R-27R/AIM-7 climbing shots, are empty (genuine no-shot geometry in the model), where Rmax falls back to Rmin.
+- **Guns:** one bullet speed, straight line, no drop, one target size, damage pool; not DCS ballistics or damage.
 - **Flight model:**
+  - BFM sustained-turn tables are trainer estimates (not verified); the autopilot does not use them;
   - every jet has the same thrust-to-weight (≈1), climb-angle limits and roll rate; jets differ only by `perf` (maxMach, maxG, corner speed, ceiling);
   - no fuel, no stall or departure (speed floor 60 m/s), no AoA (pitch = flight-path angle);
   - acceleration to top speed is on the quick side (M0.9 → M1.5 at 11 km in 40–70 s).

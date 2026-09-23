@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Merge & guns (#11): a new close-combat page for all ten jets. Fly an arcade BFM mode from the keyboard or a
+  touch pad against a scripted bandit (straight, level turn, turning and reversing, gun attack) through Corner
+  speed, Pursuit, Guns tracking and Guns defence lessons plus a Free fight, each with a score and a debrief. The HUD
+  panel (and a cockpit-camera overlay) draws each jet's own gun sight: FC3 funnel / LCOS, F-15C LCOS / reticle,
+  Hornet funnel / director with SHOOT, F-16C EEGS Level II / V, F-14 RTGS, JF-17 SS / SSLC / LCOS, M-2000C CCLT,
+  labelled simplified. The 3D view adds tracers, the lift vector, turn circles, the bandit's plane of motion,
+  pursuit-coloured lines and hit sparks.
 - Shkval & Vikhr (#37), the first Su-25T page: height-map terrain with a flattened target area wired into the sim,
   ground units, Vikhr smoke, rockets, gun tracers, impacts, the laser line and the Shkval field of view in 3D; a
   second camera renders the Shkval TV picture in black and white on the IT-23M with its symbology, next to the

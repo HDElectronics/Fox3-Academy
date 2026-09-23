@@ -8,4 +8,5 @@ export { SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor, type SourceKey, type Sou
 
 export { cockpitFor, F16_COCKPIT, COCKPIT_CAVEATS } from './cockpit';
 export { FLIGHT_OPS, FLIGHT_OPS_CAVEATS } from './flightOps';
+export { GUNS, GUN_JET_IDS, TURN_PERF, WVR_CAVEATS, gunSpecFor, turnPerfFor, sustainedG, type GunJetId, type GunSightKind, type GunSpec, type TurnPerf } from './wvr';
 export { AG_WEAPONS, AG_WEAPON_ORDER, AG_CAVEATS, SU25T_LOADOUTS, SU25T_GUN_ROUNDS } from './agWeapons';

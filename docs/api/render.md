@@ -492,6 +492,24 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
 - Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
   `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts.
 
+## BfmAids (`bfmAids.ts`, close-combat lessons)
+
+`new BfmAids(stage, world, { me, bandit, layers?, pursuit? })` draws WVR teaching aids over a live World (next
+to a WorldView). Reads the sim, never changes it; disposed with the Stage (or `dispose()`).
+
+| Layer | Default | |
+|---|---|---|
+| `tracers` | on | a short fading streak per sim `tracer` event (bullet path, 1.4 s) |
+| `liftVector` | on | arrow from the player's jet along `liftVector()` (drawn over the jet) |
+| `turnCircles` | on | both jets' current turn circles (load factor + gravity), projected on the ground, side colours, centre cross |
+| `planeOfMotion` | on | the bandit's 3D turn circle as a faint disc with a dashed rim |
+| `pursuit` | on | line of sight player → bandit and the player's velocity vector, coloured by `pursuit()`: lead `--caution`, pure `--ok`, lag `--datalink`, null dim |
+| `hits` | on | sparks at the target on `gun-hit` |
+
+`setLayer(k, on)`, `setLayers({...})`, `layers`, `setWorld(world, { me, bandit }?)` (retry: clears tracers and
+sparks), `tracerCount`. Pure helper: `turnCircle(ac) → { centre, radius, n, u } | null` (null when nearly
+straight, radius over 25 km). Symbology only: no ballistics; tracers fly straight at the sim's bullet speed.
+
 ## Low-level pieces (for page-specific symbology)
 
 - `LineBatch(stage.shared, { capacity?, depthTest?, additive?, renderOrder? })`: one draw call of

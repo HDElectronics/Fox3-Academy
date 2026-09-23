@@ -22,7 +22,7 @@ import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, eventLog, readouts,
   callout, placard, bindKeys, keyHint, disclosure, modal, mobileAction, type ModalHandle, type Tone,
 } from '../../ui';
-import { It23mDisplay, Su25tHud, hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
+import { It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
 import {
   LESSONS, LESSON_ORDER, MISS_TEXT, progressKey, scoreCcip, scoreVikhr,
   type Debrief, type LessonId, type ShotRecord, type StrikeSnap,

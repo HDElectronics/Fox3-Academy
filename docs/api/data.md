@@ -44,6 +44,10 @@ import {
 | `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
 | `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
+| `GUNS` / `gunSpecFor(type)` | `Record<GunJetId, GunSpec>` / `GunSpec \| null` | `src/data/wvr.ts`. Per fighter: gun, calibre, rounds, rate (HI/LO), sight kinds `{ noLock, lock, other? }` (`GunSightKind`), max range, funnel near/far, default wingspan (metres), select / fire / span keys, JF-17 burst limiter. `Sourced` values with `verified` flags. |
+| `TURN_PERF` / `turnPerfFor(type)` / `sustainedG(tp, mach, altFt)` | `Record<GunJetId, TurnPerf>` | Sustained g at full afterburner vs Mach at 5000 ft and 20000 ft. Trainer estimate, not verified. Used by the BFM flight mode. |
+| `GunJetId` / `GUN_JET_IDS` | union / list | The ten fighters with gun and turn data. Deliberately not `AircraftId`: a new jet opts in by adding itself. |
+| `WVR_CAVEATS` | `string[]` | Every simplified or unverified gun / turn value, in pilot words. |
 
 ### Roles: fighters and attack jets
 
@@ -362,6 +366,18 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
   pod positions, the 26 m trail and 4.5 m droop (Western hoses reuse the UPAZ distances, no coloured bands), the
   hose envelope, 5 kt bounce limit, KC-135 boom pivot, 30° / 12 m nominal and 20–40°, ±15°, 9–15 m limits,
   3 kt boom closure limit, fuel rates (15 kg/s, 50 / 30 / 25 lb/s). KC-135 director lights are not modelled.
+
+### Guns and BFM
+
+`src/data/wvr.ts` (`GUNS`, `TURN_PERF`, `WVR_CAVEATS`); research in `docs/research/wvr-guns-bfm.md`. Not verified:
+- Every `TURN_PERF` number (trainer estimate, shared shape scaled per jet).
+- Su-33 and J-11A gun data (Su-27 manual text applied). FC3 funnel near end 200 m.
+- F-15C rate of fire (6000) and gun range (4000 ft); F/A-18C 4000 ft max range (the guide gives the rule, 1.5 s
+  TOF or minimum impact velocity, not a number); JF-17 range 4000 ft, 3000 rpm and the 0.2 s limiter; M-2000C
+  2 × 1200 rpm.
+- F-16C: all gun numbers (funnel 600 / 3000 ft, 33 ft wingspan, 510 rounds, 6000 rpm); the ED guide was not reached.
+- Default wingspan 13 m for F-15C, F-14B, JF-17, M-2000C (no manual value).
+- Trigger keys: F-16C, F-14B, JF-17, M-2000C `Space` is a trainer key; F-14B, JF-17, M-2000C gun select has no single key.
 
 ## Requests (to the architect)
 

@@ -156,6 +156,22 @@ throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,
 WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on with Show on-screen controls.
 
+### Merge & guns
+Close-combat basics for all ten jets against a scripted bandit (no fighting AI yet). You fly an arcade BFM mode:
+the arrow keys roll the lift vector (← →) and pull or unload (↓ ↑, as in DCS), Space holds the trigger, 1 / 2 / 3
+set idle, military or afterburner, B the speedbrake. Hands off the pitch keys, the jet holds a level turn at its
+bank (a trainer aid). On a phone the view shows a touch pad (roll, pull, unload, gun, throttle).
+Lessons: Corner speed (hold your jet's corner speed in a turn of 3 g or more), Pursuit (lead, pure, then lag
+pursuit for 10 s each against a turning bandit), Guns tracking (get in his plane, frame the wingspan, short
+bursts), Guns defence (he is behind you with guns: break, unload and roll out of his plane), and a Free fight from a
+head-on merge (also under Practice). The bandit can fly straight and level, a level turn, or turn and reverse.
+The HUD panel shows your jet's own gun sight: the FC3 Russian funnel and LCOS with the 1200 m range scale, the
+F-15C LCOS and locked reticle, the Hornet funnel and director with SHOOT, the F-16C EEGS Level II and V, the F-14
+RTGS pipper and diamond, the JF-17 SS / SSLC / LCOS and the M-2000C CCLT tracer line. The Cockpit camera (F1) draws
+it over the 3D view. Radar lock Auto locks inside 5 nm and 20° of the nose (simplified). The 3D aids show your lift
+vector, both turn circles on the ground, the bandit's plane of motion, the line of sight coloured by pursuit (amber
+lead, green pure, blue lag), tracers and hit sparks; each can be switched off. Every drill ends with a debrief and
+a score. Sight geometry and hits are simplified; unverified sight and gun values say "not verified".
 ### Shkval & Vikhr (Su-25T)
 Only for the Su-25T (pick it in the top bar; fighters see a panel that sends them back). The IT-23M shows the
 black-and-white Shkval TV picture with its symbology: azimuth and elevation scales, КС / АС, zoom, target size in
