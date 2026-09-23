@@ -7,7 +7,7 @@
  * What the pilot meets: hull and flight deck, the island, the angled landing area with edge lines and a
  * dashed centreline, four wires (the target wire drawn in the ok token), the optical landing aid on the port
  * side (IFLOLS lens with the amber ball and green datum bars, or the Luna-3 colour light on the Kuznetsov,
- * both driven by `setBall`) and, on the Kuznetsov, the ski-jump bow. Drawing values, not ship plans.
+ * both driven by `setBall`) and, on the Kuznetsov, the ski-jump bow (the sim's RAMP_M / RAMP_DEG curve). Drawing values, not ship plans.
  */
 import {
   BoxGeometry, BufferAttribute, BufferGeometry, Color, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial,
@@ -17,6 +17,8 @@ import { SHIPS, SHIP_HULL } from '../../data/ships';
 import { BALL_CELLS, IFLOLS_RED_CELL } from '../../sim/flightOps/lso';
 import type { BallState, ShipData, ShipId } from '../../sim/flightOps/types';
 import type { Palette } from '../palette';
+import { RAMP_M, STATION_C } from '../../sim/flightOps/launch';
+import { skiJumpProfile } from './launchDeck';
 
 const D2R = Math.PI / 180;
 
@@ -51,8 +53,8 @@ export function deckOutline(id: ShipId): [number, number][] {
   const portW = Math.max(b * 1.05, -far.c + 6);
   const farA = Math.min(L * 0.9, far.a + 10);
   if (id === 'kuznetsov') {
-    return [[0, -b * 0.55], [0, b * 0.55], [L * 0.2, b], [L * 0.75, b * 0.95], [L * 0.9, b * 0.5], [L, b * 0.3],
-      [L, -b * 0.3], [L * 0.9, -b * 0.55], [farA, -portW], [L * 0.2, -portW * 0.9], [L * 0.04, -b * 0.7]];
+    return [[0, -b * 0.55], [0, b * 0.55], [L * 0.2, b], [L * 0.75, b * 0.95], [L * 0.9, b * 0.5], [L, b * 0.4],
+      [L, -b * 0.6], [L * 0.9, -b * 0.65], [farA, -portW], [L * 0.2, -portW * 0.9], [L * 0.04, -b * 0.7]];
   }
   return [[0, -b * 0.5], [0, b * 0.55], [L * 0.2, b], [L * 0.82, b], [L * 0.96, b * 0.55], [L, b * 0.2],
     [L, -b * 0.2], [L * 0.95, -b * 0.5], [farA, -portW], [L * 0.3, -portW * 0.95], [L * 0.05, -b * 0.62]];
@@ -168,17 +170,20 @@ export class CarrierMesh extends Group {
     mast.position.set(beamM * 0.4, H + isl.h + 7, -(isl.a0 + isl.a1) / 2);
     this.add(mast);
 
-    // Kuznetsov ski-jump: a curved ramp over the bow, up to about 6 m.
+    // Kuznetsov ski-jump: the sim's ramp (RAMP_M long, RAMP_DEG at the lip) over the bow, wide enough for
+    // every launch position (STATION_C) and a margin.
     if (id === 'kuznetsov') {
-      const a0 = L * 0.84, rise = 6, w = beamM * 0.5;
+      const a0 = L - RAMP_M;
+      const cs = Object.values(STATION_C.kuznetsov);
+      const c0 = Math.min(...cs) - 6, w = Math.max(...cs) + 5 - c0;
       const prof = new Shape();
       prof.moveTo(a0, 0);
-      for (let i = 1; i <= 8; i++) { const k = i / 8; prof.lineTo(a0 + (L - a0) * k, rise * k * k); }
+      for (const p of skiJumpProfile(10).slice(1)) prof.lineTo(a0 + p.a, p.h);
       prof.lineTo(L, 0);
       prof.closePath();
       const sj = new ExtrudeGeometry(prof, { depth: w, bevelEnabled: false, steps: 1 });
       sj.rotateY(Math.PI / 2);        // shape (a, h), depth w → (x = w, y = h, z = −a)
-      sj.translate(-w / 2, H, 0);
+      sj.translate(c0, H, 0);
       this.geoms.push(sj);
       this.add(new Mesh(sj, [deckMat, hullMat]));
     }

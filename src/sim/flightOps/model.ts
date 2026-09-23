@@ -17,8 +17,9 @@ import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, wrap2Pi, wrapPi } 
 import { FLIGHT_OPS } from '../../data/flightOps';
 import {
   RUNWAY, type FlightOpsAction, type FlightOpsInput, type FlightOpsJetData, type FlightOpsJetId,
-  type FlightOpsState,
+  type FlightOpsState, type LaunchOptions,
 } from './types';
+import { applyLaunchAction, placeLaunchStart, stepLaunchAir, stepLaunchDeck } from './launch';
 import { cycleNavMode, cycleNavPoint, initNav, navRoute, updateNav } from './nav';
 import { HOOK_TIME_S, carrierContact, landingFrame, moveShip, placeCarrierStart, stepCarrierDeck } from './carrier';
 import { updateLso } from './lso';
@@ -65,8 +66,12 @@ const LATE_LIFTOFF_PITCH_DEG = 3;
 /** Takeoff start: this far past the threshold, on the centreline, heading north. */
 export const TAKEOFF_START_M = 100;
 
-/** 'caseI' and 'carrierGroove' (#26) need `FlightOpsJetData.carrier` (fa18c, f14b, su33). */
-export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff' | 'caseI' | 'carrierGroove';
+/**
+ * 'caseI' and 'carrierGroove' (#26) need `FlightOpsJetData.carrier` (fa18c, f14b, su33). 'catapult' (fa18c, f14b)
+ * and 'skiJump' (su33) (#27) need `FlightOpsJetData.launch` of that kind.
+ */
+export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff' | 'caseI' | 'carrierGroove'
+  | 'catapult' | 'skiJump';
 
 /** 'rtb' start: off-axis south-west of the field, runway frame metres, and speed in knots (gameplay values). */
 export const RTB_START = { x: -12000, z: 38000, altM: 3500, kt: 300 } as const;
@@ -157,7 +162,8 @@ function trim(s: FlightOpsState, d: FlightOpsJetData) {
 }
 
 /** Start the lesson at a pattern position. */
-export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, data: FlightOpsJetData = FLIGHT_OPS[id]): FlightOpsState {
+export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, data: FlightOpsJetData = FLIGHT_OPS[id],
+  launch?: LaunchOptions): FlightOpsState {
   const d = data;
   const s = blank(id);
   const va = approachSpeedMs(d);
@@ -204,6 +210,11 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
       setLanding(s, d);
       placeCarrierStart(s, d, 'carrierGroove', va);
       break;
+    case 'catapult':
+    case 'skiJump':
+      if (d.launch?.kind !== start) throw new Error(`No ${start} launch for ${id}`);
+      placeLaunchStart(s, d, launch);
+      return s;
     case 'takeoff':
       s.gearDown = true; s.gearPos = 1;
       s.flapIndex = takeoffFlapIndex(d); s.flapPos = s.flapIndex / Math.max(1, d.flapLabels.length - 1);
@@ -239,6 +250,7 @@ export const rotateAtKt = (d: FlightOpsJetData) => d.takeoff.vrKt.value - (d.tak
 export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: FlightOpsJetData = FLIGHT_OPS[s.aircraft]): void {
   if (s.phase === 'crashed') return;
   const d = data;
+  if (applyLaunchAction(s, action, d)) return;
   switch (action) {
     case 'gearToggle':
       if (s.phase !== 'air') return;
@@ -290,6 +302,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   if (s.hookDown !== undefined) s.hookPos = approach(s.hookPos ?? 0, s.hookDown ? 1 : 0, 1 / HOOK_TIME_S, dt);
   const thrust = IDLE_ACC + s.throttle * (MIL_ACC - IDLE_ACC) + (s.afterburner ? AB_ACC : 0);
 
+  if (s.launch && stepLaunchDeck(s, input, dt, d)) return;
   if (s.phase === 'ready' || s.phase === 'roll') { stepTakeoffRoll(s, input, dt, d, thrust); updateNav(s, d); return; }
   if (s.ship && s.phase !== 'air') { stepCarrierDeck(s, dt); updateLso(s, d, dt); return; }
   if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); updateNav(s, d); return; }
@@ -299,6 +312,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   const on = d.aoa.onSpeed.value;
   s.aoa = clamp(s.aoa + clamp(input.pitch, -1, 1) * AOA_RATE * on * dt, ALPHA_N_MIN * on, ALPHA_N_MAX * on);
   s.bank = clamp(s.bank + clamp(input.roll, -1, 1) * ROLL_RATE * dt, -BANK_LIMIT, BANK_LIMIT);
+  if (s.launch) stepLaunchAir(s, input, d);
   const n = loadFactor(s, d);
   if (n >= G_MAX || n <= -2) s.aoa = aoaForLoad(s, d, n); // G limiter: hold AoA at the limit
 

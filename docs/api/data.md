@@ -292,6 +292,19 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
   Kuznetsov LSO calls or grades (`lso: false`, the trainer grades the pass itself). Trainer rules, not DCS
   numbers: ball cell 0.3°, Luna-3 green band ±0.5°, waveoff range 0.35 nm, call hysteresis and intervals, the
   "You're high" wording, grade comment bands, penalties and totals, the 6 m/s deck sink limit.
+- Launch (#27; `launch` on fa18c, f14b catapult and su33 ski-jump). Sourced: Hornet NWS HI `S`, hook up `U`,
+  T/O trim 16° below 44000 lb, 17° at 45000–48000 lb, 19° at 49000 lb and above with afterburner, MIL, wipe
+  out, salute and hands off, gear up and flaps AUTO after the stroke; clearing turn right from catapults 1–2,
+  left from 3–4; Tomcat hook up `U` and salute `LShift+U` (Heatblur lesson text only); Su-33 positions 1–2 a
+  90 m run and 3 a 180 m run (heavy), deck stoppers during the run-up, full then special afterburner
+  `LShift+E` (10-minute limit), FOD screens `LAlt+I` cost 12 % thrust. Not verified: the Hornet salute key
+  (`LCtrl+LShift+LAlt+S` or the radio menu, against `LShift+U` in the Heatblur lesson), the launch bar `L` and
+  wipe-out `K` trainer keys, Tomcat MIL without afterburner and hands off, the stopper release (the trainer
+  lets go 3 s after full afterburner), the 29000 kg short-run limit, the trainer launch weights (Hornet 42000 /
+  50000 lb, Tomcat 60000 / 70000 lb, Su-33 26000 / 32000 kg), the gaps in the Hornet trim table (put in the 17°
+  band). Trainer rules, not DCS numbers: shooter delay 2 s, stroke 2.5 s to the approach speed + 15 kt, cold
+  cat × 0.85, settle 3 s, ski-jump run 15 m/s², 12° ramp over 25 m, minimum ramp speed 0.85 × approach speed,
+  catapult and position offsets across the deck.
 
 ## Requests (to the architect)
 

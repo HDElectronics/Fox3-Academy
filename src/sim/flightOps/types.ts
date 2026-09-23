@@ -66,6 +66,106 @@ export interface FlightOpsJetData {
   takeoff: FlightOpsTakeoffData;
   /** Carrier Case I recovery (#26). Absent = the jet does not go to the boat. */
   carrier?: FlightOpsCarrierData;
+  /** Deck launch (#27): catapult (fa18c, f14b) or ski-jump (su33). Absent = no deck launch. */
+  launch?: FlightOpsLaunchData;
+}
+
+/** Deck launch kind: CVN catapult or Kuznetsov ski-jump. */
+export type LaunchKind = 'catapult' | 'skiJump';
+
+/**
+ * Launch sequence steps. Action steps are done with a `FlightOpsAction` of the same name ('nwsHi', 'launchBar',
+ * 'hookUp', 'wipeOut', 'salute', 'specialAB'); condition steps are met by the state: 'trim' (trim at the
+ * weight's value), 'power' (throttle at MIL, or afterburner where the data asks for it), 'handsOff' (no stick
+ * from the salute to the end of the settle), 'release' (Su-33 deck stoppers let go).
+ */
+export type LaunchStepId = 'nwsHi' | 'launchBar' | 'hookUp' | 'trim' | 'power' | 'wipeOut' | 'salute' | 'handsOff'
+  | 'specialAB' | 'release';
+
+export interface LaunchStep {
+  id: LaunchStepId;
+  label: string;
+  /** DCS key; null when the step has no key (a condition or a hands-off step). */
+  key: Sourced<string> | null;
+  note?: string;
+}
+
+/** Per-jet deck-launch data (Supercarrier guide, Hornet guide, Heatblur lesson, Su-33 manual). */
+export interface FlightOpsLaunchData {
+  kind: LaunchKind;
+  ship: ShipId;
+  /** The sequence strip in the order the player flies it. */
+  steps: readonly LaunchStep[];
+  /** Power at the shot or on the run. 'AB' = full afterburner. */
+  power: Sourced<'MIL' | 'AB'>;
+  /** Hornet: afterburner at and above this gross weight, lb. */
+  abFromLb?: Sourced<number>;
+  /** Takeoff trim by gross weight: [weight below which it applies (lb), trim deg]; last row covers the rest. */
+  trimByWeightLb?: Sourced<readonly (readonly [number, number])[]>;
+  /** Trainer launch weights ('normal' and 'heavy'), in the unit the jet's manual uses. Trainer choices. */
+  weights: { unit: 'lb' | 'kg'; normal: number; heavy: number };
+  /** Catapults (1-based) or ski-jump positions the trainer offers. */
+  stations: readonly number[];
+  /** Ski-jump: deck run to the ramp per position, metres. */
+  runM?: Sourced<Record<number, number>>;
+  /** Ski-jump: heaviest weight for the short positions (the heavy jet uses the long run). */
+  shortRunMaxWeight?: Sourced<number>;
+  /** Catapult: clearing turn after the shot, per catapult. */
+  clearingTurn?: Sourced<Record<number, 'left' | 'right'>>;
+  /** Keys that must not be used for the launch (Su-33 intake FOD screens). */
+  avoid?: { fodScreens: Sourced<string> };
+  /** After the launch: gear up, flap setting (label), the lesson line. */
+  after: { flapLabel: string; cue: string };
+  /** Short lesson line, e.g. "Hook up, trim, MIL, wipe out, salute, hands off". */
+  cue: string;
+}
+
+/** Launch options for the 'catapult' and 'skiJump' starts. */
+export interface LaunchOptions {
+  /** Catapult 1 or 2, ski-jump position 1 or 3 (default: the first `stations` entry). */
+  station?: number;
+  heavy?: boolean;
+}
+
+/**
+ * Deck-launch outcome: 'good' (clean sequence), 'sequence error' (launched with sequence faults),
+ * 'cold cat' (power below the need at the shot: the jet settles), 'short run' (ski-jump ramp speed below the
+ * minimum: the jet settles).
+ */
+export type LaunchOutcome = 'good' | 'sequence error' | 'cold cat' | 'short run';
+
+/** Live launch state (starts 'catapult' and 'skiJump'). */
+export interface LaunchState {
+  kind: LaunchKind;
+  station: number;
+  weight: number;
+  heavy: boolean;
+  /**
+   * 'hold' on the deck (shuttle or stoppers), 'shot' salute given, the cat fires after the shooter's delay,
+   * 'stroke' catapult stroke or ski-jump run, 'settle' hands-off after the stroke, 'free' flying.
+   */
+  stage: 'hold' | 'shot' | 'stroke' | 'settle' | 'free';
+  /** Steps in the order they were done, with times. */
+  stepsDone: { id: LaunchStepId; t: number }[];
+  /** Sequence faults in pilot words ("Salute before MIL: the shooter holds"). */
+  errors: string[];
+  /** Hornet takeoff trim, degrees, and the value the weight wants. */
+  trimDeg?: number;
+  trimWantDeg?: number;
+  specialAB?: boolean;
+  fodScreens?: boolean;
+  /** Times: salute accepted, stroke start and end (or ramp exit). */
+  saluteT?: number;
+  strokeT?: number;
+  endT?: number;
+  /** Airspeed at the end of the stroke or at the ramp, knots, and the minimum the rule wants. */
+  endKt?: number;
+  minKt?: number;
+  /** Stick moved between the salute and the end of the settle. */
+  handsOn: boolean;
+  /** Heading at the end of the stroke (clearing-turn reference), radians. */
+  endHeading?: number;
+  outcome?: LaunchOutcome;
 }
 
 /** Ships in the trainer. CVN = Supercarrier (Hornet, Tomcat); Kuznetsov (Su-33). */
@@ -193,7 +293,9 @@ export interface FlightOpsInput {
 
 /** Discrete cockpit actions (the keys the lesson teaches). */
 export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle'
-  | 'hookToggle' | 'callBall';
+  | 'hookToggle' | 'callBall'
+  /** Deck launch (#27): sequence steps and the trainer's trim keys. */
+  | 'nwsHi' | 'launchBar' | 'hookUp' | 'trimUp' | 'trimDown' | 'wipeOut' | 'salute' | 'specialAB' | 'fodScreens';
 
 /**
  * 'ready' = on the runway for takeoff, holding brakes; 'roll' = takeoff ground roll before liftoff;
@@ -254,6 +356,8 @@ export interface FlightOpsState {
   /** Set when the hook touches the deck: the wire caught (1-based) or a bolter. */
   trap?: { t: number; wire: number | null; bolter: boolean; powerAtTouchdown: number };
   lso?: { calls: LsoCall[]; ball: BallState | null; ballCalled: boolean; waveoff: boolean };
+  /** Deck launch (#27), with `ship`: the jet held on the catapult or the stoppers, the stroke, the settle. */
+  launch?: LaunchState;
 }
 
 /** What the optical landing aid shows the pilot. */
@@ -290,7 +394,8 @@ export interface CarrierScore {
 
 /** Pattern gates in flight order. */
 export type GateId = 'initial' | 'break' | 'downwind' | 'abeam' | 'ninety' | 'groove' | 'touchdown'
-  | 'brakeRelease' | 'rotate' | 'liftoff' | 'gearUp' | 'climb';
+  | 'brakeRelease' | 'rotate' | 'liftoff' | 'gearUp' | 'climb'
+  | 'sequence' | 'shot' | 'handsOff' | 'cleanUp' | 'clearingTurn';
 
 export interface GateResult {
   id: GateId;
@@ -330,6 +435,16 @@ export interface ApproachScore {
 export interface TakeoffScore {
   gates: GateResult[];
   tailStrike: boolean;
+  /** 0..100, null until the climb gate or a crash. */
+  total: number | null;
+  verdict: string | null;
+}
+
+/** Deck-launch grade (#27): gates sequence, shot, handsOff (catapult), cleanUp, clearingTurn (catapult), climb. */
+export interface LaunchScore {
+  gates: GateResult[];
+  outcome: LaunchOutcome | null;
+  errors: string[];
   /** 0..100, null until the climb gate or a crash. */
   total: number | null;
   verdict: string | null;

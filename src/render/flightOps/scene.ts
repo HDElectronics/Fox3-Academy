@@ -11,7 +11,7 @@
  */
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { SHIPS } from '../../data/ships';
-import { aimPointU, landingHeading } from '../../sim/flightOps/carrier';
+import { aimPointU, landingHeading, shipFrame } from '../../sim/flightOps/carrier';
 import { LineBatch } from '../lines';
 import { Note } from '../tags';
 import type { FlightOpsJetId, FlightOpsState, ShipId } from '../../sim/flightOps/types';
@@ -21,10 +21,15 @@ import { FramePriority, type Stage } from '../stage';
 import { boostedScale, headingQuaternion, orientationQuaternion, UNIT_PER_M } from '../units';
 import { ApproachOverlay, type ApproachGeometryOptions } from './approach';
 import { CarrierMesh } from './carrier';
+import { LaunchDeck } from './launchDeck';
 import { RunwayMesh } from './runway';
 
-/** 'lso' is the LSO platform view on a carrier start; without a ship it falls back to 'tower' (and 'tower' to 'lso' with one). */
-export type FlightOpsCamera = 'chase' | 'side' | 'tower' | 'lso' | 'cockpit';
+/**
+ * 'lso' is the LSO platform view on a carrier start; without a ship it falls back to 'tower' (and 'tower' to 'lso'
+ * with one). 'deck' is the shooter's view on a launch start (beside the jet on the deck); without a launch it falls
+ * back to 'chase'.
+ */
+export type FlightOpsCamera = 'chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck';
 
 /** LSO platform eye point, landing frame (u from the ramp, v right of the axis, h above the deck), metres. Display choice. */
 export const LSO_EYE = { u: 18, v: -24, h: 3 } as const;
@@ -33,6 +38,9 @@ export const CARRIER_CORRIDOR_M = 1.5 * 1852;
 /** LSO view: sky height framed around the jet (m) and the narrowest field of view (deg). Display choices. */
 const LSO_FRAME_M = 90;
 const LSO_FOV_MIN = 6;
+/** Deck (shooter) view: eye ahead of and beside the held jet, ship frame metres; framed sky around the jet (m). Display choices. */
+export const DECK_EYE = { ahead: 22, beside: 17, h: 1.8 } as const;
+const DECK_FRAME_M = 45;
 const HOOK_DOWN_RAD = 35 * Math.PI / 180;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const _aim = new Vector3();
@@ -81,6 +89,10 @@ export class FlightOpsScene {
   carrier: CarrierMesh | null = null;
   /** Landing-frame group carrying the overlay: identity on the airfield, at the ramp on the angled deck at sea. */
   readonly landing = new Group();
+  /** Catapult or ski-jump furniture on a launch start (child of `carrier`). */
+  launchDeck: LaunchDeck | null = null;
+  /** Ship-frame spot where the jet was held for the launch (the deck camera and the side view key on it). */
+  private hold: { a: number; c: number } | null = null;
   private hook: Mesh | null = null;
   private hookMat: MeshStandardMaterial | null = null;
   private readonly runwayApproach: ApproachGeometryOptions;
@@ -127,11 +139,16 @@ export class FlightOpsScene {
    */
   setCarrier(id: ShipId | null): void {
     if ((this.carrier?.shipId ?? null) === id) return;
+    this.launchDeck?.dispose();
+    this.launchDeck = null;
+    this.hold = null;
     this.carrier?.dispose();
     this.carrier = null;
     this.overlay.clearTrail();
     if (id) {
       this.carrier = new CarrierMesh(this.stage.palette, id);
+      this.launchDeck = new LaunchDeck(this.stage.palette, id);
+      this.carrier.add(this.launchDeck);
       this.root.add(this.carrier);
       const ship = SHIPS[id];
       this.overlay.setGeometry({ glideDeg: ship.glideDeg.value, aimPointM: aimPointU(ship), lengthM: CARRIER_CORRIDOR_M, minHalfM: 3 });
@@ -221,6 +238,11 @@ export class FlightOpsScene {
       this.carrier.setBall(state.lso?.ball ?? null);
       this.landing.position.set(state.ship.x, this.carrier.ship.deckHeightM, state.ship.z);
       this.landing.rotation.set(0, -landingHeading(state), 0);
+      const L = state.launch;
+      const f = L ? shipFrame(state) : null;
+      if (L && f && (L.stage === 'hold' || L.stage === 'shot' || !this.hold)) this.hold = { a: f.a, c: f.c };
+      if (!L) this.hold = null;
+      this.launchDeck?.update(L, f, this.jet.lengthM, state.t);
     }
     this.updateHook(state.hookPos);
     this.placeJet(this.jet.scale.x || UNIT_PER_M);
@@ -251,6 +273,12 @@ export class FlightOpsScene {
   /** Approach reference: the aim point (units) and the landing heading. Airfield: aim point north of the threshold. */
   private aimRef(out: Vector3): number {
     const s = this.state;
+    if (s?.ship && this.carrier && s.launch && this.hold) {
+      // Launch: the spot the jet was held on, along the ship's heading.
+      const h = s.ship.heading, a = this.hold.a, c = this.hold.c;
+      out.set(s.ship.x + Math.sin(h) * a + Math.cos(h) * c, this.carrier.ship.deckHeightM, s.ship.z - Math.cos(h) * a + Math.sin(h) * c).multiplyScalar(UNIT_PER_M);
+      return h;
+    }
     if (s?.ship && this.carrier) {
       const hl = landingHeading(s), u = this.overlay.aimPointM;
       out.set(s.ship.x + Math.sin(hl) * u, this.carrier.ship.deckHeightM, s.ship.z - Math.cos(hl) * u).multiplyScalar(UNIT_PER_M);
@@ -281,7 +309,9 @@ export class FlightOpsScene {
     const aimP = _aim;
     const hl = this.aimRef(aimP);
     const carrier = !!(s?.ship && this.carrier);
-    const view = carrier && this.mode === 'tower' ? 'lso' : !carrier && this.mode === 'lso' ? 'tower' : this.mode;
+    const launch = carrier && !!s?.launch && !!this.hold;
+    const view = this.mode === 'deck' && !launch ? 'chase'
+      : carrier && this.mode === 'tower' ? 'lso' : !carrier && this.mode === 'lso' ? 'tower' : this.mode;
     const jet = this.jetPoint(_t);
     const m = UNIT_PER_M;
     this.jet.visible = this.mode !== 'cockpit';
@@ -331,7 +361,7 @@ export class FlightOpsScene {
         const yc = Math.max(base + (jet.y - base) / 2, base + 0.02);
         const spanZ = Math.abs(along) * 1.3 + (carrier ? 0.25 : 0.4), spanY = Math.max(0, jet.y - base) * 1.3 + 0.1;
         const vf = (cam.fov * Math.PI) / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
-        const dist = Math.max(carrier ? 0.3 : 0.4, spanZ / 2 / Math.tan(hf), spanY / 2 / Math.tan(vf)) + Math.max(0, across);
+        const dist = Math.max(launch ? 0.12 : carrier ? 0.3 : 0.4, spanZ / 2 / Math.tan(hf), spanY / 2 / Math.tan(vf)) + Math.max(0, across);
         want.set(cxw + rx * dist, yc + dist * 0.14, czw + rz * dist);
         look.set(cxw, yc, czw);
         break;
@@ -349,6 +379,21 @@ export class FlightOpsScene {
           // deck is only a strip at the bottom.
           fov = clamp(2 * Math.atan(LSO_FRAME_M / 2 / Math.max(1, dist)) * 180 / Math.PI, LSO_FOV_MIN, this.baseFov);
           this.snap = true;   // the platform moves with the ship: no smoothing lag
+        }
+        break;
+      }
+      case 'deck': {
+        // Shooter's view: on the deck ahead of and beside the held jet, outboard of it, looking at the jet;
+        // stays on the deck and zooms as the jet flies off. No smoothing (the deck moves with the ship).
+        if (s?.ship && this.carrier && this.hold) {
+          const h = s.ship.heading, fx = Math.sin(h), fz = -Math.cos(h), rx = Math.cos(h), rz = Math.sin(h);
+          const side = this.hold.c >= 0 ? 1 : -1;
+          const a = this.hold.a + DECK_EYE.ahead, c = this.hold.c + side * DECK_EYE.beside;
+          want.set((s.ship.x + fx * a + rx * c) * m, (this.carrier.ship.deckHeightM + DECK_EYE.h) * m, (s.ship.z + fz * a + rz * c) * m);
+          look.copy(jet);
+          const dist = want.distanceTo(jet) / m;
+          fov = clamp(2 * Math.atan(DECK_FRAME_M / 2 / Math.max(1, dist)) * 180 / Math.PI, LSO_FOV_MIN, this.baseFov);
+          this.snap = true;
         }
         break;
       }
@@ -378,6 +423,7 @@ export class FlightOpsScene {
     this.disposed = true;
     this.offFrame();
     this.runway.dispose();
+    this.launchDeck?.dispose();
     this.carrier?.dispose();
     this.hook?.geometry.dispose();
     this.hookMat?.dispose();

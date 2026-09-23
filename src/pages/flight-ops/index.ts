@@ -9,10 +9,16 @@
  * starts Case I and In the groove, hook and ball-call keys, the landing aid close-up, the LSO call log and the
  * graded pass (grade, comments, wire).
  *
- * URL params: ?ac=<id> (select a jet once), ?mode=watch|fly, ?start=initial|downwind|final|rtb|takeoff|caseI|carrierGroove,
+ * Deck launch (#27): Catapult (F/A-18C, F-14B, CVN cat 1 or 2) and Ski-jump (Su-33, Kuznetsov position 1 or 3) with a
+ * station picker and a Heavy toggle, the launch sequence strip (keys, not-verified tags, the step to do now), the
+ * Hornet trim-by-weight readout, the power the launch needs, the deck warnings and the graded launch debrief.
+ *
+ * URL params: ?ac=<id> (select a jet once), ?mode=watch|fly,
+ * ?start=initial|downwind|final|rtb|takeoff|caseI|carrierGroove|catapult|skiJump, ?station=<n>, ?heavy=1,
  * ?shot=final|downwind|debrief|rtb|ils|takeoff-ready|takeoff-rotate|takeoff-climb|takeoff-debrief|case1-break|groove|trap
- * (pre-roll the demo for screenshots; mode=fly hands over after the pre-roll; debrief with start=caseI is the carrier
- * debrief), ?cam=chase|side|tower|lso|cockpit, ?touch=1 (show the on-screen controls on a fine pointer).
+ * |launch-hold|launch-stroke|launch-climb|launch-debrief (pre-roll the demo for screenshots; mode=fly hands over after
+ * the pre-roll; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck,
+ * ?touch=1 (show the on-screen controls on a fine pointer).
  */
 import './style.css';
 import type { Page, PageFactory, PageContext } from '../../app/page';
@@ -24,6 +30,7 @@ import {
   TakeoffEvaluator, demoLeg, demoPilot, hasNavStart, initNav, rotateAtKt, stepFlightOps, takeoffFlapIndex, type ApproachScore, type TakeoffScore, type FlightOpsInput, type FlightOpsJetId,
   type FlightOpsState, type GateResult, type Sourced,
   CarrierEvaluator, carrierGeometry, landingToWorld, type CarrierScore,
+  LaunchEvaluator, launchPowerNeed, launchStrip, type FlightOpsAction, type LaunchScore,
 } from '../../sim/flightOps';
 import { SHIPS } from '../../data/ships';
 import { FlightOpsScene, Stage, isWebGLAvailable, type FlightOpsCamera } from '../../render';
@@ -41,12 +48,16 @@ import {
   ballPicture, ballPrompt, carrierPlannedGates, pointAt, carrierStarts, gradeCard, toLandingOverlay, type CarrierStart,
 } from './logic';
 import { touchControls, type TouchAction } from './touch';
+import {
+  avoidKey, keyTag, launchCaption, launchCard, launchCurrent, launchKeys, launchLessonSteps, launchStarts, launchStepsDone, launchWarnings,
+  powerText, stationLabel, touchLabel, trimReadout, type LaunchStart,
+} from './launchLesson';
 
 type Mode = 'watch' | 'fly';
-type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart;
-const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit'];
+type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart | LaunchStart;
+const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit', 'deck'];
 const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils', 'takeoff-ready', 'takeoff-rotate', 'takeoff-climb', 'takeoff-debrief',
-  'case1-break', 'groove', 'trap'] as const;
+  'case1-break', 'groove', 'trap', 'launch-hold', 'launch-stroke', 'launch-climb', 'launch-debrief'] as const;
 const LSO_LOG_MAX = 40;
 type Shot = typeof SHOTS[number];
 const TRAIL_EVERY = 6;          // steps between trail points (0.1 s)
@@ -104,8 +115,13 @@ const factory: PageFactory = (): Page => {
     const cStarts = carrierStarts(d);
     const cd = d.carrier;
     const shipLights = cd ? SHIPS[cd.ship].lights : 'iflols';
+    const lStarts = launchStarts(d);
+    const ld = d.launch;
     let start: Start = startParam === 'downwind' || startParam === 'final' || startParam === 'takeoff' || (startParam === 'rtb' && navOk)
-      || (cStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
+      || (cStarts as string[]).includes(startParam ?? '') || (lStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
+    const stParam = Number(ctx.params.get('station'));
+    let station = ld && ld.stations.includes(stParam) ? stParam : ld?.stations[0] ?? 1;
+    let heavy = ctx.params.get('heavy') === '1';
     const camParam = ctx.params.get('cam') as FlightOpsCamera | null;
     let cam: FlightOpsCamera = camParam && CAMS.includes(camParam) ? camParam : 'chase';
     let showTouch = ctx.params.get('touch') === '1';
@@ -128,11 +144,16 @@ const factory: PageFactory = (): Page => {
     let cScore: CarrierScore | null = null;
     let flownL: FlownPoint[] = [];
     let lsoSeen = 0;
+    let lev: LaunchEvaluator | null = null;
+    let lScore: LaunchScore | null = null;
+    let lStripKey = '';
     const input: FlightOpsInput = { pitch: 0, roll: 0, throttle: 0.6 };
     const held = { up: false, down: false, left: false, right: false, thrUp: false, thrDn: false, brakes: false };
     const rtb = () => start === 'rtb';
     const atSea = () => start === 'caseI' || start === 'carrierGroove';
+    const atLaunch = () => start === 'catapult' || start === 'skiJump';
     const kind = (): LessonKind => (start === 'takeoff' ? 'takeoff' : start === 'caseI' ? 'carrier' : start === 'carrierGroove' ? 'groove'
+      : atLaunch() ? 'launch'
       : rtb() && navOk ? 'rtb' : 'pattern');
     const toAb = d.takeoff.afterburner.value;
     const brakesKey = d.takeoff.keys.brakes.value;
@@ -167,11 +188,56 @@ const factory: PageFactory = (): Page => {
     const toBlock = h('div', { class: 'ui-strip-block fo-to', id: 'fo-to' },
       placard('Takeoff'), h('div', { class: 'fo-to__row' }, [...toLamps.values()].map(l => l.el)));
 
+    // Deck launch strip (#27): the sequence with keys and tags, trim by weight, power, warnings.
+    const lSeq = h('ol', { class: 'fo-launch__seq', 'aria-label': 'Launch sequence' });
+    const lMeta = h('span', { class: 'fo-launch__meta' });
+    const lRows = h('dl', { class: 'fo-launch__rows' });
+    const lWarn = h('ul', { class: 'fo-launch__warn', 'aria-live': 'polite' });
+    const launchBlock = h('div', { class: 'ui-strip-block fo-launch', id: 'fo-launch' },
+      h('div', null, placard('Launch sequence'), ' ', lMeta), lSeq, lRows, lWarn);
+    launchBlock.hidden = true;
+    const keyOfStep = new Map(ld?.steps.map(x => [x.id, x.key] as const) ?? []);
+    /** Strip redraw: only when a step, the trim, the power or a warning changed. */
+    function syncLaunchStrip(force = false): void {
+      if (!ld || !s.launch) return;
+      const L = s.launch;
+      const strip = launchStrip(s, d);
+      const tr = trimReadout(ld, L.weight, L.trimDeg);
+      const warns = launchWarnings(d, s);
+      const key = [strip.map(x => x.state[0]).join(''), L.trimDeg, s.afterburner, s.throttle >= 0.95, L.specialAB, warns.join('|'), L.stage].join(';');
+      if (!force && key === lStripKey) return;
+      lStripKey = key;
+      setText(lMeta, `${stationLabel(ld, L.station)} · ${L.weight} ${ld.weights.unit}${L.heavy ? ' (heavy)' : ''}`);
+      lSeq.replaceChildren(...strip.map(x => {
+        const k = keyOfStep.get(x.id);
+        const stepNote = ld.steps.find(z => z.id === x.id)?.note ?? '';
+        const tag = keyTag(k) ?? (/not verified/i.test(stepNote) ? 'not verified' : null);
+        const kbdText = x.id === 'trim' ? 'T / LShift+T' : x.id === 'power' ? thrMaxKey : k?.value;
+        return h('li', { class: `fo-lstep is-${x.state}`, 'aria-current': x.state === 'next' ? 'step' : undefined, title: k?.note ?? (stepNote || undefined) },
+          x.label, kbdText ? h('kbd', null, kbdText) : null, tag ? h('span', { class: 'fo-nv', title: k?.note ?? stepNote }, tag) : null);
+      }));
+      const rows: HTMLElement[] = [];
+      if (tr) {
+        rows.push(h('dt', null, 'T/O trim'), h('dd', { class: tr.ok ? undefined : 'is-bad', title: tr.table },
+          `${tr.nowDeg}° set, want ${tr.wantDeg}° for ${tr.weightText}`));
+      }
+      const powerNow = s.afterburner ? (L.specialAB ? 'special AB' : 'afterburner') : s.throttle >= 0.95 ? 'MIL' : `${Math.round(s.throttle * 100)} %`;
+      rows.push(h('dt', null, 'Power'), h('dd', null, `${powerText(d, L.weight)}. Now ${powerNow}`, ld.power.verified ? null : h('span', { class: 'fo-nv', title: ld.power.note }, 'not verified')));
+      if (ld.avoid) rows.push(h('dt', null, 'Avoid'), h('dd', { title: ld.avoid.fodScreens.note }, `FOD screens ${ld.avoid.fodScreens.value}: 12 % less thrust`));
+      lRows.replaceChildren(...rows);
+      lWarn.replaceChildren(...warns.map(w => h('li', null, w)));
+    }
+
     // Header meta: the airfield glide path, or the ship's glide slope on the carrier starts.
     const headMetaText = h('span', null);
     const headNv = h('span', { class: 'fo-nv' }, 'not verified');
     const headMeta = h('span', null, headMetaText, headNv);
     function syncHead(): void {
+      if (atLaunch() && ld) {
+        setText(headMetaText, `${spec.short} · ${stationLabel(ld, station)} · ${SHIPS[ld.ship].name}`);
+        headNv.hidden = true;
+        return;
+      }
       const g = atSea() && cd ? SHIPS[cd.ship].glideDeg : d.glideDeg;
       setText(headMetaText, atSea() && cd
         ? `${spec.short} · ${g.value}° glide slope · ${SHIPS[cd.ship].name}`
@@ -194,11 +260,13 @@ const factory: PageFactory = (): Page => {
 
     // ---------------------------------------------------------------- console: lesson
     const coach = coachBox({ id: 'fo-coach' });
-    let stepsDef = lessonSteps(d, units(), kind());
+    const stepDefs = (): { id: string; text: string; keys?: string; note?: string }[] =>
+      (atLaunch() ? launchLessonSteps(d, units(), station, heavy) : lessonSteps(d, units(), kind()));
+    let stepsDef = stepDefs();
     let steps_: ChecklistHandle = checklist({ id: 'fo-steps', steps: stepsDef });
     const stepsBox = h('div', { class: 'fo-steps' }, steps_.el);
     function rebuildSteps(): void {
-      stepsDef = lessonSteps(d, units(), kind());
+      stepsDef = stepDefs();
       steps_ = checklist({ id: 'fo-steps', steps: stepsDef });
       stepsBox.replaceChildren(steps_.el);
     }
@@ -216,10 +284,27 @@ const factory: PageFactory = (): Page => {
       startOpts.push({ value: 'caseI', label: 'Case I', title: `Carrier Case I to the ${shipName}: initial, break, downwind, the 180, the ball, the trap` },
         { value: 'carrierGroove', label: 'In the groove', title: `¾ nm astern of the ${shipName}, configured, on the glide path` });
     }
+    if (ld) {
+      startOpts.push(ld.kind === 'catapult'
+        ? { value: 'catapult', label: 'Catapult', title: `Catapult launch from the ${SHIPS[ld.ship].name}: ${ld.cue}` }
+        : { value: 'skiJump', label: 'Ski-jump', title: `Ski-jump launch from the ${SHIPS[ld.ship].name}: ${ld.cue}` });
+    }
     const startSeg = segmented<Start>({
       id: 'fo-start', label: 'Start', value: start, fill: true, options: startOpts,
       onChange: v => { start = v; rebuildSteps(); reset(false); },
     });
+    // Launch options: the catapult or position, and the Heavy toggle (trainer weights).
+    const stationSeg = segmented<string>({
+      id: 'fo-station', label: ld?.kind === 'skiJump' ? 'Position' : 'Catapult', value: String(station), size: 's',
+      options: (ld?.stations ?? []).map(n => ({ value: String(n), label: ld ? stationLabel(ld, n) : String(n) })),
+      onChange: v => { station = Number(v); rebuildSteps(); reset(false); },
+    });
+    const heavyToggle = toggle({
+      id: 'fo-heavy', label: ld ? `Heavy (${ld.weights.heavy} ${ld.weights.unit})` : 'Heavy', style: 'switch', size: 's', value: heavy,
+      onChange: v => { heavy = v; rebuildSteps(); reset(false); },
+    });
+    const launchOpts = h('div', { class: 'fo-launch-opts' }, stationSeg.el, heavyToggle.el);
+    launchOpts.hidden = true;
     const startBtn = button({ id: 'fo-go', label: 'Start', variant: 'primary', keys: 'Space', block: true, onClick: () => go() });
     const touchToggle = toggle({
       id: 'fo-touch-toggle', label: 'Show on-screen controls', style: 'switch', size: 's', value: showTouch,
@@ -227,7 +312,7 @@ const factory: PageFactory = (): Page => {
     });
     const lessonPanel = consolePanel({
       id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`,
-      children: [coach.el, modeSeg.el, startSeg.el, startBtn.el, touchToggle.el, stepsBox],
+      children: [coach.el, modeSeg.el, startSeg.el, launchOpts, startBtn.el, touchToggle.el, stepsBox],
     });
 
     // ---------------------------------------------------------------- console: debrief
@@ -276,6 +361,13 @@ const factory: PageFactory = (): Page => {
         rows.push(['Carrier glide slope', `${ship.glideDeg.value}°, ${ship.wires.value} wires, target ${Math.min(3, ship.wires.value)}`, ship.glideDeg]);
         rows.push(['Touchdown power', cd.touchdownPower.value === 'MIL' ? 'MIL, no afterburner' : 'Max power', cd.touchdownPower]);
       }
+      if (ld) {
+        rows.push(['Launch power', powerText(d, ld.weights.normal), ld.power]);
+        if (ld.trimByWeightLb) rows.push(['T/O trim', trimReadout(ld, ld.weights.normal, undefined)?.table ?? '', ld.trimByWeightLb]);
+        if (ld.runM) rows.push(['Ski-jump runs', Object.entries(ld.runM.value).map(([k, v]) => `pos ${k} ${v} m`).join(', '), ld.runM]);
+        if (ld.shortRunMaxWeight) rows.push(['Short run limit', `${ld.shortRunMaxWeight.value} ${ld.weights.unit}`, ld.shortRunMaxWeight]);
+        if (ld.clearingTurn) rows.push(['Clearing turn', Object.entries(ld.clearingTurn.value).map(([k, v]) => `cat ${k} ${v}`).join(', '), ld.clearingTurn]);
+      }
       numbersBox.replaceChildren(...rows.flatMap(([k, v, src]) => [h('dt', null, k), h('dd', { title: src.note ?? src.source }, v, nvTag(src))]));
     }
     renderNumbers();
@@ -295,6 +387,8 @@ const factory: PageFactory = (): Page => {
       d.nav?.keys.pointCycle ? keyHint({ label: 'Next waypoint (МРШ / NAV)', keys: d.nav.keys.pointCycle.value, note: d.nav.keys.pointCycle.verified ? undefined : 'not verified' }) : null,
       cd ? keyHint({ label: 'Tail hook', keys: cd.hookKey.value, note: cd.hookKey.verified ? undefined : 'not verified' }) : null,
       cd ? keyHint({ label: 'Call the ball', keys: cd.ballCallKey.value, note: 'trainer key: DCS uses the radio menu' }) : null,
+      ...launchKeys(d).map(k => keyHint({ label: `Launch: ${k.label}`, keys: k.key, note: k.tag ?? undefined })),
+      ...(avoidKey(d) ? [keyHint({ label: avoidKey(d)!.label, keys: avoidKey(d)!.key })] : []),
       keyHint({ label: 'Pause / restart / camera', keys: 'P / R / C' }));
     const notes = h('div', { class: 'fo-notes' },
       callout({ kind: 'simplified', body: 'Arcade flight model tuned to the manual numbers. The HUD and the nav display are simplified: no wind, no sideslip, one AoA cue per jet. Stick and throttle keys and the on-screen controls are trainer controls, not DCS defaults.' }),
@@ -312,10 +406,12 @@ const factory: PageFactory = (): Page => {
     /** Camera choices: the tower on the airfield, the LSO platform at sea. */
     function camOptions(): { value: FlightOpsCamera; label: string; title?: string }[] {
       return [{ value: 'chase', label: 'Chase' }, { value: 'side', label: 'Side' },
-        atSea() ? { value: 'lso', label: 'LSO', title: 'LSO platform, port side aft' } : { value: 'tower', label: 'Tower' },
+        atLaunch() ? { value: 'deck', label: 'Deck', title: 'Shooter\'s view from the deck beside the jet' }
+          : atSea() ? { value: 'lso', label: 'LSO', title: 'LSO platform, port side aft' } : { value: 'tower', label: 'Tower' },
         { value: 'cockpit', label: 'Cockpit' }];
     }
-    const seaCam = (c: FlightOpsCamera): FlightOpsCamera => (atSea() && c === 'tower' ? 'lso' : !atSea() && c === 'lso' ? 'tower' : c);
+    const seaCam = (c: FlightOpsCamera): FlightOpsCamera => (atLaunch() ? (c === 'tower' || c === 'lso' ? 'deck' : c)
+      : c === 'deck' ? (atSea() ? 'lso' : 'tower') : atSea() && c === 'tower' ? 'lso' : !atSea() && c === 'lso' ? 'tower' : c);
     const pauseBtn = button({ id: 'fo-pause', label: 'Pause', size: 's', keys: 'P', onClick: () => togglePause() });
     const restartBtn = button({ id: 'fo-restart', label: 'Restart', size: 's', keys: 'R', onClick: () => reset(true) });
 
@@ -323,10 +419,10 @@ const factory: PageFactory = (): Page => {
       id: 'fo-lab', class: 'fo-lab',
       header: {
         title: 'Pattern & landing', meta: headMeta,
-        lede: `Take off, ${navOk ? 'nav home, ' : ''}break, configure, fly the AoA, land in the zone.${cd ? ` Or fly Case I to the ${SHIPS[cd.ship].name} and catch a wire.` : ''}`,
+        lede: `Take off, ${navOk ? 'nav home, ' : ''}break, configure, fly the AoA, land in the zone.${cd ? ` Or fly Case I to the ${SHIPS[cd.ship].name} and catch a wire.` : ''}${ld ? ` Or launch off the ${ld.kind === 'catapult' ? 'catapult' : 'ski-jump'}.` : ''}`,
       },
       viewport,
-      strip: [hudBezel.el, toBlock, navBezel.el, ballBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
+      strip: [hudBezel.el, toBlock, launchBlock, navBezel.el, ballBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
       console: [debriefPanel.el, lsoBlock, lessonPanel.el,
         consolePanel({ id: 'fo-numbers-panel', title: `${spec.short} numbers`, children: [numbersBox] }).el,
         disclosure({ title: 'Keys', content: keyList, open: mode === 'fly' }),
@@ -353,6 +449,11 @@ const factory: PageFactory = (): Page => {
       brakesKey,
       nav: d.nav ? { title: `Nav mode: ${navLabels.join(' → ')}`, key: d.nav.keys.modeCycle.value } : undefined,
       carrier: cd ? { hookKey: cd.hookKey.value, ballKey: cd.ballCallKey.value } : undefined,
+      launch: ld ? [
+        ...launchKeys(d).map(k => ({ id: k.action, label: touchLabel(k.action), title: `${k.label} (${k.key})` })),
+        { id: 'ab', label: 'AB', title: 'Afterburner on or off' },
+      ] : undefined,
+      onLaunch: id => act(() => launchAct(id as FlightOpsAction | 'ab'))(),
       onAction: (a: TouchAction) => act(() => {
         if (a === 'hook' || a === 'ball') carrierAct(a);
         else if (a === 'gear') gearAct();
@@ -399,14 +500,17 @@ const factory: PageFactory = (): Page => {
 
     // ---------------------------------------------------------------- sim
     function reset(autostart: boolean): void {
-      s = createFlightOpsState(ac, start, d);
+      s = createFlightOpsState(ac, start, d, atLaunch() ? { station, heavy } : undefined);
       // Fly the return from МРШ so the lesson starts with selecting ВЗВ (jets with a return mode).
       if (rtb() && mode === 'fly' && d.nav?.modes.some(m => m.id === 'return')) initNav(s, d, 'route');
       ev = new ApproachEvaluator(d);
       tev = start === 'takeoff' ? new TakeoffEvaluator(d) : null;
       cev = atSea() ? new CarrierEvaluator(d) : null;
       cScore = null; flownL = []; lsoSeen = -1;
-      sc?.setCarrier(atSea() && cd ? cd.ship : null);
+      lev = atLaunch() ? new LaunchEvaluator(d) : null; lScore = null; lStripKey = '';
+      sc?.setCarrier(atSea() && cd ? cd.ship : atLaunch() && ld ? ld.ship : null);
+      launchBlock.hidden = launchOpts.hidden = !atLaunch();
+      touch.setLaunch(atLaunch());
       ballBezel.el.hidden = lsoBlock.hidden = !atSea();
       syncHead();
       layout.el.classList.toggle('fo-lab--sea', atSea());
@@ -416,7 +520,7 @@ const factory: PageFactory = (): Page => {
       toScore = null; toDone = new Set();
       input.afterburner = false; input.brakes = false;
       toBlock.hidden = start !== 'takeoff';
-      idxBezel.el.hidden = start === 'takeoff';   // the checklist strip takes the indexer's place on the runway
+      idxBezel.el.hidden = start === 'takeoff' || atLaunch();   // the checklist strip takes the indexer's place on the runway
       track = []; flown = []; score = null; finished = false; configured = false; onSpeedRun = 0; acc = 0; steps = 0; gatesSeen = -1;
       navMs = { steering: false, intercept: false, onGlideRunS: 0 };
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
@@ -427,7 +531,8 @@ const factory: PageFactory = (): Page => {
       debriefPanel.el.hidden = true;
       // Return to base: the nav display replaces the pattern trace (the rings stay in the 3D view).
       navBezel.el.hidden = !s.nav;
-      traceBezel.el.hidden = !!s.nav;
+      traceBezel.el.hidden = !!s.nav || atLaunch();
+      syncLaunchStrip(true);
       hudStatus = '';
       pauseBtn.setLabel('Pause');
       startBtn.setLabel(mode === 'watch' ? 'Watch the demo' : 'Fly');
@@ -484,7 +589,7 @@ const factory: PageFactory = (): Page => {
         brakesNow = !!inp.brakes;
         stepFlightOps(s, inp, FLIGHT_OPS_DT, d);
       }
-      if (cev) cev.update(s); else ev.update(s);
+      if (lev) lev.update(s); else if (cev) cev.update(s); else ev.update(s);
       if (tev) { tev.update(s); for (const i of takeoffItemsNow(d, s, brakesNow)) toDone.add(i); }
       steps++;
       const cue = aoaCue(s, d);
@@ -499,11 +604,11 @@ const factory: PageFactory = (): Page => {
       }
       if (steps % TRAIL_EVERY === 0 && (s.phase === 'air' || s.phase === 'rollout' || s.phase === 'roll')) {
         let lvl: 0 | 1 | 2;
-        if (cev) {
+        if (cev || lev) {
           // At sea the 3D trail and gates ride with the ship (landing frame); the trace stays in the world frame.
           const g = carrierGeometry(s);
           const k = g.inGroove ? Math.max(Math.abs(g.glideErrDeg) / 1.5, Math.abs(g.lineupErrDeg) / 1.7) : 0;
-          lvl = k < 1 ? (s.gearDown && s.phase === 'air' && cue !== 'on' ? 1 : 0) : k < 1.8 ? 1 : 2;
+          lvl = lev ? 0 : k < 1 ? (s.gearDown && s.phase === 'air' && cue !== 'on' ? 1 : 0) : k < 1.8 ? 1 : 2;
           const l = toLandingOverlay(s);
           sc?.overlay.pushTrail(l, lvl);
           if (flownL.length < TRACK_MAX) flownL.push({ t: s.t, ...l, heading: s.heading - (s.ship!.heading - SHIPS[s.ship!.id].angledDeckDeg.value * Math.PI / 180) });
@@ -516,7 +621,10 @@ const factory: PageFactory = (): Page => {
           flown.push({ t: s.t, x: s.pos.x, y: s.pos.y, z: s.pos.z, heading: s.heading });
         }
       }
-      if (!finished && cev) {
+      if (!finished && lev) {
+        const sco = lev.score(s);
+        if (sco.total !== null) finishLaunch(sco);
+      } else if (!finished && cev) {
         const sco = cev.score();
         if (sco.total !== null) finishCarrier(sco);
       } else if (!finished && tev) {
@@ -531,10 +639,11 @@ const factory: PageFactory = (): Page => {
     const planCarrier = carrierPlannedGates(d);
     const planGroove = carrierPlannedGates(d, true);
     function liveGates(): readonly GateResult[] {
-      return cev ? (cScore?.gates ?? cev.score().gates) : tev ? (toScore?.gates ?? tev.score().gates) : (score?.gates ?? ev.score().gates);
+      return lev ? (lScore?.gates ?? lev.score(s).gates) : cev ? (cScore?.gates ?? cev.score().gates) : tev ? (toScore?.gates ?? tev.score().gates) : (score?.gates ?? ev.score().gates);
     }
     /** Gates for the 3D overlay (at sea: the landing frame, moving with the ship). */
     function placed() {
+      if (lev) return [];
       if (cev) return placeGates(start === 'carrierGroove' ? planGroove : planCarrier, liveGates(), flownL);
       return placeGates(gatesForStart(planAll, kind()), score?.gates ?? ev.score().gates, flown);
     }
@@ -578,7 +687,7 @@ const factory: PageFactory = (): Page => {
     // ---------------------------------------------------------------- UI refresh (10 Hz)
     function refresh(force: boolean): void {
       // Takeoff: no glide corridor, approach guides or aim ring until the takeoff is graded.
-      const guides = !(tev && !finished);
+      const guides = !(tev && !finished) && !lev;
       if (guides !== guidesOn) { guidesOn = guides; sc?.overlay.setGuidesVisible(guides); st?.requestRender(); }
       if (force) { hud.draw(s); indexer.draw(s); }
       syncGates();
@@ -611,8 +720,15 @@ const factory: PageFactory = (): Page => {
           l.el.classList.toggle('is-current', c.state === 'current');
         }
       }
-      for (const id of order) if (done.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
-      steps_.setCurrent(currentStep(new Set(order.filter(id => steps_.isDone(id))), order));
+      if (lev) {
+        const ids = stepsDef.map(x => x.id), dn = launchStepsDone(s, gates);
+        for (const id of ids) if (dn.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
+        steps_.setCurrent(launchCurrent(ids, dn));
+        syncLaunchStrip(force);
+      } else {
+        for (const id of order) if (done.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
+        steps_.setCurrent(currentStep(new Set(order.filter(id => steps_.isDone(id))), order));
+      }
 
       const lsoLast = s.lso?.calls[s.lso.calls.length - 1];
       const showLso = !!lsoLast && s.t - lsoLast.t < CALL_SHOW_S;
@@ -624,6 +740,7 @@ const factory: PageFactory = (): Page => {
 
       setText(pill, !started ? (mode === 'watch' ? 'Demo ready' : 'Ready') : paused ? 'Paused'
         : s.phase === 'crashed' ? 'Crashed' : s.phase === 'stopped' ? 'Stopped'
+          : s.launch && ld && s.launch.stage === 'hold' ? `Held · ${stationLabel(ld, s.launch.station)}` : s.launch?.stage === 'shot' ? 'Shot: stand by'
           : `${spdVal(s.speed, u)} ${spdUnit(u).toLowerCase()} · ${Math.max(0, altVal(s.pos.y, u))} ${altUnit(u).toLowerCase()}`);
       coachLine(warn.overspeed);
     }
@@ -643,6 +760,7 @@ const factory: PageFactory = (): Page => {
 
     function coachLine(over: 'gear' | 'flaps' | null): void {
       const u = units();
+      if (lev) { launchCoach(); return; }
       if (cev) { carrierCoach(over); return; }
       const fin = toScore ?? score;
       if (finished && fin) { coach.set(`${fin.total} / 100. ${fin.verdict ?? ''}`, 'Read the gates below, then fly it again.', lessonPassed(fin.total) ? 'ok' : 'caution'); return; }
@@ -719,6 +837,61 @@ const factory: PageFactory = (): Page => {
       const cur = currentStep(new Set(order.filter(id => steps_.isDone(id))), order);
       const stp = stepsDef.find(x => x.id === cur);
       coach.set(stp ? stp.text + '.' : 'Stop on the deck.', 'The checklist ticks as you pass each gate.');
+    }
+
+    /** Coach line on a launch start: the result, the next step on the deck, the stroke, the climb. */
+    function launchCoach(): void {
+      if (!ld || !s.launch) return;
+      const L = s.launch;
+      const name = ld.kind === 'catapult' ? 'catapult launch' : 'ski-jump launch';
+      if (finished && lScore) {
+        const c = launchCard(lScore);
+        coach.set(`${c.title}. ${lScore.total} / 100.`, lScore.verdict ?? '', lessonPassed(lScore.total) ? 'ok' : 'caution');
+        return;
+      }
+      if (!started) {
+        coach.set(mode === 'watch' ? `Watch the demo ${name}.` : `Fly it: ${name} from ${stationLabel(ld, station).toLowerCase()}.`,
+          mode === 'watch' ? 'The strip under the view lights each step in order.' : `${ld.cue}. Each step shows its key.`);
+        return;
+      }
+      const c = launchCaption(s, d, units());
+      const warns = launchWarnings(d, s);
+      const warn = L.stage === 'hold' || L.stage === 'shot' ? warns[warns.length - 1] : undefined;
+      coach.set(c.text, warn ?? c.why, warn ? 'caution' : undefined);
+    }
+
+    /** Launch debrief (#27): outcome, gates, faults, the numbers off the deck, total and verdict. */
+    function finishLaunch(sco: LaunchScore): void {
+      finished = true; lScore = sco;
+      startBtn.setLabel(mode === 'watch' ? 'Watch again' : 'Fly again');
+      startBtn.setDisabled(false);
+      const card = launchCard(sco), L = s.launch, u = units();
+      const rows: HTMLElement[] = [];
+      if (L && ld) {
+        rows.push(h('dt', null, ld.kind === 'catapult' ? 'Catapult' : 'Position'), h('dd', null, stationLabel(ld, L.station)));
+        rows.push(h('dt', null, 'Weight'), h('dd', null, `${L.weight} ${ld.weights.unit}${L.heavy ? ' (heavy)' : ''}`));
+        if (L.trimWantDeg !== undefined) rows.push(h('dt', null, 'T/O trim'), h('dd', { class: L.trimDeg !== L.trimWantDeg ? 'fo-bad' : undefined }, `${L.trimDeg}°, want ${L.trimWantDeg}°`));
+        if (L.endKt !== undefined) {
+          rows.push(h('dt', null, ld.kind === 'catapult' ? 'End of stroke' : 'At the ramp'),
+            h('dd', null, `${ktText(Math.round(L.endKt), u)}${L.minKt !== undefined ? `, want ${ktText(Math.round(L.minKt), u)} or more` : ''}`));
+        }
+      }
+      debriefBody.replaceChildren(
+        h('div', { class: `fo-outcome is-${card.tone}` },
+          h('span', { class: 'fo-outcome__title' }, card.title), h('p', { class: 'fo-outcome__meaning' }, card.meaning)),
+        h('div', { class: 'fo-score' },
+          h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
+          h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
+        gateList(sco.gates),
+        ...(sco.errors.length ? [h('ul', { class: 'fo-faults', 'aria-label': 'Sequence faults' }, sco.errors.map(e => h('li', null, e)))] : []),
+        h('dl', { class: 'fo-numbers' }, rows),
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+          ? (lessonPassed(sco.total) ? `Launch lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the launch lesson.`)
+          : 'Demo launch. Switch to Fly to be graded.'),
+      );
+      debriefPanel.el.hidden = false;
+      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'launch'), true);
+      refresh(true);
     }
 
     // ---------------------------------------------------------------- debrief
@@ -822,6 +995,12 @@ const factory: PageFactory = (): Page => {
     }
     /** Gear handle. Jets without flap control need nothing else (the sim ignores flaps for them). */
     function gearAct(): void { applyAction(s, 'gearToggle', d); }
+    /** Launch sequence actions (launch starts only); 'ab' toggles the afterburner. */
+    function launchAct(a: FlightOpsAction | 'ab'): void {
+      if (!s.launch) return;
+      if (a === 'ab') { input.afterburner = !input.afterburner; if (input.afterburner) input.throttle = 1; return; }
+      applyAction(s, a, d);
+    }
     /** Hook and ball call: carrier starts only. */
     function carrierAct(a: 'hook' | 'ball'): void {
       if (!s.ship) return;
@@ -840,7 +1019,20 @@ const factory: PageFactory = (): Page => {
     if (fc === 'selector' && /^[A-Z]$/.test(d.keys.flaps)) keymap[d.keys.flaps] = act(cycleFlaps);
     // Wheel brakes (held): takeoff and landing rollout. Throttle max: MIL, or full afterburner where the takeoff uses it.
     if (parseChord(brakesKey) && !(brakesKey in keymap)) keymap[brakesKey] = hold('brakes');
-    if (parseChord(thrMaxKey) && !(thrMaxKey in keymap)) keymap[thrMaxKey] = act(() => { input.throttle = 1; input.afterburner = toAb; });
+    // On a launch start: MIL, or the afterburner when the launch needs it; pressed again at MIL, afterburner.
+    if (parseChord(thrMaxKey) && !(thrMaxKey in keymap)) {
+      keymap[thrMaxKey] = act(() => {
+        if (s.launch && ld) {
+          input.afterburner = input.throttle >= 1 || launchPowerNeed(ld, s.launch.weight) === 'AB' || input.afterburner;
+          input.throttle = 1;
+        } else { input.throttle = 1; input.afterburner = toAb; }
+      });
+    }
+    if (ld) {
+      for (const k of [...launchKeys(d), ...(avoidKey(d) ? [avoidKey(d)!] : [])]) {
+        if (parseChord(k.key) && !(k.key in keymap)) keymap[k.key] = act(() => launchAct(k.action));
+      }
+    }
     if (d.nav) {
       const mk = d.nav.keys.modeCycle.value, pk = d.nav.keys.pointCycle?.value;
       if (parseChord(mk)) keymap[mk] = act(() => applyAction(s, 'navModeCycle', d));
@@ -869,14 +1061,23 @@ const factory: PageFactory = (): Page => {
       const wantFly = ctx.params.get('mode') === 'fly';
       const navShot = (which === 'rtb' || which === 'ils') && navOk;
       const toShot = which.startsWith('takeoff-');
-      const seaShot = !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
+      const launchShot = which.startsWith('launch-') && lStarts.length > 0;
+      const seaShot = !launchShot && !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
       mode = 'watch'; modeSeg.set('watch');
-      start = toShot ? 'takeoff' : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
+      start = toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
       rebuildSteps();
       reset(true);
       const t0 = s.t;
       let trapT: number | null = null;
       const doneAt = (): boolean => {
+        if (launchShot) {
+          const L = s.launch;
+          if (!L || !ld) return true;
+          if (which === 'launch-hold') return ld.kind === 'catapult' ? L.stage === 'shot' : L.stepsDone.some(x => x.id === 'specialAB');
+          if (which === 'launch-stroke') return L.stage === 'stroke' && s.t - (L.strokeT ?? s.t) >= (ld.kind === 'catapult' ? 1.5 : 3.2);
+          if (which === 'launch-climb') return L.stage === 'free' && s.pos.y > SHIPS[ld.ship].deckHeightM + 60;
+          return finished;
+        }
         if (seaShot) {
           if (which === 'case1-break') return demoLeg(s) === 'break' && Math.abs(s.bank) > 0.9;
           if (which === 'groove') return !!s.lso?.ballCalled && carrierGeometry(s).rangeM < 0.45 * 1852;

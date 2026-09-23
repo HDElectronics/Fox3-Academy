@@ -215,3 +215,65 @@ Grading (`new CarrierEvaluator(data)`, `update(s)`, `score(): CarrierScore`):
   6 (a lot), +2 no ball call, +2 power not set; a lot in close or at the ramp is C. 0 on wire 3 → _OK_, ≤ 3 OK,
   ≤ 6 (OK), else ---. total = 0.75 × grade base (_OK_ 100, OK 90, (OK) 75, --- 55, B 40, OWO 40, WO 30, C 10)
   + 25 × passed-gate fraction; a crash scores 0. Verdict: "OK pass, 3 wire: a little low in close."
+
+## Deck launch (#27): `launch.ts`
+
+Contract additions (`types.ts`): `FlightOpsJetData.launch?: FlightOpsLaunchData` (kind `'catapult' | 'skiJump'`,
+ship, ordered `steps: LaunchStep[]` with `Sourced` keys or null, power `'MIL' | 'AB'`, Hornet `abFromLb` and
+`trimByWeightLb`, trainer `weights`, `stations`, ski-jump `runM` and `shortRunMaxWeight`, catapult
+`clearingTurn`, Su-33 `avoid.fodScreens`, `after`, `cue`); `LaunchStepId`, `LaunchOptions { station?, heavy? }`,
+`LaunchOutcome` (`'good' | 'sequence error' | 'cold cat' | 'short run'`), `LaunchState` on
+`FlightOpsState.launch`, actions `nwsHi`, `launchBar`, `hookUp`, `trimUp`, `trimDown`, `wipeOut`, `salute`,
+`specialAB`, `fodScreens`, gates `sequence`, `shot`, `handsOff`, `cleanUp`, `clearingTurn` and `LaunchScore`.
+
+Starts (`createFlightOpsState(id, 'catapult' | 'skiJump', data, { station, heavy })`; throws when the jet has
+no launch of that kind or the station is not offered): `catapult` puts the fa18c or f14b on catapult 1 or 2
+of the CVN, `skiJump` the su33 on Kuznetsov position 1 (90 m) or 3 (180 m). Stopped on the deck (`s.speed` is
+the ship speed: no wind), gear down, takeoff flaps, idle, phase `ready`, `s.ship` as for the carrier starts,
+`s.launch.stage = 'hold'`. Hornet trim starts at 12° (`TRIM_START_DEG`), `trimWantDeg` from the weight table.
+
+```ts
+placeLaunchStart(s, data, opts), applyLaunchAction(s, action, data)   // via createFlightOpsState / applyAction
+stepLaunchDeck(s, input, dt, data), stepLaunchAir(s, input, data)     // called by stepFlightOps
+launchStrip(s, data): { id, label, state: 'done' | 'next' | 'pending', t? }[]   // the sequence strip
+trimForWeight(launch, weight), launchPowerNeed(launch, weight), powerMet(s, need)
+catEndSpeedMs(data), minRampSpeedMs(data), hasLaunchStart(data), launchData(data), orderFaults(launch, done)
+SHOOTER_DELAY_S = 2, STROKE_S = 2.5, CAT_END_OVER_VA_KT = 15, SETTLE_S = 3, HANDS_ON = 0.1,
+COLD_CAT_FACTOR = 0.85, SETTLE_N = 0.3, STOPPER_S = 3, RUN_ACC = 15, RAMP_M = 25, RAMP_DEG = 12,
+MIN_RAMP_VA = 0.85, STATION_C (metres to starboard per station)
+```
+
+Arcade rules (AGENTS.md rule 1; not catapult or ramp performance):
+- Steps are recorded in `launch.stepsDone` with times. Action steps come from their action; `trim` when the
+  trim reaches the weight's value; `power` when the throttle is at MIL (≥ 0.95) or the afterburner is lit where
+  the data asks for it (Hornet from 49000 lb, Su-33 always). `hookUp` with the launch bar up is refused. A
+  salute with any earlier step missing (trim and power checked live) is refused: the shooter holds and
+  `errors` gets "Salute refused, the shooter holds: …". Refusals, out-of-order steps (`orderFaults`, checked at
+  the end of the stroke), wrong trim, FOD screens, stoppers released without special afterburner and a heavy
+  jet on a short ski-jump position are all `errors`.
+- Catapult: accepted salute → `shot`; 2 s later the cat fires (`stroke`, phase `roll`): constant acceleration
+  for 2.5 s to the approach speed + 15 kt, from a shuttle placed so the stroke ends 3 m short of the bow.
+  Power below the need at the shot = `cold cat` (end speed × 0.85). At the end the jet flies 1 m above the deck
+  with the AoA for 1.1 g (1.0 g trimmed low, 1.3 g trimmed high), `settle` for 3 s, then `free`. Stick beyond
+  0.1 from the shot to the end of the settle sets `handsOn` (catapult jets).
+- Ski-jump: the stoppers hold until the afterburner has been lit 3 s (`release`), then the run accelerates at
+  15 m/s² × normal / actual weight (× 0.9 without special afterburner, × 0.88 with FOD screens, × 0.6 out of
+  afterburner). The last 25 m rise to a 12° ramp; at the bow the jet leaves at 12° with the AoA for 1 g.
+  Ramp speed below 0.85 × approach speed = `short run`.
+- Cold cat and short run: the AoA is capped at 0.3 g for the rest of the flight: the jet settles into the sea
+  ("In the water").
+- `outcome` at the end of the stroke: `cold cat` / `short run`, else `sequence error` with any error, else
+  `good`; hands on during the settle turns `good` into `sequence error`.
+
+Demo pilot (`demoPilot`, legs `launch` → `climbout`): one step every 0.8 s in the data order (trim in 1°
+clicks), power at the power step, salute 1 s after the power is set; hands off through the stroke and settle;
+then gear up with a positive climb, flaps to the after-launch setting above Vr + 20 kt, a 20° clearing turn to
+the published side (right from catapults 1–2), and a climb to 1500 ft. Clean launches: fa18c normal and heavy
+(19°, afterburner), f14b, su33 from position 1 and heavy from position 3.
+
+Grading (`new LaunchEvaluator(data)`, `update(s)`, `score(s): LaunchScore`): sequence (no errors) and shot (no
+cold cat; ramp speed at or above the minimum) at the end of the stroke; handsOff (catapult) at the end of the
+settle; cleanUp (gear up and flaps at `after.flapLabel` below the takeoff gear limit); clearingTurn (catapult:
+10° toward the published side within 30 s; the wrong way or no turn fails); climb (1000 ft above the sea,
+climbing, gear up) ends the grade. Total = 100 × passed / expected gates; a crash scores 0 ("Crashed: cold cat,
+in the water.").
