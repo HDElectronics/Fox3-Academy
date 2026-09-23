@@ -51,6 +51,9 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
 - **Free lab inputs**: cursor speed, acquisition gate, and arrow-key heading/altitude commands are trainer
   controls. Optional DCS СНП cursor snap is separate from the manual designation aid.
 - **Jamming constraint**: СНП2 checks a scenario flag; this is not an electronic-warfare model.
+- **SAM sites**: three sites (SA-10, SA-11, SA-15) stand for the long, medium and short range classes. The site
+  holds a track and its missile needs that track to impact; notch plus chaff, terrain (the radar horizon plus a
+  scenario ridge height) or leaving the ring breaks it. Missile timing is arcade tuning. AI jets ignore SAMs.
 
 ## Not verified (the app labels these)
 
@@ -63,6 +66,8 @@ items that still require a current DCS installation. No in-game validation is im
 - Active-radar pitbull distances for the AIM-120B/C and SD-10 (read from Lua fields whose meaning is disputed).
 - Whether the FC3 player radars use the datamined AI detection tables (68 km head-on for the N001), and whether
   the FC3 notch applies when looking up.
+- SAM threat-ring radii and altitude bands (community figures from the game files, not checked in the Mission
+  Editor); the SA-15 ceiling disagrees between references.
 - Default keys for the F-14B Phoenix trigger and for countermeasures on the F-16C, F-14B and JF-17.
 - Several scan speeds, bar spacings and beam widths, chaff and flare counts on full-fidelity jets, and most
   radar cross-sections (only the F-15C value comes from DCS).

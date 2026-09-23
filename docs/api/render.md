@@ -152,7 +152,7 @@ on your own tags.
 `Tag` or `Note` to the same screen-space layout as aircraft and missile tags. Set its text,
 `visible` flag and `obj.position` normally; the position is in **render units**, like other CSS2D
 labels. Lower priority wins; `LabelPriority` names the levels: `selected` 0, `aircraft` 1, `missile` 2,
-`annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
+`site` 2.5 (SAM site tags), `annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
 current lesson explanation or selected replay result; secondary markers can use 4. `offset` is a
 preferred CSS-pixel offset, not a fixed position. `maxMove` caps how far (CSS px) the label may be
 nudged before it hides instead, for text that only reads next to its anchor. `WorldView`,
@@ -196,6 +196,7 @@ outside this layout. Do not register a label with two views simultaneously.
 | `bricks` | off | observer's RWS bricks (fade over 8 s) |
 | `radarVolume` | off | set by `setRadarVolume()` |
 | `rwrLines` | off | observer's RWR contacts: search dashed dim, lock amber, launch/missile red flowing |
+| `samRings` | on | SAM threat rings (see below); the site marker, vehicle and tag always draw |
 | `notch` | off | jets inside the observer radar's Doppler gate (`notchKts`, `notchNeedsLookDown`, via `inDopplerNotch`) get an amber diamond and a `NOTCH` tag flag |
 
 ### Methods (WorldView and ReplayView share the first block)
@@ -219,6 +220,23 @@ outside this layout. Do not register a label with two views simultaneously.
 | `truePosition(id, out?)`, `sideOf(id)` | |
 
 ---
+
+### SAM sites (`samSites.ts`)
+
+`WorldView` draws every `world.samSites` entry and `ReplayView` every `RecordFrame.sams` entry, the way the
+DCS F10 map shows a threat: a diamond marker and a small low-poly launcher/radar vehicle (boosted to an 18 px
+floor), a ground ring at `SAMS[type].threatRingKm` (side colour; amber while the site tracks, red while it
+guides a missile), a dashed minimum-range ring, and a faint altitude band (ceiling ring plus posts) up to
+`maxAltM`. With `illumination` on, a dashed line runs from a tracking site to its target. The site tag
+(`site` priority) reads `SA-11 SAM · TRACK · RING 35 km`. Rings are the not-verified values in
+`src/data/sams.ts`. Sites on the other side hide when `truth` is off, like jets.
+
+SAMs in flight use the missile pipeline (mesh, smoke, trail, tag, hit blast) through `samMissileLike(m, out?)`,
+which fills `MissileLike.display` (`{ name, lengthM, guidedText, smoke }`): a SAM has no `MissileId`, so `type`
+only picks a stand-in body mesh. Tags read `SITE TRACK` while guided and `BALLISTIC` once the site loses the
+track. Pure helpers (unit-tested): `samTagText(site, units)`, `samShortName(type)`, `circlePoints(...)`.
+Subclasses of `TacticalScene` feed sites through the protected `samSites()` hook; `view.samSitePosition(id)`
+returns a site's position in render units.
 
 ## ReplayView (`replay.ts`)
 

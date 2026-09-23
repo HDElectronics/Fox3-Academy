@@ -3,13 +3,14 @@
  * single API pages use to drive the simulation. Module behaviour lives in:
  *   flight.ts (aircraft motion), missile.ts (missiles), countermeasures.ts (chaff/flares),
  *   radar.ts (scan, detection, tracks, modes), rwr.ts (warnings), ai.ts (AI pilots),
- *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model).
+ *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites).
  */
 import { Vector3 } from 'three';
 import type { MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  Aircraft, Countermeasure, EntityId, LaunchCheck, Missile, RecordFrame, SimEvent, SpawnOptions,
+  Aircraft, Countermeasure, EntityId, LaunchCheck, Missile, RecordFrame, SamMissile, SamSite, SamSpawnOptions,
+  SimEvent, SpawnOptions,
 } from './types';
 import type { Vector3 as V3 } from 'three';
 
@@ -27,6 +28,7 @@ import { canLock, createRadarState, cycleDesignation, designate, lockTarget, set
 import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
+import { createSamSite, stepSams } from './sam';
 
 export const SIM_HZ = 60;
 const RECORD_EVERY = 0.25;
@@ -37,6 +39,9 @@ export class World {
   t = 0;
   readonly aircraft = new Map<EntityId, Aircraft>();
   readonly missiles = new Map<EntityId, Missile>();
+  /** SAM sites (sam.ts) and SAMs in flight. Separate from air-to-air missiles: SAMs have no MissileId. */
+  readonly samSites = new Map<EntityId, SamSite>();
+  readonly samMissiles = new Map<EntityId, SamMissile>();
   countermeasures: Countermeasure[] = [];
   readonly events: SimEvent[] = [];
   readonly recording: RecordFrame[] = [];
@@ -106,6 +111,19 @@ export class World {
     return ac;
   }
 
+  /** Place a SAM site (search -> track -> launch runs by itself; see sam.ts). */
+  spawnSam(o: SamSpawnOptions): SamSite {
+    const site = createSamSite(this, o);
+    this.samSites.set(site.id, site);
+    this.emit({ t: this.t, type: 'spawn', id: site.id });
+    return site;
+  }
+
+  /** Turn a site's radars on or off (off: silent, drops its track, missiles on the way go ballistic). */
+  setSamActive(id: EntityId, active: boolean): void {
+    const s = this.samSites.get(id); if (s) s.active = active;
+  }
+
   get(id: EntityId | null | undefined): Aircraft | undefined {
     return id ? this.aircraft.get(id) : undefined;
   }
@@ -133,6 +151,7 @@ export class World {
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
+    if (this.samSites.size || this.samMissiles.size) stepSams(this, h);
     updateRwr(this, h);
     if (this.record && this.t - this.lastRecord >= RECORD_EVERY) { this.lastRecord = this.t; this.snapshot(); }
   }
@@ -252,6 +271,16 @@ export class World {
         id: m.id, type: m.type, side: m.side, shooterId: m.shooterId, targetId: m.targetId,
         pos: [m.pos.x, m.pos.y, m.pos.z], guidance: m.guidance, alive: m.alive, timeToActive: m.timeToActive,
       });
+    }
+    if (this.samSites.size) {
+      f.sams = [...this.samSites.values()].map(s => ({
+        id: s.id, type: s.type, side: s.side, pos: [s.pos.x, s.pos.y, s.pos.z], state: s.state, targetId: s.targetId, active: s.active,
+      }));
+    }
+    if (this.samMissiles.size) {
+      f.samMissiles = [...this.samMissiles.values()].map(m => ({
+        id: m.id, type: m.type, side: m.side, siteId: m.siteId, targetId: m.targetId, pos: [m.pos.x, m.pos.y, m.pos.z], guided: m.guided, alive: m.alive,
+      }));
     }
     this.recording.push(f);
   }

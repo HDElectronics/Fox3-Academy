@@ -91,7 +91,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   if (!meMaybe) throw new Error('Sortie: player did not spawn');
   const me: Aircraft = meMaybe;
   const rec = new SortieRecorder(world, eng, ac, units);
-  const names = (id: EntityId | null | undefined) => (id ? world.get(id)?.callsign ?? id : '--');
+  const names = (id: EntityId | null | undefined) => (id ? world.get(id)?.callsign ?? world.samSites.get(id)?.callsign ?? id : '--');
   const allIds = () => [eng.playerId, ...eng.friendIds, ...eng.enemyIds];
   const aliveIds = () => allIds().filter(id => world.get(id)?.alive);
 
@@ -362,6 +362,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       case 'datalink-lost': if (mine(e.missileId)) say(`${mLabel(e.missileId)} lost datalink: ${e.why}`, 'caution'); break;
       case 'seeker-lost': if (mine(e.missileId) && e.why === 'lost-guidance') say(`${mLabel(e.missileId)} lost guidance: no lock to ride`, 'caution'); break;
       case 'hit': {
+        const sm = world.samMissiles.get(e.missileId);
+        if (sm) { say(`Hit by the ${names(sm.siteId)} site.`, e.targetId === me.id ? 'warning' : 'caution'); break; }
         const m = world.missiles.get(e.missileId);
         if (!m) break;
         if (m.shooterId === me.id) say(`${mLabel(m.id)} hit ${names(e.targetId)}. Splash.`, 'ok');
@@ -375,6 +377,9 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
           if (e.what === 'locked') say(`Locked ${names(e.targetId)} (STT): he has a lock warning now`, 'hi');
           else if (e.what === 'broken') say(`Lock on ${names(e.targetId)} broken: ${e.why ?? 'lost'}`, 'caution');
         }
+        break;
+      case 'sam':
+        if (e.targetId === me.id && e.what === 'lost' && e.why && e.why !== 'target-dead') say(`${names(e.siteId)} lost its track on you (${e.why}): its missiles go ballistic`, 'ok');
         break;
       case 'rwr':
         if (e.ownerId !== me.id || e.state === 'search') break;
@@ -800,6 +805,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       rwr: r ? {
         state: r.state, bearing: r.bearing, elevation: r.elevation,
         emitter: r.emitterType === 'missile' ? 'Missile' : names(r.emitterId),
+        sam: world.samSites.get(r.emitterId)?.type ?? null,
         missile: r.missileType ? MISSILES[r.missileType].name : null, seeker: r.missileType ? (r.state === 'launch' && (r.missileType === 'aim54a' || r.missileType === 'aim54c') ? 'sarh' : MISSILES[r.missileType].seeker) : null,
       } : null,
       own: [...world.missiles.values()].filter((m: Missile) => m.alive && m.shooterId === me.id).map(m => {

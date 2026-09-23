@@ -134,6 +134,9 @@ const LIST = {
   fseliteRazbam: ['FSElite, "RAZBAM Modules Removed from Eagle Dynamics Store" (Apr 2025)', 'https://fselite.net/content/razbam-modules-removed-from-eagle-dynamics-store/'],
   sitrepEurofighter: ['DCS SITREP #11 2026, Eurofighter progress (video)', 'https://www.youtube.com/watch?v=M1Mw3_dfs2s'],
   userFilesBvr: ['DCS user files, v57th FW BVR Basics Manual (not opened by research)', 'https://www.digitalcombatsimulator.com/en/files/3308886/'],
+  airgoonsAirDefences: ['Airgoons wiki, "DCS Reference: Air Defences" (Eastern systems, compiled from game files)', 'https://www.airgoons.com/w/DCS_Reference/Air_Defences/Eastern'],
+  simtutsDefending: ['SimTuts, "DCS Missile Defense Guide: How to Defeat SAMs and Air-to-Air Missiles"', 'https://simtuts.com/guides/defending-against-missiles-dcs'],
+  fThreatRingChart: ['ED Forums, "DCS World Mission Editor Threat Range Ring Chart" (not opened: access refused)', 'https://forum.dcs.world/topic/284720-dcs-world-mission-editor-threat-range-ring-chart/'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type SourceKey = keyof typeof LIST;
@@ -149,7 +152,7 @@ export const SOURCE_ID = Object.fromEntries(KEYS.map((k, i) => [k, i + 1])) as R
 /** Mechanics and cross-cutting topics that have their own source lists. */
 export type SourceTopic =
   | AircraftId | MissileId | RwrId
-  | 'notch' | 'chaff' | 'rwr-logic' | 'datalink' | 'kinematics' | 'ai' | 'tactics' | 'binds-fc3' | 'fc3-tws';
+  | 'notch' | 'chaff' | 'rwr-logic' | 'datalink' | 'kinematics' | 'ai' | 'tactics' | 'binds-fc3' | 'fc3-tws' | 'sam';
 
 const T: Record<SourceTopic, SourceKey[]> = {
   su27: ['edSu27Fc3Manual', 'edFc3Manual', 'dmN001', 'dmIrst', 'dmPlanes', 'edFc3Changelog', 'su27CombatGuide'],
@@ -196,6 +199,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   ai: ['cl2_7_1', 'cl2_7_14', 'cl2_9_13', 'cl2_9_20', 'cl2_9_27a', 'fawAiGroup', 'fawAiThoughts', 'hoggitMissileAttack'],
   tactics: ['bvrStrategyGuide', 'hoggitBrevity', 'edViperGuide', 'edHornetGuide', 'userFilesBvr'],
   'binds-fc3': ['bindsFc3Mods', 'bindsF16aDemo', 'joyproF15c', 'edSu27Fc3Manual', 'edF15cManual'],
+  sam: ['airgoonsAirDefences', 'simtutsDefending', 'fThreatRingChart', 'edHornetGuide'],
   'fc3-tws': ['edSu27Fc3Manual', 'edMig29Manual', 'edSu33Manual', 'edF15cManual', 'edFc3Changelog', 'fTwsMulti', 'fCyclingTws'],
 };
 

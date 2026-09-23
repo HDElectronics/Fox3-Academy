@@ -5,8 +5,8 @@
 import { h, cx } from '../../ui/dom';
 import { callout } from '../../ui/panels';
 import { RWRS, RWR_CAVEATS } from '../../data';
-import { emitterName, matches, rwrRows, type RwrRow } from './model';
-import { hl, lessonLink, type RefCtx } from './common';
+import { emitterName, matches, rwrRows, samRows, type RwrRow } from './model';
+import { hl, lessonLink, tag, type RefCtx } from './common';
 
 const CUE_LABEL = { search: 'Search', lock: 'Lock', launch: 'Launch', missile: 'Active missile' } as const;
 
@@ -40,6 +40,14 @@ export function rwrSection(rc: RefCtx): HTMLElement {
     const td = h('td', null, text);
     return { tr: h('tr', null, h('th', { scope: 'row', class: 'is-mono' }, CUE_LABEL[k]), td), td, text, hay: CUE_LABEL[k] + ' ' + text };
   });
+  const sams = samRows(rwr.id, rc.units).map(r => {
+    const tr = h('tr', null,
+      h('td', null, r.site, h('span', { class: 'ref-sub ref-sub--wrap' }, r.beat)),
+      h('td', { class: 'ref-sym-cell' }, r.symbol ? h('span', { class: cx('ref-sym', lamps && 'ref-sym--lamp') }, r.symbol) : h('span', { class: 'ref-none' }, 'No lamp')),
+      h('td', { class: 'is-mono' }, r.ring, tag('not verified', 'warn')),
+      h('td', { class: 'is-mono' }, r.band, tag('not verified', 'warn')));
+    return { tr, hay: [r.site, r.symbol, r.ring, r.band, r.beat, 'SAM'].join(' ') };
+  });
   const empty = h('tr', { class: 'ref-empty-row', hidden: true }, h('td', { colspan: '3' }, 'No symbols match the filter.'));
   const emptyCue = h('tr', { class: 'ref-empty-row', hidden: true }, h('td', { colspan: '2' }, 'No cues match the filter.'));
 
@@ -49,8 +57,10 @@ export function rwrSection(rc: RefCtx): HTMLElement {
       let n = 0, c = 0;
       for (const r of rows) { const ok = matches(r.hay, tokens); r.tr.hidden = !ok; if (ok) n++; r.emitters.replaceChildren(...hl(r.names, tokens)); }
       for (const r of cueRows) { const ok = matches(r.hay, tokens); r.tr.hidden = !ok; if (ok) c++; r.td.replaceChildren(...hl(r.text, tokens)); }
+      let sn = 0;
+      for (const r of sams) { const ok = matches(r.hay, tokens); r.tr.hidden = !ok; if (ok) sn++; }
       empty.hidden = n > 0; emptyCue.hidden = c > 0;
-      return n + c;
+      return n + c + sn;
     },
   });
 
@@ -74,8 +84,16 @@ export function rwrSection(rc: RefCtx): HTMLElement {
     symTable,
     h('h3', null, 'Search, lock, launch'),
     cueTable,
+    h('h3', null, 'SAM sites'),
+    h('p', null, 'Rings and altitude bands as community references list them from the game files. The Mission Editor rings were not checked in a current build.'),
+    h('div', { class: 'ui-table-wrap', role: 'region', 'aria-label': 'SAM sites', tabindex: '0' },
+      h('table', { class: 'ui-table ref-table ref-samtable' },
+        h('thead', null, h('tr', null,
+          h('th', { scope: 'col' }, 'Site'), h('th', { scope: 'col' }, lamps ? 'Type lamp' : 'Symbol'),
+          h('th', { scope: 'col' }, 'Threat ring'), h('th', { scope: 'col' }, 'Altitude band'))),
+        h('tbody', null, sams.map(r => r.tr)))),
     h('h3', null, 'Know this'),
     h('ul', { class: 'ref-notes' }, rwr.teach.map(t => h('li', null, t))),
     callout({ kind: 'simplified', body: h('ul', null, RWR_CAVEATS[rwr.id].map(c => h('li', null, c))) }),
-    h('div', { class: 'ref-links' }, lessonLink(`RWR trainer: quiz on the ${rwr.name.replace(/\s*".*"/, '')}`, 'rwr')));
+    h('div', { class: 'ref-links' }, lessonLink(`RWR trainer: quiz on the ${rwr.name.replace(/\s*".*"/, '')}`, 'rwr'), lessonLink('SAM drills', 'defense?drill=sa11')));
 }

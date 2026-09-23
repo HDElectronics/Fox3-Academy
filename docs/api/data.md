@@ -10,6 +10,7 @@ import {
   AIRCRAFT, AIRCRAFT_ORDER, AIRCRAFT_CAVEATS,          // aircraft.ts
   MISSILES, MISSILE_REF_NOTE, FLARE_SUSCEPTIBILITY,    // missiles.ts
   RWRS, RWR_CAVEATS, rwrSymbol,                        // rwr.ts
+  SAMS, SAM_ORDER, SAM_CAVEATS, samForClass, samRwrSymbol, // sams.ts
   PROCEDURES, procedureFor,                            // procedures.ts
   SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor,       // sources.ts
 } from '../../data';
@@ -28,11 +29,15 @@ import {
 | `RWRS` | `Record<RwrId, RwrSpec>` | Symbols for every emitter, cues (look and sound) for search/lock/launch/missile, teach points. |
 | `rwrSymbol(rwr, emitter)` | `string` | Symbol lookup; falls back to the RWR's `unknown` symbol. SPO-15 returns the type lamp letter (`''` = no lamp). |
 | `RWR_CAVEATS` | `Record<RwrId, string[]>` | Unconfirmed RWR details. |
+| `SAMS` | `Record<SamId, SamSpec>` | SA-10 / SA-11 / SA-15 sites: RWR class (`sam-long/medium/short`), threat-ring radius, min range, engagement altitude band, the `track-to-impact` guidance rule, defeat advice, uncertain values. |
+| `SAM_ORDER` | `SamId[]` | Long, medium, short. |
+| `samForClass(cls)` / `samRwrSymbol(rwr, sam)` | `SamId` / `string` | The site that represents an RWR class; its symbol on a given RWR (reads `RWRS`). |
+| `SAM_CAVEATS` | `string[]` | Global SAM simplifications plus every site's `uncertain` line. |
 | `PROCEDURES` | `Record<AircraftId, AircraftProcedures>` | Binds and step-by-step procedures. |
 | `procedureFor(ac, id)` | `Procedure \| undefined` | e.g. `procedureFor('su27', 'tws-multi')` is `undefined`. |
-| `SOURCES` | `Source[]` | 108 deduplicated research sources, ids 1..n. |
+| `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
-| `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws'`. |
+| `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
 
 ## Conventions
 
@@ -217,6 +222,15 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 - ALR-56M: codes assumed equal to the Hornet list; tones not documented.
 - JF-17: only `M2K`, `M29`, `SA8` confirmed; ARH seeker on the RWR shown as `M` (not documented).
 - Serval: symbol library not researched (ED-style codes stand in); tones and lock/launch look not documented.
+
+### SAM sites
+
+Research: `docs/research/sam-threats.md`. No ring was checked in the Mission Editor (the ED ring chart thread
+refused access), so every `threatRingKm` is **not verified**: SA-10 120 km, SA-11 35 km, SA-15 12 km, all from the
+Airgoons game-data reference. SA-10: older references show a smaller ring. SA-15 ceiling 6000 m vs 26000 ft on
+dcsworld.pro. The single `track-to-impact` guidance rule simplifies DCS's mix of command and semi-active
+guidance (SA-10 terminal phase not verified). Missile speed, turn, lock-to-launch delay, notch gate and chaff
+chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 
 ### Procedures and binds
 - FC3 `Backspace` unlock: medium confidence (mod copies of the FC3 bindings).

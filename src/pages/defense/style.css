@@ -203,3 +203,16 @@
   .dfn-parts li { grid-template-columns: 6.5em 3.5em 1fr; }
   .dfx { padding-inline: var(--gap-4); }
 }
+
+/* SAM drills (samLab.ts) */
+.dfn-drills .dfn-drill--sam .dfn-drill__n { color: var(--hostile); }
+.sam-sites { grid-template-columns: 1fr 1fr 1fr; }
+.sam-sites > .ui-btn { grid-column: 1 / -1; }
+.sam-brief { display: grid; gap: 6px; }
+.sam-facts { grid-template-columns: 1fr 1fr 1fr; }
+.sam-defeat { margin: 0; padding-left: 18px; font-size: var(--fs-s); line-height: 1.45; }
+.sam-defeat li + li { margin-top: 3px; }
+.sam-tag {
+  font-family: var(--font-mono); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--caution); border: 1px solid currentColor; border-radius: var(--r-1); padding: 0 4px;
+}

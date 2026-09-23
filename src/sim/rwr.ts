@@ -9,6 +9,8 @@
  *            is held). A TWS Fox 3 gives no launch warning (FC3 manual, ED tester 2022);
  *   missile: an ARH missile's active seeker is on us (emitter = the missile, bearing from the missile); held
  *            1.5 s after the seeker leaves us (e.g. for chaff) so it does not flicker.
+ * SAM sites (sam.ts samRwrContact): search while the search radar paints us, lock while the track radar holds
+ * us, launch while one of its missiles is guided on us; emitterType is the site's class ('sam-long' ...).
  * Contacts are sorted most dangerous first (missile > launch > lock > search, then strength), so [0] is the
  * primary threat. Emits 'rwr' events only when a contact appears or escalates.
  * Simplified: no elevation blind zones, no emitter power table, unlimited contacts.
@@ -19,6 +21,7 @@ import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { clamp, elevationTo, relBearing } from './math';
 import { lastPainted, paintRange } from './radar';
+import { samRwrContact } from './sam';
 
 /** A search contact stays this long after the last paint: 1.2 × emitter frame time + 0.5 s. */
 export function searchHoldTime(emitter: Aircraft): number {
@@ -106,6 +109,11 @@ export function updateRwr(world: World, dt: number): void {
       };
       if (missileType) c.missileType = missileType;
       out.push(c);
+    }
+
+    for (const site of world.samSites.values()) {
+      const c = samRwrContact(world, site, rx, prev.get(site.id));
+      if (c) out.push(c);
     }
 
     for (const m of missiles) {

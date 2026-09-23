@@ -1,7 +1,8 @@
 /**
  * WorldView: draws a live sim World every frame (jets, missiles, countermeasures, relations) plus the
  * radar-aware layers for a chosen observer: track estimates vs truth, RWS bricks, RWR threat lines,
- * Doppler-notch flags, and the radar scan volume of one aircraft.
+ * Doppler-notch flags, and the radar scan volume of one aircraft. SAM sites (world.samSites) draw with their
+ * threat rings, and SAMs in flight (world.samMissiles) go through the missile pipeline (samSites.ts).
  */
 import { Vector3 } from 'three';
 import { AIRCRAFT } from '../data/aircraft';
@@ -13,7 +14,8 @@ import type { Stage } from './stage';
 import { RadarVolume, type RadarVolumeOptions } from './radarVolume';
 import { Shape } from './symbols';
 import { Tag } from './tags';
-import { TacticalScene, type CountermeasureLike, type Layers, type TacticalOptions } from './tactical';
+import { TacticalScene, type CountermeasureLike, type Layers, type MissileLike, type TacticalOptions } from './tactical';
+import { samMissileLike, type SamSiteLike } from './samSites';
 import { UNIT_PER_M } from './units';
 
 export interface WorldViewOptions extends TacticalOptions {
@@ -35,6 +37,8 @@ export class WorldView extends TacticalScene {
   private trackTags = new Map<string, { tag: Tag; seen: number; unregister: () => void }>();
   private tagStamp = 0;
   private notched = new Set<EntityId>();
+  private samMsl = new Map<EntityId, MissileLike>();
+  private mslList: MissileLike[] = [];
 
   constructor(stage: Stage, world: World, opts: WorldViewOptions = {}) {
     super(stage, opts);
@@ -47,6 +51,7 @@ export class WorldView extends TacticalScene {
   /** Switch to another World (e.g. after a reset). Clears every visual. */
   setWorld(world: World): void {
     this.world = world;
+    this.samMsl.clear();
     this.clear();
     this.clearTrackTags();
     this.time = 0;
@@ -103,7 +108,20 @@ export class WorldView extends TacticalScene {
 
   protected gather(): void {
     const w = this.world;
-    this.syncEntities(w.t, w.aircraft.values(), w.missiles.values());
+    if (!w.samMissiles.size) { this.syncEntities(w.t, w.aircraft.values(), w.missiles.values()); return; }
+    const list = this.mslList;
+    list.length = 0;
+    for (const m of w.missiles.values()) list.push(m);
+    for (const m of w.samMissiles.values()) {
+      const like = samMissileLike(m, this.samMsl.get(m.id));
+      this.samMsl.set(m.id, like);
+      list.push(like);
+    }
+    this.syncEntities(w.t, w.aircraft.values(), list);
+  }
+
+  protected override samSites(): Iterable<SamSiteLike> {
+    return this.world.samSites.values();
   }
 
   protected override countermeasures(): Iterable<CountermeasureLike> {
@@ -196,7 +214,7 @@ export class WorldView extends TacticalScene {
       if (L.rwrLines) {
         const op = obs.pos;
         for (const c of obs.rwr) {
-          const em = this.world.aircraft.get(c.emitterId) ?? this.world.missiles.get(c.emitterId);
+          const em = this.world.aircraft.get(c.emitterId) ?? this.world.missiles.get(c.emitterId) ?? this.world.samSites.get(c.emitterId);
           if (!em) continue;
           const col = c.state === 'search' ? P.symDim : c.state === 'lock' ? P.caution : P.warning;
           const a = c.state === 'search' ? 0.45 : 0.85;
@@ -230,12 +248,13 @@ export class WorldView extends TacticalScene {
 
   /** Sim position (m) of an entity's true state (not the displayed one), or null. */
   truePosition(id: EntityId, out = _v): Vector3 | null {
-    const e = this.world.aircraft.get(id) ?? this.world.missiles.get(id);
+    const e = this.world.aircraft.get(id) ?? this.world.missiles.get(id) ?? this.world.samMissiles.get(id) ?? this.world.samSites.get(id);
     return e ? out.copy(e.pos) : null;
   }
 
   /** Side of an aircraft, if known. */
   sideOf(id: EntityId): Side | null {
-    return this.world.aircraft.get(id)?.side ?? this.world.missiles.get(id)?.side ?? null;
+    const w = this.world;
+    return w.aircraft.get(id)?.side ?? w.missiles.get(id)?.side ?? w.samMissiles.get(id)?.side ?? w.samSites.get(id)?.side ?? null;
   }
 }

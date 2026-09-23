@@ -9,7 +9,7 @@
  * This is also three.js' frame (y-up, right-handed); the renderer only rescales (1 unit = 1 km).
  */
 import type { Vector3 } from 'three';
-import type { AircraftId, MissileId, RadarModeId, RwrSymbol } from '../data/types';
+import type { AircraftId, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
 
 export type Side = 'blue' | 'red';
 export type EntityId = string;
@@ -80,8 +80,8 @@ export interface RadarState {
 }
 
 export interface RwrContact {
-  emitterId: EntityId;        // aircraft id, or missile id for an active seeker
-  /** The sim only produces aircraft and 'missile'; trainers may also pass SAM / AWACS / unknown emitters. */
+  emitterId: EntityId;        // aircraft id, SAM site id, or missile id for an active seeker
+  /** The sim produces aircraft, 'missile' and SAM sites ('sam-long' / 'sam-medium' / 'sam-short'); trainers may also pass AWACS / unknown emitters. */
   emitterType: RwrSymbol['emitter'];
   missileType?: MissileId;
   state: 'search' | 'lock' | 'launch' | 'missile';
@@ -172,6 +172,85 @@ export interface Missile {
   closestApproach: number;
 }
 
+/**
+ * Radar state of a SAM site, as the player's RWR would read it: 'search' (search radar only), 'track' (track
+ * radar holds a target, RWR lock), 'engage' (at least one missile in flight on the target, RWR launch).
+ */
+export type SamState = 'off' | 'search' | 'track' | 'engage';
+
+/** Why a SAM site lost its track (gameplay rules in sam.ts). */
+export type SamLostReason = 'notched' | 'chaff' | 'terrain' | 'horizon' | 'range' | 'target-dead' | 'radar-off';
+
+/** A surface-to-air missile site (search radar, track radar and launchers at one point). Stepped by sam.ts. */
+export interface SamSite {
+  kind: 'sam';
+  id: EntityId;
+  side: Side;
+  type: SamId;
+  callsign: string;
+  /** Site position; y is the site's ground height (engagement altitudes are measured from it). */
+  pos: Vector3;
+  /** Terrain mask height (m above the site): beyond 2 km, targets lower than this are hidden by terrain. */
+  maskAltM: number;
+  /** Radars emitting. false = silent: no search, no track, no RWR contact. */
+  active: boolean;
+  /** Track but never launch (drills). */
+  holdFire: boolean;
+  alive: boolean;
+  state: SamState;
+  /** Aircraft the track radar holds (null in search). */
+  targetId: EntityId | null;
+  /** When the current track started (s), null in search. */
+  trackSince: number | null;
+  /** Seconds the track has been without line of sight / in range (memory before it drops). */
+  lostFor: number;
+  /** Seconds the target has sat in the Doppler notch. */
+  notchFor: number;
+  /** Why the last track dropped, and when. */
+  lastLost: null | { t: number; targetId: EntityId; why: SamLostReason };
+  /** Ready missiles. */
+  missiles: number;
+  lastLaunch: number;
+  /** Aircraft the search radar paints right now (any side, line of sight and in search range). */
+  painted: EntityId[];
+}
+
+/** A SAM in flight. Arcade model in sam.ts: speed curve, turn cap, steer to intercept on the site's track. */
+export interface SamMissile {
+  kind: 'sam-missile';
+  id: EntityId;
+  type: SamId;
+  side: Side;
+  siteId: EntityId;
+  targetId: EntityId | null;
+  pos: Vector3;
+  vel: Vector3;
+  launchedAt: number;
+  alive: boolean;
+  /** Still guided by the site's track radar. false = ballistic (track lost). */
+  guided: boolean;
+  motorLeft: number;
+  timeToImpact: number | null;
+  result: null | { kind: 'hit' | 'miss'; reason: MissReason | 'hit'; t: number };
+  closestApproach: number;
+}
+
+export interface SamSpawnOptions {
+  id?: EntityId;
+  side: Side;
+  type: SamId;
+  callsign?: string;
+  /** Site position (m); y defaults to the world ground altitude. */
+  pos: { x: number; y?: number; z: number };
+  /** Terrain mask height around the site (m), default 0 (flat). */
+  maskAltM?: number;
+  /** Radar on at spawn (default true). */
+  active?: boolean;
+  holdFire?: boolean;
+  /** Ready missiles (default: the site's gameplay load in sam.ts). */
+  missiles?: number;
+}
+
 export interface Countermeasure {
   kind: 'chaff' | 'flare';
   id: EntityId;
@@ -216,6 +295,7 @@ export type SimEvent =
   | { t: number; type: 'rwr'; ownerId: EntityId; emitterId: EntityId; state: RwrContact['state'] }
   | { t: number; type: 'cm'; ownerId: EntityId; what: 'chaff' | 'flare' }
   | { t: number; type: 'ai'; ownerId: EntityId; state: AiMemory['state']; text: string; targetId?: EntityId; missileId?: EntityId; missile?: MissileId; range?: number }
+  | { t: number; type: 'sam'; siteId: EntityId; what: 'track' | 'launch' | 'lost'; targetId: EntityId; missileId?: EntityId; why?: SamLostReason; range?: number }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
@@ -260,6 +340,9 @@ export interface RecordFrame {
     id: EntityId; type: MissileId; side: Side; shooterId: EntityId; targetId: EntityId | null;
     pos: [number, number, number]; guidance: MissileGuidance; alive: boolean; timeToActive: number | null;
   }[];
+  /** SAM sites and SAMs in flight (absent in recordings without SAMs). */
+  sams?: { id: EntityId; type: SamId; side: Side; pos: [number, number, number]; state: SamState; targetId: EntityId | null; active: boolean }[];
+  samMissiles?: { id: EntityId; type: SamId; side: Side; siteId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
 }
 
 /**

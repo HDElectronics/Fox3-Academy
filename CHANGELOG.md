@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- SAM threats (#10): the 3D views draw SA-10, SA-11 and SA-15 sites with their threat ring, minimum-range ring
+  and altitude band, and SAMs in flight with smoke and trails, live and in the debrief replay. Defense adds a
+  drill per site (brief, search / lock / launch on your RWR, beam and chaff, an optional ridge, coaching and a
+  debrief); Sortie can add one or two sites with coach hints and debrief notes; the Reference RWR section lists
+  each site's symbol, ring and band. Rings and bands are marked not verified; the AI jets ignore the sites.
 - Pattern & landing adds carrier Case I and In the groove starts for the F/A-18C, F-14B and Su-33 (#26): a moving
   CVN or Kuznetsov with the angled deck, four wires and the ski-jump, sea instead of land, an LSO platform camera,
   hook (H / LAlt+G) and ball-call (Y) keys and touch buttons, an IFLOLS or Luna-3 close-up with a call-the-ball
