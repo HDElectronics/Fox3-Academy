@@ -228,3 +228,41 @@ scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-liv
 
 `?only=` takes `su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c rwr-<id> helpers` (comma list), `?pause=1`,
 `?perf=1` logs draw cost, `&sams=1` adds SA-15 / SA-10 / AWACS emitters, `&hl=s1` highlights one emitter. Clicking a track in the sandbox toggles its designation (pick demo).
+
+## GunSightDisplay (HUD gun sights, issue #11)
+
+```ts
+import { GunSightDisplay, buildGunSight, sightStyleFor } from '../../ui/displays';
+
+const hud = new GunSightDisplay(canvas, { fovDeg: 26 });                       // trainer HUD in a bezel
+const over = new GunSightDisplay(overlayCv, { overlay: true, fovDeg: stage.camera.fov }); // over the cockpit camera
+let shoot = false;
+stage.onFrame(() => {
+  const pic = buildGunSight(me, bandit, { locked, pick, prevShoot: shoot });  // null: no gun data
+  shoot = pic?.shoot ?? false;
+  hud.draw(pic); over.draw(pic);
+});
+```
+
+`sightStyleFor(type, locked, pick?) → { kind, name, verified, note } | null` maps data `GUNS[id].sight`
+(`noLock` / `lock`, JF-17 `other`) to the sight the HUD shows; `noLockOptions(type)` lists the no-lock choices
+(JF-17: SS, SSLC). `buildGunSight(me, target, { locked, pick?, prevShoot? })` returns a `GunSightPicture`:
+funnel / tracer points, pipper, F-14 diamond, range marks (sim `sightPoint`, HUD angles from the gun line, + right,
++ up toward the canopy), target angles (`hudAngles`), lock range, range-arc full scale, `inRange`, `inSolution`
+(the sim's hit rule), Hornet `shoot` (predicted miss < 20 ft, off above 30 ft), rounds, firing.
+
+| Jet | No lock | Lock |
+|---|---|---|
+| Su-27, Su-33, J-11A, MiG-29S | Gun funnel sized for the Target Size span (20 m), 200–1200 m | LCOS pipper, 0–1200 m range scale, crosshair inside 1200 m |
+| F-15C | LCOS: gun cross and pipper | Gun reticle with range arc |
+| F/A-18C | Funnel with 1000 / 2000 ft cues (40 ft span) | Director reticle, range arc, SHOOT |
+| F-16C | EEGS Level II funnel (not verified ranges) | EEGS Level V: dim funnel and pipper with range arc |
+| F-14B | RTGS pipper at 1000 ft, diamond at 2000 ft | RTGS track: pipper at target range to 4000 ft |
+| JF-17 | SS bullet line (or SSLC: line and LCOS pipper) | LCOS |
+| M-2000C | CCLT tracer line to 1000 m, wingspan marks 300 / 600 m | same, with a distance-meter tick inside 1200 m |
+
+Options: `fovDeg` (vertical field the canvas spans; match `stage.camera.fov` for the overlay), `overlay`
+(transparent, no target bar; boresight at the centre), `boreY` (fraction of the height, HUD default 0.32), `glow`.
+Text: sight name top left, `RDS n` bottom right, lock range bottom left (jet units), `IN RNG` (trainer cue) or
+`SHOOT`, `GUN` while firing, else `SIMPLIFIED`. The funnel and pipper geometry is the sim's lead approximation
+(own turn rate × time of flight), not any jet's sight law. Tests: `gunSight.test.ts`.
