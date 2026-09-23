@@ -83,7 +83,9 @@ export function aoaForLoad(s: FlightOpsState, d: FlightOpsJetData, n: number): n
 /** AoA indexer cue: slow above the band, fast below it. */
 export function aoaCue(s: FlightOpsState, d: FlightOpsJetData): AoaCue {
   const [lo, hi] = d.aoa.band.value;
-  return s.aoa > hi ? 'slow' : s.aoa < lo ? 'fast' : 'on';
+  // Band edges count as on speed, at the 0.1 resolution the cockpit readout shows.
+  const a = Math.round(s.aoa * 10) / 10;
+  return a > hi ? 'slow' : a < lo ? 'fast' : 'on';
 }
 
 /** Configuration warnings for the cockpit (the jet is not damaged in the trainer). */

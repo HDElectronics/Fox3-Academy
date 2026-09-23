@@ -62,6 +62,15 @@ describe('demo pilot', () => {
 });
 
 describe('model', () => {
+  it('treats the AoA band edges as on speed, at the displayed resolution', () => {
+    const d = FLIGHT_OPS.fa18c;
+    const s = createFlightOpsState('fa18c', 'final');
+    const [lo, hi] = d.aoa.band.value;
+    for (const [aoa, cue] of [[lo, 'on'], [lo - 0.04, 'on'], [hi, 'on'], [hi + 0.04, 'on'], [lo - 0.1, 'fast'], [hi + 0.1, 'slow']] as const) {
+      s.aoa = aoa;
+      expect(aoaCue(s, d)).toBe(cue);
+    }
+  });
   it('reads on-speed AoA at the approach speed in landing configuration', () => {
     for (const id of JETS) {
       const d = FLIGHT_OPS[id];
