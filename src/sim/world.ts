@@ -36,6 +36,7 @@ import {
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
 } from './shkval';
 import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
+import { agLaunch, armLock, canAgLaunch, setArmDetect, stepAgWeapons, type AgLaunchCheck } from './agWeapons';
 
 /** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
 function radarOff(): RadarState {
@@ -189,6 +190,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
     if (this.samSites.size || this.samMissiles.size) stepSams(this, h);
+    if (this.agWeapons.size) stepAgWeapons(this, h);
     updateRwr(this, h);
     if (this.record && this.t - this.lastRecord >= RECORD_EVERY) { this.lastRecord = this.t; this.snapshot(); }
   }
@@ -279,6 +281,24 @@ export class World {
   laser(id: EntityId, on: boolean): ShkvalResult {
     const ac = this.attackJet(id); return ac ? setLaser(this, ac, on) : { ok: false, reason: 'No laser' };
   }
+  /** [I]: Kh-58 passive detection (needs the L-081 pod). */
+  armDetect(id: EntityId, on: boolean): { ok: boolean; reason: string } {
+    const ac = this.attackJet(id); return ac ? setArmDetect(ac.ag!, on) : { ok: false, reason: 'No air-to-ground system' };
+  }
+  armLock(id: EntityId, siteId?: EntityId): { ok: boolean; reason: string } {
+    const ac = this.attackJet(id); return ac ? armLock(this, ac, siteId) : { ok: false, reason: 'No air-to-ground system' };
+  }
+  /** ПР check for the selected (or given) A-G store. */
+  canAgLaunch(id: EntityId, w?: AgWeaponId): AgLaunchCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? canAgLaunch(this, ac, w) : { ok: false, pr: false, reason: 'Aircraft is not alive', weapon: null, targetId: null, range: null, band: null };
+  }
+  /** Release the selected A-G store if allowed. */
+  agLaunch(id: EntityId): AgWeapon[] | AgLaunchCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? agLaunch(this, ac) : this.canAgLaunch(id);
+  }
+
   // Thin delegations so pages only ever talk to World.
   setRadarMode(id: EntityId, mode: RadarModeId, targetId?: EntityId): boolean {
     const ac = this.aircraft.get(id); return !!ac && setRadarMode(this, ac, mode, targetId);
@@ -372,6 +392,11 @@ export class World {
     if (this.groundUnits.size) {
       f.groundUnits = [...this.groundUnits.values()].map(u => ({
         id: u.id, kind: u.kind, side: u.side, pos: [u.pos.x, u.pos.y, u.pos.z], heading: u.heading, alive: u.alive,
+      }));
+    }
+    if (this.agWeapons.size) {
+      f.agWeapons = [...this.agWeapons.values()].map(w => ({
+        id: w.id, type: w.type, side: w.side, shooterId: w.shooterId, targetId: w.targetId, pos: [w.pos.x, w.pos.y, w.pos.z], guided: w.guided, alive: w.alive,
       }));
     }
     const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);
