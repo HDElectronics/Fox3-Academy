@@ -4,12 +4,14 @@
  * are shown in the app's units.
  */
 import type { Units } from '../../app/format';
-import { CLIMB_ALT_FT, rotateAtKt, type FlightOpsJetData, type DemoLeg, type FlightOpsPhase, type NavState, type Sourced } from '../../sim/flightOps';
+import { SHIPS } from '../../data/ships';
+import { CLIMB_ALT_FT, rotateAtKt, targetWire, type FlightOpsJetData, type DemoLeg, type FlightOpsPhase, type NavState, type Sourced } from '../../sim/flightOps';
 import { altFtText, flapControl, ktText, navPicture, stepOrder, type LessonKind, type StepId } from './logic';
 
 export interface LessonStep { id: StepId; text: string; keys?: string; note?: string }
 
 const unv = (s: Sourced<unknown>) => (s.verified ? '' : ' (not verified)');
+const unvAny = (...s: Sourced<unknown>[]) => (s.every(x => x.verified) ? '' : ' (not verified)');
 const navLabel = (d: FlightOpsJetData, id: 'route' | 'return' | 'landing') => d.nav?.modes.find(m => m.id === id)?.label ?? null;
 
 function configureText(d: FlightOpsJetData, u: Units): string {
@@ -44,12 +46,56 @@ function takeoffSteps(d: FlightOpsJetData, u: Units): Partial<Record<StepId, Les
   };
 }
 
+/** Carrier Case I steps (#26), per jet, numbers from `d.carrier`; unverified numbers are flagged. */
+function carrierSteps(d: FlightOpsJetData, u: Units): Partial<Record<StepId, LessonStep>> {
+  const c = d.carrier;
+  if (!c) return {};
+  const p = c.pattern, ship = SHIPS[c.ship];
+  const [i0, i1] = p.breakIntervalS.value, [a0, a1] = p.abeamNm.value, [n0, n1] = p.ninetyAltFt.value, [g0, g1] = p.grooveS.value;
+  const band = d.aoa.band.value, unit = d.aoa.unit === 'deg' ? '°' : ' units';
+  const flaps = flapControl(d) === 'selector' ? `, flaps ${d.flapLabels[d.landingFlap]}` : '';
+  const aid = ship.lights === 'iflols' ? 'the ball (IFLOLS)' : 'the Luna-3 light';
+  const power = c.touchdownPower.value === 'MIL' ? 'MIL (no afterburner)' : 'max power';
+  return {
+    initial: { id: 'initial', text: `Initial: 3 nm astern at ${altFtText(p.initialAltFt.value, u)}, ${ktText(p.initialKt.value, u)}, just starboard of the ship on the BRC${p.initialAltFt.verified ? unv(p.initialKt) : unv(p.initialAltFt)}`, note: p.initialAltFt.note },
+    break: { id: 'break', text: `Break left before 4 nm ahead of the ramp, ${i0}–${i1} s interval${unv(p.breakIntervalS)}`, note: p.breakIntervalS.note },
+    configure: { id: 'configure', text: `Below ${ktText(p.gearFlapsMaxKt.value, u)}: gear down${flaps}, hook down${unvAny(p.gearFlapsMaxKt, c.hookKey)}`, keys: `${d.keys.gear}, ${c.hookKey.value}`, note: c.hookKey.note },
+    abeam: { id: 'abeam', text: `Downwind ${altFtText(p.downwindAltFt.value, u)}, ${a0}–${a1} nm abeam the ship${unv(p.abeamNm)}` },
+    ninety: { id: 'ninety', text: `The 90: ${altFtText(n0, u)}–${altFtText(n1, u)}, on speed, gear down${unv(p.ninetyAltFt)}`, note: p.ninetyAltFt.note },
+    ball: { id: 'ball', text: `Wings level in the groove at ${p.ballNm.value} nm: call ${aid} on ${c.ballCallKey.value}${unvAny(p.ballNm, c.ballCallKey)}`, keys: c.ballCallKey.value, note: c.ballCallKey.note },
+    onspeed: { id: 'onspeed', text: `On-speed AoA ${band[0]}–${band[1]}${unit} with the throttle; ${g0}–${g1} s in the groove${unv(p.grooveS)}`, keys: 'Num+ / Num-' },
+    trap: { id: 'trap', text: `No flare: fly the ${ship.glideDeg.value}° glide slope${unv(ship.glideDeg)} to the deck, ${power} at touchdown${unv(c.touchdownPower)}, catch the ${targetWire(ship)} wire` },
+  };
+}
+
+/**
+ * Carrier caption for the demo leg (Watch mode) and the Fly coach: what the pilot does next, from the
+ * jet's Case I numbers.
+ */
+export function carrierCaption(leg: DemoLeg | null, d: FlightOpsJetData, u: Units = 'imperial'): { text: string; why: string } {
+  const c = d.carrier;
+  if (!c) return { text: 'Press Start.', why: 'No carrier data for this jet.' };
+  const p = c.pattern, ship = SHIPS[c.ship];
+  const aid = ship.lights === 'iflols' ? 'the ball' : 'the Luna-3 light';
+  switch (leg) {
+    case 'initial': return { text: `Initial: ${altFtText(p.initialAltFt.value, u)}, ${ktText(p.initialKt.value, u)}, starboard side of the ship.`, why: 'On the BRC. Break left once past the bow, before 4 nm.' };
+    case 'break': return { text: 'Break left: level turn to downwind.', why: `Hook down. Roll out ${p.abeamNm.value[0]}–${p.abeamNm.value[1]} nm abeam, descend to ${altFtText(p.downwindAltFt.value, u)}.` };
+    case 'downwind': return { text: `Downwind ${altFtText(p.downwindAltFt.value, u)}: gear, flaps, hook.`, why: `Below ${ktText(p.gearFlapsMaxKt.value, u)}. Trim on speed. Start the 180 abeam the LSO platform.` };
+    case 'turn': return { text: 'The 180: constant bank, on speed.', why: `The 90 at ${altFtText(p.ninetyAltFt.value[0], u)}–${altFtText(p.ninetyAltFt.value[1], u)}. Roll out on the landing centreline, not the ship's.` };
+    case 'final': return { text: `In the groove: fly ${aid}.`, why: `Call it at ${p.ballNm.value} nm. ${ship.lights === 'iflols' ? 'Meatball' : 'Light'}, lineup, angle of attack. No flare.` };
+    case 'rollout': return { text: 'Trap. Throttle to idle once stopped.', why: 'The debrief shows the LSO grade, the wire and the comments.' };
+    case 'bolter': return { text: 'Bolter: power up, fly off the angle.', why: 'Climb ahead and come round for another pass.' };
+    default: return { text: 'Press Start.', why: `The demo flies Case I to the ${ship.name}.` };
+  }
+}
+
 /**
  * Steps for the jet and start. `kind`: 'pattern', 'rtb' (return to base, jets with nav data only) or
  * 'takeoff'; `true` / `false` are the older rtb flag.
  */
 export function lessonSteps(d: FlightOpsJetData, u: Units = 'imperial', kind: boolean | LessonKind = false): LessonStep[] {
   if (kind === 'takeoff') { const to = takeoffSteps(d, u); return stepOrder('takeoff', d).map(id => to[id]!); }
+  if (kind === 'carrier' || kind === 'groove') { const cs = carrierSteps(d, u); return stepOrder(kind, d).map(id => cs[id]!).filter(Boolean); }
   const rtb = kind === true || kind === 'rtb';
   const p = d.pattern;
   const band = d.aoa.band.value;

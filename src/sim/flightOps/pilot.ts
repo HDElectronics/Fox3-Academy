@@ -9,9 +9,12 @@
 import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp } from '../math';
 import { aimPointM, aoaForLoad, approachSpeedMs, hasFlapSelector, headingErr, loadFactor, rotateAtKt } from './model';
 import { NAV_AUTO_SWITCH_M } from './nav';
+import { aimPointU, carrierData, carrierGeometry, crabHeading, shipData, shipFrame } from './carrier';
+import { ballInRange } from './lso';
 import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
 
-export type DemoLeg = 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
+export type DemoLeg = 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout'
+  | 'bolter';
 interface Memory { leg: DemoLeg }
 const memory = new WeakMap<FlightOpsState, Memory>();
 
@@ -66,6 +69,7 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   if ((m.leg === 'takeoff' && (s.phase === 'ready' || s.phase === 'roll')) || (m.leg === 'climbout' && s.phase === 'air')) {
     return takeoffPilot(s, d, m.leg, actions);
   }
+  if (s.ship) return carrierPilot(s, d, m, actions);
   const kt = s.speed / MPS_PER_KT;
   const va = onSpeedTargetMs(d);
   const geo = finalTurnGeometry(d);
@@ -230,4 +234,161 @@ function takeoffPilot(s: FlightOpsState, d: FlightOpsJetData, leg: DemoLeg, acti
   const targetMs = (clean ? CLIMB_KT : limitKt) * MPS_PER_KT;
   const throttle = clamp(0.45 + (targetMs - s.speed) * 0.15, 0, 1);
   return { pitch, roll, throttle, afterburner: ab && s.gearDown && kt < limitKt - 30, actions };
+}
+
+/** Carrier demo: break this far ahead of the ramp, metres (the guide: break before 4 nm). */
+export const CARRIER_BREAK_AHEAD_M = 2000;
+/** Hand the 180 to the groove leg inside this heading error to the centreline. */
+const TURN_HANDOVER_RAD = 4 * D2R;
+/** Roll in this much later than the circle geometry says: the lead-in onto the centreline takes room. */
+const ROLL_IN_LEAD_M = 100;
+/** Bank limits of the 180's lead-in onto the centreline. */
+const LEAD_BANK_MIN = 5 * D2R;
+const LEAD_BANK_MAX = 35 * D2R;
+/** Height above the deck at which the demo sets touchdown power, metres. */
+const POWER_AT_M = 6;
+
+/**
+ * Case I demo: initial on the BRC → break ahead of the ship → downwind (hook, gear, landing flaps) → the 180
+ * onto the angled deck → groove, ball call at the ball range → touchdown at the touchdown power, holding the
+ * glide path to the deck (no flare). After a bolter or waveoff: power and climb straight ahead.
+ */
+function carrierPilot(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions: FlightOpsAction[]): FlightOpsInput & { actions: FlightOpsAction[] } {
+  const c = carrierData(d);
+  const ship = shipData(s);
+  const sf = shipFrame(s);
+  const g = carrierGeometry(s);
+  const brc = s.ship!.heading;
+  const kt = s.speed / MPS_PER_KT;
+  const gearKt = c.pattern.gearFlapsMaxKt.value;
+  const va = onSpeedTargetMs(d);
+  const glide = ship.glideDeg.value * D2R;
+
+  if (s.phase !== 'air') m.leg = 'rollout';
+  else if (s.trap?.bolter || s.lso?.waveoff) m.leg = 'bolter';
+  else if (m.leg === 'initial' && sf.a >= CARRIER_BREAK_AHEAD_M) m.leg = 'break';
+  else if (m.leg === 'break' && Math.abs(headingErr(brc + Math.PI, s.heading)) < 25 * D2R) m.leg = 'downwind';
+  else if (m.leg === 'downwind' && sf.a <= carrierTurn(s, d).rollInA && s.gearPos > 0.99 && (s.hookPos ?? 0) > 0.99) m.leg = 'turn';
+  else if (m.leg === 'turn' && Math.abs(headingErr(crabHeading(s), s.heading)) < TURN_HANDOVER_RAD) m.leg = 'final';
+
+  if (m.leg === 'rollout') return { pitch: 0, roll: 0, throttle: s.phase === 'stopped' ? 0 : 1, actions };
+
+  // Configuration: hook in the break, gear and landing flaps below the carrier limit on downwind.
+  const pattern = m.leg === 'break' || m.leg === 'downwind' || m.leg === 'turn';
+  if (pattern && !s.hookDown) actions.push('hookToggle');
+  const configure = m.leg === 'downwind' || m.leg === 'turn';
+  if (configure && !s.gearDown && kt < gearKt - 5) actions.push('gearToggle');
+  if (configure && hasFlapSelector(d) && s.flapIndex < d.landingFlap && kt < gearKt - 5) actions.push('flapsDown');
+  const wantBrake = (m.leg === 'break' || m.leg === 'downwind') && kt > gearKt + 10;
+  if (wantBrake !== s.speedbrakeOut) actions.push('speedbrakeToggle');
+  if (m.leg === 'final' && s.lso && !s.lso.ballCalled && ballInRange(s, d, g)) actions.push('callBall');
+
+  let heading = s.heading;
+  let targetY = s.pos.y;
+  let gammaCmd: number | null = null;
+  let speedTarget = va;
+  const bankLimit = 60 * D2R;
+  let bankGain = 1.5;
+  let breakG: number | null = null;
+  let turnBank: number | null = null;
+  let throttleOverride: number | null = null;
+  const deck = ship.deckHeightM;
+
+  switch (m.leg) {
+    case 'initial':
+      heading = brc + clamp(-(sf.c - 150) * 0.004, -0.3, 0.3);
+      targetY = c.pattern.initialAltFt.value * M_PER_FT;
+      speedTarget = c.pattern.initialKt.value * MPS_PER_KT;
+      break;
+    case 'break': {
+      // A break turn about as wide as the abeam distance (at most the jet's break g).
+      const [lo, hi] = c.pattern.abeamNm.value;
+      const r = ((lo + hi) / 2) * M_PER_NM / 2;
+      breakG = clamp(Math.hypot(1, (s.speed * s.speed) / (G0 * r)), 1.5, d.pattern.breakG.value);
+      targetY = c.pattern.downwindAltFt.value * M_PER_FT;
+      throttleOverride = 0;
+      break;
+    }
+    case 'downwind': {
+      const [lo, hi] = c.pattern.abeamNm.value;
+      const cT = -((lo + hi) / 2) * M_PER_NM;
+      heading = brc + Math.PI + clamp((sf.c - cT) * 0.003, -0.8, 0.8);
+      targetY = c.pattern.downwindAltFt.value * M_PER_FT;
+      speedTarget = s.gearDown ? va : (gearKt - 15) * MPS_PER_KT;
+      break;
+    }
+    case 'turn': {
+      // Constant bank, then a lead turn that rolls out on the centreline: the radius that closes the lineup
+      // offset v while the heading error e goes to zero is −v / (1 − cos e).
+      turnBank = carrierTurn(s, d).bank;
+      speedTarget = va * Math.sqrt(1 / Math.cos(turnBank));
+      const e = headingErr(s.heading, crabHeading(s));
+      if (e > 0 && e < Math.PI / 2 && g.v < 0) {
+        const rNeed = Math.max(50, -g.v / Math.max(1e-3, 1 - Math.cos(e)));
+        turnBank = clamp(Math.atan((s.speed * s.speed) / (G0 * rNeed)), LEAD_BANK_MIN, LEAD_BANK_MAX);
+      }
+      // Descend through the 180: downwind altitude → middle of the 90 band → the glide path at the rollout.
+      const turned = clamp(Math.abs(headingErr(brc + Math.PI, s.heading)) / (Math.PI - ship.angledDeckDeg.value * D2R), 0, 1);
+      const [n0, n1] = c.pattern.ninetyAltFt.value;
+      const ninety = ((n0 + n1) / 2) * M_PER_FT;
+      const onGlide = deck + Math.max(0, aimPointU(ship) - g.u) * Math.tan(glide);
+      const dw = c.pattern.downwindAltFt.value * M_PER_FT;
+      targetY = turned < 0.5 ? dw + (ninety - dw) * turned * 2 : ninety + (onGlide - ninety) * (turned - 0.5) * 2;
+      break;
+    }
+    case 'final': {
+      heading = crabHeading(s) + clamp(-g.v * 0.006, -0.15, 0.15);
+      bankGain = 2.5;
+      const hT = Math.max(0, aimPointU(ship) - g.u) * Math.tan(glide);
+      gammaCmd = -Math.asin(clamp(g.glideSinkMs / Math.max(s.speed, 1), 0, 0.5)) + clamp((hT - g.h) * 0.006, -0.05, 0.05);
+      if (g.h < POWER_AT_M) throttleOverride = 1;
+      break;
+    }
+    case 'bolter':
+      heading = s.trap ? s.heading : crabHeading(s);
+      targetY = c.pattern.downwindAltFt.value * M_PER_FT;
+      throttleOverride = 1;
+      break;
+  }
+
+  let bank: number;
+  if (breakG !== null) {
+    const nv = clamp(1 + (targetY - s.pos.y) * 0.004 + (0 - s.vs) * 0.05, 0.5, 1.5);
+    bank = -Math.acos(clamp(nv / breakG, 0, 1));
+  } else if (turnBank !== null) {
+    bank = -turnBank;
+  } else {
+    bank = clamp(headingErr(heading, s.heading) * bankGain, -bankLimit, bankLimit);
+  }
+  const roll = clamp((bank - s.bank) * 3, -1, 1);
+  if (gammaCmd === null) gammaCmd = clamp((targetY - s.pos.y) * 0.004, -6 * D2R, (m.leg === 'bolter' ? 10 : 6) * D2R);
+  let n = Math.cos(s.gamma) / Math.max(0.2, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * (m.leg === 'final' ? 1.2 : 0.5)) / G0;
+  if (breakG !== null) n = Math.max(n, breakG);
+  const aoaT = aoaForLoad(s, d, clamp(n, -1, 7));
+  const pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);
+  const throttle = throttleOverride ?? clamp(0.45 + (speedTarget - s.speed) * 0.15 + (loadFactor(s, d) - 1) * 0.1, 0, 1);
+  return { pitch, roll, throttle, actions };
+}
+
+/**
+ * The demo's 180: a constant-bank left turn from downwind that rolls out on the landing centreline at the
+ * groove distance (mid groove time at on-speed closure). The turn radius covers the downwind offset plus
+ * the centreline's offset at that range; the roll-in point allows for the ship steaming away during the turn.
+ */
+export function carrierTurn(s: FlightOpsState, d: FlightOpsJetData) {
+  const c = carrierData(d);
+  const ship = shipData(s);
+  const va = onSpeedTargetMs(d);
+  const ang = ship.angledDeckDeg.value * D2R;
+  const closure = va - s.ship!.speedMs * Math.cos(ang);
+  const [g0, g1] = c.pattern.grooveS.value;
+  // Wings level by the ball call at the latest.
+  const grooveM = Math.max(c.pattern.ballNm.value * M_PER_NM, ((g0 + g1) / 2) * closure - aimPointU(ship));
+  const [lo, hi] = c.pattern.abeamNm.value;
+  const abeam = ((lo + hi) / 2) * M_PER_NM;
+  const r = (abeam + grooveM * Math.sin(ang)) / (1 + Math.cos(ang));
+  const bank = Math.atan((va * va) / (G0 * r));
+  const turnS = ((Math.PI - ang) * r) / va;
+  const rollInA = -grooveM * Math.cos(ang) + s.ship!.speedMs * turnS + r * Math.sin(ang) - ROLL_IN_LEAD_M;
+  return { r, bank, rollInA, grooveM };
 }

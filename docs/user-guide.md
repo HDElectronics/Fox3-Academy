@@ -113,9 +113,20 @@ and, where the jet pulls early, a PULL mark. The takeoff strip lights BRAKES, PO
 FLAPS as you do them. The debrief grades brake release, rotation, liftoff pitch, gear up and the 1000 ft climb,
 and flags a tail strike; 70 or more in Fly mode completes the takeoff lesson. W also brakes the landing rollout.
 
+**Case I and In the groove** (F/A-18C and F-14B on the Supercarrier, Su-33 on the Kuznetsov): the ship steams on
+its BRC. Case I starts 3 nm astern at the initial; In the groove starts ¾ nm out, configured. Break left ahead of
+the ship, drop the hook (H; LAlt+G on the Su-33), gear and flaps on downwind, fly the 180 and roll out on the
+angled deck's centreline. Call the ball with Y (a trainer key: in DCS it is a radio-menu call) when the prompt
+shows. The IFLOLS close-up shows the amber ball against the green datum bars (red in the bottom cells), the
+waveoff and cut lights; the Su-33 gets the Luna-3 colour light (green on glide slope, yellow high, red low). The LSO
+panel logs the calls ("Roger ball", "Power", "Right for lineup", "Wave off", "Bolter"). The debrief gives the DCS
+grade (_OK_, OK, (OK), ---, C, B, WO, OWO) with the comment codes in plain words, the wire, the gates and a score;
+70 or more in Fly mode completes the carrier lesson. The LSO camera views the groove from the platform. Kuznetsov
+LSO calls and grades are not verified: the trainer grades the pass itself.
+
 On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
-afterburner. On a desktop, turn them on with Show on-screen controls.
+afterburner, and HOOK and BALL on the carrier starts. On a desktop, turn them on with Show on-screen controls.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

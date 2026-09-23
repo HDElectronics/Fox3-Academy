@@ -15,9 +15,11 @@ Values the data file marks `verified: false` are listed in `docs/api/data.md` ("
    ISM-1 indexer, landing.
 4. Heatblur, *F-14 Tomcat Manual*, Landing Procedures (github.com/Heatblur-Simulations/f-14-manual).
 5. Chuck's Guides: *DCS F-16C Viper*, *DCS JF-17 Thunder*, *DCS Mirage 2000C*.
-6. ED, *DCS Supercarrier Operations Guide* (carrier pattern, LSO thresholds; for later carrier work).
+6. ED, *DCS Supercarrier Operations Guide*: Case I pattern, LSO section (thresholds, grades), CVN wires.
 7. ED, *F-15C FC3 Flight Manual*, "Quick Start" and "Takeoff"; ED *F/A-18C Early Access Guide*, "Takeoff";
    Chuck's Guides F-16C, JF-17, M-2000C, "Takeoff"; Heatblur F-14 manual, "Takeoff" (work-in-progress stub).
+8. ED, *DCS: F/A-18C Hornet Early Access Guide*, "Case 1"; Heatblur *F-14 Tomcat Manual*, Landing Procedures
+   (carrier); ED *DCS: Su-33 FC3 Flight Manual*, carrier landing (hook, Svetlana-2, Luna-3).
 
 ## Pattern and approach by jet
 
@@ -68,3 +70,23 @@ throttle keys on the page are trainer keys, not DCS defaults.
 The trainer's rotation speeds, pitch bands and tail-strike attitudes where no source gives them are gameplay
 values (`verified: false`). The ground roll, rotation rate and liftoff rule are arcade rules tied to Vr and the
 pitch band (AGENTS.md rule 1), not takeoff performance data.
+
+## Carrier Case I (#26)
+
+| Item | What the source gives | Source |
+|---|---|---|
+| Stack and initial | Left-hand stack within 5 nm, no lower than 2000 ft. Initial 3 nm astern at 800 ft, just outboard of the starboard side | 6 |
+| Break | Before 4 nm, 15–20 s interval between jets | 6 |
+| Downwind | 600 ft, 1¼–1½ nm abeam | 6 |
+| Groove | Wings level at ¾ nm and call the ball; CLARA with no ball. Touchdown at max power | 6 |
+| LSO thresholds | Lineup off beyond 1.7°, far off beyond 2.9°. Glide 1.5° low or 2.5° high, far off 2.7° low or 4.9° high. Pitch rate above 5°/s, bank above 20°, thrust change above 30 %/s. Calls include "Power", "Right for lineup", "Come left", "Wave off", "Bolter". Glide slope 3.6° | 6 |
+| Grades | _OK_, OK, (OK), ---, C, B, WO, OWO; comments H, LO, F, SLO, LUL, LUR, NERD, TMRD with X, IM, IC, AR | 6 |
+| F/A-18C | Hook `H`, 350 KIAS initial, gear and FULL flaps below 150 KIAS, about 145 KIAS on speed, 180 at 27–30° bank, glide slope 3.5° | 8 |
+| F-14B | 15 units; break at 800 ft, 300–350 KIAS, 15–17 s interval; 90 at 450–500 ft; ball at about 0.6 nm; 15–18 s in the groove; MIL at touchdown (afterburner waveoffs prohibited) | 8 |
+| Su-33 | Hook `LAlt+G`; Svetlana-2 four wires 12 m apart; Luna-3: green on glide slope, yellow high, red low | 3, 8 |
+
+Conflicts and gaps: glide slope 3.5° (Hornet guide) against 3.6° (Supercarrier LSO section); the Tomcat hook key,
+the Kuznetsov LSO (calls and grades) and the Su-33 pattern numbers are not in the sources read. The ball call is
+a radio-menu call in DCS; the trainer maps it to a key. The trainer turns the thresholds into an arcade rule
+table (hysteresis, a waveoff range, comment bands) and grades from them; these are trainer rules, not the game's
+own grading code. No wind: wind over the deck is the ship's speed (a gameplay value).

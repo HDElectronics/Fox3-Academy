@@ -5,7 +5,12 @@
  * Anything not taken from a source is `verified: false` and listed in FLIGHT_OPS_CAVEATS and in
  * docs/api/data.md ("Uncertain values", "Flight ops").
  */
-import type { FlightOpsJetData, FlightOpsJetId, FlightOpsNavData, FlightOpsTakeoffData, Sourced } from '../sim/flightOps/types';
+import type {
+  FlightOpsCarrierData, FlightOpsJetData, FlightOpsJetId, FlightOpsNavData, FlightOpsTakeoffData, Sourced,
+} from '../sim/flightOps/types';
+import { HORNET_CASE1, SHIP_CAVEATS, SUPERCARRIER, SU33_MANUAL } from './ships';
+
+export { SHIPS, SHIP_HULL, SHIP_CAVEATS } from './ships';
 
 const HORNET = 'ED F/A-18C Early Access Guide, Airfield VFR Landing';
 const VIPER = "Chuck's Guides, DCS F-16C Viper, Landing";
@@ -40,6 +45,65 @@ export function vrAtWeight(table: readonly (readonly [number, number])[], lb: nu
   const f = Math.min(1, Math.max(0, (lb - p[0]) / (q[0] - p[0])));
   return Math.round(p[1] + f * (q[1] - p[1]));
 }
+
+/** "Call the ball" is a radio-menu call in DCS (F1 LSO, then Ball). The trainer maps it to one key. */
+const BALL_KEY_NOTE = 'Trainer key: in DCS the ball call is made from the radio menu.';
+const TOMCAT_CASE1 = 'Heatblur DCS F-14 manual, Landing Procedures (carrier)';
+const NOT_FOR_JET = 'Not given for this jet; Hornet / Supercarrier value used.';
+
+const HORNET_CARRIER: FlightOpsCarrierData = {
+  ship: 'cvn',
+  hookKey: ok('H', HORNET_CASE1, 'Hook handle down.'),
+  ballCallKey: nv('Y', HORNET_CASE1, BALL_KEY_NOTE),
+  pattern: {
+    initialKt: ok(350, HORNET_CASE1, 'KIAS at the initial.'),
+    initialAltFt: ok(800, SUPERCARRIER, 'Initial 3 nm astern at 800 ft, just outboard of the starboard side.'),
+    breakIntervalS: ok([15, 20], SUPERCARRIER, 'Interval between jets in the break; break before 4 nm.'),
+    downwindAltFt: ok(600, SUPERCARRIER),
+    abeamNm: ok([1.25, 1.5], SUPERCARRIER),
+    ninetyAltFt: nv([450, 500], TOMCAT_CASE1, NOT_FOR_JET.replace('Hornet / Supercarrier', 'Tomcat')),
+    ballNm: ok(0.75, SUPERCARRIER, 'Groove wings level at ¾ nm and call the ball; CLARA with no ball.'),
+    grooveS: nv([18, 24], SUPERCARRIER, 'Not given for the Hornet; trainer band for wings level at ¾ nm at on-speed closure.'),
+    gearFlapsMaxKt: ok(150, HORNET_CASE1, 'Gear and FULL flaps below 150 KIAS; about 145 KIAS on speed.'),
+  },
+  touchdownPower: ok('max', SUPERCARRIER, 'Throttles to max power at touchdown (MIL in the trainer).'),
+};
+
+const TOMCAT_CARRIER: FlightOpsCarrierData = {
+  ship: 'cvn',
+  hookKey: nv('H', TOMCAT_CASE1, 'Hook key not given in the manual reading; Hornet key used.'),
+  ballCallKey: nv('Y', TOMCAT_CASE1, BALL_KEY_NOTE),
+  pattern: {
+    initialKt: ok(350, TOMCAT_CASE1, 'Break at 300–350 KIAS.'),
+    initialAltFt: ok(800, TOMCAT_CASE1, 'Break at 800 ft.'),
+    breakIntervalS: ok([15, 17], TOMCAT_CASE1),
+    downwindAltFt: ok(600, SUPERCARRIER),
+    abeamNm: ok([1.25, 1.5], SUPERCARRIER),
+    ninetyAltFt: ok([450, 500], TOMCAT_CASE1, 'The 90 at 450–500 ft.'),
+    ballNm: ok(0.6, TOMCAT_CASE1, 'Ball at about 0.6 nm.'),
+    grooveS: ok([15, 18], TOMCAT_CASE1, '15–18 s in the groove.'),
+    gearFlapsMaxKt: nv(250, TOMCAT_CASE1, 'Not given; gameplay value.'),
+  },
+  touchdownPower: ok('MIL', SUPERCARRIER, 'MIL at touchdown: afterburner waveoffs are prohibited in the Tomcat.'),
+};
+
+const SU33_CARRIER: FlightOpsCarrierData = {
+  ship: 'kuznetsov',
+  hookKey: ok('LAlt+G', SU33_MANUAL, 'Tail hook.'),
+  ballCallKey: nv('Y', SU33_MANUAL, 'Trainer key; no ball call is verified for the Kuznetsov.'),
+  pattern: {
+    initialKt: nv(350, SUPERCARRIER, NOT_FOR_JET),
+    initialAltFt: nv(800, SUPERCARRIER, NOT_FOR_JET),
+    breakIntervalS: nv([15, 20], SUPERCARRIER, NOT_FOR_JET),
+    downwindAltFt: nv(600, SUPERCARRIER, NOT_FOR_JET),
+    abeamNm: nv([1.25, 1.5], SUPERCARRIER, NOT_FOR_JET),
+    ninetyAltFt: nv([450, 500], TOMCAT_CASE1, 'Not given for this jet; Tomcat value used.'),
+    ballNm: nv(0.75, SUPERCARRIER, 'Luna-3 in sight; Supercarrier value used.'),
+    grooveS: nv([18, 24], SUPERCARRIER, 'Not given; the Hornet trainer band is used.'),
+    gearFlapsMaxKt: nv(250, SU33_MANUAL, 'Gear limit not given; gameplay value.'),
+  },
+  touchdownPower: nv('max', SUPERCARRIER, 'Not given for the Su-33; Supercarrier rule used.'),
+};
 
 const WHEEL_BRAKE_KEY = 'DCS common default wheel-brake key; not in the source for this module.';
 const NO_TAILSTRIKE = 'Not published; gameplay value above the rotation band.';
@@ -154,6 +218,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(3, HORNET),
     aimPointFt: ok(500, HORNET, 'Past the threshold.'),
     hudCue: 'E-bracket on the flight path marker',
+    carrier: HORNET_CARRIER,
     takeoff: {
       vrKt: nv(145, HORNET_TO, 'The guide gives no rotation speed; gameplay value.'),
       pitchDeg: ok([6, 8], HORNET_TO, 'Rotate to 6–8° nose-high.'),
@@ -266,6 +331,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, TOMCAT, 'Not given; 3° used.'),
     aimPointFt: nv(500, TOMCAT, 'Not given; Hornet value used.'),
     hudCue: 'On speed at 15 units AoA',
+    carrier: TOMCAT_CARRIER,
     takeoff: {
       vrKt: nv(145, TOMCAT_TO, 'Heatblur takeoff page is a work in progress; gameplay value.'),
       pitchDeg: nv([8, 12], TOMCAT_TO, 'Not published; gameplay band.'),
@@ -341,9 +407,9 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
   j11a: ruJet('j11a', SU27, nv(146, SU27, 'Su-27 value used; background only.'),
     { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
     ruTakeoff(SU27, 140, 260, ' Su-27 value used.')),
-  su33: ruJet('su33', SU33, nv(130, SU33, 'Manual history quotes 240 km/h for the Su-33 approach; background only.'),
+  su33: { ...ruJet('su33', SU33, nv(130, SU33, 'Manual history quotes 240 km/h for the Su-33 approach; background only.'),
     { slow: 'red', on: 'green', fast: 'yellow' }, 'ISM-1 indexer: yellow fast, green optimal, red slow; the manual gives no on-speed number, gameplay value.',
-    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the carrier ski-jump is not in the trainer.')),
+    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the carrier ski-jump is not in the trainer.')), carrier: SU33_CARRIER },
   mig29s: ruJet('mig29s', MIG29, nv(140, MIG29, 'Not given; gameplay value.'),
     { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
     ruTakeoff(MIG29, 135, 250)),
@@ -364,4 +430,7 @@ export const FLIGHT_OPS_CAVEATS: string[] = [
   'M-2000C: no pilot flap control (elevons, automatic slats); the trainer has no flap keys or flap grading for it.',
   'Takeoff ground roll, rotation and liftoff are arcade rules tied to Vr and the pitch band, not a takeoff performance model.',
   'Touchdown zone is a trainer choice: 350 ft short to 1000 ft past the aim point, never short of the threshold.',
+  'Carrier: Hornet hook H, 350 KIAS / 800 ft initial, 600 ft downwind 1¼–1½ nm abeam, ball at ¾ nm, gear and FULL flaps below 150 KIAS, and the Tomcat 800 ft 300–350 KIAS break, 15–17 s interval, 90 at 450–500 ft, ball at 0.6 nm, 15–18 s groove and MIL at touchdown are sourced. The Tomcat hook key, the ball-call key Y (DCS uses the radio menu), the Hornet groove time and 90 altitude and the whole Su-33 Case I pattern are not.',
+  'Carrier: LSO calls, ball cells, the grade and the wire rule are arcade rules built on the Supercarrier guide thresholds; the grade comment bands and pass penalties are trainer choices.',
+  ...SHIP_CAVEATS,
 ];

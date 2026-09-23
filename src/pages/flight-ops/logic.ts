@@ -10,7 +10,10 @@ import { M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, wrapPi } from '../../sim/ma
 import {
   NAV_AUTO_SWITCH_M, TAKEOFF_CLIMB_FT, aimPointM, finalTurnGeometry, noFlapControl, rotateAtKt, type AoaCue, type ApproachGeometry, type FlightOpsJetData, type FlightOpsJetId,
   type FlightOpsState, type GateId, type GateResult, type IndexerColor, type NavState,
+  BALL_CELLS, IFLOLS_RED_CELL, aimPointU, ballInRange, hasCarrierStart, landingFrame,
+  type BallState, type CarrierGradeMark, type CarrierScore,
 } from '../../sim/flightOps';
+import { SHIPS } from '../../data/ships';
 
 /** Every jet with flight-ops data (all ten). */
 export const FLIGHT_OPS_JETS: readonly FlightOpsJetId[] = Object.keys(FLIGHT_OPS) as FlightOpsJetId[];
@@ -159,16 +162,23 @@ export function errLevel(g: ApproachGeometry, s: FlightOpsState, cue: AoaCue): 0
 // ------------------------------------------------------------------ lesson steps
 
 export type StepId = 'navmode' | 'steer' | 'glidepath' | 'initial' | 'break' | 'configure' | 'abeam' | 'onspeed' | 'groove' | 'touchdown'
-  | TakeoffItem | 'pitch';
+  | TakeoffItem | 'pitch' | 'ninety' | 'ball' | 'trap';
+/** Carrier Case I lesson (#26): the pattern around the ship, then the ball and the trap. */
+export const CARRIER_STEP_ORDER: readonly StepId[] = ['initial', 'break', 'configure', 'abeam', 'ninety', 'ball', 'onspeed', 'trap'];
+/** Carrier start in the groove: the ball, the AoA and the trap. */
+export const GROOVE_STEP_ORDER: readonly StepId[] = ['ball', 'onspeed', 'trap'];
 export const STEP_ORDER: readonly StepId[] = ['initial', 'break', 'configure', 'abeam', 'onspeed', 'groove', 'touchdown'];
 /** Return-to-base lesson (nav jets, 'rtb' start): nav steps, then configure and the final. */
 export const NAV_STEP_ORDER: readonly StepId[] = ['navmode', 'steer', 'glidepath', 'configure', 'onspeed', 'groove', 'touchdown'];
 /** Runway takeoff lesson (#24). 'flapsup' is dropped for jets without flap control. */
 export const TAKEOFF_STEP_ORDER: readonly StepId[] = ['brakes', 'power', 'release', 'rotate', 'pitch', 'gearup', 'flapsup'];
 /** Which lesson a start teaches. `true` / `false` are the older rtb flag. */
-export type LessonKind = 'pattern' | 'rtb' | 'takeoff';
+export type LessonKind = 'pattern' | 'rtb' | 'takeoff' | 'carrier' | 'groove';
+export const isCarrierKind = (k: LessonKind | boolean) => k === 'carrier' || k === 'groove';
 export function stepOrder(kind: LessonKind | boolean, d?: FlightOpsJetData): readonly StepId[] {
   const k: LessonKind = kind === true ? 'rtb' : kind === false ? 'pattern' : kind;
+  if (k === 'carrier') return CARRIER_STEP_ORDER;
+  if (k === 'groove') return GROOVE_STEP_ORDER;
   if (k === 'takeoff') return d && flapControl(d) === 'none' ? TAKEOFF_STEP_ORDER.filter(id => id !== 'flapsup') : TAKEOFF_STEP_ORDER;
   return k === 'rtb' ? NAV_STEP_ORDER : STEP_ORDER;
 }
@@ -245,6 +255,8 @@ export interface LessonSnapshot {
   nav?: NavMilestones;
   /** Takeoff only: latched checklist items. */
   takeoff?: ReadonlySet<TakeoffItem>;
+  /** Carrier only (undefined elsewhere): the ball has been called. */
+  ballCalled?: boolean;
 }
 
 export interface NavMilestones {
@@ -285,6 +297,9 @@ export function stepsDone(snap: LessonSnapshot): Set<StepId> {
   if (ok('touchdown')) done.add('touchdown');
   for (const id of snap.takeoff ?? []) done.add(id);
   if (passed('liftoff')) done.add('pitch');
+  if (passed('ninety')) done.add('ninety');
+  if (snap.ballCalled) done.add('ball');
+  if (snap.ballCalled !== undefined && ok('touchdown')) done.add('trap');
   return done;
 }
 
@@ -294,7 +309,8 @@ export function currentStep(done: ReadonlySet<StepId>, order: readonly StepId[] 
 }
 
 /** Progress key for a passed lesson: the pattern / landing key is unchanged, takeoff has its own. */
-export const progressKey = (ac: FlightOpsJetId, kind: LessonKind) => (kind === 'takeoff' ? `flight-ops:${ac}:takeoff` : `flight-ops:${ac}:done`);
+export const progressKey = (ac: FlightOpsJetId, kind: LessonKind) => (kind === 'takeoff' ? `flight-ops:${ac}:takeoff`
+  : isCarrierKind(kind) ? `flight-ops:${ac}:carrier` : `flight-ops:${ac}:done`);
 
 /** Progress threshold: a scored landing at or above this marks the lesson done. */
 export const PASS_SCORE = 70;
@@ -351,3 +367,129 @@ export function navPicture(nav: NavState, heading: number, u: Units): NavPicture
 }
 
 export const aoaText = (d: FlightOpsJetData, v: number) => d.aoa.unit === 'deg' ? `${v.toFixed(1)}°` : `${v.toFixed(1)} units`;
+
+// ------------------------------------------------------------------ carrier Case I (#26)
+
+/** Carrier starts for the jet: Case I and In the groove for the jets that go to the boat (hasCarrierStart). */
+export type CarrierStart = 'caseI' | 'carrierGroove';
+export function carrierStarts(d: FlightOpsJetData): CarrierStart[] {
+  return hasCarrierStart(d) ? ['caseI', 'carrierGroove'] : [];
+}
+
+/** Overlay frame of the carrier scene: x = right of the landing axis, y = height above the deck, z = −u (metres). */
+export function toLandingOverlay(s: FlightOpsState): { x: number; y: number; z: number } {
+  const f = landingFrame(s);
+  return { x: f.v, y: f.h, z: -f.u };
+}
+
+/**
+ * Where each Case I gate sits, in the carrier overlay frame (moves with the ship). Ship-frame points (a ahead of
+ * the ramp, c to starboard) turn through the angled deck. The ninety is approximate (a pending marker only;
+ * a reached gate snaps to the flown point).
+ */
+export function carrierPlannedGates(d: FlightOpsJetData, groove = false): PlannedGate[] {
+  const c = d.carrier;
+  if (!c) return [];
+  const ship = SHIPS[c.ship];
+  const t = ship.angledDeckDeg.value * Math.PI / 180;
+  const H = ship.deckHeightM;
+  const aim = aimPointU(ship);
+  const glide = Math.tan(ship.glideDeg.value * Math.PI / 180);
+  const fromShip = (a: number, cc: number, altM: number) => {
+    const u = a * Math.cos(t) - cc * Math.sin(t), v = a * Math.sin(t) + cc * Math.cos(t);
+    return { x: v, y: altM - H, z: -u };
+  };
+  const p = c.pattern;
+  const abeam = ((p.abeamNm.value[0] + p.abeamNm.value[1]) / 2) * M_PER_NM;
+  const ballU = -p.ballNm.value * M_PER_NM;
+  const r = abeam / 2;
+  const grooveGates: PlannedGate[] = [
+    { id: 'groove', label: 'Groove', pos: { x: 0, y: (aim - ballU) * glide, z: -ballU }, headingRad: 0, radiusM: 30 },
+    { id: 'touchdown', label: 'Wire', pos: { x: 0, y: 3, z: -aim }, headingRad: 0, radiusM: 12 },
+  ];
+  if (groove) return grooveGates;
+  const initAlt = p.initialAltFt.value * M_PER_FT, dwAlt = p.downwindAltFt.value * M_PER_FT;
+  const ninetyAlt = ((p.ninetyAltFt.value[0] + p.ninetyAltFt.value[1]) / 2) * M_PER_FT;
+  return [
+    { id: 'initial', label: 'Initial', pos: fromShip(0, 150, initAlt), headingRad: t, radiusM: 70 },
+    { id: 'break', label: 'Break', pos: fromShip(2000, 150, initAlt), headingRad: t, radiusM: 70 },
+    { id: 'abeam', label: 'Abeam', pos: fromShip(0, -abeam, dwAlt), headingRad: Math.PI + t, radiusM: 60 },
+    { id: 'ninety', label: 'Ninety', pos: { x: -r, y: ninetyAlt - H, z: -(ballU - r) }, headingRad: Math.PI / 2, radiusM: 50 },
+    ...grooveGates,
+  ];
+}
+
+/** Prompt "Call the ball": in the groove within the ball range, not yet called, flying. */
+export function ballPrompt(s: FlightOpsState, d: FlightOpsJetData): boolean {
+  return !!s.ship && s.phase === 'air' && !!s.lso && !s.lso.ballCalled && !s.trap && ballInRange(s, d);
+}
+
+export type BallTone = 'ok' | 'caution' | 'warning';
+/**
+ * What the landing aid shows, for the close-up display. IFLOLS: the ball's lens cell (+ high), amber, or red
+ * in the red low cells, with the green datum bars, the waveoff and cut lights. Luna-3: one colour light.
+ */
+export interface BallPicture {
+  lights: 'iflols' | 'luna3';
+  /** Lens cell −5..+5 (IFLOLS), or null off the lens and on Luna-3. */
+  cell: number | null;
+  tone: BallTone | null;
+  waveoff: boolean;
+  cut: boolean;
+  /** Plain words for the picture, e.g. "Centred ball", "Low ball, 2 cells", "Green: on glide slope". */
+  words: string;
+}
+export function ballPicture(ball: BallState | null, lights: 'iflols' | 'luna3'): BallPicture {
+  if (!ball) return { lights, cell: null, tone: null, waveoff: false, cut: false, words: 'No ball' };
+  if (lights === 'luna3') {
+    const tone: BallTone = ball.luna === 'red' ? 'warning' : ball.luna === 'yellow' ? 'caution' : 'ok';
+    const words = ball.luna === 'red' ? 'Red: low' : ball.luna === 'yellow' ? 'Yellow: high' : 'Green: on glide slope';
+    return { lights, cell: null, tone, waveoff: false, cut: false, words };
+  }
+  const cell = clamp(Math.round(ball.cell), -BALL_CELLS, BALL_CELLS);
+  const red = cell <= IFLOLS_RED_CELL;
+  const words = red ? 'Red ball: very low' : cell === 0 ? 'Centred ball'
+    : cell > 0 ? `High ball, ${cell} cell${cell > 1 ? 's' : ''}` : `Low ball, ${-cell} cell${cell < -1 ? 's' : ''}`;
+  return { lights, cell, tone: red ? 'warning' : 'caution', waveoff: ball.waveoffLights, cut: ball.cutLights, words };
+}
+
+const CODE_WORDS: Record<string, string> = {
+  H: 'high', LO: 'low', F: 'fast', SLO: 'slow', LUL: 'lined up left', LUR: 'lined up right',
+  NERD: 'not enough rate of descent', TMRD: 'too much rate of descent',
+};
+const MARK_WORDS: Record<string, string> = { X: 'at the start', IM: 'in the middle', IC: 'in close', AR: 'at the ramp' };
+
+/** Plain words for a DCS LSO comment: "(LO)IC" → "a little low in close", "_F_X" → "very fast at the start". */
+export function commentPlain(code: string): string {
+  const m = /^([(_])?(NERD|TMRD|SLO|LUL|LUR|LO|H|F)[)_]?(X|IM|IC|AR)$/.exec(code);
+  if (!m) return code;
+  const mag = m[1] === '(' ? 'a little ' : m[1] === '_' ? 'very ' : '';
+  return `${mag}${CODE_WORDS[m[2]!]} ${MARK_WORDS[m[3]!]}`;
+}
+
+/** What each grade mark means (DCS LSO grades). */
+export const GRADE_WORDS: Record<CarrierGradeMark, string> = {
+  _OK_: 'Perfect pass', OK: 'Reasonable deviations, good corrections', '(OK)': 'Fair: reasonable deviations',
+  '---': 'No grade: below average but safe', C: 'Cut: unsafe pass', B: 'Bolter: the hook missed the wires',
+  WO: 'LSO waveoff', OWO: 'Own waveoff',
+};
+
+export interface GradeCard {
+  mark: string;
+  tone: BallTone;
+  meaning: string;
+  /** "3 wire", "Bolter", "Waved off", "Own waveoff", "Crashed", "No trap". */
+  result: string;
+  comments: { code: string; text: string }[];
+}
+export function gradeCard(sc: CarrierScore): GradeCard {
+  const g = sc.grade;
+  const tone: BallTone = g === '_OK_' || g === 'OK' ? 'ok' : g === '(OK)' || g === '---' || g === 'B' || g === 'OWO' ? 'caution' : 'warning';
+  const result = g === 'C' && sc.total === 0 ? 'Crashed' : sc.wire !== null ? `${sc.wire} wire`
+    : sc.bolter ? 'Bolter' : sc.waveoff ? 'Waved off' : g === 'OWO' ? 'Own waveoff' : 'No trap';
+  return {
+    mark: g ?? '—', tone, result,
+    meaning: g ? GRADE_WORDS[g] : '',
+    comments: sc.comments.map(code => ({ code, text: commentPlain(code) })),
+  };
+}

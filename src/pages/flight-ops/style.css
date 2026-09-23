@@ -84,6 +84,41 @@
 .fo-bad { color: var(--warning); }
 .fo-touch .ui-btn.is-held { border-color: var(--sym); color: var(--sym-hi); }
 
+/* ---- carrier Case I (#26) ---- */
+.fo-call.is-waveoff { color: var(--warning); }
+.fo-lab .ui-lab__strip > .ui-bezel.fo-ball { flex: 0 1 118px; min-width: 96px; }
+/* At sea the landing aid joins the strip: a squarer HUD and a narrower configuration block keep it on one row. */
+@media (min-width: 901px) { .fo-lab--sea .ui-lab__strip > .ui-bezel.fo-hud > .ui-bezel__glass.has-aspect { aspect-ratio: 1 / 1 !important; } }
+.fo-lab--sea .ui-lab__strip > .fo-cfg { flex: 1 1 150px; min-width: 140px; }
+.fo-lso { display: flex; flex-direction: column; gap: 6px; }
+.fo-lso__latest {
+  margin: 0; padding: 6px 8px; border-radius: var(--r-1); background: var(--screen); color: var(--sym-hi);
+  font-family: var(--font-mono); font-size: var(--fs-m, 1.05rem); letter-spacing: 0.03em; min-height: 1.6em;
+}
+.fo-lso__latest.is-waveoff { color: var(--warning); }
+.fo-lso__list {
+  list-style: none; margin: 0; padding: 0; max-height: 132px; overflow-y: auto;
+  font-family: var(--font-mono); font-size: var(--fs-xs); display: flex; flex-direction: column; gap: 2px;
+}
+.fo-lso__item { display: flex; gap: 8px; color: var(--s-ink); }
+.fo-lso__item.is-waveoff, .fo-lso__item.is-bolter { color: var(--warning); }
+.fo-lso__t { flex: 0 0 4.5em; white-space: nowrap; color: var(--s-label); text-align: right; }
+.fo-grade { display: flex; align-items: center; gap: 14px; }
+.fo-grade__mark {
+  min-width: 3.2em; padding: 6px 10px; border-radius: var(--r-1); background: var(--screen); text-align: center;
+  font-family: var(--font-mono); font-size: 2.2rem; line-height: 1;
+}
+.fo-grade.is-ok .fo-grade__mark { color: var(--ok); }
+.fo-grade.is-caution .fo-grade__mark { color: var(--caution); }
+.fo-grade.is-warning .fo-grade__mark { color: var(--warning); }
+.fo-grade__body p { margin: 0; }
+.fo-grade__meaning { font-family: var(--font-body); font-size: var(--fs-s); }
+.fo-grade__result { font-family: var(--font-mono); font-size: var(--fs-s); text-transform: uppercase; letter-spacing: 0.05em; }
+.fo-comments { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: var(--fs-xs); }
+.fo-comments dt { font-family: var(--font-mono); color: var(--s-ink); }
+.fo-comments dd { margin: 0; font-family: var(--font-body); color: var(--s-label); }
+.fo-comments__none { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); color: var(--s-label); }
+
 /* ---- other jets ---- */
 .fo-unsupported { display: flex; justify-content: center; padding: 32px 16px; }
 .fo-unsupported > .ui-console { max-width: 560px; width: 100%; }
@@ -100,6 +135,7 @@
   .fo-lab .ui-lab__strip > .ui-bezel.fo-navd { flex: 1 1 180px; }
   .ui-lab__strip > .fo-cfg { max-width: none; flex-basis: 100%; }
   .ui-lab__strip > .fo-to { flex-basis: 100%; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-ball { flex: 0 1 120px; }
   .fo-to__row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
