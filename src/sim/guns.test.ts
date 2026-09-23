@@ -1,12 +1,12 @@
 /**
  * Arcade gun model (issue #11): hits need time in the solution inside max range, rounds deplete, deterministic.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { World } from './world';
 import type { Aircraft, SimEvent } from './types';
 import type { AircraftId } from '../data/types';
 import { stepAircraft } from './flight';
-import { funnelPoints, gunSolution, sightPoint, stepGuns } from './guns';
+import { GUN_TRACER_S, funnelPoints, gunSolution, sightPoint, stepGuns } from './guns';
 import { GUNS } from '../data/wvr';
 
 const DT = 1 / 60;
@@ -41,6 +41,99 @@ function fire(w: World, s: Aircraft, t: Aircraft, seconds: number): void {
 }
 
 describe('guns', () => {
+  it.each([['f15c', 10], ['jf17', 8], ['su27', 4]] as const)('%s kills at the lethal hit count (%s) and caps damage at 1', (type, lethalHits) => {
+    const { w, s, t } = gunSetup(30, 300, type);
+    vi.spyOn(w, 'rand').mockReturnValue(0); // every round in the centre hits
+    t.damage = 0;
+    s.cmd.trigger = true;
+    for (let hits = 1; hits <= lethalHits; hits++) {
+      s.gun.rounds = 1;
+      stepGuns(w, 60 / GUNS[type].rateRpm.value);
+      expect(s.gun.hits).toBe(hits);
+      expect(t.alive).toBe(hits < lethalHits);
+      expect(t.damage).toBeLessThanOrEqual(1);
+    }
+    expect(t.damage).toBe(1);
+    expect(t.killedBy).toBe(s.id);
+    expect(w.events.filter(e => e.type === 'kill')).toHaveLength(1);
+    expect(w.events.filter(e => e.type === 'gun-hit').at(-1)).toMatchObject({ damage: 1 });
+  });
+
+  it('preserves the shot cooldown across alternating trigger ticks and lets it expire while released', () => {
+    const { w, s } = gunSetup(31, 3000, 'su27');
+    const initial = s.gun.rounds;
+    for (let tick = 0; tick < 60; tick++) {
+      s.cmd.trigger = tick % 2 === 0;
+      stepGuns(w, DT);
+    }
+    expect(initial - s.gun.rounds).toBeLessThanOrEqual(1 + GUNS.su27.rateRpm.value / 60);
+    expect(initial - s.gun.rounds).toBeGreaterThan(0);
+    s.cmd.trigger = false;
+    stepGuns(w, 1);
+    const remaining = s.gun.rounds;
+    s.cmd.trigger = true;
+    stepGuns(w, DT);
+    expect(remaining - s.gun.rounds).toBe(1); // ready again, with no stockpile of idle shots
+  });
+
+  it('does not consume rounds or emit gun events without positive elapsed time', () => {
+    const { w, s } = gunSetup(32, 3000);
+    s.cmd.trigger = true;
+    const before = { ...s.gun };
+    w.step(0);
+    expect(s.gun).toEqual(before);
+    stepGuns(w, -DT);
+    expect(s.gun).toEqual(before);
+    expect(w.events.filter(e => e.type === 'gun' || e.type === 'tracer' || e.type === 'gun-hit')).toHaveLength(0);
+  });
+
+  it('paces low-rate gun tracers by firing time, including ticks without rounds', () => {
+    const { w, s, t } = gunSetup(33, 3000, 'su27');
+    fire(w, s, t, 2);
+    const times = w.events.filter(e => e.type === 'tracer').map(e => e.t);
+    expect(times.length).toBeGreaterThanOrEqual(19);
+    expect(times.length).toBeLessThanOrEqual(21);
+    const shotInterval = 60 / GUNS.su27.rateRpm.value;
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i]! - times[i - 1]!).toBeLessThanOrEqual(GUN_TRACER_S + shotInterval + DT);
+    }
+  });
+
+  it('records firing only on shot ticks while keeping burst events continuous', () => {
+    const { w, s } = gunSetup(34, 3000, 'su27');
+    w.record = true;
+    s.cmd.trigger = true;
+    let sawNoShot = false, checkedSnapshots = 0;
+    for (let tick = 0; tick < 120; tick++) {
+      const rounds = s.gun.rounds;
+      const frames = w.recording.length;
+      w.step(DT);
+      const fired = s.gun.rounds < rounds;
+      expect(s.gun.firing).toBe(fired);
+      if (!fired) sawNoShot = true;
+      if (w.recording.length > frames) {
+        expect(w.recording.at(-1)!.aircraft.find(a => a.id === s.id)!.firing).toBe(fired);
+        checkedSnapshots++;
+      }
+    }
+    expect(sawNoShot).toBe(true);
+    expect(checkedSnapshots).toBeGreaterThan(1);
+    expect(s.gun.burst).toBeCloseTo(2);
+    // Release on a tick after no round left: cease must not depend on firing.
+    while (s.gun.firing) w.step(DT);
+    s.cmd.trigger = false;
+    w.step(DT);
+    w.step(DT);
+    expect(w.events.filter(e => e.type === 'gun' && e.shooterId === s.id)).toMatchObject([
+      { what: 'burst' }, { what: 'cease' },
+    ]);
+    s.gun.rounds = 1;
+    s.cmd.trigger = true;
+    for (let tick = 0; tick < 10; tick++) w.step(DT);
+    expect(w.events.filter(e => e.type === 'gun' && e.what === 'empty')).toHaveLength(1);
+    expect(s.gun.firing).toBe(false);
+  });
+
   it('hits scale with the time in the solution', () => {
     const a = gunSetup(10, 300), b = gunSetup(10, 300);
     expect(gunSolution(a.s, a.t).inSolution).toBe(true);

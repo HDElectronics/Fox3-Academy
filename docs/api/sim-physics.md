@@ -37,9 +37,13 @@ manoeuvre, still arcade.
 - `bank` (rad): lift-vector roll angle around the flight path from straight up, + right; π = lift vector on the
   ground. Rolls at 150°/s. Within ~1.8° of the vertical the bank is undefined and the jet holds its roll. Over the
   top of a loop the angle reads π, so a loop is `bank: |ac.roll| > π/2 ? π : 0` with `g: 'max'`.
+  Non-finite commands hold the current bank.
 - `g`: number or `'max'`; capped by `cmd.maxG`, `perf.maxG` and the lift limit below corner speed, never below 0.
+  Non-finite numeric commands fall back to 1 g before applying the limits.
 - `throttle`: `'idle' | 'mil' | 'ab'`; `speedbrake` adds 60 % parasitic drag.
 - No climb or dive clamp (loops, yo-yos, split-S). Floor `groundAlt + 150 m` and the ceiling still apply.
+  Speed stays at least 60 m/s; a degenerate velocity (including after a vertical boundary clamp) resumes
+  horizontally along the current heading.
 - Energy: induced drag is set each tick so that full afterburner gives zero specific excess power exactly at the
   jet's sustained g (`data/wvr.ts` `TURN_PERF`, trainer estimate). Above it the jet bleeds, below it accelerates.
 - `ac.roll` = the flown lift-vector bank; `pitch` and `heading` follow the velocity. Clearing `bfm` hands the jet
@@ -68,12 +72,17 @@ BULLET_SPEED, GUN_TARGET_SPAN_M (13 m), GUN_TRACER_S (0.1 s), GUN_P_CENTRE (0.35
 
 - `ac.gun: GunState = { rounds, firing, burst, hits }`; `ac.damage` 0..1. Jets without `GUNS` data have 0 rounds.
 - While `cmd.trigger` is held and rounds remain, rounds go at the data rate of fire (HI where selectable).
+  The first round is immediately available; releasing the trigger preserves the remaining shot cooldown.
+  Cooldown elapses while released, without stockpiling rounds. Non-positive `dt` leaves gun processing untouched.
 - Hit rule per tick, for every other live jet inside the data max range: lead = relative position + relative
   velocity × TOF; if the gun line is within the target's angular size (13 m span) of the lead point, each round
   hits with `GUN_P_CENTRE × (1 − (miss / size)²)` (`world.rand`). Damage per hit: 30 mm 0.25, 23 mm 0.14,
-  20 mm 0.1. At 1 the jet dies (`kill` event, `by` = shooter). Friendly jets in the line can be hit.
-- Events: `gun` (`burst` / `cease` / `empty`), `tracer` (muzzle pos and velocity, one per 0.1 s of fire),
-  `gun-hit` (hits this tick, target damage). Recordings carry `firing` per jet.
+  20 mm 0.1. Damage saturates at 1 with tolerance for floating-point rounding; at 1 the jet dies (`kill` event,
+  `by` = shooter). Friendly jets in the line can be hit.
+- Events: `gun` (`burst` starts trigger activity with ammo; `cease` ends it on release/death; `empty` ends it
+  when no ammo remains), `tracer` (muzzle pos and velocity, first shot then every 0.1 s of trigger activity,
+  emitted on the next shot tick), `gun-hit` (hits this tick, target damage). Burst activity includes ticks
+  between rounds. `firing` and its recorded value are true only when at least one round leaves that tick.
 - Sight geometry: the nose turn rate from load factor, lift vector and gravity; a point for range R sits at
   −turn rate × TOF from the gun line (below it in a pull). A target in the same turn under that point is in the
   hit rule's solution. Simplified, not any jet's real sight law; the HUD labels it that way.
