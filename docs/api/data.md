@@ -305,6 +305,21 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
   band). Trainer rules, not DCS numbers: shooter delay 2 s, stroke 2.5 s to the approach speed + 15 kt, cold
   cat × 0.85, settle 3 s, ski-jump run 15 m/s², 12° ramp over 25 m, minimum ramp speed 0.85 × approach speed,
   catapult and position offsets across the deck.
+- Refuelling (#28; `aar` on every jet but the su27, j11a and mig29s; `TANKERS`, `TANKER_CAVEATS`,
+  `UPAZ_BANDS` in `src/data/tankers.ts`). Sourced: Su-33 probe `LCtrl+R`, refuelling lights `LAlt+R`, the
+  "Tanker – Intent to refuel" call, 2000–9000 m and 500–570 km/h IAS, close from 10 m and hold 3–6 m below the
+  pod, IL-78M UPAZ hose bands (yellow 3–13 m, yellow+green 13–16, green 16–22, green+red 22–24, red 24–26 cone
+  to pod); F-16C AIR REFUEL door open or closed below 400 kt / M0.85, below 400 kt / M0.95 while open;
+  M-2000C and JF-17 2–3 kt closure on the basket. Not verified: the Su-33 `RCtrl+R` listing (refuelling mode and
+  probe retract); the F-16C and F-15C door keys, the Hornet and Tomcat probe keys (all the trainer key
+  `LCtrl+R`); the call key `\` (DCS radio menu) and the call wording for the other jets and every tanker reply;
+  fixed probes on the JF-17 and M-2000C; closure targets for the Su-33, Hornet, Tomcat (2–3 kt) and the boom jets
+  (0.5–2 kt); contact-point positions (drawing values); tanker choice per jet (KC-135 MPRS default for probe jets,
+  KC-130 offered); the J-11A probe (a Deka plan only) and MiG-29S refuelling (no `aar`). Trainer values: tanker
+  speeds (IL-78M 290 kt, KC-135 300, MPRS 270, KC-130 230), altitudes, 30 nm racetrack legs and 20° turns,
+  pod positions, the 26 m trail and 4.5 m droop (Western hoses reuse the UPAZ distances, no coloured bands), the
+  hose envelope, 5 kt bounce limit, KC-135 boom pivot, 30° / 12 m nominal and 20–40°, ±15°, 9–15 m limits,
+  3 kt boom closure limit, fuel rates (15 kg/s, 50 / 30 / 25 lb/s). KC-135 director lights are not modelled.
 
 ## Requests (to the architect)
 
