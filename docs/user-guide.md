@@ -84,10 +84,21 @@ sandbox where you drag threats around your jet and set them to search, lock, lau
 to read the display: who is locking you, where the launch is, which jet is at 2 o'clock, and what to do now.
 
 ### Pattern & landing
-F/A-18C, F-16C and F-15C. Watch the demo fly the overhead pattern (initial, break, downwind, abeam, final turn,
+All ten jets. Watch the demo fly the overhead pattern (initial, break, downwind, abeam, final turn,
 groove) or fly it yourself from the initial, downwind or final: arrows for the stick, Num+ / Num- for the throttle,
-G gear, F flaps, B speed brake. The HUD, AoA indexer and a top-down trace guide you; the debrief grades each gate,
-the glide path, lineup, on-speed time and the touchdown zone. A score of 70 or more in Fly mode completes it.
+G gear, F flaps, B speed brake (the M-2000C has no flap selector; the F-16C flaps follow the gear). The HUD, AoA
+indexer and a top-down trace guide you; the 3D gate rings sit where you actually passed each gate, green or red.
+The debrief grades each gate, the glide path, lineup, on-speed time and the touchdown zone. A score of 70 or more
+in Fly mode completes it.
+
+**Return to base** (Su-27, J-11A, Su-33, MiG-29S, F-15C): start 40 km out and navigate home. On the Russian jets
+press 1 to cycle МРШ, ВЗВ, ПОС: ВЗВ steers you to the glide-slope intercept point, then ПОС comes up and the tower
+calls above, below or on glide path. On the F-15C, NAV steers to the IAF; press 1 for ILSN and fly the GSUP / GSDN
+cue. The Nav (HSI) display shows the mode, steer point, bearing pointer, distance, command altitude and, in the
+landing mode, the glide-slope and localizer bars. The HUD adds a steering caret. Units follow the km / nm switch.
+
+On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
+throttle slider and GEAR, FLAPS, BRAKE and NAV buttons. On a desktop, turn them on with Show on-screen controls.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

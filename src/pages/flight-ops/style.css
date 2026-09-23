@@ -13,7 +13,33 @@
   font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase;
 }
 
+.fo-call {
+  padding: 5px 10px; border-radius: var(--r-1); background: var(--screen); color: var(--sym-hi);
+  font-family: var(--font-mono); font-size: var(--fs-s); letter-spacing: 0.04em;
+}
+
 /* ---- strip ---- */
+
+/* ---- on-screen controls (Fly mode, coarse pointers or the toggle) ---- */
+.ui-lab__strip > .fo-touch { flex: 1 1 100%; }
+.fo-touch { display: flex; align-items: center; gap: 14px; padding: 4px 0; }
+.fo-stick {
+  position: relative; flex: 0 0 auto; width: 132px; height: 132px; border-radius: 50%;
+  border: 1px solid var(--btn-line); background: var(--screen); touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.fo-stick::before, .fo-stick::after { content: ''; position: absolute; background: var(--screen-line); }
+.fo-stick::before { left: 50%; top: 10%; bottom: 10%; width: 1px; }
+.fo-stick::after { top: 50%; left: 10%; right: 10%; height: 1px; }
+.fo-stick__knob {
+  position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; border-radius: 50%; z-index: 1;
+  background: var(--btn); border: 2px solid var(--sym-dim); transition: transform 0.12s ease-out;
+}
+.fo-stick.is-held .fo-stick__knob { border-color: var(--sym); transition: none; }
+.fo-touch__side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.fo-touch__btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; }
+.fo-touch__btns .ui-btn { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { .fo-stick__knob { transition: none; } }
+
 .ui-lab__strip > .fo-cfg { flex: 1 1 200px; min-width: 150px; max-width: 320px; overflow-x: hidden; }
 .fo-lamps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr)); gap: 5px; min-width: 0; }
 .fo-lamps > * { min-width: 0; }
@@ -60,7 +86,8 @@
   .fo-lab .ui-lab__view { aspect-ratio: 16 / 10; max-height: 44vh; min-height: 200px; }
   .fo-lab .ui-lab__strip > .ui-bezel.fo-hud { flex: 1 1 100%; }
   .fo-lab .ui-lab__strip > .ui-bezel.fo-idx { flex: 0 1 110px; }
-  .fo-lab .ui-lab__strip > .ui-bezel.fo-trace { flex: 1 1 180px; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-trace,
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-navd { flex: 1 1 180px; }
   .ui-lab__strip > .fo-cfg { max-width: none; flex-basis: 100%; }
 }
 
