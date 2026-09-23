@@ -3,11 +3,28 @@
  * text matching for the quick filter, missile sorting, unit formatting and radar arithmetic.
  * No DOM here, so it is unit-tested in model.test.ts.
  */
-import type { AircraftId, AircraftSpec, BindGroup, KeyBind, MissileId, MissileSpec, RwrSpec, RwrSymbol } from '../../data/types';
+import type { AircraftId, AircraftSpec, BindGroup, KeyBind, MissileId, MissileSpec, RwrId, RwrSpec, RwrSymbol, SamId } from '../../data/types';
+import { SAMS, SAM_ORDER, samRwrSymbol } from '../../data/sams';
 import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 
 export type Units = 'metric' | 'imperial';
+
+// ---- SAM sites ---------------------------------------------------------------------------------
+
+export interface SamRow { id: SamId; site: string; symbol: string; ring: string; band: string; beat: string }
+
+/** One row per SAM site: this RWR's symbol, the ring and altitude band (both not verified), the best defence. */
+export function samRows(rwr: RwrId, units: Units): SamRow[] {
+  const alt = (m: number) => units === 'metric' ? `${Math.round(m)} m` : `${Math.round(m / 0.3048 / 100) * 100} ft`;
+  return SAM_ORDER.map(id => {
+    const s = SAMS[id];
+    return {
+      id, site: `${s.nato} (${s.name})`, symbol: samRwrSymbol(rwr, id),
+      ring: `${rangeNum(s.threatRingKm, units)} ${rangeUnit(units)}`, band: `${alt(s.minAltM)} to ${alt(s.maxAltM)}`, beat: s.defeat[0],
+    };
+  });
+}
 
 // ---- quick filter ------------------------------------------------------------------------------
 
