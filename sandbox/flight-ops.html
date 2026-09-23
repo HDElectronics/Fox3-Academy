@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight ops render harness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  #viewport { position: fixed; inset: 0; }
+  .hud {
+    position: fixed; top: 10px; left: 10px; z-index: 5; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+    padding: 6px 8px; border-radius: var(--r-2); background: color-mix(in srgb, var(--screen) 72%, transparent);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sym);
+  }
+  .hud a { color: var(--panel-ink); text-decoration: none; padding: 3px 7px; border-radius: var(--r-1); background: var(--btn); }
+  .hud a[aria-current="true"] { color: var(--btn-on-ink); background: var(--btn-on); }
+  .hud .fps { color: var(--sym-hi); min-width: 7ch; }
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+<nav class="hud" id="hud"></nav>
+<script type="module" src="./flight-ops.ts"></script>
+</body>
+</html>
