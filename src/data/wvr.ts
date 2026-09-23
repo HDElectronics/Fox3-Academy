@@ -33,7 +33,7 @@ export type GunSightKind =
 export interface GunSpec {
   /** Gun name as the manual gives it. */
   gun: string;
-  /** Calibre (mm), picks the arcade damage per hit in sim/guns.ts. */
+  /** Calibre (mm), shown to the pilot; the arcade damage rule is the same for every gun. */
   calibreMm: number;
   rounds: Sourced<number>;
   /** Rate of fire (rounds per minute) the sim uses; HI where the pilot can select it. */
@@ -262,7 +262,7 @@ export function sustainedG(tp: TurnPerf, mach: number, altFt: number): number {
 /** Every simplified or unverified close-combat value, in pilot words. */
 export const WVR_CAVEATS: string[] = [
   'Turn performance (sustained g at 5000 ft and 20000 ft) is a trainer estimate: simplified, not verified against DCS.',
-  'Gun hits are an arcade rule: time with the gun line on the lead point inside max range. No ballistics.',
+  'Gun hits are an arcade rule: time with the gun line on the lead point inside max range. A kill takes about 2 s of fire in the solution at 600 m, less closer, more at long range: a trainer gameplay target, not DCS damage. No ballistics.',
   'Rates of fire not given in the manuals are trainer picks (F-15C and F-16C M61 6000, GSh-23 3000, DEFA 2 × 1200 rounds per minute). GSh-30-1 1500 comes from the MiG-29 manual.',
   'Gun ranges not given in the manuals (F-15C, F/A-18C, JF-17) use 4000 ft; default wingspans not given use 13 m. The FC3 funnel near end (200 m) is a trainer pick.',
   'Su-33 and J-11A gun sights use the Su-27 manual text; the MiG-29 manual text is for the generic MiG-29.',

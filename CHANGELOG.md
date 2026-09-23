@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Merge & guns, part 2 (#11): three new lessons, The merge (lead turn, pass close, nose high or low, scored on
+  angles gained by the second pass), One vs two circle (live turn circles, trainer advice for your jet against the
+  bandit, scored on angle off his tail and range 30 s after the pass) and High yo-yo (stop an overshoot out of
+  plane, scored on no overshoot and range held). The free fight now meets a rule-based fighting AI at Rookie,
+  Regular and Veteran trainer levels: lead turn, one- or two-circle by jet, lag then lead pursuit, high yo-yo on
+  an overshoot, guns, and a jink when your sight comes on; the debrief lists its moves. Gun kills now take time in
+  the solution (about 2 s dead on at 600 m, less closer), so tracking drills no longer end a second after the
+  first solution. Merge & guns joins the hangar lesson path; `merge:<ac>:done` needs every drill at 50 or more.
+
 - Merge & guns (#11): a new close-combat page for all ten jets. Fly an arcade BFM mode from the keyboard or a
   touch pad against a scripted bandit (straight, level turn, turning and reversing, gun attack) through Corner
   speed, Pursuit, Guns tracking and Guns defence lessons plus a Free fight, each with a score and a debrief. The HUD

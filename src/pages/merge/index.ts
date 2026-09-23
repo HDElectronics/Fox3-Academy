@@ -2,11 +2,13 @@
  * [OWNER: page-merge] Merge & guns (#/merge): close-combat basics against a scripted bandit (issue #11). You fly
  * the sim's BFM mode with the keyboard or touch pad (roll the lift vector, pull, throttle, trigger) while the HUD
  * shows your jet's own gun sight and the 3D view shows the lift vector, turn circles, the bandit's plane of motion,
- * the line of sight coloured by pursuit, and tracers. Lessons: corner speed, pursuit, guns tracking, guns defence,
- * plus a free fight. Debrief per drill; progress `merge:<lesson>:<ac>`.
+ * the line of sight coloured by pursuit, and tracers. Lessons: corner speed, pursuit, the merge, one vs two circle,
+ * high yo-yo, guns tracking, guns defence, plus a free fight against the fighting AI (sim/bfmAi.ts) at three trainer
+ * skill levels. Debrief per drill; progress `merge:<lesson>:<ac>`, `merge:<ac>:done` once every drill scores 50.
  *
- * URL params: ?ac=<id>, ?lesson=corner|pursuit|tracking|defence|fight, ?bandit=straight|turn|reverse,
- * ?shot=corner|pursuit|tracking|defence|debrief (pre-roll with a demo autopilot, for screenshots),
+ * URL params: ?ac=<id>, ?lesson=corner|pursuit|merge|circles|yoyo|tracking|defence|fight,
+ * ?bandit=straight|turn|reverse|two-circle|one-circle|rookie|regular|veteran,
+ * ?shot=corner|pursuit|merge|circles|yoyo|tracking|defence|fight|debrief (pre-roll with a demo autopilot, for screenshots),
  * ?cam=chase|bandit|top|cockpit, ?lock=off (sight without a radar lock), ?touch=1 (show the touch pad on any pointer), ?lab=free (opens the free fight).
  */
 import './style.css';
@@ -23,14 +25,16 @@ import {
   coachBox, eventLog, readouts, callout, modal, bindKeys, keyHint, kbd, type ModalHandle, type Tone,
 } from '../../ui';
 import { GunSightDisplay, buildGunSight, noLockOptions, sightStyleFor, SIGHT_NAME } from '../../ui/displays';
-import { BANDIT_LABEL, type BanditMode } from './bandit';
+import { BANDIT_LABEL, isAiMode, type BanditMode } from './bandit';
 import { autoLock, eas } from './bfm';
-import { LESSONS, LESSON_ORDER, SCORED_LESSONS, PURSUIT_HOLD_S, debrief, type Debrief, type LessonId } from './lessons';
+import { CIRCLE_EVAL_S, LESSONS, LESSON_ORDER, SCORED_LESSONS, PURSUIT_HOLD_S, debrief, type Debrief, type LessonId } from './lessons';
+import { anglesOf } from './runner';
+import { chooseCircle } from '../../sim/bfmAi';
 import { MergeRun, type Autopilot } from './runner';
 
 type Cam = 'chase' | 'bandit' | 'top' | 'cockpit';
 const CAMS: Cam[] = ['chase', 'bandit', 'top', 'cockpit'];
-const SHOTS = ['corner', 'pursuit', 'tracking', 'defence', 'debrief'] as const;
+const SHOTS = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'fight', 'debrief'] as const;
 type Shot = typeof SHOTS[number];
 const THR_LABEL: Record<BfmThrottle, string> = { idle: 'IDLE', mil: 'MIL', ab: 'AB' };
 const AID_LABEL: Record<keyof BfmAidLayers, string> = {
@@ -41,9 +45,12 @@ function goalText(id: LessonId, corner: string): string {
   switch (id) {
     case 'corner': return `Hold ${corner} in a hard turn. Pull to the limit above corner, ease off and add power below it. Only turns of 3 g or more count.`;
     case 'pursuit': return `The bandit holds a turn. Fly lead, then pure, then lag pursuit, ${PURSUIT_HOLD_S} s each. The line of sight changes colour with your pursuit.`;
+    case 'merge': return 'Head-on merge. Lead turn toward his side just before he passes your wing line, pass close, then choose nose high or nose low. Scored on angles gained by the second pass.';
+    case 'circles': return `After the pass, turn toward him (two-circle, a rate fight) or away (one-circle, a radius fight). Pick the fight your jet wins. Scored on angle off his tail and range ${CIRCLE_EVAL_S} s after the pass.`;
+    case 'yoyo': return 'You are fast and inside his hard turn. Before you overshoot, roll your lift vector above his plane and pull up, then come back down behind him. Scored on no overshoot and range held.';
     case 'tracking': return 'Get in his plane of motion, pull the sight onto him, frame his wingspan and fire short bursts.';
     case 'defence': return 'He is behind you with guns. Break, then as his nose comes to lead, unload and roll out of his plane.';
-    case 'fight': return 'Merge head-on, then fight: corner speed in the turn, lead to close, guns in his plane.';
+    case 'fight': return 'Merge head-on against the fighting AI, then fight: corner speed in the turn, lead to close, guns in his plane. Skill levels are trainer levels, not DCS AI skills.';
   }
 }
 
@@ -66,6 +73,7 @@ const factory: PageFactory = (): Page => {
     const gun = gunSpecFor(ac);
     const cornerMps = spec.perf.cornerKts * MPS_PER_KT;
     const cornerTxt = fmtSpeed(cornerMps, units);
+    const dist = (m: number): string => units === 'metric' ? `${Math.round(m / 10) * 10} m` : `${Math.round(m / M_PER_FT / 50) * 50} ft`;
     const free = ctx.params.get('lab') === 'free';
 
     // ------------------------------------------------------------------ state
@@ -179,7 +187,7 @@ const factory: PageFactory = (): Page => {
     const notes = h('div', { class: 'mrg-notes' },
       callout({
         kind: 'simplified',
-        body: 'The bandit is scripted, not a fighting AI. You fly an arcade BFM mode: roll the lift vector and pull, no stick-and-rudder flight model. The gun sight symbols follow each jet\'s HUD; their geometry is the trainer\'s lead approximation. Hits are an arcade rule.',
+        body: 'Drill bandits are scripted. The free fight uses a rule-based fighting AI (lead turn, one or two circle, high yo-yo, guns, jinks) at three trainer skill levels, not the DCS AI. You fly an arcade BFM mode: roll the lift vector and pull, no stick-and-rudder flight model. The gun sight symbols follow each jet\'s HUD; their geometry is the trainer\'s lead approximation. Hits are an arcade rule: about 2 s of fire in the solution kills at 600 m, less closer. Circle advice and scores are trainer rules.',
       }),
       h('ul', { class: 'mrg-caveats' }, WVR_CAVEATS.map(c => h('li', null, c))));
 
@@ -222,7 +230,7 @@ const factory: PageFactory = (): Page => {
       header: {
         title: free ? 'Free fight' : 'Merge & guns',
         meta: `${spec.short} · ${gun ? `${gun.gun} · ${gun.rounds.value} rounds` : 'no gun data'}`,
-        lede: 'Turn at corner. Choose your pursuit. Track and shoot. Defend.',
+        lede: 'Turn at corner. Choose your pursuit. Win the merge. Track and shoot. Defend.',
       },
       viewport,
       strip: [hudBezel.el, stripBlock],
@@ -307,7 +315,11 @@ const factory: PageFactory = (): Page => {
     function closeResult(): void { if (result) { result.destroy(); result = null; } }
 
     function finished(): void {
-      const d = debrief(lesson, run.metrics, { corner: cornerTxt, minSpeed: Number.isFinite(run.metrics.minKts) ? fmtSpeed(run.metrics.minKts * MPS_PER_KT, units) : '-' });
+      const d = debrief(lesson, run.metrics, {
+        corner: cornerTxt, minSpeed: Number.isFinite(run.metrics.minKts) ? fmtSpeed(run.metrics.minKts * MPS_PER_KT, units) : '-',
+        dist, me: spec.short, bandit: AIRCRAFT[run.bandit.type].short,
+        skill: isAiMode(banditMode) ? BANDIT_LABEL[banditMode].replace('Fighting AI: ', '') : undefined,
+      });
       last = d;
       if (!run.autopilot) {
         const key = `merge:${lesson}:${ac}`;
@@ -395,6 +407,27 @@ const factory: PageFactory = (): Page => {
           if (sol.kind === want) return [`${want[0]!.toUpperCase()}${want.slice(1)} pursuit: hold it.`, why, 'ok'];
           const how = want === 'lead' ? 'Pull your nose ahead of him, into his turn.' : want === 'pure' ? 'Put your velocity vector on him.' : 'Ease the pull, nose behind his tail.';
           return [`Fly ${want} pursuit. ${how}`, why, 'caution'];
+        }
+        case 'merge':
+        case 'circles': {
+          if (m.passT === null) {
+            const a = anglesOf(me, b);
+            if (a.range > 3500) return ['Fly to the merge. Point at him, pass close.', 'Aim to pass 300 to 500 m off his side.', null];
+            return ['Lead turn: roll toward his side and pull as he nears your wing line.', 'Too early gives him your nose; too late gives away angles.', 'caution'];
+          }
+          if (lesson === 'circles') {
+            const adv = chooseCircle(ac, run.bandit.type, 'veteran');
+            const left = Math.max(0, CIRCLE_EVAL_S - (m.t - m.passT));
+            return [`${m.circleFlown === 'one' ? 'One-circle' : m.circleFlown === 'two' ? 'Two-circle' : 'Turn'}: hold corner speed in the turn.`,
+              `Trainer advice for ${spec.short} vs ${AIRCRAFT[run.bandit.type].short}: ${adv === 'two' ? 'two-circle (rate)' : 'one-circle (radius)'}. ${Math.ceil(left)} s to the score.`, m.circleFlown && m.circleFlown !== adv ? 'caution' : 'ok'];
+          }
+          return ['Turn at corner. Nose high or nose low, then meet him again.', `Angles so far: ${Math.round(m.anglesDeg)}°.`, m.anglesDeg >= 0 ? 'ok' : 'caution'];
+        }
+        case 'yoyo': {
+          const a = anglesOf(me, b);
+          if (!a.behind) return ['Overshoot. Reverse and get back behind him.', 'Next time go out of plane earlier.', 'warning'];
+          if (a.range < 900 && me.vel.length() > b.vel.length() + 40) return ['Closing fast: lift vector above his plane and pull up.', 'Trade closure for height; roll back down when the closure is gone.', 'caution'];
+          return ['Behind him in range: hold it.', `${m.heldS.toFixed(0)} s held.`, 'ok'];
         }
         case 'tracking':
         case 'fight': {
@@ -495,8 +528,11 @@ const factory: PageFactory = (): Page => {
 
     /** Screenshot helper: fly the lesson with the demo autopilot to an interesting state. */
     function preroll(s: Shot): void {
-      const ap: Autopilot = s === 'corner' ? 'corner' : s === 'pursuit' ? 'lead' : s === 'defence' ? 'defend' : 'track';
-      const secs = s === 'corner' ? 10 : s === 'pursuit' ? 8 : s === 'tracking' ? 12 : s === 'defence' ? 5 : 60;
+      const aiLesson = lesson === 'merge' || lesson === 'circles' || lesson === 'yoyo' || lesson === 'fight';
+      const ap: Autopilot = s === 'corner' ? 'corner' : s === 'pursuit' ? 'lead' : s === 'defence' ? 'defend'
+        : s === 'tracking' ? 'track' : aiLesson ? 'ai' : 'track';
+      const secs = s === 'corner' ? 10 : s === 'pursuit' ? 8 : s === 'tracking' ? 12 : s === 'defence' ? 5
+        : s === 'merge' ? 12 : s === 'circles' ? 34 : s === 'yoyo' ? 3 : s === 'fight' ? 30 : 60;
       start();
       run.autopilot = ap;
       if (s === 'defence') run.autopilot = null;           // take the first pass straight, then break (below)

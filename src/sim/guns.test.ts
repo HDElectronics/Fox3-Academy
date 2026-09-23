@@ -1,12 +1,12 @@
 /**
- * Arcade gun model (issue #11): hits need time in the solution inside max range, rounds deplete, deterministic.
+ * Arcade gun model (issue #11): kills need time in the solution inside max range, rounds deplete, deterministic.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { Aircraft, SimEvent } from './types';
 import type { FighterId } from '../data/types';
 import { stepAircraft } from './flight';
-import { GUN_TRACER_S, funnelPoints, gunSolution, sightPoint, stepGuns } from './guns';
+import { GUN_MID_RANGE_M, GUN_TRACER_S, funnelPoints, gunKillSeconds, gunRangeFactor, gunSolution, sightPoint, stepGuns } from './guns';
 import { GUNS } from '../data/wvr';
 
 const DT = 1 / 60;
@@ -41,18 +41,44 @@ function fire(w: World, s: Aircraft, t: Aircraft, seconds: number): void {
 }
 
 describe('guns', () => {
-  it.each([['f15c', 10], ['jf17', 8], ['su27', 4]] as const)('%s kills at the lethal hit count (%s) and caps damage at 1', (type, lethalHits) => {
-    const { w, s, t } = gunSetup(30, 300, type);
-    vi.spyOn(w, 'rand').mockReturnValue(0); // every round in the centre hits
+  it('accrues damage between low-rate rounds without a gun-hit event', () => {
+    const { w, s, t } = gunSetup(7, GUN_MID_RANGE_M, 'su27');
     t.damage = 0;
     s.cmd.trigger = true;
-    for (let hits = 1; hits <= lethalHits; hits++) {
-      s.gun.rounds = 1;
-      stepGuns(w, 60 / GUNS[type].rateRpm.value);
-      expect(s.gun.hits).toBe(hits);
-      expect(t.alive).toBe(hits < lethalHits);
-      expect(t.damage).toBeLessThanOrEqual(1);
+    stepGuns(w, DT);
+    const damage = t.damage, rounds = s.gun.rounds;
+    const hits = w.events.filter(e => e.type === 'gun-hit').length;
+    stepGuns(w, DT);
+    expect(s.gun.rounds).toBe(rounds);
+    expect(t.damage).toBeGreaterThan(damage);
+    expect(w.events.filter(e => e.type === 'gun-hit')).toHaveLength(hits);
+  });
+
+  it('lethality: about 2 s dead on at mid range, faster close, slower far and off-centre', () => {
+    const maxR = GUNS.f15c.maxRangeM.value;
+    expect(gunKillSeconds(GUN_MID_RANGE_M, maxR)).toBeCloseTo(2);
+    expect(gunKillSeconds(GUN_MID_RANGE_M, maxR, 0.7)).toBeGreaterThan(2.5);
+    expect(gunKillSeconds(GUN_MID_RANGE_M, maxR, 0.7)).toBeLessThan(3.2);
+    expect(gunKillSeconds(250, maxR)).toBeCloseTo(1.25);
+    expect(gunKillSeconds(maxR, maxR)).toBeCloseTo(4);
+    expect(gunKillSeconds(maxR + 10, maxR)).toBe(Infinity);
+    expect(gunKillSeconds(400, maxR, 1)).toBe(Infinity);
+    for (let r = 100; r < maxR; r += 50) expect(gunRangeFactor(r + 50, maxR)).toBeLessThanOrEqual(gunRangeFactor(r, maxR));
+  });
+
+  it.each(['f15c', 'jf17', 'su27'] as const)('%s dead astern at 600 m kills after about 2 s of fire, not before 1.5 s', type => {
+    const { w, s, t } = gunSetup(30, GUN_MID_RANGE_M, type);
+    t.damage = 0;
+    s.cmd.trigger = true;
+    let killT = 0;
+    for (let k = 1; k <= 240 && t.alive; k++) {
+      w.t += DT;
+      for (const a of [s, t]) stepAircraft(w, a, DT);
+      stepGuns(w, DT);
+      if (!t.alive) killT = k * DT;
     }
+    expect(killT).toBeGreaterThan(1.5);
+    expect(killT).toBeLessThan(2.5);
     expect(t.damage).toBe(1);
     expect(t.killedBy).toBe(s.id);
     expect(w.events.filter(e => e.type === 'kill')).toHaveLength(1);

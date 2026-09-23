@@ -7,6 +7,7 @@ import type { FighterId, AircraftSpec, MissileId, MissileSpec, RadarModeId } fro
 import { fmtRange, fmtSpeed, rangeUnit, rangeValue, type Units } from '../../app/format';
 import { MPS_PER_KT } from '../../sim/math';
 import { createRadarState } from '../../sim/radar';
+import { gunSpecFor } from '../../data/wvr';
 
 const R2D = 180 / Math.PI;
 
@@ -286,8 +287,8 @@ export function weaponsSummary(spec: AircraftSpec): string {
 
 // ------------------------------------------------------------------------------------------ lessons
 
-export type LessonRoute = 'radar' | 'tws' | 'missiles' | 'defense' | 'rwr' | 'sortie' | 'reference';
-export const LESSON_PATH: LessonRoute[] = ['radar', 'tws', 'missiles', 'defense', 'rwr', 'sortie'];
+export type LessonRoute = 'radar' | 'tws' | 'missiles' | 'defense' | 'rwr' | 'merge' | 'sortie' | 'reference';
+export const LESSON_PATH: LessonRoute[] = ['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'sortie'];
 
 /** Progress keys the lesson pages may write: '<route>:<aircraft>:done' (and the page-folder name as a fallback). */
 const ALT_KEY: Partial<Record<LessonRoute, string>> = { radar: 'radar-lab', missiles: 'missile-lab', rwr: 'rwr-trainer' };
@@ -319,6 +320,7 @@ export const LESSON_TITLE: Record<LessonRoute, string> = {
   missiles: 'Launch zones',
   defense: 'Beat a missile',
   rwr: 'Read the RWR',
+  merge: 'Merge, BFM and guns',
   sortie: 'Fight and debrief',
   reference: 'Keys and procedures',
 };
@@ -370,6 +372,11 @@ export function lessonLine(route: LessonRoute, spec: AircraftSpec, units: Units)
     case 'rwr': {
       const rwr = RWRS[spec.rwr];
       return `${rwr.name}: ${firstSentence(rwr.teach[0])} Learn to tell search, lock and launch apart.`;
+    }
+    case 'merge': {
+      const gun = gunSpecFor(spec.id);
+      const corner = fmtSpeed(spec.perf.cornerKts * MPS_PER_KT, units);
+      return `Turn at ${corner}, lead turn the merge, pick one or two circle, yo-yo instead of overshooting${gun ? `, then track with the ${gun.gun}` : ''}. Finish against a fighting AI.`;
     }
     case 'sortie': {
       const f3 = primaryFox3(spec);

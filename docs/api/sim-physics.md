@@ -66,8 +66,10 @@ stepGuns(world, dt)              // World calls it each tick after flight
 gunSolution(shooter, target)     // { range, tof, lead (unit), missAngle, missM, sizeAngle, inRange, inSolution }
 sightPoint(ac, range, spanM?)    // { range, tof, right, up, halfSpan } rad from the gun line, HUD axes
 funnelPoints(ac, steps?, spanM?) // sightPoint from data funnel near..far, sized for the data wingspan
-createGunState(type), gunOf(ac), hitDamage(calibreMm)
+createGunState(type), gunOf(ac)
+gunRangeFactor(range, maxR), gunDamageRate(range, maxR, missRatio), gunKillSeconds(range, maxR, missRatio?)
 BULLET_SPEED, GUN_TARGET_SPAN_M (13 m), GUN_TRACER_S (0.1 s), GUN_P_CENTRE (0.35)
+GUN_KILL_S (2 s), GUN_MID_RANGE_M (600), GUN_CLOSE_RANGE_M (300), GUN_CLOSE_FACTOR (1.6), GUN_FAR_FACTOR (0.5)
 ```
 
 - `ac.gun: GunState = { rounds, firing, burst, hits }`; `ac.damage` 0..1. Jets without `GUNS` data have 0 rounds.
@@ -75,13 +77,17 @@ BULLET_SPEED, GUN_TARGET_SPAN_M (13 m), GUN_TRACER_S (0.1 s), GUN_P_CENTRE (0.35
   The first round is immediately available; releasing the trigger preserves the remaining shot cooldown.
   Cooldown elapses while released, without stockpiling rounds. Non-positive `dt` leaves gun processing untouched.
 - Hit rule per tick, for every other live jet inside the data max range: lead = relative position + relative
-  velocity × TOF; if the gun line is within the target's angular size (13 m span) of the lead point, each round
-  hits with `GUN_P_CENTRE × (1 − (miss / size)²)` (`world.rand`). Damage per hit: 30 mm 0.25, 23 mm 0.14,
-  20 mm 0.1. Damage saturates at 1 with tolerance for floating-point rounding; at 1 the jet dies (`kill` event,
-  `by` = shooter). Friendly jets in the line can be hit.
+  velocity × TOF; the target is in the solution when the gun line is within its angular size (13 m span) of the
+  lead point. Damage accrues with firing time in the solution (ticks between rounds count):
+  `dt × (1 − 0.5 (miss / size)²) × rangeFactor / GUN_KILL_S`. Range factor 1.6 inside 300 m, 1 at 600 m, 0.5 at
+  max range, linear between. Dead on, a kill takes 2 s at 600 m, 1.25 s inside 300 m, 4 s at max range; a
+  typical tracking solution at mid range 2 to 3 s. Same for every gun. A gameplay target (simplified), not a DCS
+  damage model. Separately each round counts as a hit with `GUN_P_CENTRE × (1 − (miss / size)²)` (`world.rand`)
+  for sparks and coaching. Damage saturates at 1; at 1 the jet dies (`kill` event, `by` = shooter). Friendly jets
+  in the line can be hit.
 - Events: `gun` (`burst` starts trigger activity with ammo; `cease` ends it on release/death; `empty` ends it
   when no ammo remains), `tracer` (muzzle pos and velocity, first shot then every 0.1 s of trigger activity,
-  emitted on the next shot tick), `gun-hit` (hits this tick, target damage). Burst activity includes ticks
+  emitted on the next shot tick), `gun-hit` (on ticks with round hits or the kill: hits this tick, target damage). Burst activity includes ticks
   between rounds. `firing` and its recorded value are true only when at least one round leaves that tick.
 - Sight geometry: the nose turn rate from load factor, lift vector and gravity; a point for range R sits at
   −turn rate × TOF from the gun line (below it in a pull). A target in the same turn under that point is in the
