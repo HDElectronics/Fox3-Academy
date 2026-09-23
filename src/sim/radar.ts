@@ -24,6 +24,10 @@ import {
   isLookDown, lerp, radialSpeedVsGround, relBearing, wrapPi,
 } from './math';
 import { dlzFor } from './dlz';
+import { aircraftAngles } from './aircraftFrame';
+
+/** BVR keeps horizon-referenced checks; close-combat locks opt into the aircraft frame. */
+export type LockFrame = 'horizon' | 'aircraft';
 
 export interface ScanChange {
   azHalf?: number;     // rad
@@ -160,6 +164,7 @@ interface Internal {
   autoCenter: boolean;
   nextAutoLock: number;
   acmDir: 1 | -1;
+  sttFrame: LockFrame;
   /** Scan saved while a bug scan is active (null = no bug scan). */
   bugSaved: { azHalf: number; bars: number } | null;
 }
@@ -169,7 +174,7 @@ const INTERNAL = new WeakMap<RadarState, Internal>();
 function inner(st: RadarState): Internal {
   let s = INTERNAL.get(st);
   if (!s) {
-    s = { prevSearch: 'rws', prevBvr: 'rws', painted: new Map(), trk: new Map(), autoCenter: true, nextAutoLock: 0, acmDir: 1, bugSaved: null };
+    s = { prevSearch: 'rws', prevBvr: 'rws', painted: new Map(), trk: new Map(), autoCenter: true, nextAutoLock: 0, acmDir: 1, sttFrame: 'horizon', bugSaved: null };
     INTERNAL.set(st, s);
   }
   return s;
@@ -576,7 +581,8 @@ function stepStt(world: World, ac: Aircraft, spec: AircraftSpec, dt: number): vo
   if (!trk) { trk = createTrack(world, ac, tgt.id, tgt.pos); trk.firm = true; trk.vel.copy(tgt.vel); }
   const g = geoOf(ac, tgt.pos);
   const gimAz = r.gimbalAzDeg * D2R, gimEl = r.gimbalElDeg * D2R;
-  const inGimbal = Math.abs(g.az) <= gimAz && Math.abs(g.el) <= gimEl;
+  const aim = ist.sttFrame === 'aircraft' ? aircraftAngles(ac, tgt.pos) : g;
+  const inGimbal = Math.abs(aim.az) <= gimAz && Math.abs(aim.el) <= gimEl;
   if (inGimbal && g.range <= paintRange(ac)) ist.painted.set(tgt.id, world.t);
   let why: string | null = null;
   if (!inGimbal) why = 'gimbal limit';
@@ -898,14 +904,14 @@ export function cycleDesignation(world: World, ac: Aircraft): void {
 export interface LockCheck { ok: boolean; reason: string }
 
 /** Can this radar go STT on `targetId` right now? Reason in pilot words when not. */
-export function canLock(world: World, ac: Aircraft, targetId: EntityId): LockCheck {
+export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon'): LockCheck {
   if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
   const spec = specOf(ac), r = spec.radar, st = ac.radar;
   if (st.mode === 'off') return { ok: false, reason: 'Radar is off' };
   if (!r.modes.includes('stt')) return { ok: false, reason: `${spec.short} radar has no STT` };
   const tgt = world.get(targetId);
   if (!tgt || !tgt.alive || tgt.id === ac.id) return { ok: false, reason: 'No target' };
-  const g = geoOf(ac, tgt.pos);
+  const g = frame === 'aircraft' ? aircraftAngles(ac, tgt.pos) : geoOf(ac, tgt.pos);
   if (Math.abs(g.az) > r.gimbalAzDeg * D2R || Math.abs(g.el) > r.gimbalElDeg * D2R) {
     return { ok: false, reason: `Target outside the gimbal (±${r.gimbalAzDeg}°)` };
   }
@@ -919,14 +925,14 @@ export function canLock(world: World, ac: Aircraft, targetId: EntityId): LockChe
  * STT on `targetId` if canLock() allows. Other track files are dropped (DCS: STT shows only the locked
  * target), designations become [targetId], the previous search mode is remembered for unlock/break.
  */
-export function lockTarget(world: World, ac: Aircraft, targetId: EntityId): boolean {
+export function lockTarget(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon'): boolean {
   if (!isFighterAc(ac)) return false;
-  if (!canLock(world, ac, targetId).ok) return false;
+  if (!canLock(world, ac, targetId, frame).ok) return false;
   const spec = specOf(ac), st = ac.radar, ist = inner(st);
   const tgt = world.get(targetId);
   if (!tgt) return false;
   if (st.mode === 'stt') {
-    if (st.stt.targetId === targetId) return true;
+    if (st.stt.targetId === targetId) { ist.sttFrame = frame; return true; }
     if (st.stt.targetId) emitLock(world, ac, st.stt.targetId, 'unlocked');
   } else if (st.mode === 'rws' || st.mode === 'tws' || st.mode === 'vs' || st.mode === 'acm') {
     ist.prevSearch = st.mode;
@@ -943,6 +949,7 @@ export function lockTarget(world: World, ac: Aircraft, targetId: EntityId): bool
   st.snp2 = false;
   st.mode = 'stt';
   st.stt = { targetId, lostFor: 0 };
+  ist.sttFrame = frame;
   const g = geoOf(ac, tgt.pos);
   st.beamAz = g.az;
   st.beamEl = g.el;

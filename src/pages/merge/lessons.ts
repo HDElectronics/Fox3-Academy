@@ -176,7 +176,8 @@ export function scoreLesson(id: LessonId, m: MergeMetrics): number {
       const lock = m.lockS === null ? 0 : 30 * pct((25 - m.lockS) / 20);
       const zone = m.irShots > 0 ? 40 * m.irInZone / m.irShots : 0;
       const result = m.irHits > 0 ? 30 : m.irFlared > 0 ? 10 : 0;
-      return Math.round(lock + zone + result);
+      const score = Math.round(lock + zone + result);
+      return m.lockS !== null && m.irShots > 0 && m.irInZone > 0 ? score : Math.min(49, score);
     }
     case 'fight':
       if (m.killed === 'bandit') return 100;

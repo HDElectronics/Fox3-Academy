@@ -20,7 +20,7 @@ import type { World } from './world';
 import type { Aircraft, EntityId, LaunchCheck, Missile } from './types';
 import { acmFor, type AcmArea, type AcmJet, type AcmModeId, type AcmModeSpec } from '../data/acm';
 import { MISSILES } from '../data/missiles';
-import { liftVector } from './flight';
+import { aircraftAngles } from './aircraftFrame';
 import { irAcquisitionRange } from './launch';
 import { R2D, aspectAngle, dirFrom } from './math';
 
@@ -55,6 +55,8 @@ export interface AcmState {
   lockT: number | null;
   /** Hostile currently in the area and its dwell (s). */
   candidateId: EntityId | null;
+  /** Trainer padlock/look target, independent of acquisition and lock eligibility. */
+  helmetLookId: EntityId | null;
   dwellS: number;
   seeker: SeekerState;
   /** Last reason a lock press or shot failed, in pilot words. */
@@ -65,7 +67,7 @@ export function newAcmState(type: string): AcmState | null {
   const jet = acmFor(type);
   if (!jet) return null;
   return {
-    jet, mode: null, lockedId: null, lockSensor: null, lockT: null, candidateId: null, dwellS: 0, msg: '',
+    jet, mode: null, lockedId: null, lockSensor: null, lockT: null, candidateId: null, helmetLookId: null, dwellS: 0, msg: '',
     seeker: { mode: 'caged', tone: 'none', targetId: null, heatS: 0, uncageReq: false },
   };
 }
@@ -74,16 +76,12 @@ export function modeSpec(st: AcmState, id: AcmModeId | null = st.mode): AcmModeS
   return id ? st.jet.modes.find(m => m.id === id) ?? null : null;
 }
 
-const _u = new Vector3(), _l = new Vector3(), _r = new Vector3(), _rel = new Vector3();
+const _u = new Vector3(), _rel = new Vector3();
 
 /** Angles of `p` from `me`'s flight path in the HUD frame (deg; az + right, el + up toward the canopy). */
 export function acmAngles(me: Aircraft, p: Vector3): { az: number; el: number; range: number; ahead: boolean } {
-  const u = _u.copy(me.vel).normalize();
-  const l = liftVector(me, _l);
-  const r = _r.crossVectors(u, l);
-  const rel = _rel.subVectors(p, me.pos);
-  const f = rel.dot(u);
-  return { az: Math.atan2(rel.dot(r), f) * R2D, el: Math.atan2(rel.dot(l), f) * R2D, range: rel.length(), ahead: f > 0 };
+  const a = aircraftAngles(me, p);
+  return { ...a, az: a.az * R2D, el: a.el * R2D };
 }
 
 /** Is (az, el) (deg) inside the area? */
@@ -107,9 +105,10 @@ function hostiles(world: World, me: Aircraft): Aircraft[] {
 }
 
 /** Closest hostile inside the mode's area and lock range, or null. */
-export function acmCandidate(world: World, me: Aircraft, spec: AcmModeSpec): Aircraft | null {
+export function acmCandidate(world: World, me: Aircraft, spec: AcmModeSpec, lookId?: EntityId | null): Aircraft | null {
   let best: Aircraft | null = null, bestR = Infinity;
   for (const o of hostiles(world, me)) {
+    if (spec.cue === 'helmet' && lookId && o.id !== lookId) continue;
     const a = acmAngles(me, o.pos);
     if (!a.ahead || !inArea(spec.area.value, a.az, a.el)) continue;
     if (a.range > spec.rangeM.value || a.range >= bestR) continue;
@@ -137,6 +136,9 @@ export function setAcmMode(world: World, me: Aircraft, st: AcmState, id: AcmMode
   acmUnlock(world, me, st);
   st.mode = id;
   st.msg = '';
+  if (spec?.cue === 'helmet' && !world.get(st.helmetLookId)?.alive) {
+    st.helmetLookId = hostiles(world, me).sort((a, b) => me.pos.distanceToSquared(a.pos) - me.pos.distanceToSquared(b.pos))[0]?.id ?? null;
+  }
   if (spec?.sensor === 'radar') { if (me.radar.mode === 'off' || me.radar.mode === 'stt') world.setRadarMode(me.id, 'rws'); }
   else if (spec) world.setRadarMode(me.id, 'off');
   return true;
@@ -145,7 +147,7 @@ export function setAcmMode(world: World, me: Aircraft, st: AcmState, id: AcmMode
 function lockOn(world: World, me: Aircraft, st: AcmState, spec: AcmModeSpec, tgt: Aircraft): boolean {
   if (spec.sensor === 'radar') {
     if (me.radar.mode === 'off') world.setRadarMode(me.id, 'rws');
-    if (!world.lock(me.id, tgt.id)) { st.msg = world.canLock(me.id, tgt.id).reason || 'No lock'; return false; }
+    if (!world.lock(me.id, tgt.id, 'aircraft')) { st.msg = world.canLock(me.id, tgt.id, 'aircraft').reason || 'No lock'; return false; }
   }
   st.lockedId = tgt.id;
   st.lockSensor = spec.sensor;
@@ -160,7 +162,7 @@ export function acmPressLock(world: World, me: Aircraft, st: AcmState): boolean 
   if (!spec) { st.msg = 'Select a close-combat mode'; return false; }
   if (spec.sensor === 'seeker') { st.msg = `${spec.name} uses the missile seeker: no lock to press`; return false; }
   if (st.lockedId) return true;
-  const tgt = acmCandidate(world, me, spec);
+  const tgt = acmCandidate(world, me, spec, st.helmetLookId);
   if (!tgt) { st.msg = `Nobody inside the ${spec.name} area and range`; return false; }
   return lockOn(world, me, st, spec, tgt);
 }
@@ -187,7 +189,7 @@ function stepSeeker(world: World, me: Aircraft, st: AcmState, dt: number): void 
   const fov = ir.seekerFovDeg.value;
   const req = sk.uncageReq;
   sk.uncageReq = false;
-  if ((me.stores[missile] ?? 0) <= 0 || !me.alive) { sk.mode = 'caged'; sk.tone = 'none'; sk.targetId = null; sk.heatS = 0; return; }
+  if (st.mode === 'gacq' || (me.stores[missile] ?? 0) <= 0 || !me.alive) { sk.mode = 'caged'; sk.tone = 'none'; sk.targetId = null; sk.heatS = 0; return; }
   if (sk.mode === 'track') {
     const t = world.get(sk.targetId);
     if (t && t.alive && offBoresightDeg(me, t.pos) <= gimbal && seesHeat(me, t, 0, fov, missile, SEEKER_HOLD_FACTOR)) { sk.tone = 'lock'; return; }
@@ -230,7 +232,7 @@ export function stepAcm(world: World, me: Aircraft, st: AcmState, dt: number): v
   }
   // Acquire.
   if (spec && spec.sensor !== 'seeker' && !st.lockedId && me.alive) {
-    const c = acmCandidate(world, me, spec);
+    const c = acmCandidate(world, me, spec, st.helmetLookId);
     if (c && c.id === st.candidateId) st.dwellS += dt;
     else { st.candidateId = c?.id ?? null; st.dwellS = 0; }
     if (c && spec.lock.value === 'auto' && st.dwellS >= spec.lockS.value) lockOn(world, me, st, spec, c);
@@ -260,6 +262,7 @@ export function irShotCheck(world: World, me: Aircraft, st: AcmState): IrShot {
   const name = MISSILES[missile].name;
   const tid = st.seeker.targetId ?? st.lockedId;
   const out: IrShot = { ok: false, inZone: false, reason: '', targetId: tid, offDeg: null, limitDeg, range: null, rmin: null, rmax: null, check: null };
+  if (st.mode === 'gacq') { out.reason = 'GACQ is guns only. Select an IR-compatible mode.'; return out; }
   if ((me.stores[missile] ?? 0) <= 0) { out.reason = `No ${name} left`; return out; }
   const t = world.get(tid);
   if (!t || !t.alive) { out.reason = `No heat in the ${name} seeker`; return out; }

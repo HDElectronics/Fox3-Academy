@@ -4,6 +4,9 @@ import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { debrief, emptyMetrics, IR_LESSONS, LESSON_ORDER, SCORED_LESSONS, scoreLesson } from './lessons';
 import { MergeRun } from './runner';
+import { ACM } from '../../data/acm';
+import { acmPressLock, stepAcm, toggleUncage } from '../../sim/acm';
+import { growlCoach, setMergeMode, setMergeWeapon, UNCAGE_KEY } from './controls';
 
 function run(ac: FighterId, s: number) {
   const r = new MergeRun(ac, 'ir', 'turn', 7);
@@ -15,6 +18,45 @@ function run(ac: FighterId, s: number) {
 }
 
 describe('close-range lock and IR shot', () => {
+  it('cannot pass with a fast lock and a hit without an in-zone shot', () => {
+    const m = { ...emptyMetrics(), lockS: 3, irShots: 1, irHits: 1 };
+    expect(scoreLesson('ir', m)).toBe(49);
+    expect(scoreLesson('ir', { ...m, lockS: null, irInZone: 1 })).toBe(49);
+    expect(scoreLesson('ir', { ...m, irInZone: 1 })).toBe(100);
+  });
+
+  it.each(['f15c', 'jf17'] as const)('%s coaches the bound trainer uncage key, retaining DCS reference controls', ac => {
+    expect(growlCoach(ACM[ac])).toBe('Growl. Uncage (C).');
+    expect(ACM[ac].ir.uncageKey!.value).toBe(ac === 'f15c' ? '6' : 'T2');
+    const d = debrief('ir', emptyMetrics(), { corner: '400 kt', minSpeed: '300 kt', uncageKey: UNCAGE_KEY });
+    expect(d.coaching.join(' ')).toContain('uncage (C)');
+  });
+
+  it('selecting IR leaves GACQ, drops its lock and seeker, and cannot acquire through its wider pattern', () => {
+    const r = new MergeRun('fa18c', 'ir', 'straight', 7);
+    r.bandit.pos.copy(r.me.pos).add({ x: 2500 * Math.sin(Math.PI / 36), y: 0, z: -2500 * Math.cos(Math.PI / 36) });
+    r.bandit.vel.copy(r.me.vel);
+    expect(setMergeMode(r, 'gacq', 'ir')).toBe('gun');
+    expect(acmPressLock(r.world, r.me, r.acm!)).toBe(true);
+    toggleUncage(r.acm!);
+    stepAcm(r.world, r.me, r.acm!, 0.05);
+    expect(r.acm!.seeker.mode).toBe('caged');
+    expect(r.acm!.seeker.tone).toBe('none');
+    expect(r.fireIr()?.ok).toBe(false);
+    setMergeWeapon(r, 'ir');
+    expect(r.acm!.mode).toBe('bst');
+    expect(r.acm!.lockedId).toBeNull();
+    expect(r.me.radar.mode).not.toBe('stt');
+    expect(r.acm!.seeker.mode).toBe('caged');
+    for (let i = 0; i < 30; i++) stepAcm(r.world, r.me, r.acm!, 0.05);
+    expect(r.acm!.lockedId).toBeNull();
+    expect(r.acm!.seeker.targetId).toBeNull();
+    expect(r.fireIr()?.ok).toBe(false);
+    // Changing the mode while IR is selected also enforces compatibility.
+    expect(setMergeMode(r, 'gacq', 'ir')).toBe('gun');
+    expect(r.acm!.mode).toBe('gacq');
+  });
+
   it('is a scored lesson before the free fight; IR shots only there and in the fight', () => {
     expect(LESSON_ORDER.indexOf('ir')).toBe(LESSON_ORDER.indexOf('fight') - 1);
     expect(SCORED_LESSONS).toContain('ir');

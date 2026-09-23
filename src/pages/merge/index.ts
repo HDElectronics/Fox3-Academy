@@ -20,7 +20,7 @@ import { AIRCRAFT } from '../../data/aircraft';
 import { WVR_CAVEATS, gunSpecFor, type GunSightKind } from '../../data/wvr';
 import { ACM_CAVEATS, acmFor, type AcmModeId } from '../../data/acm';
 import { MISSILES } from '../../data/missiles';
-import { acmPressLock, acmUnlock, irShotCheck, modeSpec, setAcmMode, toggleUncage } from '../../sim/acm';
+import { acmPressLock, acmUnlock, irShotCheck, modeSpec, toggleUncage } from '../../sim/acm';
 import { fmtAlt, fmtAltShort, fmtSpeed, type Units } from '../../app/format';
 import { MPS_PER_KT, M_PER_FT } from '../../sim/math';
 import type { BfmThrottle } from '../../sim/types';
@@ -29,18 +29,20 @@ import {
   h, cleanup, labLayout, disclosure, consolePanel, screenBezel, segmented, select, button, toggle,
   coachBox, eventLog, readouts, callout, modal, bindKeys, keyHint, kbd, type ModalHandle, type Tone,
 } from '../../ui';
-import { GunSightDisplay, IrToneAudio, buildAcmPicture, buildGunSight, noLockOptions, sightStyleFor, SIGHT_NAME } from '../../ui/displays';
+import { GunSightDisplay, buildAcmPicture, buildGunSight, noLockOptions, sightStyleFor, SIGHT_NAME } from '../../ui/displays';
 import { BANDIT_LABEL, isAiMode, type BanditMode } from './bandit';
 import { autoLock, eas } from './bfm';
 import { CIRCLE_EVAL_S, IR_LESSONS, LESSONS, LESSON_ORDER, SCORED_LESSONS, PURSUIT_HOLD_S, debrief, type Debrief, type LessonId } from './lessons';
 import { anglesOf } from './runner';
 import { chooseCircle } from '../../sim/bfmAi';
 import { MergeRun, type Autopilot } from './runner';
+import { MergeAudio } from './audio';
+import { growlCoach, setMergeMode, setMergeWeapon, UNCAGE_KEY, type Weapon } from './controls';
 
 type Cam = 'chase' | 'bandit' | 'top' | 'cockpit';
 const CAMS: Cam[] = ['chase', 'bandit', 'top', 'cockpit'];
 const SHOTS = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'ir', 'fight', 'debrief'] as const;
-type Weapon = 'gun' | 'ir';
+
 type Shot = typeof SHOTS[number];
 const THR_LABEL: Record<BfmThrottle, string> = { idle: 'IDLE', mil: 'MIL', ab: 'AB' };
 const AID_LABEL: Record<keyof BfmAidLayers, string> = {
@@ -103,10 +105,10 @@ const factory: PageFactory = (): Page => {
     const acmParam = ctx.params.get('acm') as AcmModeId | null;
     let weapon: Weapon = ctx.params.get('wpn') === 'ir' || lesson === 'ir' ? 'ir' : 'gun';
     let toneOn = true;
-    const tone = new IrToneAudio();
+    const tone = new MergeAudio(document, window);
     bag.add(() => tone.dispose());
     /** Start the tone audio from a user gesture (key or pointer). */
-    const startAudio = (): void => { if (toneOn && !tone.enabled && !dead) void tone.start(); };
+    const startAudio = (): void => { if (toneOn && !dead) void tone.start(); };
 
     // ------------------------------------------------------------------ DOM: strip
     const viewport = h('div', { class: 'mrg-viewport' });
@@ -215,15 +217,15 @@ const factory: PageFactory = (): Page => {
     const lockBtn = button({ id: 'mrg-acm-lock', label: 'Lock', size: 's', keys: 'Enter', onClick: () => { pressLock(); } });
     const unlockBtn = button({ id: 'mrg-acm-unlock', label: 'Unlock', size: 's', keys: 'Backspace', onClick: () => { if (run.acm) acmUnlock(run.world, run.me, run.acm); } });
     const uncageBtn = jetAcm?.ir.uncage.value === 'key'
-      ? button({ id: 'mrg-acm-uncage', label: 'Uncage', size: 's', keys: 'C', onClick: () => { if (run.acm) toggleUncage(run.acm); } }) : null;
+      ? button({ id: 'mrg-acm-uncage', label: 'Uncage', size: 's', keys: UNCAGE_KEY, onClick: () => { if (run.acm) toggleUncage(run.acm); } }) : null;
     const toneToggle = toggle({
       id: 'mrg-tone', label: 'Seeker tone', size: 's', value: true,
-      onChange: v => { toneOn = v; if (v) void tone.start(); else tone.stop(); },
+      onChange: v => { toneOn = v; if (v) startAudio(); else tone.stop(); },
     });
     const acmKeys = jetAcm ? h('div', { class: 'mrg-note' },
       h('p', null, jetAcm.entry.value + tag(jetAcm.entry.verified)),
       h('ul', { class: 'mrg-caveats' }, jetAcm.modes.map(m => h('li', null, kbd(m.key.value), ` ${m.name}${tag(m.key.verified)}: ${m.note}`))),
-      h('p', null, `${irName}: `, jetAcm.ir.uncageKey ? h('span', null, 'uncage ', kbd(jetAcm.ir.uncageKey.value), tag(jetAcm.ir.uncageKey.verified), ', ') : null,
+      h('p', null, `DCS ${irName}: `, jetAcm.ir.uncageKey ? h('span', null, 'uncage ', kbd(jetAcm.ir.uncageKey.value), tag(jetAcm.ir.uncageKey.verified), ', ') : null,
         'fire ', kbd(jetAcm.ir.fire.value), tag(jetAcm.ir.fire.verified), `. Launch limit ${jetAcm.ir.launchLimitDeg.value}° off the nose${tag(jetAcm.ir.launchLimitDeg.verified)}. Ready cue: ${jetAcm.ir.readyCue.value}${tag(jetAcm.ir.readyCue.verified)}.`),
       fc3 ? callout({ kind: 'dcs', body: 'Fi0 (key 6) uses only the R-73\'s own 2° seeker: no radar, no IRST, nothing on his RWR. VS, BORE and HELMET use the IRST, also silent. Judge the range by eye.' }) : null,
       h('p', null, 'Trainer keys here: M cycles the mode, Enter locks, Backspace unlocks, C uncages, W swaps gun and missile, Space fires.'))
@@ -324,7 +326,8 @@ const factory: PageFactory = (): Page => {
       else if (lesson === 'ir') weapon = 'ir';
       wpnSeg.set(weapon);
       wpnSeg.setDisabled('ir', !IR_LESSONS.includes(lesson) || !jetAcm);
-      if (acmParam && run.acm && modeSpec(run.acm, acmParam)) setAcmMode(run.world, run.me, run.acm, acmParam);
+      if (acmParam && run.acm && modeSpec(run.acm, acmParam)) weapon = setMergeMode(run, acmParam, weapon);
+      setWeapon(weapon);
       modeSeg?.set(run.acm?.mode ?? 'off');
       thrSeg.set(run.stick.throttle);
       sbToggle.set(false);
@@ -371,8 +374,8 @@ const factory: PageFactory = (): Page => {
     function closeResult(): void { if (result) { result.destroy(); result = null; } }
     function selectMode(id: AcmModeId | null): void {
       if (!run.acm) return;
-      setAcmMode(run.world, run.me, run.acm, id);
-      modeSeg?.set(id ?? 'off');
+      weapon = setMergeMode(run, id, weapon);
+      setWeapon(weapon);
       if (run.phase === 'end') return;
       if (id) log.push(`${modeSpec(run.acm, id)?.name ?? id} selected`, { t: run.world.t });
     }
@@ -389,7 +392,8 @@ const factory: PageFactory = (): Page => {
     function setWeapon(w: Weapon): void {
       weapon = IR_LESSONS.includes(lesson) && jetAcm ? w : 'gun';
       wpnSeg.set(weapon);
-      if (weapon === 'ir') run.stick.trigger = false;
+      setMergeWeapon(run, weapon);
+      modeSeg?.set(run.acm?.mode ?? 'off');
     }
     function fireMissile(): void {
       if (run.phase === 'end' || !run.me.alive) return;
@@ -404,7 +408,7 @@ const factory: PageFactory = (): Page => {
         corner: cornerTxt, minSpeed: Number.isFinite(run.metrics.minKts) ? fmtSpeed(run.metrics.minKts * MPS_PER_KT, units) : '-',
         dist, me: spec.short, bandit: AIRCRAFT[run.bandit.type].short,
         skill: isAiMode(banditMode) ? BANDIT_LABEL[banditMode].replace('Fighting AI: ', '') : undefined,
-        irMissile: irName ?? undefined, uncageKey: jetAcm?.ir.uncageKey?.value ?? null, fc3,
+        irMissile: irName ?? undefined, uncageKey: jetAcm?.ir.uncage.value === 'key' ? UNCAGE_KEY : null, fc3,
       });
       last = d;
       if (!run.autopilot) {
@@ -533,7 +537,7 @@ const factory: PageFactory = (): Page => {
           const sk = acm.seeker;
           if (!acm.lockedId && md.sensor !== 'seeker') return [md.lock.value === 'enter' ? `${md.name}: put him in the area and press Enter.` : `${md.name}: put him in the area and hold him there.`, md.note, 'caution'];
           if (sk.tone === 'none') return ['No heat in the seeker.', `Point the nose closer to him; ${irName} limit ${jetAcm.ir.launchLimitDeg.value}°.`, 'caution'];
-          if (sk.tone === 'growl') return [jetAcm.ir.uncage.value === 'key' ? `Growl. Uncage (${jetAcm.ir.uncageKey?.value ?? 'C'}).` : 'Growl. Hold him in the seeker.', 'The seeker sees his heat but does not track yet.', 'caution'];
+          if (sk.tone === 'growl') return [growlCoach(jetAcm), 'The seeker sees his heat but does not track yet.', 'caution'];
           const c = irShotCheck(run.world, me, acm);
           if (!c.ok) return ['Tone, but no shot yet.', c.reason, 'caution'];
           return [fc3 ? 'ПР. Fire (Space).' : 'High tone. Fire (Space).', 'The seeker tracks him inside range and the off-boresight limit.', 'ok'];
@@ -621,7 +625,7 @@ const factory: PageFactory = (): Page => {
       },
       'M': () => { startAudio(); cycleMode(); },
       'Backspace': () => { if (run.acm) acmUnlock(run.world, run.me, run.acm); },
-      'C': () => { startAudio(); if (run.acm) toggleUncage(run.acm); },
+      [UNCAGE_KEY]: () => { startAudio(); if (run.acm) toggleUncage(run.acm); },
       'W': () => { startAudio(); setWeapon(weapon === 'ir' ? 'gun' : 'ir'); },
       '1': () => { if (flying()) setThrottle('idle'); },
       '2': () => { if (flying()) setThrottle('mil'); },

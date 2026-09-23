@@ -26,7 +26,7 @@ import { dirFrom } from './math';
 import { stepAircraft } from './flight';
 import { createMissile, stepMissile } from './missile';
 import { dropChaff, dropFlare, stepCountermeasures } from './countermeasures';
-import { canLock, createRadarState, cycleDesignation, designate, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type ScanChange } from './radar';
+import { canLock, createRadarState, cycleDesignation, designate, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
 import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
@@ -322,8 +322,8 @@ export class World {
   designate(id: EntityId, targetId: EntityId): void {
     const ac = this.aircraft.get(id); if (ac) designate(this, ac, targetId);
   }
-  lock(id: EntityId, targetId: EntityId): boolean {
-    const ac = this.aircraft.get(id); return !!ac && lockTarget(this, ac, targetId);
+  lock(id: EntityId, targetId: EntityId, frame: LockFrame = 'horizon'): boolean {
+    const ac = this.aircraft.get(id); return !!ac && lockTarget(this, ac, targetId, frame);
   }
   unlock(id: EntityId): void {
     const ac = this.aircraft.get(id); if (ac) unlock(this, ac);
@@ -337,9 +337,9 @@ export class World {
     const ac = this.aircraft.get(id); if (ac) cycleDesignation(this, ac);
   }
   /** Could this radar lock `targetId` right now? Reason in pilot words when not. */
-  canLock(id: EntityId, targetId: EntityId): LockCheck {
+  canLock(id: EntityId, targetId: EntityId, frame: LockFrame = 'horizon'): LockCheck {
     const ac = this.aircraft.get(id);
-    return ac ? canLock(this, ac, targetId) : { ok: false, reason: 'Aircraft is not alive' };
+    return ac ? canLock(this, ac, targetId, frame) : { ok: false, reason: 'Aircraft is not alive' };
   }
   setScan(id: EntityId, change: ScanChange): void {
     const ac = this.aircraft.get(id); if (ac) setScan(this, ac, change);

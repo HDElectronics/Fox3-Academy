@@ -112,7 +112,7 @@ function fc3(manual: string): AcmJet {
       { id: 'bore', name: 'BORE', sensor: 'irst', area: ok(cone(1.25), RU, '2.5° circle (slewable in DCS; fixed here).'), rangeM: range,
         lock: ok('enter', RU, 'Circle on him, then Enter.'), lockS: dwell, key: ok('4', RU_KEYS), cue: 'circle',
         note: 'Put the 2.5° circle on him and press Enter.' },
-      { id: 'helmet', name: 'HELMET', sensor: 'irst', area: nv(cone(45), TRAINER, 'Where the helmet can look and lock: trainer 45° cone round the nose.'), rangeM: range,
+      { id: 'helmet', name: 'HELMET', sensor: 'irst', area: nv(cone(45), TRAINER, 'Acquisition eligibility: trainer 45° cone round the nose; the padlock/look direction is independent.'), rangeM: range,
         lock: ok('enter', RU, 'Look at him, press Enter.'), lockS: dwell, key: ok('5', RU_KEYS), cue: 'helmet',
         note: 'Look at him (padlock), press Enter; fire when the ring flashes (ПР). An X above the ring: he is outside the seeker gimbal.' },
       { id: 'fi0', name: 'Fi0', sensor: 'seeker', area: ok(cone(1), RU, 'The missile\'s own seeker, a 2° cone on the boresight.'),
@@ -153,7 +153,7 @@ export const ACM: Record<GunJetId, AcmJet> = {
       missile: 'aim9m',
       uncage: nv('key', TRAINER, 'Growl then uncage: trainer rule for the FC3 F-15C.'), uncageKey: ok('6', EAGLE, 'Key 6: FLOOD / VISUAL / AIM-9 seeker cage.'),
       seekerFovDeg: nv(2, TRAINER), launchLimitDeg: nv(45, 'data/missiles.ts seeker gimbal', 'AIM-9M launch limit from the missile gimbal data; not verified.'),
-      readyCue: nv('high tone', TRAINER), tones: nv('growl, then a high tone when uncaged on him', TRAINER), fire: ok('Space', 'docs/research/f15c-fc3.md, key table'),
+      readyCue: nv('high tone', TRAINER), tones: nv('growl, then a high tone when uncaged on him', TRAINER), fire: ok('RAlt+Space', 'docs/research/f15c-fc3.md, key table', 'Weapon Release. Space also launching missiles is unverified; Space on this page is a trainer control.'),
     },
   },
   fa18c: {
@@ -162,7 +162,7 @@ export const ACM: Record<GunJetId, AcmJet> = {
       { id: 'bst', name: 'BST', sensor: 'radar', area: ok(cone(1.65), HORNET, '3.3° dashed HUD circle.'), rangeM: ok(10 * NM, HORNET),
         lock: autoLock(HORNET), lockS: dwell, key: ok('RAlt+;', HORNET_KEYS, 'Sensor Control Switch forward.'), cue: 'dashed-circle',
         note: 'Boresight: put the 3.3° circle on him.' },
-      { id: 'vacq', name: 'VACQ', sensor: 'radar', area: ok(box([-1.5, 1.5], [-13, 46]), HORNET, 'Elevation −13° to +46°; the 3° width is a trainer value.'),
+      { id: 'vacq', name: 'VACQ', sensor: 'radar', area: nv(box([-1.5, 1.5], [-13, 46]), HORNET, 'Elevation −13° to +46°; the 3° width is a trainer value.'),
         rangeM: ok(5 * NM, HORNET), lock: autoLock(HORNET), lockS: dwell, key: ok('RAlt+.', HORNET_KEYS, 'Sensor Control Switch aft (in ACM).'), cue: 'lines',
         note: 'Vertical acquisition: two dashed lines up the HUD. Roll him between them and pull.' },
       { id: 'wacq', name: 'WACQ', sensor: 'radar', area: ok(box([-30, 30], [-5, 5]), HORNET, '60° × 10° box, caged centre; centred on the boresight here.'),
@@ -198,7 +198,7 @@ export const ACM: Record<GunJetId, AcmJet> = {
       uncage: ok('key', VIPER_KEYS, 'UNCAGE switch.'), uncageKey: ok('C', VIPER_KEYS),
       seekerFovDeg: nv(2, TRAINER), launchLimitDeg: nv(90, 'data/missiles.ts seeker gimbal', 'AIM-9X limit from the missile gimbal data.'),
       readyCue: nv('high tone', TRAINER), tones: nv('growl, then a high tone when uncaged on him', TRAINER, 'Not in the research notes.'),
-      fire: nv('Space', TRAINER, 'Weapon Release (pickle) has no verified keyboard default.'),
+      fire: ok('RAlt+Space', VIPER_KEYS, 'WPN REL Button - Depress (hold). Space on this page is a trainer control.'),
     },
   },
   f14b: {
@@ -227,7 +227,7 @@ export const ACM: Record<GunJetId, AcmJet> = {
   jf17: {
     entry: ok('S1 forward enters ACM; S2 aft VT, forward BS, right HA. Auto-lock within 10 nm, then STT.', THUNDER),
     modes: [
-      { id: 'vt', name: 'VT', sensor: 'radar', area: ok(box([-5, 5], [-10, 40]), THUNDER, '10° × 50° vertical; the −10° lower edge is a trainer value.'),
+      { id: 'vt', name: 'VT', sensor: 'radar', area: nv(box([-5, 5], [-10, 40]), THUNDER, '10° × 50° vertical; the −10° lower edge is a trainer value.'),
         rangeM: ok(10 * NM, THUNDER), lock: autoLock(THUNDER), lockS: dwell, key: ok('S2 aft', THUNDER), cue: 'lines', note: 'Vertical: roll him into the strip and pull.' },
       { id: 'bs', name: 'BS', sensor: 'radar', area: ok(cone(2), THUNDER, '4° cone.'),
         rangeM: ok(10 * NM, THUNDER), lock: autoLock(THUNDER), lockS: dwell, key: ok('S2 forward', THUNDER), cue: 'circle', note: 'Boresight: nose on him.' },
@@ -247,7 +247,7 @@ export const ACM: Record<GunJetId, AcmJet> = {
     modes: [
       { id: 'm2k-bore', name: 'Boresight', sensor: 'radar', area: ok(cone(1.5), MIRAGE, '3° cone.'),
         rangeM: ok(10 * NM, MIRAGE), lock: autoLock(MIRAGE), lockS: dwell, key: nv('Weapons System CMD aft', MIRAGE, 'No keyboard default.'), cue: 'circle', note: 'Nose on him.' },
-      { id: 'm2k-vert', name: 'Vertical', sensor: 'radar', area: ok(box([-1.5, 1.5], [-10, 50]), MIRAGE, 'Two vertical lines from −10° to +50°; 3° width is a trainer value.'),
+      { id: 'm2k-vert', name: 'Vertical', sensor: 'radar', area: nv(box([-1.5, 1.5], [-10, 50]), MIRAGE, 'Two vertical lines from −10° to +50°; 3° width is a trainer value.'),
         rangeM: ok(10 * NM, MIRAGE), lock: autoLock(MIRAGE), lockS: dwell, key: nv('Weapons System CMD forward', MIRAGE, 'No keyboard default.'), cue: 'lines', note: 'Roll him between the lines and pull.' },
       { id: 'm2k-hud', name: 'HUD (SVI)', sensor: 'radar', area: ok(cone(10), MIRAGE, 'A spiral about a 20° cone.'),
         rangeM: ok(10 * NM, MIRAGE), lock: autoLock(MIRAGE), lockS: dwell, key: nv('Weapons System CMD forward', MIRAGE, 'No keyboard default.'), cue: 'none', note: 'Anything in the HUD cone.' },
@@ -270,9 +270,11 @@ export function acmFor(type: string): AcmJet | null {
 /** Every simplified or unverified ACM and IR value, in pilot words. */
 export const ACM_CAVEATS: string[] = [
   'ACM scan areas are drawn in the flight-path frame (no angle of attack) and scanned instantly after a short dwell: simplified.',
-  'FC3 close-combat lock range (10 km) and the HELMET 45° look limit are trainer values. VS lock: the FC3 manual says automatic, the Su-27 manual says Enter held; the trainer locks automatically after 2 s.',
+  'FC3 close-combat lock range (10 km) and the HELMET 45° acquisition limit are trainer values. VS lock: the FC3 manual says automatic, the Su-27 manual says Enter held; the trainer locks automatically after 2 s.',
+  'HELMET look follows the drill bandit independently of lock eligibility; its ring and X stay at the HUD edge when off screen: trainer aids. ACM locks drop beyond 60° or 1.5 times the acquisition range: trainer values.',
+  'Hornet GACQ selects guns. Selecting the IR missile while in GACQ switches to BST in this trainer.',
   'FC3 HUD mode strings are not confirmed (the manuals name VS, ОПТ – СТРОБ, ШЛЕМ, Фи0).',
   'Unstated pattern sizes are trainer values: F-15C BORE cone, Hornet VACQ width, F-16C BORE cone, F-14 PLM cone and PAL elevation, JF-17 VT lower edge and HA size, M-2000C vertical width.',
   'IR seeker: one 2° cone for every missile (Fi0 2° is verified), growl when it sees heat, high tone when it tracks. Seeker tones, the F-15C and F-14 uncage rule and every launch limit except the R-73 45° are not verified.',
-  'F-16C, F-14B and M-2000C mode keys and the Viper trigger have no verified keyboard default; the page uses trainer keys.',
+  'F-14B mode keys, uncage and fire, and M-2000C mode keys have no verified keyboard default. F-15C Space launching missiles is unverified; its documented Weapon Release and the Viper WPN REL use RAlt+Space. The page uses C to uncage and Space to fire as trainer controls.',
 ];

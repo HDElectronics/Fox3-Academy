@@ -129,6 +129,7 @@ export class MergeRun {
     if (def.start === 'overshoot') this.me.roll = 60 * D2R;
     this.metrics.circleAdvised = chooseCircle(ac, redType, 'veteran');
     this.acm = newAcmState(ac);
+    if (this.acm) this.acm.helmetLookId = this.bandit.id;
     this.startDir = this.me.vel.clone().normalize();
     this.lastRounds = this.me.gun.rounds;
     this.pursuit = classifyPursuit(this.me.pos, this.me.vel, this.bandit.pos, this.bandit.vel);

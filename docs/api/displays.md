@@ -269,9 +269,14 @@ scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-liv
 line, F-16 BORE cross, FC3 HELMET ring on the target direction flashing at 2 Hz for ПР with an X above it outside
 the seeker gimbal, Fi0 fixed cross), the scan area dim and dashed as a trainer aid, the lock box, the Western seeker
 circle (on the target when slaved or tracking), the mode and sensor label, a GROWL / TONE caption and the FC3 ПР.
+HELMET uses `helmetLookId` independently of candidate/lock eligibility, so an 80° look still shows the X after
+the lock drops. The ring/X are clamped inside the HUD when off screen, explicitly a trainer aid.
 `IrToneAudio` (`irToneAudio.ts`) follows the `RwrAudio` pattern: no AudioContext before `start()` from a user
 gesture, `setTone('none' | 'growl' | 'lock')` every frame, `setMuted`, `stop`, `dispose` in unmount (closes the
 context). Tests: `irToneAudio.test.ts` (fake AudioContext).
+Merge wraps this in `pages/merge/audio.ts`: `visibilitychange` (hidden) and `pagehide` dispose the graph;
+returning to the page does not restart it. A later visible-page gesture creates fresh audio. Unmount closes
+audio and removes all lifecycle listeners. Tests: `pages/merge/audio.test.ts` (fake AudioContext and events).
 
 ## GunSightDisplay (HUD gun sights, issue #11)
 

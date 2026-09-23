@@ -42,7 +42,7 @@ export function buildAcmPicture(world: World, me: Aircraft, st: AcmState): AcmPi
   const shot = irShotCheck(world, me, st);
   let helmet: AcmPicture['helmet'] = null;
   if (spec?.cue === 'helmet') {
-    const tgt = t ?? world.get(st.candidateId);
+    const tgt = world.get(st.helmetLookId);
     if (tgt && tgt.alive) {
       const a = acmAngles(me, tgt.pos);
       const gimbal = MISSILES[st.jet.ir.missile].seekerGimbalDeg ?? 45;
@@ -115,7 +115,10 @@ export function drawAcm(g: Gfx, th: Theme, p: HudProj, pic: AcmPicture): void {
   g.dash(null);
   // HELMET ring: on the target direction (padlock), flashing at 2 Hz for ПР; X above it outside the gimbal.
   if (pic.helmet) {
-    const hx = X(pic.helmet.az), hy = Y(pic.helmet.el), r = 3.2 * u;
+    // Trainer aid: keep the ring and its X visible when the look direction is outside the HUD.
+    const r = 3.2 * u;
+    const hx = Math.max(p.box.l + r, Math.min(p.box.r - r, X(pic.helmet.az)));
+    const hy = Math.max(p.box.t + r + 2.6 * u, Math.min(p.box.b - r, Y(pic.helmet.el)));
     if (!pic.ready || blinkOn(2)) { g.ink(ink, 1, 0.35); g.circle(hx, hy, r); }
     if (pic.helmet.outside) { g.ink(hi, 1, 0.35); const y = hy - r - 1.6 * u; g.segs([hx - u, y - u, hx + u, y + u, hx - u, y + u, hx + u, y - u]); }
   }

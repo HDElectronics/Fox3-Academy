@@ -9,7 +9,9 @@ import { ACM, type AcmArea } from '../data/acm';
 import { GUN_JET_IDS } from '../data/wvr';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
-import { D2R } from './math';
+import { D2R, dirFrom } from './math';
+import { stepRadar } from './radar';
+import { buildAcmPicture } from '../ui/displays/acmCues';
 import {
   acmAngles, acmPressLock, fireIr, inArea, irShotCheck, newAcmState, setAcmMode, stepAcm, toggleUncage, type AcmState,
 } from './acm';
@@ -39,6 +41,21 @@ function centre(area: AcmArea): [number, number] {
 }
 
 describe('ACM data', () => {
+  it('uses documented DCS missile release keys, separately from the trainer Space control', () => {
+    expect(ACM.f15c.ir.fire).toMatchObject({ value: 'RAlt+Space', verified: true });
+    expect(ACM.f15c.ir.fire.note).toContain('Space also launching missiles is unverified');
+    expect(ACM.f16c.ir.fire).toMatchObject({ value: 'RAlt+Space', verified: true });
+    expect(ACM.fa18c.ir.fire).toMatchObject({ value: 'Space', verified: true });
+  });
+
+  it('does not mark partially sourced scan areas as verified', () => {
+    for (const [jet, id] of [['fa18c', 'vacq'], ['jf17', 'vt'], ['m2000c', 'm2k-vert']] as const) {
+      const mode = ACM[jet].modes.find(m => m.id === id)!;
+      expect(mode.area.verified, id).toBe(false);
+      expect(mode.area.note, id).toContain('trainer value');
+      expect(mode.rangeM.verified, id).toBe(true);
+    }
+  });
   it('every fighter has modes and an IR missile it carries', () => {
     for (const id of GUN_JET_IDS) {
       const j = ACM[id];
@@ -62,6 +79,58 @@ describe('ACM data', () => {
 });
 
 describe('ACM acquisition', () => {
+  it.each([0, 70])('Hornet BST acquires and maintains STT at %s° pitch in the aircraft frame', pitch => {
+    const s = setup('fa18c', 0, pitch, 3000);
+    s.me.pitch = pitch * D2R;
+    s.me.vel.copy(dirFrom(0, s.me.pitch)).multiplyScalar(230);
+    s.b.vel.copy(s.me.vel);
+    setAcmMode(s.w, s.me, s.st, 'bst');
+    run(s.w, s.me, s.st, 1);
+    expect(s.st.lockedId, s.st.msg).toBe(s.b.id);
+    // Exercise the radar's STT maintenance for longer than its memory, at fixed relative geometry.
+    for (let i = 0; i < 100; i++) {
+      s.w.t += 0.05;
+      stepRadar(s.w, s.me, 0.05);
+      stepAcm(s.w, s.me, s.st, 0.05);
+      expect(s.me.radar.stt.lostFor).toBe(0);
+      expect(s.me.radar.stt.targetId).toBe(s.b.id);
+    }
+    // A fresh ordinary BVR lock still uses its existing horizon check.
+    s.w.unlock(s.me.id);
+    expect(s.w.lock(s.me.id, s.b.id)).toBe(pitch === 0);
+  });
+
+  it('does not carry the ACM gimbal frame into a subsequent ordinary BVR STT', () => {
+    const s = setup('fa18c', 0, 0, 3000);
+    setAcmMode(s.w, s.me, s.st, 'bst');
+    run(s.w, s.me, s.st, 1);
+    s.w.unlock(s.me.id);
+    expect(s.w.lock(s.me.id, s.b.id)).toBe(true);
+    s.me.pitch = 70 * D2R;
+    s.me.vel.copy(dirFrom(0, s.me.pitch)).multiplyScalar(230);
+    s.b.pos.copy(s.me.pos).addScaledVector(dirFrom(0, s.me.pitch), 3000);
+    s.b.vel.copy(s.me.vel);
+    stepRadar(s.w, s.me, 0.05);
+    expect(s.me.radar.stt.lostFor).toBeGreaterThan(0);
+  });
+
+  it('HELMET keeps the look direction at 80° before acquisition and after losing a lock', () => {
+    const s = setup('su27', 80, 0, 2500);
+    setAcmMode(s.w, s.me, s.st, 'helmet');
+    run(s.w, s.me, s.st, 0.1);
+    expect(acmPressLock(s.w, s.me, s.st)).toBe(false);
+    expect(s.st.candidateId).toBeNull();
+    expect(buildAcmPicture(s.w, s.me, s.st).helmet).toMatchObject({ outside: true });
+    expect(buildAcmPicture(s.w, s.me, s.st).helmet!.az).toBeCloseTo(80);
+    s.b.pos.set(0, ALT, -2500);
+    expect(acmPressLock(s.w, s.me, s.st)).toBe(true);
+    s.b.pos.set(2500 * Math.sin(80 * D2R), ALT, -2500 * Math.cos(80 * D2R));
+    run(s.w, s.me, s.st, 0.1);
+    expect(s.st.lockedId).toBeNull();
+    expect(buildAcmPicture(s.w, s.me, s.st).helmet).toMatchObject({ outside: true });
+    expect(s.st.helmetLookId).toBe(s.b.id);
+  });
+
   it('angles and areas agree', () => {
     const { me, b } = setup('f15c', 10, 20, 3000);
     const a = acmAngles(me, b.pos);
