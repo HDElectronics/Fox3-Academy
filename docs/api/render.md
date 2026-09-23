@@ -638,3 +638,38 @@ a flat target pad, an overview, a ground-detail view and a 23× optical zoom tog
 The focus param is `x,z` in metres, clamped inside the map; panning updates terrain/prop focus.
 The HUD reports chunk LOD counts, draw calls and triangles. It caps DPR at 1.5 and cleans up
 controls, listeners, frame subscription, terrain, props and Stage on page hide or hot reload.
+
+## Attack scene (`attack/`)
+
+Ground-attack kit for the Su-25T pages. Import from `src/render/attack`. Game level only (AGENTS.md rule 1).
+
+```ts
+const field = createAttackField({ seed: 25, pads: [{ x: 0, z: 0, radiusM: 900 }] }); // flattened target area
+world.terrain = terrainHook(field);          // AttackScene also installs it
+const view = new WorldView(stage, world, { units: 'metric' });
+const scene = new AttackScene(stage, world, view, { field, shooterId: me.id });
+const tv = new ShkvalTv(stage, { hidden: () => scene.tvHidden() });
+stage.onFrame(() => { if (sh.on) tv.render(me.pos, shkvalDir(me), shkvalFovDeg(sh.zoom).v); }, { priority: FramePriority.env + 50 });
+itDisplay.draw(state, tv.image);
+```
+
+- `createAttackField(opts)`: `createHeightField` (seed 25, 44 km, 512 cells, 380 m relief by default) with each pad
+  flattened at its own height. `terrainHook(field)` → `TerrainHook` for `world.terrain`: `heightAt`, and
+  `lineOfSight` with end points lifted `LOS_LIFT_M` (2 m) above the ground, because the height-field query treats a
+  ray touching the terrain as blocked while ground units sit on it; end points are clamped inside the map.
+- `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: TerrainMesh and
+  TerrainProps (focus follows the Shkval aim point), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
+  SAM launcher, AAA; scale follows `sizeM`, charred when dead), A-G weapons in flight (missile, rocket and bomb
+  bodies, Vikhr and rocket smoke, gun tracers, a glow at each head), impacts from `ag-impact` events
+  (`view.addExplosion` plus a smoke column), and, for the shooter: the laser line jet → aim point while ЛД is on,
+  the Shkval field-of-view cone and footprint, and the lock gimbal shell (±35°, +15..−85°, 5 km). Layers
+  (`setLayer`): `laser`, `fov`, `gimbal` (off by default), `markers` (screen-size unit diamonds, lock brackets,
+  stabilised point cross), `smoke`. `setWorld(world)` after a restart; `tvHidden()` lists what the TV pass hides
+  (the overlay, the WorldView group with the own jet and tags, clouds). `dispose()` frees everything.
+- `ShkvalTv(stage, { width = 320, height = 240, every = 2, hidden })`: a PerspectiveCamera at the jet along the
+  sight line with the zoom's vertical field of view renders the Stage scene into a WebGLRenderTarget every
+  `every`-th call, reads it back and writes a black-and-white picture (`tvLut`: sRGB transfer and a contrast
+  stretch; `toGreyImage` flips GL rows) into `image` (a 2D canvas). The sky dome is moved to the TV camera for the
+  pass and restored. Cost: one small extra render and a 300 KB read-back every other frame.
+
+Pure helpers (tested in `attack.test.ts`): `createAttackField`, `terrainHook`, `tvLut`, `toGreyImage`, `unitModelScale`.
