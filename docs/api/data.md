@@ -379,6 +379,19 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 - Default wingspan 13 m for F-15C, F-14B, JF-17, M-2000C (no manual value).
 - Trigger keys: F-16C, F-14B, JF-17, M-2000C `Space` is a trainer key; F-14B, JF-17, M-2000C gun select has no single key.
 
+### Close-range acquisition and IR shot
+
+`src/data/acm.ts` (`ACM`, `acmFor(type)`, `ACM_CAVEATS`): per fighter, the ACM modes (`AcmModeSpec`: scan area as a
+cone or az × el box in degrees, lock range, lock rule `auto` / `enter`, dwell, sensor radar / IRST / seeker, key, HUD
+cue) and the IR shot (`IrShotSpec`: missile, uncage rule and key, seeker field of view, launch limit, ready cue,
+tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomcat-thunder-mirage.md`. Not verified:
+- FC3 lock range 10 km and the HELMET 45° look limit; VS lock rule (FC3 manual automatic, Su-27 manual Enter held).
+- Pattern sizes the notes do not give: F-15C BORE cone, Hornet VACQ width and WACQ centre, F-16C BORE cone, F-14 PLM
+  cone and PAL elevation, JF-17 VT lower edge and HA size, M-2000C vertical width.
+- Every seeker field of view except Fi0 2°, every launch limit except the R-73 45°, every seeker tone description,
+  the F-15C and F-14 uncage rule; the 0.5 s dwell (gameplay).
+- Keys: F-14B mode controls, M-2000C Weapons System CMD, F-16C trigger, F-14B uncage and fire have no verified default.
+
 ## Requests (to the architect)
 
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.

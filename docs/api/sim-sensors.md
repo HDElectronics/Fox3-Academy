@@ -30,6 +30,24 @@ bandit.rwr;                                       // what the bandit's RWR shows
 explainDetection(world, me, bandit).reasons;      // ["In the notch: 12 kt radial speed, gate 54 kt"]
 ```
 
+## Close-range acquisition and the IR seeker (`acm.ts`)
+
+Gameplay-level ACM for the Merge page (issue #11); no change to `Aircraft` or `RadarState`: the page owns an
+`AcmState` from `newAcmState(type)` (null without data in `src/data/acm.ts`).
+
+- `setAcmMode(world, me, st, id | null)`: select a mode; drops any lock. Radar modes put the radar in search; FC3
+  IRST and Fi0 modes switch it off (silent).
+- `stepAcm(world, me, st, dt)` after `World.step`: validates the lock (dead, beyond 1.5 × lock range, 60° off the
+  nose, radar STT lost), locks the closest hostile held in the area for the mode's dwell (`auto` modes), and steps
+  the seeker. Radar locks go through `World.lock` (STT, so the target's RWR sees it); IRST locks are internal.
+- `acmPressLock` (Enter; FC3 BORE / HELMET), `acmUnlock`, `toggleUncage` (cage / uncage).
+- Seeker: `caged` on the boresight, `slaved` to the lock inside the missile gimbal, `track` once it tracks. Tone
+  `none` / `growl` (heat inside the field of view and IR acquisition range, `launch.irAcquisitionRange`) / `lock`
+  (tracking: auto after 0.3 s on FC3 and Magic II, on uncage for AIM-9 and PL-5).
+- `irShotCheck` = `World.canLaunch` for the IR missile plus the jet's off-boresight limit; `inZone` also needs the
+  tone. `fireIr` launches through `World.launch`. Angles are in the HUD frame (flight path, lift vector): `acmAngles`.
+- Deterministic, no randomness. Tests: `src/sim/acm.test.ts`.
+
 ## Recorded sensor state
 
 `World.recording` samples each aircraft's `radarContacts` every 0.25 s alongside its existing radar mode,
