@@ -161,6 +161,59 @@ kept while the contact persists; `lastSeen` is the last paint for search. An `rw
 `{ ownerId, emitterId, state }` fires when a contact appears or escalates (search < lock < launch < missile).
 Also exported: `rwrRank(state)`, `searchHoldTime(emitter)`.
 
+SAM sites add their own contact through `samRwrContact()` (sam.ts, below): `emitterType` is the site's class
+(`'sam-long' | 'sam-medium' | 'sam-short'`), `emitterId` the site id. Search while its search radar paints us,
+lock while its track radar holds us, launch while one of its missiles is guided on us. SAMs never make a
+`missile` contact (no active seeker). The per-jet display (SPO-15 lamps, ALR-67 SAM lamp, HSD circles) is the
+display kit's job; the symbol comes from `rwrSymbol(rwr, emitterType)`.
+
+## sam.ts (SAM sites)
+
+Gameplay rules only (ARCHITECTURE.md "Scope"); facts in `src/data/sams.ts`, research in
+`docs/research/sam-threats.md`. SAM sites and SAMs are **separate from aircraft and air-to-air missiles**:
+`world.samSites` / `world.samMissiles` (a SAM has no `MissileId`, no DLZ table, no `Missile` record).
+
+```ts
+const site = world.spawnSam({ id: 'sam1', side: 'red', type: 'sa11', pos: { x: 0, z: -40000 }, maskAltM: 200 });
+world.setSamActive(site.id, false);   // silent: no search, no track, no RWR; drops a track
+site.holdFire = true;                  // track and lock, never launch (drills)
+site.state;                            // 'off' | 'search' | 'track' | 'engage'
+world.on(e => { if (e.type === 'sam') … });   // what: 'track' | 'launch' | 'lost' (why: SamLostReason)
+```
+
+| Export | What it does |
+|---|---|
+| `stepSams(world, dt)` | Called by World after the air-to-air missiles: sites, then SAMs in flight. |
+| `SAM_MODEL[type]` / `samModel(type)` | Gameplay constants: antenna height (horizon), acquisition delay, salvo gap, missiles in flight per target, load, missile speed curve and turn cap, notch gate, notch hold, chaff chance. Not verified in game. |
+| `samRingM(type)` | Threat-ring radius (m) from `SAMS[type].threatRingKm`. |
+| `samSightBlock(site, ac)` | `'horizon' \| 'terrain' \| 'below-ground' \| null`: line-of-sight rule. |
+| `samNotchGate(site, ac)` / `samNotchDepth(site, ac)` | The site's notch gate and `{ inNotch, depth, radialMps, gateMps }`, for coaching overlays. |
+| `samLaunchCheck(site, ac)` | `{ ok, reason }`: altitude band, minimum range, intercept point inside the ring. |
+| `samRwrContact(world, site, rx, prev)` | The RWR contact a site makes on `rx` (used by rwr.ts). |
+| `SEARCH_FACTOR` 1.25, `TRACK_FACTOR` 1.1, `LOST_GRACE_S` 1.5, `REACQUIRE_S` 3, `MASK_NEAR_M` 2000 | Rule constants. |
+
+Rules:
+
+- **Search**: every live aircraft (any side) in line of sight inside `SEARCH_FACTOR ×` ring → `site.painted`.
+- **Track**: nearest painted enemy inside the ring; `sam` event `track`. Survives `LOST_GRACE_S` without line of
+  sight (extrapolated), then drops (`terrain`, `horizon` or `range` beyond `TRACK_FACTOR ×` ring).
+- **Launch**: `acquireS` after the lock, `salvoGapS` between shots, at most `maxInFlight` guided on one target,
+  target inside the altitude band, outside minimum range, and the intercept point (flyout at `avgMps`) inside the
+  ring. `sam` event `launch`. `holdFire` blocks it.
+- **Guidance**: `track-to-impact`: the SAM steers to the intercept point of the site's track. When the track drops
+  every SAM on that target goes ballistic (`seeker-lost` event with `notched | chaff | lost-guidance`) and later
+  misses with that reason. A hit calls `world.kill(target, siteId)` and emits `hit`.
+- **Line of sight**: radar horizon `4.12 km × (√antennaM + √h)` (h above the site) and, beyond 2 km, targets
+  below `site.maskAltM` hidden by terrain.
+- **Notch**: radial speed vs the ground below the site's gate (half above 10° elevation) for `notchHoldS` drops
+  the track (`notched`). **Chaff**: each bundle the tracked target drops while `depth > 0` is rolled once with
+  `chaffChance × depth` (`world.rand()`); chaff while hot or cold does nothing.
+- After a drop the site waits `REACQUIRE_S`, then may lock again and the acquisition delay restarts.
+- Recording: `RecordFrame.sams` and `RecordFrame.samMissiles` (optional; absent without SAMs).
+
+Known gaps: aircraft AI (ai.ts) does not react to SAM contacts yet; sites cannot be destroyed; no SAM rendering
+in `WorldView` yet (render agent: draw `world.samSites` / `world.samMissiles`).
+
 ## launch.ts
 
 `canLaunch(world, ac, targetId?, missile?) → LaunchCheck` (what `World.canLaunch/launch` use). On failure it still
@@ -237,6 +290,7 @@ Also exported: `launchTarget(world, ac, missile?)`, `launchConeDeg(missile)`, `i
 - ACM is one generic 10 nm strip for all jets.
 - VS bricks carry a range the real mode does not have.
 - FC3 Russian launch override (LAlt + W) does not exist: no launch before ПР.
+- SAM sites: one representative site per RWR class, a single track-to-impact guidance rule, a flat-world horizon plus mask-height terrain rule, and arcade missile constants tuned to the rings (not verified in game).
 
 ## MiG-29S СНП2
 
