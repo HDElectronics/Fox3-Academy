@@ -14,7 +14,9 @@ import { cruiseFor, defaultAdversary } from '../../sim/scenarios';
 import {
   h, cleanup, consolePanel, segmented, select, slider, button, callout, placard, pageHeader, bindKeys, setText,
 } from '../../ui';
-import { briefFacts, enemyCount, SKILLS, TIME_SCALES, type SortieSetup, type ScenarioId, type TimeScale } from './setup';
+import { briefFacts, enemyCount, samPlacements, SAM_COUNTS, SKILLS, TIME_SCALES, type SamCount, type SortieSetup, type ScenarioId, type TimeScale } from './setup';
+import type { SamId } from '../../data/types';
+import { SAMS, SAM_ORDER } from '../../data/sams';
 
 export interface BriefOptions {
   ctx: PageContext;
@@ -80,6 +82,16 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
     options: TIME_SCALES.map(v => ({ value: v, label: `${v}×`, sub: v === 1 ? 'real time' : undefined })),
     onChange: v => { s.timeScale = v; },
   });
+  const samCount = segmented<SamCount>({
+    id: 'sortie-sams', label: 'SAM sites', value: s.sams, fill: true,
+    options: SAM_COUNTS.map(n => ({ value: n, label: n === 0 ? 'None' : String(n) })),
+    onChange: v => { s.sams = v; refresh(); },
+  });
+  const samType = segmented<SamId>({
+    id: 'sortie-samtype', label: 'SAM class', value: s.samType, fill: true,
+    options: SAM_ORDER.map(id => ({ value: id, label: SAMS[id].nato.split(' ')[0], sub: `${fmtRange(SAMS[id].threatRingKm * 1000, units, 0)} ring` })),
+    onChange: v => { s.samType = v; refresh(); },
+  });
   const fly = button({ id: 'sortie-go', label: 'Fly the sortie', variant: 'primary', size: 'l', block: true, keys: 'Enter', onClick: () => o.onFly({ ...s }) });
 
   // Brief text (rebuilt on every change: small).
@@ -105,7 +117,9 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       h('ul', { class: 'sortie-list' }, f.threats.map(t => h('li', null, t))),
       placard('Your jet'),
       h('ul', { class: 'sortie-list' }, f.yourJet.map(t => h('li', null, t))),
+      ...(f.sams.length ? [placard('SAM sites'), h('ul', { class: 'sortie-list' }, f.sams.map(t => h('li', null, t)))] : []),
     );
+    samType.el.hidden = !s.sams;
     drawZones(f.zones, f.edge);
     drawPicture();
   }
@@ -155,6 +169,13 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
     if (s.scenario === '2v2') jet(W / 2 + 26, y0 + 4, true, 'pic-jet pic-jet--blue');
     if (enemyCount(s.scenario) > 1) { jet(W / 2 - 14, y1, false, 'pic-jet pic-jet--red'); jet(W / 2 + 14, y1, false, 'pic-jet pic-jet--red'); }
     else jet(W / 2, y1, false, 'pic-jet pic-jet--red');
+    // SAM sites: a triangle and the threat ring to scale (clipped to the picture).
+    for (const p of samPlacements(s)) {
+      const a = ((p.offsetDeg ?? 0) * Math.PI) / 180, r = (p.range ?? 0) * k;
+      const x = W / 2 + Math.sin(a) * r, y = y0 - Math.cos(a) * r;
+      g.append(svg('circle', { cx: x, cy: y, r: SAMS[p.type].threatRingKm * 1000 * k, class: 'pic-sam-ring' }));
+      g.append(svg('path', { d: `M${x} ${y - 6} L${x + 6} ${y + 5} L${x - 6} ${y + 5} Z`, class: 'pic-sam' }));
+    }
     g.append(svg('text', { x: 10, y: y0 + 4, class: 'pic-txt' }, fmtAlt(s.playerAlt, units)));
     g.append(svg('text', { x: 10, y: y1 + 4, class: 'pic-txt' }, fmtAlt(s.enemyAlt, units)));
     g.append(svg('text', { x: W - 8, y: y0 + 4, class: 'pic-txt', 'text-anchor': 'end' }, `start ${fmtRange(s.range, units, 0)}`));
@@ -174,7 +195,7 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       lede: 'Fly a full BVR fight against AI that shoots back, then debrief it like Tacview: every shot, every warning, what you did about it.',
     }),
     h('div', { class: 'sortie-brief__grid' },
-      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
+      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, samCount.el, samType.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
       consolePanel({ title: 'Brief', class: 'sortie-brief__text', children: [title, h('div', { class: 'sortie-brief__cols' }, h('div', null, lines), h('div', { class: 'sortie-brief__side' }, picture, zonesEl))] }).el,
     ),
     h('div', { class: 'sortie-brief__foot' },

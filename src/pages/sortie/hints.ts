@@ -4,7 +4,8 @@
  * you, a launch or lock warning, supporting your own missile, being inside his Rne, the shot, the
  * approach, the search.
  */
-import type { RadarModeId, SeekerKind } from '../../data/types';
+import type { RadarModeId, SamId, SeekerKind } from '../../data/types';
+import { SAMS } from '../../data/sams';
 import { fmtRange, clockCode, type Units } from '../../app/format';
 import { D2R } from '../../sim/math';
 
@@ -27,7 +28,7 @@ export interface HintState {
   contacts: number;
   primary: { label: string; range: number; rmax: number | null; rne: number | null } | null;
   /** Top RWR contact (the display's priority threat). bearing rad rel nose (+ right), elevation rad. */
-  rwr: { state: 'search' | 'lock' | 'launch' | 'missile'; bearing: number; elevation: number; emitter: string; missile: string | null; seeker: SeekerKind | null } | null;
+  rwr: { state: 'search' | 'lock' | 'launch' | 'missile'; bearing: number; elevation: number; emitter: string; missile: string | null; seeker: SeekerKind | null; /** The emitter is a SAM site of this class. */ sam?: SamId | null } | null;
   /** Your missiles still flying, supported ones first. */
   own: { label: string; guidance: string; tta: number | null; tti: number | null; target: string; targetOffDeg: number | null }[];
   /** Bandits as the AWACS picture gives them (truth). bearing rad rel nose. */
@@ -51,6 +52,12 @@ export function flightHint(s: HintState): Hint {
     if (beam && !below) return { text: `Missile on the beam at ${clockCode(r.bearing)}. Now dive below it and keep chaff going${k(s.keys.chaff)}.`, why: 'The seeker loses you in the notch only with ground behind you: be lower than the missile.', tone: 'warning' };
     if (beam) return { text: `Good notch: missile at ${clockCode(r.bearing)}, you are below it. Hold the beam and chaff${k(s.keys.chaff)}.`, why: 'Zero closure plus ground clutter hides you from its Doppler seeker; chaff only works while you sit in the notch.', tone: 'warning' };
     return { text: `Missile active at ${clockCode(r.bearing)}: turn to put it at ${r.bearing >= 0 ? '3' : '9'} o'clock, dive, chaff${k(s.keys.chaff)}. Or press NOTCH.`, why: 'An active seeker needs closure to see you. Beam it and it sees you as ground clutter.', tone: 'warning' };
+  }
+  if (r?.sam && (r.state === 'launch' || r.state === 'lock')) {
+    const site = SAMS[r.sam].nato.split(' ')[0];
+    const beam = r.bearing >= 0 ? '3' : '9';
+    if (r.state === 'launch') return { text: `${site} launch from ${clockCode(r.bearing)}: beam the site (put it at ${beam} o'clock), dive and chaff${k(s.keys.chaff)}.`, why: `A SAM rides the site's track to impact. Break the track (notch plus chaff, terrain) and it goes dumb.${r.sam === 'sa10' ? ' The SA-10 is the hardest to notch: get low and leave its ring.' : ''}`, tone: 'warning' };
+    return { text: `${site} lock at ${clockCode(r.bearing)}: you are inside its ring. Turn out of it, or beam the site and descend.`, why: `Its ring is about ${fmtRange(SAMS[r.sam].threatRingKm * 1000, s.units, 0)}. A launch follows the lock within seconds.`, tone: 'caution' };
   }
   if (r?.state === 'launch') {
     if (r.seeker === 'sarh') return { text: `${r.emitter} launched ${r.missile ?? 'a missile'} from ${clockCode(r.bearing)}: notch HIS radar. Put him at ${r.bearing >= 0 ? '3' : '9'} o'clock, dive, chaff.`, why: 'A semi-active shot rides his lock. Break the lock and the missile goes dumb and ignores chaff.', tone: 'warning' };

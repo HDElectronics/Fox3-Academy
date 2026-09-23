@@ -4,16 +4,17 @@
  * in-game launch zone (dlzFor) at the chosen altitudes, and the AI skill table.
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { AircraftId, MissileId, SamId } from '../../data/types';
+import { SAMS, SAM_ORDER } from '../../data/sams';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import type { AiSkill } from '../../sim/types';
 import { World } from '../../sim/world';
-import { cruiseFor, defaultAdversary, duel, pair, twoVTwo, type Engagement } from '../../sim/scenarios';
+import { cruiseFor, defaultAdversary, duel, pair, twoVTwo, type Engagement, type SamPlacement } from '../../sim/scenarios';
 import { dlzFor } from '../../sim/dlz';
 import { speedFromMach } from '../../sim/atmosphere';
 import { AI_SKILLS } from '../../sim/ai';
-import { fmtRange, type Units } from '../../app/format';
+import { fmtAlt, fmtAltFine, fmtRange, type Units } from '../../app/format';
 import type { ScenarioId, SortieResult } from './coach';
 
 export type { ScenarioId } from './coach';
@@ -35,13 +36,19 @@ export interface SortieSetup {
   enemyAlt: number;
   timeScale: TimeScale;
   seed: number;
+  /** SAM sites on the bandits' side (0 = none) and their class. */
+  sams: SamCount;
+  samType: SamId;
 }
+
+export type SamCount = 0 | 1 | 2;
+export const SAM_COUNTS: SamCount[] = [0, 1, 2];
 
 export function defaultSetup(ac: AircraftId): SortieSetup {
   const enemy = defaultAdversary(ac);
   return {
     scenario: '1v1', enemy, skill: 'regular', range: 100_000,
-    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1,
+    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1, sams: 0, samType: 'sa11',
   };
 }
 
@@ -61,19 +68,45 @@ export function parseSetup(ac: AircraftId, raw: unknown): SortieSetup {
       enemyAlt: num(o.enemyAlt, 2_000, 13_000, d.enemyAlt),
       timeScale: TIME_SCALES.includes(o.timeScale as TimeScale) ? (o.timeScale as TimeScale) : d.timeScale,
       seed: 1,
+      sams: o.sams === 1 || o.sams === 2 ? o.sams : 0,
+      samType: o.samType && SAM_ORDER.includes(o.samType) ? o.samType : d.samType,
     };
   } catch { return d; }
 }
 
 /** Spawn the fight into a fresh World. */
 export function buildSortie(world: World, ac: AircraftId, s: SortieSetup, units: Units): Engagement {
-  const opts = { range: s.range, playerAlt: s.playerAlt, enemyAlt: s.enemyAlt, units };
+  const opts = { range: s.range, playerAlt: s.playerAlt, enemyAlt: s.enemyAlt, units, sams: samPlacements(s) };
   if (s.scenario === '1v2') return pair(world, ac, s.enemy, s.skill, opts);
   if (s.scenario === '2v2') return twoVTwo(world, ac, s.enemy, s.skill, opts);
   return duel(world, ac, s.enemy, s.skill, opts);
 }
 
 export const enemyCount = (s: ScenarioId) => (s === '1v1' ? 1 : 2);
+
+/**
+ * SAM sites for the sortie: on the bandits' side of the fight, off the centre line, placed so you meet the ring
+ * on the way in (at least just outside it at the start, and no nearer than about half the start range).
+ */
+export function samPlacements(s: Pick<SortieSetup, 'sams' | 'samType' | 'range'>): SamPlacement[] {
+  const ring = SAMS[s.samType].threatRingKm * 1000;
+  const range = Math.max(ring * 1.15, s.range * 0.55);
+  const offs = s.sams === 2 ? [18, -18] : s.sams === 1 ? [12] : [];
+  return offs.map(offsetDeg => ({ type: s.samType, range, offsetDeg }));
+}
+
+/** Brief lines for the SAM sites (empty without sites). AI jets ignore SAMs: said as simplified. */
+export function samBriefLines(s: Pick<SortieSetup, 'sams' | 'samType' | 'range'>, units: Units): string[] {
+  if (!s.sams) return [];
+  const sp = SAMS[s.samType];
+  const p = samPlacements(s)[0];
+  const short = sp.nato.split(' ')[0];
+  return [
+    `${s.sams === 2 ? 'Two' : 'One'} ${sp.nato} site${s.sams === 2 ? 's' : ''} ahead, about ${fmtRange(p.range ?? 0, units, 0)} out: ring ${fmtRange(sp.threatRingKm * 1000, units, 0)}, ${fmtAltFine(sp.minAltM, units)} to ${fmtAlt(sp.maxAltM, units)} (not verified in the Mission Editor).`,
+    `The RWR shows ${short} search, then lock, then launch. ${sp.defeat[0]}`,
+    'Simplified: the AI jets ignore the SAM sites and fly the fight as if they were not there. The sites shoot only at your side.',
+  ];
+}
 
 // ───────────────────────────────────────────────────────────── brief facts
 
@@ -87,6 +120,7 @@ export interface BriefFacts {
   skill: string;
   zones: ZoneBar[];
   edge: string;
+  sams: string[];
 }
 
 /** Best radar missile in a loadout (longest ED head-on reference), else the best IR one. */
@@ -187,7 +221,7 @@ export function briefFacts(ac: AircraftId, s: SortieSetup, units: Units): BriefF
     radar,
     you: `${me.name}: ${loadoutText(ac)}.`,
     them: `${n}× ${en.name}, ${s.skill}: ${loadoutText(s.enemy)} each.`,
-    threats, yourJet, skill, zones, edge,
+    threats, yourJet, skill, zones, edge, sams: samBriefLines(s, units),
   };
 }
 

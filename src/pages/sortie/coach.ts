@@ -600,6 +600,36 @@ function ruleSummary(inp: CoachInput, nm: Namer): CoachItem[] {
   return out;
 }
 
+/** SAM sites: shot down by one, or broke its track. Reads the 'sam' events (sites have no ShotRecord). */
+export function ruleSam(inp: CoachInput, nm: Namer): CoachItem[] {
+  const out: CoachItem[] = [];
+  const mine = inp.events.filter((e): e is Extract<SimEvent, { type: 'sam' }> => e.type === 'sam' && e.targetId === inp.playerId);
+  const death = inp.events.find((e): e is Extract<SimEvent, { type: 'kill' }> => e.type === 'kill' && e.targetId === inp.playerId);
+  const sites = [...new Set(mine.map(e => e.siteId))];
+  for (const id of sites) {
+    const ev = mine.filter(e => e.siteId === id);
+    const launch = ev.find(e => e.what === 'launch');
+    const broke = ev.find(e => e.what === 'lost' && (e.why === 'notched' || e.why === 'chaff' || e.why === 'terrain' || e.why === 'horizon'));
+    if (death && death.by === id) {
+      out.push({
+        id: `sam-death-${id}`, kind: 'mistake', severity: 3, t: death.t, focus: inp.playerId, title: 'SAM kill',
+        text: `The ${nm.name(id)} site shot you down${launch?.range ? `, launched at ${nm.range(launch.range)}` : ''}. Stay outside its ring, get low behind terrain, or beam the site and chaff at the lock.`,
+      });
+    } else if (launch && broke) {
+      out.push({
+        id: `sam-break-${id}`, kind: 'good', severity: 2, t: broke.t, focus: inp.playerId, title: 'SAM defeated',
+        text: `You broke the ${nm.name(id)} track (${broke.why}) after its launch at ${nm.range(launch.range ?? null)}: its missile went ballistic.`,
+      });
+    } else if (launch) {
+      out.push({
+        id: `sam-launch-${id}`, kind: 'note', severity: 1, t: launch.t, focus: inp.playerId, title: 'SAM launch',
+        text: `The ${nm.name(id)} site fired at you at ${nm.range(launch.range ?? null)} and you survived. Watch its ring: a lock inside it means a launch is seconds away.`,
+      });
+    }
+  }
+  return out;
+}
+
 /** How a shot at you left, in the words that matter for the defence. */
 function launchHow(s: ShotRecord): string {
   const seeker = MISSILES[s.missile].seeker;
@@ -627,7 +657,7 @@ export function coachSortie(inp: CoachInput): CoachItem[] {
   const items = [
     ...ruleSupportLost(inp, nm), ...ruleShotQuality(inp, nm), ...ruleCrank(inp, nm), ...ruleDefence(inp, nm),
     ...ruleHotInRne(inp, nm), ...ruleEarlyLock(inp, nm), ...ruleChaff(inp), ...ruleSilentShot(inp, nm),
-    ...ruleFratricide(inp, nm), ...ruleSummary(inp, nm),
+    ...ruleFratricide(inp, nm), ...ruleSummary(inp, nm), ...ruleSam(inp, nm),
   ];
   return items.sort((a, b) => rank(b) - rank(a) || (a.t ?? 1e9) - (b.t ?? 1e9));
 }
