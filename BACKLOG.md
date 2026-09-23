@@ -36,9 +36,6 @@ No open items.
   interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
   M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
   routes, and frame rate on low-end GPUs. Hold cancellation and thresholds have automated regression tests.
-- **B18. Sandbox cleanup.** `sandbox/` holds many probe configs and harnesses from the build waves. Keep the
-  harness pages that still run (`render.html`, `ui.html`, `displays.html`, `frame.html`, page cycle harnesses)
-  and delete stale probes.
 
 ## P4 — Ideas
 

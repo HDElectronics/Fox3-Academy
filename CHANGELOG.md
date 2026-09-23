@@ -11,6 +11,8 @@
 - B19: Add `npm run build:web`, a code-split build for normal static hosts (shell, one chunk per page,
   three.js vendor chunk) that cuts first load from about 600 KB to 22 KB plus the opened page (Learn about
   370 KB) gzipped; the single-file build is unchanged. Failed page loads offer Retry and Reload app.
+- B18: Remove stale sandbox probes (vitest probe configs, dump scripts and one-off page checks); keep the kit,
+  page-cycle and phone-frame harnesses, and typecheck `sandbox/` with the app.
 - B11: Make keyboard defaults, binding groups, radar capabilities and missile uncertainty typed data;
   migrate page consumers and separate FC3 expected range from the radar cursor, including scene restarts.
 - B12: Adopt shared camera, detection explanation, seeker-state and slider-zone APIs across the lessons.

@@ -124,8 +124,12 @@ the page (`src/pages/<name>/style.css`).
 - `npm test` runs about 390 fast tests: sim physics and sensors, AI and a 10-matchup duel sweep, displays and
   key parsing, and the pure logic of every page (quiz generation, sortie coaching, defense scoring, ...).
 - `TUNE=1 npx vitest run tests/tune` refits the missile model and regenerates the DLZ tables (slow).
-- `sandbox/*.html` pages are dev-only harnesses for the kits and some pages; `sandbox/*.vitest.config.ts` run
-  probe tests that are not part of `npm test`.
+- `sandbox/*.html` pages are dev-only harnesses, typechecked with the app but not built. Kit harnesses:
+  `render.html`, `ui.html` (`?selftest=1` runs the kit self-test), `displays.html`, `displays-live.html`.
+  Page harnesses mount a real page, drive it and check unmount cleanup: `defense-cycle.html`,
+  `hangar-cycle.html`, `reference-cycle.html`, `radar-lab.html`, `tws.html`, `rwr-trainer.html`. Results
+  print to the console; `radar-lab.html` and `rwr-trainer.html` need real time, so open them in a browser
+  rather than `scripts/shot.sh`. `frame.html` hosts phone widths for `scripts/shot.sh`.
 - `scripts/shot.sh` takes headless screenshots and prints console output. See `AGENTS.md` for the gotchas.
 
 ## Publishing
