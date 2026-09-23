@@ -1,6 +1,6 @@
 # sim-physics — flight, missiles, countermeasures, launch zones
 
-Owner: sim-physics. Files: `src/sim/flight.ts`, `missile.ts`, `missileModel.ts`, `countermeasures.ts`,
+Owner: sim-physics. Files: `src/sim/flight.ts`, `guns.ts`, `missile.ts`, `missileModel.ts`, `countermeasures.ts`,
 `dlz.ts`, `dlzTables.ts` (generated), tests in `src/sim/physics.test.ts` and `tests/tune/*.test.ts`.
 
 Everything here is a **game mechanic tuned to what DCS players see**, not a weapon model (see
@@ -30,7 +30,7 @@ Every jet (player, AI, script) flies through `ac.cmd`:
 | `speed` | Autothrottle (idle + speed brake down to −1.5 m/s²). |
 | `afterburner` | Allows max thrust. Without it the jet tops out around Mach 0.95–1.05 at altitude. |
 | `bfm` | Optional BFM mode (below). Set = heading / altitude / speed / afterburner are ignored. `null` or absent = autopilot. |
-| `trigger` | Optional. Gun trigger held (the gun model lands separately; `ac.gun` holds rounds). |
+| `trigger` | Optional. Gun trigger held (`guns.ts`). |
 
 **BFM mode** (`cmd.bfm = { bank, g, throttle, speedbrake? }`, contract added for issue #11): a 3D point-mass
 manoeuvre, still arcade.
@@ -51,6 +51,33 @@ trade speed for height, thin air lets the jet go faster. Each jet's drag is set 
 tops out at `perf.maxMach` at 11 km. At sea level jets top out at about M1.0–1.2.
 Outputs: `pos`, `vel`, `heading`, `pitch` (= flight-path angle), `roll` (visual bank; beyond ±90° when
 pulling down inverted), `g`. No allocations per tick.
+
+### Guns (`guns.ts`)
+
+Arcade model for the WVR lessons (issue #11). No ballistics: every gun fires straight along the flight path at
+`BULLET_SPEED` (1000 m/s) on top of the jet's velocity, flat time of flight `range / BULLET_SPEED`, no gravity drop.
+
+```ts
+stepGuns(world, dt)              // World calls it each tick after flight
+gunSolution(shooter, target)     // { range, tof, lead (unit), missAngle, missM, sizeAngle, inRange, inSolution }
+sightPoint(ac, range, spanM?)    // { range, tof, right, up, halfSpan } rad from the gun line, HUD axes
+funnelPoints(ac, steps?, spanM?) // sightPoint from data funnel near..far, sized for the data wingspan
+createGunState(type), gunOf(ac), hitDamage(calibreMm)
+BULLET_SPEED, GUN_TARGET_SPAN_M (13 m), GUN_TRACER_S (0.1 s), GUN_P_CENTRE (0.35)
+```
+
+- `ac.gun: GunState = { rounds, firing, burst, hits }`; `ac.damage` 0..1. Jets without `GUNS` data have 0 rounds.
+- While `cmd.trigger` is held and rounds remain, rounds go at the data rate of fire (HI where selectable).
+- Hit rule per tick, for every other live jet inside the data max range: lead = relative position + relative
+  velocity × TOF; if the gun line is within the target's angular size (13 m span) of the lead point, each round
+  hits with `GUN_P_CENTRE × (1 − (miss / size)²)` (`world.rand`). Damage per hit: 30 mm 0.25, 23 mm 0.14,
+  20 mm 0.1. At 1 the jet dies (`kill` event, `by` = shooter). Friendly jets in the line can be hit.
+- Events: `gun` (`burst` / `cease` / `empty`), `tracer` (muzzle pos and velocity, one per 0.1 s of fire),
+  `gun-hit` (hits this tick, target damage). Recordings carry `firing` per jet.
+- Sight geometry: the nose turn rate from load factor, lift vector and gravity; a point for range R sits at
+  −turn rate × TOF from the gun line (below it in a pull). A target in the same turn under that point is in the
+  hit rule's solution. Simplified, not any jet's real sight law; the HUD labels it that way.
+- JF-17 burst limiter is data only (`GUNS.jf17.burstLimitS`); the sim does not enforce it yet.
 
 ### Missiles (`missile.ts`)
 
@@ -309,6 +336,7 @@ the old tables. Both are approximations.
   - it is an interpolation of 800-cell tables (IR: 90 cells, coarse), with first-order corrections for target speed and nose-off angle;
   - inputs outside the grid are clamped (above 15 km altitude, Mach 0.5–1.5, offsets beyond ±6 km);
   - a few low-and-slow IR cells, and some low R-27R/AIM-7 climbing shots, are empty (genuine no-shot geometry in the model), where Rmax falls back to Rmin.
+- **Guns:** one bullet speed, straight line, no drop, one target size, damage pool; not DCS ballistics or damage.
 - **Flight model:**
   - BFM sustained-turn tables are trainer estimates (not verified); the autopilot does not use them;
   - every jet has the same thrust-to-weight (≈1), climb-angle limits and roll rate; jets differ only by `perf` (maxMach, maxG, corner speed, ceiling);
