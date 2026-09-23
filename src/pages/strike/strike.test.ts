@@ -4,7 +4,10 @@ import { jetAllowed, pickerJets } from '../../app/roleGate';
 import { LESSON_LINKS } from '../../app/navigation';
 import { PROCEDURES } from '../../data/procedures';
 import { parseKeyList } from '../../ui/keys';
-import { LESSONS, LESSON_ORDER, MISS_TEXT, progressKey, scoreCcip, scoreVikhr, type ShotRecord } from './lessons';
+import { LESSONS, LESSON_ORDER, MISS_TEXT, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr, type ShotRecord } from './lessons';
+import { AG_WEAPONS } from '../../data/agWeapons';
+import { samRingM } from '../../sim/sam';
+import { D2R, relBearing } from '../../sim/math';
 import { START, buildScenario, centreOf } from './scenario';
 
 const shot = (result: ShotRecord['result'], reason?: ShotRecord['reason']): ShotRecord => ({ weapon: 'vikhr', rangeM: 8000, result, reason, killed: result === 'hit' });
@@ -87,5 +90,66 @@ describe('strike scenario', () => {
     expect(Array.isArray(out)).toBe(true);
     for (let i = 0; i < 400 && world.agWeapons.size && [...world.agWeapons.values()].some(w => w.alive); i++) world.step(0.1);
     expect(tank.alive).toBe(false);
+  });
+});
+
+describe('bombs, SEAD and SAM-threat lessons', () => {
+  it('scores the bombs lesson on automatic CCRP release and miss distance', () => {
+    expect(scoreBombs({ ccrpAuto: true, ccrpMissM: 8, ccrpPassesMissed: 0, ccipMissM: 12, kills: 3 }).stars).toBe(3);
+    const one = scoreBombs({ ccrpAuto: true, ccrpMissM: 10, ccrpPassesMissed: 1, ccipMissM: 90, kills: 1 });
+    expect(one.stars).toBe(2);
+    expect(one.coaching.join(' ')).toContain('director circle');
+    expect(scoreBombs({ ccrpAuto: false, ccrpMissM: null, ccrpPassesMissed: 2, ccipMissM: null, kills: 0 }).stars).toBe(0);
+    expect(scoreBombs({ ccrpAuto: true, ccrpMissM: 45, ccrpPassesMissed: 0, ccipMissM: null, kills: 0 }).stars).toBe(1);
+  });
+
+  it('scores SEAD on kill, launch outside the ring and time exposed', () => {
+    const band = { min: 10000, max: 70000 };
+    expect(scoreSead({ killed: true, fired: 1, launchRangeM: 28000, ringM: 12000, band, ringS: 0, shotDown: false }).stars).toBe(3);
+    const inside = scoreSead({ killed: true, fired: 1, launchRangeM: 11000, ringM: 12000, band, ringS: 20, shotDown: false });
+    expect(inside.stars).toBe(2);
+    expect(inside.coaching.join(' ')).toContain('before the ring');
+    expect(scoreSead({ killed: false, fired: 0, launchRangeM: null, ringM: 12000, band, ringS: 0, shotDown: false }).stars).toBe(0);
+    expect(scoreSead({ killed: true, fired: 1, launchRangeM: 11000, ringM: 12000, band, ringS: 30, shotDown: true }).stars).toBe(1);
+  });
+
+  it('scores the SAM-threat attack on kills, hits taken and time in the ring', () => {
+    expect(scoreThreat({ tanks: 4, tanksKilled: 4, samsKilled: 1, hitsTaken: 0, ringS: 0, samLaunches: 0 }).stars).toBe(3);
+    const long = scoreThreat({ tanks: 4, tanksKilled: 4, samsKilled: 0, hitsTaken: 0, ringS: 40, samLaunches: 2 });
+    expect(long.stars).toBe(2);
+    expect(long.coaching.join(' ')).toContain('Flares');
+    expect(scoreThreat({ tanks: 4, tanksKilled: 2, samsKilled: 0, hitsTaken: 1, ringS: 30, samLaunches: 1 }).stars).toBe(1);
+  });
+
+  it('SEAD starts with the SA-15 outside the ±30° zone, inside the Kh-58 band and outside its ring', () => {
+    const sc = buildScenario('sead');
+    const site = sc.world.samSites.get(sc.sams[0]!)!;
+    const r = sc.me.pos.distanceTo(site.pos);
+    expect(r).toBeGreaterThan(samRingM('sa15') * 2);
+    expect(r).toBeLessThan(AG_WEAPONS.kh58.rangeKm.max * 1000);
+    sc.me.heading = -30 * D2R;
+    expect(Math.abs(relBearing(sc.me.pos, sc.me.heading, site.pos))).toBeGreaterThan(30 * D2R);
+    expect(sc.me.ag!.pod).toBe(true);
+    expect(sc.world.groundUnits.get(sc.samUnits[0]!)!.samSiteId).toBe(site.id);
+  });
+
+  it('SAM threat: a Vikhr fired 10 km from the platoon keeps the jet outside the SA-15 ring; the SA-11 is optional', () => {
+    const sc = buildScenario('threat');
+    const site = sc.world.samSites.get(sc.sams[0]!)!;
+    expect(Math.hypot(site.pos.x, site.pos.z - 10000)).toBeGreaterThan(samRingM('sa15'));
+    expect(buildScenario('threat', 7, { sa11: true }).sams.length).toBe(2);
+    expect(sc.me.ag!.stores.kh58).toBe(2);
+  });
+
+  it('flies the bombs lesson CCRP pass: designate, lase, hold, automatic release on the platoon', () => {
+    const { world, me, tanks } = buildScenario('bombs');
+    const id = me.id;
+    world.setAgMaster(id, 'ag'); world.selectAgWeapon(id, 'fab250'); world.shkvalPower(id, true);
+    world.shkvalPointAt(id, world.groundUnits.get(tanks[1]!)!.pos); world.shkvalStabilise(id, true); world.laser(id, true);
+    expect(world.ccrpHold(id, true).ok).toBe(true);
+    const launched: boolean[] = [];
+    world.on(e => { if (e.type === 'ag-launch') launched.push(!!e.ccrp); });
+    for (let t = 0; t < 90 && !launched.length; t += 0.1) world.step(0.1);
+    expect(launched).toEqual([true]);
   });
 });

@@ -183,6 +183,16 @@ cool), **Vikhr drill** (a tank platoon at 12–15 km: lock, lase, fire with Spac
 impact; scored on kills, misses with their reason, and laser time) and **CCIP pass** (S-8 rockets or the cannon on a
 truck column in a dive; Left / Right steer). Tap the TV picture to point the sight; on a phone a slew pad, zoom and
 size buttons and Fire / Lock / ЛД buttons appear. Launch ranges are community values and marked not verified.
+Three more scored lessons. **Bombs**: select АБ with D, designate the tank platoon with the Shkval (Enter to
+stabilise) and switch the laser on; the HUD shows the director circle and a time-to-release scale. Hold Space,
+steer the keel of the aircraft symbol into the circle; the arrow starts 10 s out and the bomb releases itself.
+Then a CCIP dive on the trucks with the Shkval off. Scored on miss distance and on getting the automatic release.
+**Kh-58 SEAD**: select 58, press I (ПРГ), turn until the SA-15 is inside ±30° (a diamond with a type code), slew
+the square with ; , . / and press Enter (the diamond becomes a circle), fire at ПР and turn away. Scored on the
+kill, a launch from outside the 12 km ring, and time spent inside it. **SAM threat**: the platoon is covered by an
+SA-15; the SPO-15 shows its search, lock and launch. Kill the SAM with a Kh-58 first, or fire Vikhrs from
+beyond its ring; on a launch notch it (SAM at 3 or 9 o'clock) and descend. Add `?sa11=1` for an SA-11 as well.
+The Kh-58 type codes and the CCRP tolerances are trainer values, marked not verified.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

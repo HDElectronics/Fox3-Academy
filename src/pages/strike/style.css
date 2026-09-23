@@ -11,6 +11,7 @@
 /* strip */
 .ui-lab__strip > .ui-bezel.strk-tv { flex: 1.4 1 300px; }
 .ui-lab__strip > .ui-bezel.strk-hud { flex: 0.9 1 200px; }
+.ui-lab__strip > .ui-bezel.strk-rwr { flex: 0.7 1 160px; }
 .ui-lab__strip > .strk-ro { flex: 1 1 200px; min-width: 190px; max-width: 300px; gap: 4px; }
 .strk-ro .ui-readout__value { font-size: var(--fs-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
