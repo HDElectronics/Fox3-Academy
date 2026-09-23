@@ -14,6 +14,12 @@ export type MissileId =
   | 'aim120b' | 'aim120c' | 'aim7m' | 'aim9m' | 'aim9x'
   | 'aim54a' | 'aim54c' | 'sd10' | 'pl5e' | 's530d' | 'magic2';
 
+/** Surface-to-air threat sites the trainer models (one per RWR range class). */
+export type SamId = 'sa10' | 'sa11' | 'sa15';
+
+/** The RWR range class a SAM site reports as (matches the RwrSymbol emitter kinds). */
+export type SamClass = 'sam-long' | 'sam-medium' | 'sam-short';
+
 export type RwrId = 'spo15' | 'alr56c' | 'alr67' | 'alr56m' | 'jf17rwr' | 'serval';
 
 /** Cockpit skin used for the whole UI when this aircraft is selected. */
@@ -199,3 +205,32 @@ export interface AircraftProcedures {
 }
 
 export interface Source { id: number; title: string; url: string }
+
+/**
+ * One SAM site as the DCS player meets it: the Mission Editor threat ring, the engagement altitudes and
+ * the pilot-level guidance rule. Gameplay values only; the arcade missile constants live in src/sim/sam.ts.
+ */
+export interface SamSpec {
+  id: SamId;
+  name: string;                 // 'S-300PS'
+  nato: string;                 // 'SA-10 Grumble'
+  /** RWR class: the symbol on each jet's RWR comes from rwrSymbol(rwr, rwrClass). */
+  rwrClass: SamClass;
+  /** Maximum engagement range (km), the radius the Mission Editor threat ring shows. */
+  threatRingKm: number;
+  minRangeKm: number;
+  /** Engagement altitude band (m above the site's ground). Below minAltM the site cannot shoot. */
+  minAltM: number;
+  maxAltM: number;
+  /**
+   * Gameplay guidance rule. 'track-to-impact': the missile needs the site's track radar on you until
+   * impact, so breaking the track (notch + chaff, terrain, leaving the envelope) defeats it.
+   */
+  guidance: 'track-to-impact';
+  /** The rule in one pilot-facing sentence. */
+  guidanceRule: string;
+  /** What works against it in the game, most useful first. */
+  defeat: string[];
+  /** Values research could not confirm, in pilot words. */
+  uncertain: string[];
+}
