@@ -22,7 +22,7 @@ export interface JetModel {
   spanM: number;
   /** Swing wing (F-14): right outer panel, pivot in model metres (centred frame), reference sweep. */
   swing?: { geometry: BufferGeometry; pivot: [number, number, number]; refSweepDeg: number };
-  /** Configurable parts (gear, flaps, speedbrake) for the jets that have them (flight ops MVP). */
+  /** Configurable parts (gear, flaps, speedbrake) for flight ops; every jet has them (the M-2000C has no flaps). */
   parts?: JetParts;
 }
 
@@ -41,6 +41,8 @@ export interface JetPart {
   axis: [number, number, number];
   maxRad: number;
   mirror: boolean;
+  /** Drawn on the F-14 outer wing at the reference sweep: hidden while the wings are swept back. */
+  swing?: boolean;
 }
 
 export interface JetParts {
@@ -286,20 +288,95 @@ function m2000c(): BufferGeometry {
  * low-poly plates and struts. Positions are metres from the nose, like the airframe builders.
  */
 interface GearLeg { x: number; y: number; z: number; wheelR: number }
-interface BrakePlate { x0: number; x1: number; z0: number; z1: number; y: number; up: boolean; mirror: boolean }
+/** Horizontal plate hinged at its front edge (`up` rises, otherwise drops) or a vertical side plate at `x0`. */
+type BrakePlate =
+  | { x0: number; x1: number; z0: number; z1: number; y: number; up: boolean; mirror: boolean; side?: undefined }
+  | { side: true; x0: number; y0: number; y1: number; z0: number; z1: number; mirror: boolean };
 interface PartsSpec {
   L: number;
   /** Wheel contact line, model y (m). */
   groundY: number;
   nose: GearLeg;
   main: GearLeg;
-  /** Trailing-edge flap (right side): inboard / outboard trailing-edge points, chord, mid-plane y, max deflection. */
-  flap: { xi: number; zi: number; xo: number; zo: number; chord: number; y: number; maxDeg: number };
-  /** Speedbrake plates hinged at their front edge (z0); `up` plates rise, the others drop. */
+  /**
+   * Trailing-edge flap (right side): inboard / outboard trailing-edge points, chord, mid-plane y, max
+   * deflection. Omitted for the Mirage 2000C (no flap control in DCS). `swing`: on the F-14 outer wing.
+   */
+  flap?: { xi: number; zi: number; xo: number; zo: number; chord: number; y: number; maxDeg: number; swing?: boolean };
+  /** Speedbrake plates hinged at their front edge (z0); `up` plates rise, the others drop, side plates swing out. */
   brake: { plates: BrakePlate[]; maxDeg: number };
 }
 
+/*
+ * Positions are simplified, eyeballed on these low-poly airframes: they show which parts move, not
+ * where every hinge sits on the real jet.
+ */
+const flankerParts = (L: number): PartsSpec => ({
+  L, groundY: -2.5,
+  nose: { x: 0, y: -0.55, z: 6.2, wheelR: 0.33 },
+  // Mains out of the wing roots outboard of the nacelles.
+  main: { x: 2.2, y: -0.42, z: 12.6, wheelR: 0.45 },
+  // Flaperons on the inboard trailing edge.
+  flap: { xi: 2.6, zi: 16.88, xo: 5.6, zo: 16.33, chord: 0.9, y: 0.02, maxDeg: 35 },
+  // Large dorsal airbrake behind the canopy.
+  brake: { plates: [{ x0: -0.6, x1: 0.6, z0: 7.9, z1: 10.1, y: 0.96, up: true, mirror: false }], maxDeg: 50 },
+});
+
 const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
+  su27: flankerParts(21.9),
+  j11a: flankerParts(21.9),
+  su33: flankerParts(21.2),
+  mig29s: {
+    L: 17.3, groundY: -2.15,
+    nose: { x: 0, y: -0.42, z: 5.2, wheelR: 0.26 },
+    main: { x: 1.95, y: -0.1, z: 9.6, wheelR: 0.38 },
+    flap: { xi: 2.1, zi: 13.48, xo: 4.2, zo: 13.08, chord: 0.75, y: 0.02, maxDeg: 25 },
+    // Upper and lower airbrake petals on the tail cone between the engines.
+    brake: {
+      plates: [
+        { x0: -0.34, x1: 0.34, z0: 14.4, z1: 15.6, y: 0.4, up: true, mirror: false },
+        { x0: -0.3, x1: 0.3, z0: 14.4, z1: 15.6, y: -0.3, up: false, mirror: false },
+      ],
+      maxDeg: 55,
+    },
+  },
+  f14b: {
+    L: 19.1, groundY: -2.0,
+    nose: { x: 0, y: -0.34, z: 4.2, wheelR: 0.3 },
+    main: { x: 2.55, y: 0.0, z: 11.9, wheelR: 0.45 },
+    // Flaps on the outer wing panel, drawn at 20° sweep (hidden when the wings sweep back).
+    flap: { xi: 3.4, zi: 13.91, xo: 8.6, zo: 14.1, chord: 0.7, y: 0.18, maxDeg: 35, swing: true },
+    // Upper and lower speedbrakes between the tails.
+    brake: {
+      plates: [
+        { x0: -0.6, x1: 0.6, z0: 15.3, z1: 16.7, y: 0.44, up: true, mirror: false },
+        { x0: -0.5, x1: 0.5, z0: 15.3, z1: 16.7, y: -0.27, up: false, mirror: false },
+      ],
+      maxDeg: 60,
+    },
+  },
+  jf17: {
+    L: 14.93, groundY: -1.65,
+    nose: { x: 0, y: -0.38, z: 3.3, wheelR: 0.26 },
+    main: { x: 1.4, y: -0.02, z: 8.5, wheelR: 0.36 },
+    flap: { xi: 1.5, zi: 11.39, xo: 3.6, zo: 11.02, chord: 0.6, y: 0.02, maxDeg: 30 },
+    // Side speedbrakes on the rear fuselage.
+    brake: { plates: [{ side: true, x0: 0.68, y0: -0.2, y1: 0.35, z0: 11.3, z1: 12.4, mirror: true }], maxDeg: 50 },
+  },
+  m2000c: {
+    L: 14.36, groundY: -1.65,
+    nose: { x: 0, y: -0.4, z: 4.6, wheelR: 0.26 },
+    main: { x: 1.75, y: -0.19, z: 9.4, wheelR: 0.38 },
+    // No flaps: the delta has elevons and automatic slats in DCS.
+    // Small airbrakes above and below each wing root.
+    brake: {
+      plates: [
+        { x0: 1.0, x1: 1.55, z0: 9.9, z1: 10.6, y: 0.08, up: true, mirror: true },
+        { x0: 1.0, x1: 1.55, z0: 9.9, z1: 10.6, y: -0.2, up: false, mirror: true },
+      ],
+      maxDeg: 60,
+    },
+  },
   fa18c: {
     L: 17.07, groundY: -2.35,
     nose: { x: 0, y: -0.45, z: 3.4, wheelR: 0.3 },
@@ -374,11 +451,21 @@ function buildParts(s: PartsSpec): JetParts {
   list.push(gearDoor(s.main.x - 0.4, s.main.y, s.main.z, 0.6, 1.8, L));
   // Trailing-edge flap: hinge along its leading edge, the trailing edge drops.
   const f = s.flap;
-  const fb = new ModelBuilder();
-  fb.plate([[f.xi, f.zi - f.chord], [f.xo, f.zo - f.chord], [f.xo, f.zo], [f.xi, f.zi]], { t: 0.1, y: f.y, mirror: false });
-  list.push(part(fb, L, [f.xi, f.y, f.zi - f.chord], 'flaps', [f.xo - f.xi, 0, f.zo - f.zi], f.maxDeg * DEG, true));
+  if (f) {
+    const fb = new ModelBuilder();
+    fb.plate([[f.xi, f.zi - f.chord], [f.xo, f.zo - f.chord], [f.xo, f.zo], [f.xi, f.zi]], { t: 0.1, y: f.y, mirror: false });
+    const fp = part(fb, L, [f.xi, f.y, f.zi - f.chord], 'flaps', [f.xo - f.xi, 0, f.zo - f.zi], f.maxDeg * DEG, true);
+    if (f.swing) fp.swing = true;
+    list.push(fp);
+  }
   for (const p of s.brake.plates) {
     const b = new ModelBuilder();
+    if (p.side) {
+      // Vertical plate on the fuselage side, hinged at its front edge; the rear edge swings outboard.
+      b.box(p.x0, (p.y0 + p.y1) / 2, (p.z0 + p.z1) / 2, 0.06, p.y1 - p.y0, p.z1 - p.z0, Slot.body);
+      list.push(part(b, L, [p.x0, (p.y0 + p.y1) / 2, p.z0], 'brake', [0, 1, 0], s.brake.maxDeg * DEG, p.mirror));
+      continue;
+    }
     b.plate([[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]], { t: 0.08, y: p.y, mirror: false });
     list.push(part(b, L, [p.x0, p.y, p.z0], 'brake', [1, 0, 0], (p.up ? -1 : 1) * s.brake.maxDeg * DEG, p.mirror));
   }
@@ -494,6 +581,7 @@ export class JetMesh extends Group {
     const a = ((this.sweep - this.model.swing.refSweepDeg) * Math.PI) / 180;
     this.wings[0].rotation.y = -a;
     this.wings[1].rotation.y = a;
+    if (this.partMeshes.length) this.applyConfig();
   }
 
   /** Which configurable parts this model has (setConfig is a no-op for the others). */
@@ -525,7 +613,7 @@ export class JetMesh extends Group {
       switch (p.drive) {
         case 'gearLeg': k = 1 - gear; visible = gear > 0.001; break;
         case 'gearDoor': k = Math.min(1, gear * 3); visible = gear > 0.001; break;
-        case 'flaps': k = flaps; visible = flaps > 0.001; break;
+        case 'flaps': k = flaps; visible = flaps > 0.001 && !(p.swing && this.sweep > (this.model.swing?.refSweepDeg ?? 20) + 0.5); break;
         case 'brake': k = speedbrake; visible = speedbrake > 0.001; break;
       }
       mesh.visible = visible;

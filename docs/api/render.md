@@ -350,15 +350,19 @@ offset from a centre inside the view).
   tall fin), M-2000C (tailless delta, shock cones). Materials per side: body (side colour lightened),
   fins (side colour), canopy tint, dark nozzles/intakes, red/green nav lights.
 - `jet.setConfig({ gear?, flaps?, speedbrake? })`: configurable parts, each position 0..1 (clamped;
-  missing or non-finite values keep the previous one). F/A-18C, F-16C and F-15C have landing gear
-  (nose + two mains, strut and wheel, a door beside each bay; the nose leg swings forward, the mains
-  aft), trailing-edge flaps (F-16C: flaperons) that drop up to 40° (flaperons 25°), and a speedbrake
-  (Hornet dorsal between the fins, Eagle dorsal behind the canopy, Viper split petals beside the
-  nozzle). Simple low-poly plates in the shared materials, geometry cached per type like the swing
+  missing or non-finite values keep the previous one). Every jet has landing gear (nose + two mains,
+  strut and wheel, a door beside each bay; the nose leg swings forward, the mains aft) and a
+  speedbrake; all but the M-2000C have trailing-edge flaps (up to 25-40°; F-16C and Flankers:
+  flaperons). Speedbrakes: Hornet dorsal between the fins, Eagle and Flankers dorsal behind the
+  canopy, Viper split petals beside the nozzle, MiG-29 upper and lower petals on the tail cone,
+  F-14 upper and lower between the tails, JF-17 side plates on the rear fuselage, Mirage small
+  upper and lower plates at each wing root. The M-2000C gets no flap part (DCS has no flap control
+  for it: elevons and automatic slats). F-14 flaps sit on the outer wing at the 20° reference sweep
+  and hide while `setSweep()` is above it. No Su-33 tail hook. Hinge positions are simplified, not
+  measured. Simple low-poly plates in the shared materials, geometry cached per type like the swing
   wing. Default config is gear up, flaps up, speedbrake in, and parts at 0 are hidden, so BVR pages
-  see the unchanged clean jet. Other jets: `setConfig` is a no-op. Read back with `jet.config`,
-  `jet.configParts` (which parts exist) and `jet.groundClearanceM` (model origin above the wheel
-  contact line with the gear down, metres; 0 without gear).
+  see the unchanged clean jet. Read back with `jet.config`, `jet.configParts` (which parts exist)
+  and `jet.groundClearanceM` (model origin above the wheel contact line with the gear down, metres).
 - `getJetModel(id)` (`model.parts` holds the part list), `JET_DIMENSIONS`, `jetMaterials(palette, side)`,
   `f14SweepForMach(mach)`.
 - `createMissileMesh(missileId, palette)`: sized from `MISSILES[id].lengthM/diameterM` (AIM-54 is
@@ -381,10 +385,17 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos)`; swaps the jet if `state.aircraft` changed.
-  - `setCamera('chase' | 'side' | 'tower' | 'cockpit')`: chase = low behind the jet on its heading;
+  - `setCamera('chase' | 'side' | 'tower' | 'cockpit')`: chase = behind the jet on its heading, 9 m
+    high and 7 m left, looking between the jet and the aim point while the runway is ahead (so the
+    jet sits low right and the runway stays visible on final) and along the heading otherwise;
     side = abeam from the east looking west, framing the jet and the aim point so the glide path reads
     as a line (approach runs left to right); tower = fixed beside the runway past the aim point,
     looking at the jet; cockpit = eye in the jet, jet hidden. Camera runs at `FramePriority.camera`.
+  - `setNavTarget({ x, z } | null, label?)`: steer-point marker on the ground in runway-frame metres:
+    a 180 m ring with a cross, a 1200 m pillar (screen-space lines, readable from 40 km) and an
+    optional label (`Note`) at its top; `null` hides it. Sizes are display choices.
+  - Range: the Stage far plane (2000 km) and the Environment haze (130 km) already cover an RTB start
+    40 km out at 4000 m; nothing to configure.
   - `setApproach({ glideDeg?, aimPointM?, ... })` (moves the painted aim blocks too),
     `setAircraft(id)`, `dispose()` (runway, overlay, frame subscription; the Stage stays yours).
   - `scene.overlay`, `scene.runway`, `scene.jet`, `scene.root` are public.
@@ -402,7 +413,8 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
-- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=fa18c|f16c|f15c&d=1400&gear=1&flaps=1&brake=0&fly=1`.
+- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any AircraftId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
+  `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts.
 
 ## Low-level pieces (for page-specific symbology)
 
