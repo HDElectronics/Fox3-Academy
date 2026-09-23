@@ -33,6 +33,8 @@ export interface FlightOpsJetData {
   flapLabels: readonly string[];
   landingFlap: number;
   takeoffFlap: number;
+  /** Flaps are not selected by the pilot; they follow the gear handle (F-16C). Flap keys do nothing. */
+  flapsWithGear?: boolean;
   keys: { gear: string; flaps: string; speedbrake: string; hook?: string };
   aoa: {
     unit: 'deg' | 'units';
