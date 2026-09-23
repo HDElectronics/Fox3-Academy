@@ -127,14 +127,17 @@ const _a = new Vector3(), _b = new Vector3(), _c = new Vector3();
 export function steerBfm(ac: Aircraft, dir: Vector3, throttle: BfmThrottle, gain = 1.2, maxG = Infinity): BfmCommand {
   const v = Math.max(1, ac.vel.length());
   const u = _u.copy(ac.vel).divideScalar(v);
-  const e = _e.copy(dir).addScaledVector(u, -u.dot(dir));
-  const angle = Math.acos(clamp(u.dot(dir), -1, 1));
+  const dot = u.dot(dir);
+  const e = _e.copy(dir).addScaledVector(u, -dot);
+  const angle = Math.acos(clamp(dot, -1, 1));
   const avail = Math.min(availableG(ac), maxG);
   const h = 1 - u.y * u.y;
-  if (e.length() < 1e-4 || h < 0.002) return { bank: ac.roll, g: Math.min(avail, 1), throttle };
+  if (h < 0.002 || (e.lengthSq() < 1e-8 && dot >= 0)) return { bank: ac.roll, g: Math.min(avail, 1), throttle };
   const k = 1 / Math.sqrt(h);
   _l0.set(-u.y * u.x * k, h * k, -u.y * u.z * k);
   _r0.crossVectors(u, _l0);
+  // Dead astern has no perpendicular error either. Break the tie with a right turn, deterministically.
+  if (e.lengthSq() < 1e-8) e.copy(_r0);
   const bank = Math.atan2(e.dot(_r0), e.dot(_l0));
   const liftUp = Math.cos(bank) * Math.sqrt(h);        // lift vector's share against gravity
   let g = gain * angle * v / G0 + Math.max(0, liftUp);

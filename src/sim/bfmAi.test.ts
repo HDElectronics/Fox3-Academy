@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { Aircraft } from './types';
 import type { FighterId } from '../data/types';
-import { BFM_SKILL, bfmAiStep, chooseCircle, newBfmAi, overshootRisk, pursuitFor, type BfmAiState, type BfmSkill } from './bfmAi';
+import { BFM_SKILL, bfmAiStep, chooseCircle, newBfmAi, overshootRisk, pursuitFor, steerBfm, type BfmAiState, type BfmSkill } from './bfmAi';
 import { gunSolution } from './guns';
 import { D2R } from './math';
 
@@ -66,6 +66,24 @@ describe('fighting AI helpers', () => {
 });
 
 describe('fighting AI', () => {
+  it('turns toward an equal-speed target 3 km dead astern and closes within 60 s', () => {
+    const d = duel(7, 'regular', [0, 0, 0, 230], [0, 3000, 0, 230]);
+    const ahead = d.ai.vel.clone().normalize();
+    expect(steerBfm(d.ai, ahead, 'mil').g).toBe(1);
+    const behind = ahead.clone().negate();
+    const turn = steerBfm(d.ai, behind, 'mil');
+    expect(Math.abs(turn.bank)).toBeGreaterThan(1);
+    expect(steerBfm(d.ai, behind, 'mil')).toEqual(turn);
+    d.me.damage = -1e9;
+    let closest = Infinity, maxTurn = 0;
+    run(d, 60, () => {}, true, () => {
+      closest = Math.min(closest, d.ai.pos.distanceTo(d.me.pos));
+      maxTurn = Math.max(maxTurn, Math.abs(d.ai.heading));
+    });
+    expect(maxTurn).toBeGreaterThan(Math.PI / 2);
+    expect(closest).toBeLessThan(2000);
+  });
+
   it('lead turns at a head-on merge (regular, two-circle)', () => {
     const d = duel(3, 'regular', [0, 0, 0, 230], [500, -7000, Math.PI, 230]);
     expect(d.s.circle).toBe('two');

@@ -43,6 +43,9 @@ export const CIRCLE_EVAL_S = 30;
 /** High yo-yo: range band that counts as held behind him (m). */
 export const HOLD_MIN_M = 300;
 export const HOLD_MAX_M = 1500;
+/** High yo-yo: climb above the bandit's plane and recover behind him for this long (trainer thresholds). */
+export const YOYO_CLIMB_M = 150;
+export const YOYO_RECOVERY_S = 1;
 
 export const PURSUIT_ORDER: Pursuit[] = ['lead', 'pure', 'lag'];
 /** Seconds to hold each requested pursuit, and the most a phase may take. */
@@ -88,10 +91,14 @@ export interface MergeMetrics {
   myAtaDeg: number;
   aotDeg: number;
   rangeM: number;
-  /** High yo-yo: overshoots, seconds in the range band behind him, most height gained (m). */
+  /** High yo-yo: overshoots, seconds in the range band behind him, most height above his plane (m). */
   overshoots: number;
   heldS: number;
   climbM: number;
+  /** Climbed above YOYO_CLIMB_M after pulling with the lift vector raised out of his plane. */
+  outOfPlane: boolean;
+  /** Seconds descending back onto him, nose within 60°, behind him in range after the climb. */
+  recoveredS: number;
   /** Fighting AI moves seen (free fight). */
   aiMoves: Record<string, number>;
 }
@@ -103,7 +110,7 @@ export function emptyMetrics(): MergeMetrics {
     hisSolutionS: 0, maxG: 1, minKts: Infinity, killed: null,
     passT: null, passRange: Infinity, leadTurnDeg: 0, vertical: null, circleFlown: null, circleAdvised: null,
     secondPassT: null, anglesDeg: 0, myAtaDeg: 180, aotDeg: 180, rangeM: Infinity, overshoots: 0, heldS: 0, climbM: 0,
-    aiMoves: {},
+    outOfPlane: false, recoveredS: 0, aiMoves: {},
   };
 }
 
@@ -139,8 +146,10 @@ export function scoreLesson(id: LessonId, m: MergeMetrics): number {
       if (m.passT === null) return 0;
       return Math.round(45 * pct(1 - m.aotDeg / 180) + 25 * pct(1 - m.myAtaDeg / 180) + 20 * rangeScore(m.rangeM)
         + (m.circleFlown !== null && m.circleFlown === m.circleAdvised ? 10 : 0));
-    case 'yoyo':
-      return Math.round((m.overshoots === 0 ? 50 : 0) + 35 * pct(m.heldS / 15) + 15 * pct(m.climbM / 300));
+    case 'yoyo': {
+      const score = Math.round((m.overshoots === 0 ? 50 : 0) + 35 * pct(m.heldS / 15) + 15 * pct(m.climbM / 300));
+      return m.climbM > YOYO_CLIMB_M && m.outOfPlane && m.recoveredS >= YOYO_RECOVERY_S ? score : Math.min(49, score);
+    }
     case 'tracking': {
       const economy = m.roundsFired > 0 ? m.roundsInSolution / m.roundsFired : 0;
       return Math.round(30 * pct(m.solutionS / 2) + 50 * pct(m.damageDealt) + 20 * economy);

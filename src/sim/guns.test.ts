@@ -41,6 +41,19 @@ function fire(w: World, s: Aircraft, t: Aircraft, seconds: number): void {
 }
 
 describe('guns', () => {
+  it('accrues damage between low-rate rounds without a gun-hit event', () => {
+    const { w, s, t } = gunSetup(7, GUN_MID_RANGE_M, 'su27');
+    t.damage = 0;
+    s.cmd.trigger = true;
+    stepGuns(w, DT);
+    const damage = t.damage, rounds = s.gun.rounds;
+    const hits = w.events.filter(e => e.type === 'gun-hit').length;
+    stepGuns(w, DT);
+    expect(s.gun.rounds).toBe(rounds);
+    expect(t.damage).toBeGreaterThan(damage);
+    expect(w.events.filter(e => e.type === 'gun-hit')).toHaveLength(hits);
+  });
+
   it('lethality: about 2 s dead on at mid range, faster close, slower far and off-centre', () => {
     const maxR = GUNS.f15c.maxRangeM.value;
     expect(gunKillSeconds(GUN_MID_RANGE_M, maxR)).toBeCloseTo(2);
