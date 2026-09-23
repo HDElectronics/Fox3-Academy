@@ -17,6 +17,7 @@
  */
 import type { World } from './world';
 import type { Aircraft, EntityId, Missile, RwrContact } from './types';
+import { isFighterAc } from './jet';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { clamp, elevationTo, relBearing } from './math';
@@ -79,7 +80,7 @@ export function updateRwr(world: World, dt: number): void {
     const out: RwrContact[] = [];
 
     for (const em of world.aircraft.values()) {
-      if (em === rx || !em.alive || em.radar.mode === 'off') continue;
+      if (em === rx || !em.alive || em.radar.mode === 'off' || !isFighterAc(em)) continue;
       const painted = lastPainted(em, rx.id);
       let state: RwrContact['state'] | null = null;
       let lastSeen = t;

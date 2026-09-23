@@ -38,6 +38,9 @@ import {
 | `SAM_CAVEATS` | `string[]` | Global SAM simplifications plus every site's `uncertain` line. |
 | `PROCEDURES` | `Record<AircraftId, AircraftProcedures>` | Binds and step-by-step procedures. |
 | `procedureFor(ac, id)` | `Procedure \| undefined` | e.g. `procedureFor('su27', 'tws-multi')` is `undefined`. |
+| `AG_WEAPONS` / `AG_WEAPON_ORDER` | `Record<AgWeaponId, AgWeaponSpec>` / `AgWeaponId[]` | Su-25T air-to-ground stores: HUD label (9А4172, 25МЛ, 29Л, 29Т, 500Кр, С8, С13, АБ, ВПУ, 58), kind, guidance (`beam-riding`, `laser`, `tv`, `ballistic`, `anti-radiation`), needs lock / laser / emitter, hold-to-impact, pairable, gameplay `rangeKm` band (`rangeVerified: false` on all), pilot rule. |
+| `SU25T_LOADOUTS` / `SU25T_GUN_ROUNDS` | `AgLoadout[]` / `number` | Trainer loadouts by station (`vikhr`, `laser`, `tv`, `unguided`, `sead`); 200 cannon rounds per S1. |
+| `AG_CAVEATS` | `string[]` | Every unverified air-to-ground value (range bands, simplified laser heat/recovery, gun, stations, Shkval FOV and slew stops). |
 | `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
 | `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
@@ -53,7 +56,8 @@ air-to-air radar (the Su-25T). `JetSpec = AircraftSpec | AttackSpec` is discrimi
 (`'fighter' | 'attack'`): `AircraftSpec` keeps its name and every field (radar, display, loadout, missiles) and
 gains `role: 'fighter'`; `AttackSpec` has `radar: null` and a `weapons` label list. BVR-only maps and the sim key
 on `FighterId` (`src/sim/types.ts` aircraft `type`, radar rules, DLZ, scenarios `ADVERSARY`, radar-lab notes,
-RWR emitter symbols, flight ops). `BindGroup` gains `'targeting'` for optical sight keys (Su-25T Shkval);
+RWR emitter symbols, flight ops). The sim's aircraft `type` is `AircraftId` since the A-G slice; radar-only sim code
+narrows it with `src/sim/jet.ts` (see `docs/api/sim-attack.md`). `BindGroup` gains `'targeting'` for optical sight keys (Su-25T Shkval);
 Su-25T procedures are `'shkval-lock'`, `'laser-shot'`, `'tv-shot'`, `'sead'` instead of the BVR set. Maps every jet needs (`AIRCRAFT_CAVEATS`, `PROCEDURES`, `JET_DIMENSIONS`,
 source topics) key on `AircraftId`. `RwrSymbol.emitter` uses `FighterId`: an attack jet with no radar is never an
 RWR emitter.
@@ -248,6 +252,22 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 - ALR-56M: codes assumed equal to the Hornet list; tones not documented.
 - JF-17: only `M2K`, `M29`, `SA8` confirmed; ARH seeker on the RWR shown as `M` (not documented).
 - Serval: symbol library not researched (ED-style codes stand in); tones and lock/launch look not documented.
+
+### Air-to-ground (Su-25T)
+
+Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `AG_CAVEATS`.
+- Every guided-weapon launch band is a community value, **not verified** (S1 gives none): Vikhr 0.8–10 km,
+  Kh-25ML 3–10, Kh-29L 3–10, Kh-29T 3–12, KAB-500Kr 1–8, Kh-58 10–70. Rocket, bomb and gun bands only gate the
+  trainer ПР cue (S-8 0.8–4, S-13 1–5, FAB-250 0–5, gun 0.3–2 km).
+- Laser: S1 documents about 1 min continuous with cooling (printed p. 57) and 20 min total per flight
+  (printed p. 32). The recoverable 20-minute heat threshold and recovery while off are a **simplified,
+  not verified** trainer model; neither separate manual limit is enforced by this model.
+- Cannon: S1 "200 round magazine" used; GSh-30 with 150 rounds elsewhere. Not verified.
+- Station numbers except the L-081 on station 6; the S-13 HUD label (С13) follows the S1 rocket pattern.
+- Shkval field of view below 23x is scaled from S1's 23x figure; target-size step 5 m and minimum 5 m.
+  Using the IT-23M scales as slew stops, and releasing stabilisation when clamping prevents holding a ground
+  point or the sight leaves the ground, are simplified trainer rules, **not verified**.
+- Ground-unit default sizes other than armour 10 m and buildings 60 m (S1); hit points are trainer values.
 
 ### SAM sites
 

@@ -6,6 +6,7 @@
  */
 import type { World } from './world';
 import type { Aircraft, EntityId, Missile, RadarPicture } from './types';
+import { isFighterAc } from './jet';
 import type { FighterId, AircraftSpec, DisplayFormat, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
@@ -51,7 +52,7 @@ function fmtRange(m: number, units: 'metric' | 'imperial'): string {
 
 export function buildRadarPicture(world: World, ownerId: EntityId, opts: PictureOptions = {}): RadarPicture | null {
   const ac = world.get(ownerId);
-  if (!ac || !ac.alive) return null;
+  if (!ac || !ac.alive || !isFighterAc(ac)) return null;
   const spec: AircraftSpec = AIRCRAFT[ac.type];
   const r = spec.radar, st = ac.radar, t = world.t;
   const units = opts.units ?? spec.units;

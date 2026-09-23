@@ -7,7 +7,7 @@
  * SAM sites (RecordFrame.sams) draw with their threat rings; recorded SAMs join the missile tracks (samSites.ts).
  */
 import { Vector3 } from 'three';
-import type { FighterId, MissileId, RadarModeId, SamId } from '../data/types';
+import type { AircraftId, MissileId, RadarModeId, SamId } from '../data/types';
 import { MISSILES } from '../data/missiles';
 import type { EntityId, Missile, MissileGuidance, RecordFrame, SimEvent, Side } from '../sim/types';
 import type { World } from '../sim/world';
@@ -19,7 +19,7 @@ import { Shape } from './symbols';
 import { Tag } from './tags';
 import { SAM_SMOKE_S, samMissileDisplay, samMissileMesh, type SamSiteLike } from './samSites';
 
-export interface ReplayAircraft { type: FighterId; side: Side; callsign: string; diedAt?: number | null }
+export interface ReplayAircraft { type: AircraftId; side: Side; callsign: string; diedAt?: number | null }
 export interface ReplayMissile {
   type: MissileId; side: Side; shooterId: EntityId; targetId: EntityId | null;
   launchedAt?: number; result?: Missile['result'];

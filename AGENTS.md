@@ -56,7 +56,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 |---|---|---|
 | `src/app/` | Shell: top bar, jet picker, hash router, `AppStore` (jet, units, progress in localStorage), unit formatting | this file |
 | `src/data/` | Aircraft, radars, missiles, RWRs, bindings, procedures, 108 sources | `docs/api/data.md` |
-| `src/sim/` | `World` (fixed 60 Hz loop), flight, radar, RWR, launch rules, missile model, DLZ tables, AI, scenarios | `docs/api/sim-*.md` |
+| `src/sim/` | `World` (fixed 60 Hz loop), flight, radar, RWR, launch rules, missile model, DLZ tables, AI, scenarios, ground units, Shkval, A-G weapons | `docs/api/sim-*.md` |
 | `src/render/` | three.js kit: `Stage`, sky and ground, procedural jets, `WorldView`, `RadarVolume`, `CameraRig`, `ReplayView` | `docs/api/render.md` |
 | `src/ui/` | Controls, panels, layouts, `bindKeys` | `docs/api/ui-kit.md` |
 | `src/ui/displays/` | Canvas cockpit displays: five radar formats, six RWRs, DLZ bar, missile timeline, RWR audio | `docs/api/displays.md` |
@@ -135,6 +135,8 @@ Headless gotchas:
 - `RwrContact.emitterType` accepts SAM, AWACS and unknown emitters for trainer pages; the sim only produces
   aircraft and missiles.
 - The `[hidden]` attribute is forced to `display: none` globally; use `el.hidden`.
+- `Aircraft.type` is any `AircraftId`: radar-only sim and page code narrows with `fighterSpec` / `fighterType`
+  (`src/sim/jet.ts`). Attack jets (Su-25T) have `radar.mode === 'off'` and `ac.ag`; see `docs/api/sim-attack.md`.
 - Jet roles: `ctx.app.aircraft` is always a fighter (`FighterId`); `ctx.app.jet` is the picker selection and may be
   the Su-25T. Routes declare `roles` (default `['fighter']`); the picker lists only jets the route accepts, and the
   router shows a pick-a-fighter panel (`src/app/roleGate.ts`) instead of mounting a page that does not accept the

@@ -7,6 +7,7 @@ import { MPS_PER_KT, aspectAngle, clamp, isLookDown } from '../../sim/math';
 import { notchState } from '../../sim/missile';
 import { missileModel } from '../../sim/missileModel';
 import { radarRules, trackOf } from '../../sim/radar';
+import { fighterSpec, fighterType } from '../../sim/jet';
 
 export interface GateRead {
   /** Is this sensor looking at you right now (radar tracking you, seeker switched on)? */
@@ -39,7 +40,7 @@ export function signedClosing(obs: Vector3, t: Vector3, tVel: Vector3): number {
 /** What the shooter's radar sees of you. */
 export function radarGate(world: World, shooter: Aircraft | undefined, me: Aircraft): GateRead {
   if (!shooter || !shooter.alive || !me.alive) return EMPTY;
-  const spec = AIRCRAFT[shooter.type].radar;
+  const spec = fighterSpec(shooter).radar;
   const st = shooter.radar;
   const on = st.mode !== 'off' && ((st.mode === 'stt' && st.stt.targetId === me.id) || !!trackOf(st, me.id));
   const radial = signedClosing(shooter.pos, me.pos, me.vel);
@@ -74,7 +75,7 @@ export function seekerGate(world: World, m: Missile | null, me: Aircraft): GateR
 
 /** STT memory of the shooter's radar (s): the lock breaks after this long in the notch. */
 export function sttMemory(shooter: Aircraft): number {
-  return radarRules(shooter.type).sttMemoryS;
+  return radarRules(fighterType(shooter)).sttMemoryS;
 }
 
 /** Chaff is only rolled while the missile is this close (m). */

@@ -79,7 +79,13 @@ export class WorldView extends TacticalScene {
       return null;
     }
     const ac = this.world.aircraft.get(id);
-    const spec = AIRCRAFT[ac?.type ?? 'su27'].radar;
+    const jet = AIRCRAFT[ac?.type ?? 'su27'];
+    if (jet.role !== 'fighter') { // attack jets have no air-to-air radar volume
+      this.layers.radarVolume = false;
+      if (this.volume) this.volume.visible = false;
+      return null;
+    }
+    const spec = jet.radar;
     if (!this.volume) {
       this.volume = new RadarVolume(this.stage, spec, this.volumeOpts);
       this.volume.setLabelHost(this);
@@ -224,8 +230,9 @@ export class WorldView extends TacticalScene {
         }
       }
       // Doppler notch vs the observer's radar gate.
-      if (L.notch) {
-        const spec = AIRCRAFT[obs.type].radar;
+      const obsJet = AIRCRAFT[obs.type];
+      if (L.notch && obsJet.role === 'fighter') {
+        const spec = obsJet.radar;
         const gate = spec.notchKts * MPS_PER_KT;
         for (const a of this.world.aircraft.values()) {
           if (a.id === obs.id || !a.alive) { if (this.notched.delete(a.id)) this.setJetFlag(a.id, ''); continue; }

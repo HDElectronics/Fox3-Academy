@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT, AIRCRAFT_CAVEATS, FIGHTER_ORDER } from './aircraft';
 import { MISSILES, FLARE_SUSCEPTIBILITY } from './missiles';
+import { AG_CAVEATS } from './agWeapons';
 import { PROCEDURES } from './procedures';
 
 describe('data contracts', () => {
@@ -10,6 +11,12 @@ describe('data contracts', () => {
     expect(laser).toContain('separate limits');
     expect(laser).toContain('current-game behavior is not verified');
     expect(laser).not.toMatch(/conflict/i);
+  });
+  it('labels the recoverable A-G laser heat model as simplified and not verified', () => {
+    const laser = AG_CAVEATS.find(note => note.startsWith('Laser'));
+    expect(laser).toMatch(/1 minute.*continuous.*20 minutes total per flight/);
+    expect(laser).toMatch(/simplified.*20.minute.*heat threshold.*recovery.*not verified/);
+    expect(laser).not.toContain('implements the S1 rule');
   });
   it('keeps known keyboard defaults explicit and uncertain defaults absent', () => {
     const bind = (ac: keyof typeof PROCEDURES, action: RegExp) => PROCEDURES[ac].binds.find(b => action.test(b.action));

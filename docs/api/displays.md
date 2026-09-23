@@ -185,6 +185,39 @@ One row per missile on a shared "seconds from now" axis: label `M1 > T2`, guidan
 `ACT`, `SARH`, `IR`), dashed supported phase to the `A nn` pitbull tick, solid active phase to `T nn` (flashes in
 the last 5 s); SARH rows are amber dashed (hold the lock).
 
+## It23mDisplay (Su-25T IT-23M)
+
+```ts
+const tv = new It23mDisplay(canvas);                 // 4:3 canvas
+tv.draw(state: It23mState | null, image);             // image: ShkvalTv.image (or null: symbology only)
+tv.pickOffset(clientX, clientY) → { fx, fy }          // tap offset from the centre, fractions of width / height
+```
+
+`It23mState`: `on`, `mode` (`'КС' | 'АС'`), `zoom`, `targetSizeM`, `azDeg` / `elDeg` (sight line), `pitchDeg`,
+`radarAltM`, `laserOn`, `laserCooling` (ЛД flashes), `rangeM` (slant range, shown while lasing), `tofS`, `pr`,
+`fovHDeg`, `groundStab`. Draws the picture, then S1's items: azimuth scale −40..+40° on top, elevation scale
++20..−90° on the left with the pitch mark, КС / АС with the radar altitude upper right, zoom and target size upper
+left, the sight cross with the target frame (corners in КС, a box in АС, sized by `targetFramePx`), ЛД, slant range
+in km, ПР above it and the time of flight lower right. Off: dark glass with "Shkval off [O]". Pure helpers
+(tested): `azToX`, `elToY`, `targetFramePx(sizeM, rangeM, fovHDeg, widthPx)`, `fmtSlantKm`, `IT23M_AZ`, `IT23M_EL`.
+
+## Su25tHud (Su-25T HUD, air-to-ground)
+
+```ts
+const hud = new Su25tHud(canvas);                    // square canvas
+hud.draw(state: Su25tHudState | null);
+```
+
+`Su25tHudState`: `master`, `modeLabel` (`hudModeLabel(master, shkvalOn)`: ОПТ-ЗЕМЛЯ, ЗЕМЛЯ), `weaponLabel`
+(`AG_WEAPONS[w].hudLabel`), `rounds`, `pitchDeg`, `headingDeg`, `speedKmh`, `altM`, `range` (`{ cur, min, max }` m,
+from `canAgLaunch`), `pr`, `laserCursor` and `ccip` (degrees from the boresight, `hudAngles(from, heading, pitch,
+point)`, the CCIP point from `predictImpact`), `reticle` (`'in' | 'out' | null`, guided stores), `stations`
+(`{ station, label, count, selected }`). Draws the horizon and pitch marks, the datum, speed / altitude / heading,
+the circular laser cursor with the launch-zone reticle (dashed out of range), the CCIP pipper with the fall line,
+mode and store labels, ПР, the range scale (band, maximum, caret with the current range) and station boxes.
+Layout is simplified; `HUD_FOV_DEG` (26) scales the angles. Pure helpers (tested): `hudAngles`, `hudModeLabel`,
+`rangeScaleKm`.
+
 ## Also exported
 
 `rwrPriority`, `rwrTypeRank(contact)`, `isAirborne(contact)`, `rwrSymbolFor(spec, contact)`, `scopeRadius(rwrId, contact, rank)`, `spoLamps(bearing)`,

@@ -5,13 +5,14 @@
  *   radar.ts (scan, detection, tracks, modes), rwr.ts (warnings), ai.ts (AI pilots),
  *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites),
  *   guns.ts (gun trigger, arcade hits, sight geometry).
+ *   ground.ts (terrain hook, ground units), shkval.ts (Su-25T sight), agWeapons.ts (air-to-ground weapons).
  */
 import { Vector3 } from 'three';
-import type { MissileId, RadarModeId } from '../data/types';
+import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  Aircraft, Countermeasure, EntityId, LaunchCheck, Missile, RecordFrame, SamMissile, SamSite, SamSpawnOptions,
-  SimEvent, SpawnOptions,
+  AgMasterMode, AgWeapon, Aircraft, Countermeasure, EntityId, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, Missile,
+  RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
 
@@ -31,6 +32,22 @@ import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
 import { createGunState, stepGuns } from './guns';
+import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
+import {
+  pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
+  stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
+} from './shkval';
+import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
+import { agLaunch, armLock, canAgLaunch, setArmDetect, stepAgWeapons, type AgLaunchCheck } from './agWeapons';
+
+/** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
+function radarOff(): RadarState {
+  return {
+    mode: 'off', snp2: false, expectedRange: null, azCenter: 0, azHalf: 0, elCenter: 0, bars: 1, rangeScale: 0,
+    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], tracks: [], designated: [],
+    stt: { targetId: null, lostFor: 0 }, cursor: { az: 0, range: 0 },
+  };
+}
 
 export const SIM_HZ = 60;
 const RECORD_EVERY = 0.25;
@@ -44,6 +61,11 @@ export class World {
   /** SAM sites (sam.ts) and SAMs in flight. Separate from air-to-air missiles: SAMs have no MissileId. */
   readonly samSites = new Map<EntityId, SamSite>();
   readonly samMissiles = new Map<EntityId, SamMissile>();
+  /** Ground targets (ground.ts) and air-to-ground weapons in flight (agWeapons.ts). */
+  readonly groundUnits = new Map<EntityId, GroundUnit>();
+  readonly agWeapons = new Map<EntityId, AgWeapon>();
+  /** Height-map terrain. null = flat ground at `groundAlt` (see groundHeight / lineOfSight). */
+  terrain: TerrainHook | null = null;
   countermeasures: Countermeasure[] = [];
   readonly events: SimEvent[] = [];
   readonly recording: RecordFrame[] = [];
@@ -91,7 +113,7 @@ export class World {
     const spec = AIRCRAFT[o.type];
     const id = o.id ?? this.uid(o.side === 'blue' ? 'B' : 'R');
     const stores: Partial<Record<MissileId, number>> = {};
-    for (const w of spec.loadout) stores[w.missile] = (stores[w.missile] ?? 0) + w.count;
+    if (spec.role === 'fighter') for (const w of spec.loadout) stores[w.missile] = (stores[w.missile] ?? 0) + w.count;
     const ac: Aircraft = {
       kind: 'aircraft', id, side: o.side, type: o.type, callsign: o.callsign ?? id, controller: o.controller,
       pos: new Vector3(o.pos.x, o.pos.y, o.pos.z),
@@ -99,7 +121,7 @@ export class World {
       heading: o.heading, pitch: 0, roll: 0, g: 1, jamming: o.jamming ?? false,
       alive: true, diedAt: null, killedBy: null,
       cmd: { heading: o.heading, altitude: o.pos.y, speed: o.speed, maxG: Math.min(spec.perf.maxG, 7), afterburner: false },
-      radar: createRadarState(spec),
+      radar: spec.role === 'fighter' ? createRadarState(spec) : radarOff(),
       rwr: [],
       stores: o.stores ?? stores,
       selectedWeapon: null,
@@ -108,8 +130,9 @@ export class World {
       ai: o.controller === 'ai' ? { skill: o.skill ?? 'regular', state: 'patrol', stateSince: this.t, data: {} } : null,
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
+    if (spec.role === 'attack') ac.ag = createAttackState(o.agLoadout);
     this.aircraft.set(id, ac);
-    if (o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
+    if (spec.role === 'fighter' && o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
     this.emit({ t: this.t, type: 'spawn', id });
     return ac;
   }
@@ -126,6 +149,19 @@ export class World {
   setSamActive(id: EntityId, active: boolean): void {
     const s = this.samSites.get(id); if (s) s.active = active;
   }
+
+  /** Place a ground unit (target). y defaults to the terrain height. */
+  spawnGroundUnit(o: GroundUnitSpawnOptions): GroundUnit {
+    const u = createGroundUnit(this, o);
+    this.groundUnits.set(u.id, u);
+    this.emit({ t: this.t, type: 'spawn', id: u.id });
+    return u;
+  }
+
+  /** Ground height (m) at x, z: the terrain hook, or flat groundAlt. */
+  groundHeight(x: number, z: number): number { return groundHeight(this, x, z); }
+  /** Line of sight a→b over the terrain (flat ground: both ends above it). */
+  lineOfSight(a: XYZ, b: XYZ): boolean { return lineOfSight(this, a, b); }
 
   get(id: EntityId | null | undefined): Aircraft | undefined {
     return id ? this.aircraft.get(id) : undefined;
@@ -152,10 +188,13 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive && ac.controller === 'ai') thinkAi(this, ac, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     stepGuns(this, h);
+    if (this.groundUnits.size) stepGroundUnits(this, h);
+    for (const ac of this.aircraft.values()) if (ac.ag) stepShkval(this, ac, h);
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
     if (this.samSites.size || this.samMissiles.size) stepSams(this, h);
+    if (this.agWeapons.size) stepAgWeapons(this, h);
     updateRwr(this, h);
     if (this.record && this.t - this.lastRecord >= RECORD_EVERY) { this.lastRecord = this.t; this.snapshot(); }
   }
@@ -194,6 +233,74 @@ export class World {
     if (!avail.length) return (ac.selectedWeapon = null);
     const i = ac.selectedWeapon ? avail.indexOf(ac.selectedWeapon) : -1;
     return (ac.selectedWeapon = avail[(i + 1) % avail.length]);
+  }
+
+  // ── Air-to-ground (attack jets). Thin delegations to shkval.ts / agWeapons.ts; no-ops on fighters.
+  private attackJet(id: EntityId): Aircraft | undefined {
+    const ac = this.aircraft.get(id); return ac?.ag ? ac : undefined;
+  }
+  /** Master mode: [1] nav, [7] air-to-ground, [8] fixed reticle. */
+  setAgMaster(id: EntityId, mode: AgMasterMode): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.master = mode;
+  }
+  /** [D]: next A-G store. */
+  cycleAgWeapon(id: EntityId): AgWeaponId | null {
+    const ac = this.attackJet(id); return ac ? cycleAgWeapon(ac.ag!) : null;
+  }
+  /** Select a store directly ([C] = 'gun25t'). */
+  selectAgWeapon(id: EntityId, w: AgWeaponId | null): AgWeaponId | null {
+    const ac = this.attackJet(id); return ac ? selectAgWeapon(ac.ag!, w) : null;
+  }
+  setAgPair(id: EntityId, on: boolean): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.pair = on;
+  }
+  shkvalPower(id: EntityId, on: boolean): void {
+    const ac = this.attackJet(id); if (ac) setShkvalPower(this, ac, on);
+  }
+  /** Held slew input, −1..1 per axis (x right, y up); applied every step at the zoom's rate. */
+  shkvalSlew(id: EntityId, x: number, y: number): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.shkval.slew = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) };
+  }
+  shkvalStabilise(id: EntityId, on: boolean): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? setShkvalStab(this, ac, on) : { ok: false, reason: 'No Shkval' };
+  }
+  /** Point the sight at a world position (lessons, demos). */
+  shkvalPointAt(id: EntityId, p: XYZ): void {
+    const ac = this.attackJet(id); if (ac) pointShkval(this, ac, p);
+  }
+  shkvalZoom(id: EntityId, dir: 1 | -1): void {
+    const ac = this.attackJet(id); if (ac) stepShkvalZoom(ac, dir);
+  }
+  /** Target size: a step (+1 / −1) or an exact value in metres. */
+  shkvalTargetSize(id: EntityId, change: { step: 1 | -1 } | { m: number }): void {
+    const ac = this.attackJet(id);
+    if (ac) { if ('step' in change) stepShkvalTargetSize(ac, change.step); else setShkvalTargetSize(ac, change.m); }
+  }
+  shkvalLock(id: EntityId): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? shkvalLock(this, ac) : { ok: false, reason: 'No Shkval' };
+  }
+  shkvalUnlock(id: EntityId): void {
+    const ac = this.attackJet(id); if (ac) shkvalUnlock(this, ac);
+  }
+  laser(id: EntityId, on: boolean): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? setLaser(this, ac, on) : { ok: false, reason: 'No laser' };
+  }
+  /** [I]: Kh-58 passive detection (needs the L-081 pod). */
+  armDetect(id: EntityId, on: boolean): { ok: boolean; reason: string } {
+    const ac = this.attackJet(id); return ac ? setArmDetect(ac.ag!, on) : { ok: false, reason: 'No air-to-ground system' };
+  }
+  armLock(id: EntityId, siteId?: EntityId): { ok: boolean; reason: string } {
+    const ac = this.attackJet(id); return ac ? armLock(this, ac, siteId) : { ok: false, reason: 'No air-to-ground system' };
+  }
+  /** ПР check for the selected (or given) A-G store. */
+  canAgLaunch(id: EntityId, w?: AgWeaponId): AgLaunchCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? canAgLaunch(this, ac, w) : { ok: false, pr: false, reason: 'Aircraft is not alive', weapon: null, targetId: null, range: null, band: null };
+  }
+  /** Release the selected A-G store if allowed. */
+  agLaunch(id: EntityId): AgWeapon[] | AgLaunchCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? agLaunch(this, ac) : this.canAgLaunch(id);
   }
 
   // Thin delegations so pages only ever talk to World.
@@ -286,6 +393,24 @@ export class World {
       f.samMissiles = [...this.samMissiles.values()].map(m => ({
         id: m.id, type: m.type, side: m.side, siteId: m.siteId, targetId: m.targetId, pos: [m.pos.x, m.pos.y, m.pos.z], guided: m.guided, alive: m.alive,
       }));
+    }
+    if (this.groundUnits.size) {
+      f.groundUnits = [...this.groundUnits.values()].map(u => ({
+        id: u.id, kind: u.kind, side: u.side, pos: [u.pos.x, u.pos.y, u.pos.z], heading: u.heading, alive: u.alive,
+      }));
+    }
+    if (this.agWeapons.size) {
+      f.agWeapons = [...this.agWeapons.values()].map(w => ({
+        id: w.id, type: w.type, side: w.side, shooterId: w.shooterId, targetId: w.targetId, pos: [w.pos.x, w.pos.y, w.pos.z], guided: w.guided, alive: w.alive,
+      }));
+    }
+    const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);
+    if (sk.length) {
+      f.shkval = sk.map(a => {
+        const sh = a.ag!.shkval;
+        const p = shkvalAimPoint(this, a);
+        return { ownerId: a.id, point: p ? [p.x, p.y, p.z] : null, locked: sh.lockedUnitId, laser: sh.laserOn };
+      });
     }
     this.recording.push(f);
   }

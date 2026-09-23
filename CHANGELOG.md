@@ -9,6 +9,11 @@
   Hornet funnel / director with SHOOT, F-16C EEGS Level II / V, F-14 RTGS, JF-17 SS / SSLC / LCOS, M-2000C CCLT,
   labelled simplified. The 3D view adds tracers, the lift vector, turn circles, the bandit's plane of motion,
   pursuit-coloured lines and hit sparks.
+- Shkval & Vikhr (#37), the first Su-25T page: height-map terrain with a flattened target area wired into the sim,
+  ground units, Vikhr smoke, rockets, gun tracers, impacts, the laser line and the Shkval field of view in 3D; a
+  second camera renders the Shkval TV picture in black and white on the IT-23M with its symbology, next to the
+  Su-25T HUD (mode and store labels, range scale, laser cursor, CCIP pipper, station boxes). Lessons for the Shkval,
+  the laser, a scored Vikhr drill and a rocket / gun CCIP pass, with touch controls and a debrief per drill.
 
 - Pattern & landing adds air-to-air refuelling (#28): Tanker rejoin and Pre-contact starts for the Su-33 (IL-78M
   with UPAZ pods), F-15C and F-16C (KC-135 boom) and the F/A-18C, F-14B, JF-17 and M-2000C (KC-135 MPRS or KC-130
