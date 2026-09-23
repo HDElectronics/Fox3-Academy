@@ -6,9 +6,12 @@
  * it). Runway and overlay live in `root`, a Group scaled by 0.001, so they are authored in runway-frame
  * metres. The jet is true size in the chase and cockpit views; in the side and tower views it gets a
  * Tacview-style screen-size floor (`boostPx`) so a 15 m jet stays readable next to a 7 km corridor.
- * The Stage camera near plane is lowered to 0.5 m for the cockpit view and restored on dispose.
+ * The Stage camera near plane is lowered to 0.5 m for the cockpit view and restored on dispose; the far
+ * plane (2000 km) and the Environment haze (130 km) already cover an RTB start 40 km out at 4000 m.
  */
 import { Group, Quaternion, Vector3 } from 'three';
+import { LineBatch } from '../lines';
+import { Note } from '../tags';
 import type { FlightOpsJetId, FlightOpsState } from '../../sim/flightOps/types';
 import { JetMesh, NOMINAL_JET_M } from '../jets';
 import type { VisualSide } from '../palette';
@@ -30,6 +33,13 @@ const _q = new Quaternion();
 const _v = new Vector3();
 const _w = new Vector3();
 const _t = new Vector3();
+const _f = new Vector3();
+const _a = new Vector3();
+const _b = new Vector3();
+
+/** Nav marker size (m): pillar height and ground ring radius. Display choices. */
+const NAV_PILLAR_M = 1200;
+const NAV_RING_M = 180;
 
 export class FlightOpsScene {
   readonly stage: Stage;
@@ -48,6 +58,9 @@ export class FlightOpsScene {
   private readonly oldNear: number;
   private readonly offFrame: () => void;
   private disposed = false;
+  private readonly nav: LineBatch;
+  private readonly navAnchor = new Group();
+  private readonly navNote: Note;
 
   constructor(stage: Stage, aircraft: FlightOpsJetId, opts: FlightOpsSceneOptions = {}) {
     this.stage = stage;
@@ -67,6 +80,13 @@ export class FlightOpsScene {
     this.root.add(this.runway, this.overlay);
     this.jet = new JetMesh(aircraft, this.side, stage.palette);
     stage.scene.add(this.root, this.jet);
+    this.nav = new LineBatch(stage.shared, { capacity: 64 });
+    this.nav.visible = false;
+    this.root.add(this.nav);
+    this.navAnchor.name = 'flightOps:navLabel';
+    this.navNote = new Note(this.navAnchor, 'r3-above r3-center', undefined, true);
+    this.navNote.visible = false;
+    stage.labels.add(this.navAnchor);
     this.offFrame = stage.onFrame(dt => this.frame(dt), { priority: FramePriority.camera, always: true });
   }
 
@@ -92,6 +112,39 @@ export class FlightOpsScene {
   setApproach(opts: ApproachGeometryOptions): void {
     this.overlay.setGeometry(opts);
     if (opts.aimPointM !== undefined) this.runway.setAimPoint(opts.aimPointM);
+    this.stage.requestRender();
+  }
+
+  /**
+   * Steer-point marker (runway-frame metres, on the ground): a ground ring, a tall pillar readable from
+   * 40 km, and an optional label at its top. `null` hides it.
+   */
+  setNavTarget(pos: { x: number; z: number } | null, label?: string): void {
+    const L = this.nav;
+    L.reset();
+    if (!pos) {
+      L.commit();
+      L.visible = false;
+      this.navNote.visible = false;
+      this.stage.requestRender();
+      return;
+    }
+    const p = this.stage.palette;
+    const c = p.symHi;
+    const ring: { x: number; y: number; z: number }[] = [];
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      ring.push({ x: pos.x + Math.cos(a) * NAV_RING_M, y: 2, z: pos.z + Math.sin(a) * NAV_RING_M });
+    }
+    L.polyline(ring, { color: c, alpha: 0.9, width: 2 }, true);
+    L.line({ x: pos.x, y: 0, z: pos.z }, { x: pos.x, y: NAV_PILLAR_M, z: pos.z }, { color: c, alpha: 0.95, colorB: c, alphaB: 0.25, width: 2.5 });
+    L.line({ x: pos.x - NAV_RING_M, y: 2, z: pos.z }, { x: pos.x + NAV_RING_M, y: 2, z: pos.z }, { color: c, alpha: 0.6, width: 1.2 });
+    L.line({ x: pos.x, y: 2, z: pos.z - NAV_RING_M }, { x: pos.x, y: 2, z: pos.z + NAV_RING_M }, { color: c, alpha: 0.6, width: 1.2 });
+    L.commit();
+    L.visible = true;
+    this.navAnchor.position.set(pos.x * UNIT_PER_M, NAV_PILLAR_M * UNIT_PER_M, pos.z * UNIT_PER_M);
+    this.navNote.set(label ?? '');
+    this.navNote.visible = !!label;
     this.stage.requestRender();
   }
 
@@ -145,9 +198,22 @@ export class FlightOpsScene {
     const look = _v;
     switch (this.mode) {
       case 'chase': {
+        // High and left of the jet, so on final the jet sits low right and the runway stays in view.
         const hq = headingQuaternion(s?.heading ?? 0, _q);
-        want.set(0, 4 * m, 48 * m).applyQuaternion(hq).add(jet);
-        look.set(0, 1 * m, -40 * m).applyQuaternion(hq).add(jet);
+        want.set(-7 * m, 9 * m, 46 * m).applyQuaternion(hq).add(jet);
+        _f.set(0, 0, -1).applyQuaternion(hq);
+        // Along the heading, or between the jet and the aim point when the runway is ahead.
+        look.set(0, 1 * m, -40 * m).applyQuaternion(hq).add(jet).sub(want).normalize();
+        _a.set(0, 0, -aim * m).sub(jet);
+        const ahead = Math.hypot(_a.x, _a.z) > 1e-6 ? (_f.x * _a.x + _f.z * _a.z) / Math.hypot(_a.x, _a.z) : 0;
+        const k = Math.min(1, Math.max(0, (ahead - 0.3) / 0.5));
+        if (k > 0) {
+          _a.set(0, 0, -aim * m).sub(want).normalize();
+          _b.copy(jet).sub(want).normalize();
+          _a.add(_b).normalize();
+          look.lerp(_a, k).normalize();
+        }
+        look.add(want);
         break;
       }
       case 'side': {
@@ -185,6 +251,9 @@ export class FlightOpsScene {
     this.offFrame();
     this.runway.dispose();
     this.overlay.dispose();
+    this.nav.dispose();
+    this.navNote.dispose();
+    this.navAnchor.removeFromParent();
     this.jet.removeFromParent();
     this.root.removeFromParent();
     this.stage.camera.near = this.oldNear;
