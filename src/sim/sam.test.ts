@@ -7,6 +7,7 @@ import type { AircraftId, SamId } from '../data/types';
 import type { RwrContact, SimEvent } from './types';
 import { SAM_MODEL, samRingM, samSightBlock } from './sam';
 import { bearingTo, wrap2Pi } from './math';
+import { duel, samDrill } from './scenarios';
 
 const SITE = 'site';
 
@@ -152,5 +153,35 @@ describe('SAM defences (gameplay rules)', () => {
     const { world, me } = setup({ sam: 'sa10', range: 115000, alt: 10000 });
     runUntil(world, () => !me.alive, 200);
     expect(me.alive).toBe(false);
+  });
+});
+
+describe('SAM scenarios', () => {
+  it('samDrill: the RWR shows search outside the ring, then lock and launch as you fly in', () => {
+    for (const sam of ['sa10', 'sa11', 'sa15'] as const) {
+      const world = new World(3); world.record = false;
+      const d = samDrill(world, 'f15c', sam, { playerAlt: 5000 });
+      const me = world.get(d.playerId)!;
+      world.step(1);
+      expect(me.rwr.find(c => c.emitterId === d.siteId)?.state, sam).toBe('search');
+      runUntil(world, () => d.missiles().length > 0, 200);
+      expect(d.missiles().length, sam).toBeGreaterThan(0);
+      expect(d.site().state).toBe('engage');
+      expect(me.rwr[0].emitterId).toBe(d.siteId);
+      expect(me.rwr[0].state).toBe('launch');
+    }
+  });
+
+  it('sortie engagements can place SAM sites and default to none', () => {
+    const w1 = new World(1); w1.record = false;
+    expect(duel(w1, 'su27').samIds).toEqual([]);
+    const w2 = new World(1);
+    const eng = duel(w2, 'su27', undefined, 'regular', { sams: [{ type: 'sa11', offsetDeg: 20 }, { type: 'sa15', range: 30000 }] });
+    expect(eng.samIds).toEqual(['sam1', 'sam2']);
+    expect(w2.samSites.get('sam1')?.type).toBe('sa11');
+    expect(w2.samSites.get('sam2')?.pos.length()).toBeCloseTo(30000, -1);
+    w2.step(2);
+    expect(w2.recording.length).toBeGreaterThan(0);
+    expect(w2.recording.at(-1)?.sams?.length).toBe(2);
   });
 });
