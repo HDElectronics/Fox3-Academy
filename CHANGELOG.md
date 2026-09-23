@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Merge & guns, part 3 (#11): close-range lock modes and IR missiles for all ten fighters. A Close combat panel
+  selects the jet's ACM modes (FC3 VS / BORE / HELMET / Fi0, F-15C VS / BORE / Auto Guns, Hornet BST / VACQ / WACQ /
+  GACQ, F-16C 30×20 / 10×60 / BORE, F-14 PLM / VSL HI / LO / PAL, JF-17 VT / BS / HA, M-2000C boresight / vertical /
+  HUD) with their scan areas, lock ranges and HUD cues; the IR seeker growls, tracks (uncage on the Western jets,
+  ПР on the FC3 jets) and plays the growl and lock tone with a mute toggle. New lesson Close-range lock and IR shot,
+  scored on time to lock, shots in the zone and the result against a bandit who flares; IR shots also in the Free
+  fight. Unverified areas, keys and tones say so.
 - Su-25T sortie (#37): a new **Sortie** lesson on the Shkval & Vikhr page. Brief on a plan-view map (start, IP,
   armour column and bunker, SA-15 ring, ZSU-23-4 gun envelope, optional SA-11) with a loadout picker from the five
   Su-25T loadouts and the plan each implies. Fly a low-level ingress on a trainer steering cue with terrain

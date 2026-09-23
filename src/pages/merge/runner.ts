@@ -13,6 +13,8 @@ import { mach, sigma, speedFromMach } from '../../sim/atmosphere';
 import { liftVector, sustainedGAt } from '../../sim/flight';
 import { D2R, MPS_PER_KT } from '../../sim/math';
 import { bfmAiStep, chooseCircle, newBfmAi, type BfmAiState } from '../../sim/bfmAi';
+import { acmPressLock, fireIr, irShotCheck, modeSpec, newAcmState, setAcmMode, stepAcm, toggleUncage, type AcmState, type IrShot } from '../../sim/acm';
+import { MISSILES } from '../../data/missiles';
 import { TURN_G, banditStep, isAiMode, newBandit, type BanditMode, type BanditState } from './bandit';
 import { atCorner, classifyPursuit, eas, newStick, pursuitAim, stepStick, steerTo, type Pursuit, type PursuitRead, type Stick } from './bfm';
 import {
@@ -26,7 +28,10 @@ export const LINGER_S = 1.5;
 
 export type Phase = 'setup' | 'run' | 'end';
 /** Demo autopilots for screenshot pre-rolls and headless tests. */
-export type Autopilot = 'corner' | Pursuit | 'track' | 'defend' | 'ai';
+export type Autopilot = 'corner' | Pursuit | 'track' | 'defend' | 'ai' | 'ir';
+
+/** Bandit flares after an IR launch at him: seconds after the launch (trainer reaction, deterministic). */
+export const BANDIT_FLARE_AT_S = [1.0, 1.6];
 
 /** Fighting AI modes the event log names. */
 const AI_LOG: Partial<Record<string, string>> = {
@@ -65,6 +70,8 @@ export class MergeRun {
   readonly metrics: MergeMetrics = emptyMetrics();
   phase: Phase = 'setup';
   autopilot: Autopilot | null = null;
+  /** Demo autopilot 'ir' holds fire (screenshots of the cues before the shot). */
+  apHoldFire = false;
   /** Latest pursuit read (for the aids and the coach). */
   pursuit: PursuitRead;
   endAt: number | null = null;
@@ -82,6 +89,11 @@ export class MergeRun {
   private passAlt = 0;
   private wasBehind = true;
   private yoyoLiftRaised = false;
+  /** Close-combat modes and the IR seeker for your jet (null: no ACM data). */
+  readonly acm: AcmState | null;
+  /** Your IR missiles in the air, and the bandit's pending flare times. */
+  private irMissiles = new Set<string>();
+  private flareAt: number[] = [];
 
   constructor(readonly ac: FighterId, readonly lesson: LessonId, readonly banditMode: BanditMode, seed: number, private hooks: RunHooks = {}) {
     const w = this.world = new World(seed);
@@ -99,6 +111,8 @@ export class MergeRun {
       case 'close-behind': bPos = { x: 220, y: START_ALT, z: -650 }; bHeading = 35 * D2R; meSpeed = bSpeed; break;
       case 'defend': mePos = { x: 0, y: START_ALT, z: 0 }; bPos = { x: 150, y: START_ALT + 60, z: 900 }; meSpeed = m08 * 0.9; bSpeed = m08; break;
       case 'merge': bPos = { x: 450, y: START_ALT, z: -7000 }; bHeading = Math.PI; meSpeed = bSpeed = m08; break;
+      // Behind and right of a turning bandit, 3 km, a little below: pick the mode, lock, get the tone.
+      case 'ir': bPos = { x: 700, y: START_ALT + 250, z: -2900 }; bHeading = 15 * D2R; meSpeed = bSpeed * 1.05; break;
       // Fast, behind and inside a slow bandit in a hard turn: an overshoot unless you go out of plane.
       case 'overshoot': mePos = { x: -900, y: START_ALT, z: 700 }; meHeading = 30 * D2R; meSpeed = m08 * 1.15; bPos = { x: 0, y: START_ALT, z: 0 }; bSpeed = m08 * 0.66; break;
     }
@@ -114,6 +128,8 @@ export class MergeRun {
     if (banditMode === 'hard') this.bandit.roll = 70 * D2R;
     if (def.start === 'overshoot') this.me.roll = 60 * D2R;
     this.metrics.circleAdvised = chooseCircle(ac, redType, 'veteran');
+    this.acm = newAcmState(ac);
+    if (this.acm) this.acm.helmetLookId = this.bandit.id;
     this.startDir = this.me.vel.clone().normalize();
     this.lastRounds = this.me.gun.rounds;
     this.pursuit = classifyPursuit(this.me.pos, this.me.vel, this.bandit.pos, this.bandit.vel);
@@ -150,13 +166,18 @@ export class MergeRun {
     const scoring = this.phase === 'run';
     const damageTaken = me.damage, damageDealt = this.bandit.damage;
     w.step(h);
+    if (this.acm) stepAcm(w, me, this.acm, h);
+    while (this.flareAt.length && w.t >= this.flareAt[0]!) {
+      this.flareAt.shift();
+      if (this.bandit.alive && w.flare(this.bandit.id)) this.hooks.log?.('Bandit flares', w.t);
+    }
     // Hits are random visual/coaching events; damage is continuous, including the killing step.
     // Deltas also work for drill bandits whose damage starts negative to keep them alive.
     if (scoring) {
       this.metrics.damageTaken += Math.max(0, me.damage - damageTaken);
       this.metrics.damageDealt += Math.max(0, this.bandit.damage - damageDealt);
     }
-    if (this.phase === 'run') this.measure(h);
+    if (this.phase === 'run') { this.measure(h); this.measureAcm(); }
     else if (this.phase === 'end' && this.endAt !== null && w.t >= this.endAt) {
       this.endAt = null;
       this.hooks.finished?.(this.metrics);
@@ -209,6 +230,17 @@ export class MergeRun {
       case 'defend':
         me.cmd.bfm = { bank: -80 * D2R, g: 'max', throttle: 'ab' };
         break;
+      case 'ir': {
+        // Pure pursuit with the lesson's first mode: lock, uncage on the growl, fire in the zone.
+        const acm = this.acm;
+        me.cmd.bfm = steerTo(me, pursuitAim(me, b, 'pure', _aim), 'mil', 2);
+        if (!acm || this.phase !== 'run') break;
+        if (!acm.mode) setAcmMode(this.world, me, acm, acm.jet.modes[0]!.id);
+        if (acm.mode && !acm.lockedId && modeSpec(acm)?.lock.value === 'enter') acmPressLock(this.world, me, acm);
+        if (acm.seeker.tone === 'growl' && acm.jet.ir.uncage.value === 'key') toggleUncage(acm);
+        if (!this.apHoldFire && this.metrics.irShots === 0 && irShotCheck(this.world, me, acm).inZone) this.fireIr();
+        break;
+      }
       case 'ai': {
         // The fighting AI (veteran) flies your jet: lead turn, circle choice, yo-yo, guns.
         this.apAi ??= newBfmAi(me, b.type, 'veteran', () => this.world.rand());
@@ -301,6 +333,47 @@ export class MergeRun {
     if (m.t >= LESSONS[this.lesson].durationS) this.end();
   }
 
+  /** First lock (or seeker track for Fi0) time and the mode used. */
+  private measureAcm(): void {
+    const acm = this.acm, m = this.metrics;
+    if (!acm) return;
+    const spec = modeSpec(acm);
+    if (m.lockS === null && (acm.lockedId || (spec?.sensor === 'seeker' && acm.seeker.mode === 'track'))) {
+      m.lockS = m.t;
+      m.acmMode = spec?.name ?? null;
+      this.hooks.log?.(`${spec?.name ?? 'Seeker'} lock`, this.world.t);
+    }
+  }
+
+  /** Fire the IR missile (trigger with the missile selected). The run starts if it has not. */
+  fireIr(): IrShot | null {
+    const acm = this.acm, me = this.me;
+    if (!acm || !me.alive || this.phase === 'end') return null;
+    this.start();
+    const { missile, shot } = fireIr(this.world, me, acm);
+    if (!missile) return shot;
+    const m = this.metrics;
+    m.irShots++;
+    if (shot.inZone) m.irInZone++;
+    if (m.irOffDeg === null) { m.irOffDeg = shot.offDeg; m.irRangeM = shot.range; }
+    m.acmMode ??= modeSpec(acm)?.name ?? null;
+    this.irMissiles.add(missile.id);
+    if (missile.targetId === this.bandit.id) for (const s of BANDIT_FLARE_AT_S) this.flareAt.push(this.world.t + s);
+    this.flareAt.sort((a, b) => a - b);
+    this.hooks.log?.(`${MISSILES[missile.type].name} away${shot.inZone ? '' : ': no tone'}`, this.world.t);
+    return shot;
+  }
+
+  private irResult(e: Extract<SimEvent, { type: 'hit' | 'miss' }>): void {
+    const m = this.metrics;
+    this.irMissiles.delete(e.missileId);
+    if (e.type === 'hit') m.irHits++;
+    else if (e.reason === 'flare') { m.irFlared++; this.hooks.log?.('Missile decoyed by a flare', e.t); }
+    else { m.irMissed++; this.hooks.log?.(`Missile missed (${e.reason})`, e.t); }
+    const left = this.acm ? this.me.stores[this.acm.jet.ir.missile] ?? 0 : 0;
+    if (this.lesson === 'ir' && e.type === 'miss' && (left <= 0 || m.irShots >= 2) && this.irMissiles.size === 0) this.end();
+  }
+
   end(): void {
     if (this.phase !== 'run') return;
     this.phase = 'end';
@@ -310,8 +383,10 @@ export class MergeRun {
   }
 
   private onEvent(e: SimEvent): void {
-    if (this.phase !== 'run') return;
     const m = this.metrics;
+    // Missile results count even when a kill on the same step has just ended the run.
+    if ((e.type === 'hit' || e.type === 'miss') && this.irMissiles.has(e.missileId)) { this.irResult(e); return; }
+    if (this.phase !== 'run') return;
     if (e.type === 'gun-hit') {
       if (e.shooterId === this.me.id) m.hits += e.hits;
       else if (e.targetId === this.me.id) m.hitsTaken += e.hits;

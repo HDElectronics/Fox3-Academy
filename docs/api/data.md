@@ -388,6 +388,29 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 - Default wingspan 13 m for F-15C, F-14B, JF-17, M-2000C (no manual value).
 - Trigger keys: F-16C, F-14B, JF-17, M-2000C `Space` is a trainer key; F-14B, JF-17, M-2000C gun select has no single key.
 
+### Close-range acquisition and IR shot
+
+`src/data/acm.ts` (`ACM`, `acmFor(type)`, `ACM_CAVEATS`): per fighter, the ACM modes (`AcmModeSpec`: scan area as a
+cone or az × el box in degrees, lock range, lock rule `auto` / `enter`, dwell, sensor radar / IRST / seeker, key, HUD
+cue) and the IR shot (`IrShotSpec`: missile, uncage rule and key, seeker field of view, launch limit, ready cue,
+tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomcat-thunder-mirage.md`. Not verified:
+- FC3 lock range 10 km and the HELMET 45° acquisition limit; VS lock rule (FC3 manual automatic, Su-27 manual Enter held).
+- HELMET look follows the drill bandit independently of acquisition and lock eligibility; its ring and X stay at
+  the HUD edge when off screen (trainer aids). ACM lock retention to 60° / 1.5 × acquisition range is simplified.
+- Hornet GACQ is guns-only. Selecting it selects guns; selecting IR from GACQ switches to BST and clears the
+  old lock and seeker. BST as the fallback is a trainer choice.
+- Pattern sizes the notes do not give: F-15C BORE cone, Hornet VACQ width and WACQ centre, F-16C BORE cone, F-14 PLM
+  cone and PAL elevation, JF-17 VT lower edge and HA size, M-2000C vertical width.
+  The entire VACQ, VT and Mirage vertical `area` is marked `verified: false` because it includes these trainer
+  dimensions; each area's note preserves the sourced dimensions.
+- Every seeker field of view except Fi0 2°, every launch limit except the R-73 45°, every seeker tone description,
+  the F-15C and F-14 uncage rule; the 0.5 s dwell (gameplay).
+- Keys: F-14B mode controls, M-2000C Weapons System CMD, F-14B uncage and fire have no verified default.
+  F-15C `Space` also launching missiles is unverified; its documented Weapon Release is `RAlt+Space`.
+  Viper WPN REL is also documented as `RAlt+Space` (hold). Both release entries are verified against the notes.
+  The Merge page labels `Space` to fire and `C` to uncage separately as trainer controls; actionable coaching
+  uses `C`, while the reference retains the DCS controls (F-15C `6`, JF-17 `T2`).
+
 ## Requests (to the architect)
 
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
