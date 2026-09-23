@@ -10,11 +10,14 @@ import { World } from '../../sim/world';
 import type { Aircraft, SimEvent } from '../../sim/types';
 import { gunSolution } from '../../sim/guns';
 import { mach, sigma, speedFromMach } from '../../sim/atmosphere';
-import { sustainedGAt } from '../../sim/flight';
+import { liftVector, sustainedGAt } from '../../sim/flight';
 import { D2R, MPS_PER_KT } from '../../sim/math';
-import { TURN_G, banditStep, newBandit, type BanditMode, type BanditState } from './bandit';
+import { bfmAiStep, chooseCircle, newBfmAi, type BfmAiState } from '../../sim/bfmAi';
+import { TURN_G, banditStep, isAiMode, newBandit, type BanditMode, type BanditState } from './bandit';
 import { atCorner, classifyPursuit, eas, newStick, pursuitAim, stepStick, steerTo, type Pursuit, type PursuitRead, type Stick } from './bfm';
-import { LESSONS, PURSUIT_ORDER, emptyMetrics, stepPursuitPhase, type LessonId, type MergeMetrics } from './lessons';
+import {
+  CIRCLE_EVAL_S, HOLD_MAX_M, HOLD_MIN_M, LESSONS, PURSUIT_ORDER, YOYO_CLIMB_M, emptyMetrics, stepPursuitPhase, type LessonId, type MergeMetrics,
+} from './lessons';
 
 /** Start altitude (m), about 15000 ft. */
 export const START_ALT = 4600;
@@ -23,14 +26,35 @@ export const LINGER_S = 1.5;
 
 export type Phase = 'setup' | 'run' | 'end';
 /** Demo autopilots for screenshot pre-rolls and headless tests. */
-export type Autopilot = 'corner' | Pursuit | 'track' | 'defend';
+export type Autopilot = 'corner' | Pursuit | 'track' | 'defend' | 'ai';
+
+/** Fighting AI modes the event log names. */
+const AI_LOG: Partial<Record<string, string>> = {
+  'lead-turn': 'Bandit lead turn', 'turn-away': 'Bandit turns away: one-circle', yoyo: 'Bandit high yo-yo', jink: 'Bandit jinks',
+};
+
+/** Geometry of the fight right now: nose angles (deg), range (m), and whether you are behind his wing line. */
+export interface Angles { myAta: number; hisAta: number; range: number; behind: boolean }
+
+const _r = new Vector3(), _f = new Vector3(), _g = new Vector3();
+
+/** Angle from each jet's nose to the other (deg), range, and whether `me` is behind the bandit's 3-9 line. */
+export function anglesOf(me: Aircraft, b: Aircraft): Angles {
+  const rel = _r.subVectors(b.pos, me.pos);
+  const range = rel.length();
+  rel.divideScalar(Math.max(1, range));
+  const um = _f.copy(me.vel).normalize(), ub = _g.copy(b.vel).normalize();
+  const myAta = Math.acos(Math.max(-1, Math.min(1, um.dot(rel)))) / D2R;
+  const hisAta = Math.acos(Math.max(-1, Math.min(1, -ub.dot(rel)))) / D2R;
+  return { myAta, hisAta, range, behind: ub.dot(rel) > 0 };
+}
 
 export interface RunHooks {
   finished?(m: MergeMetrics): void;
   log?(text: string, t: number): void;
 }
 
-const _aim = new Vector3();
+const _aim = new Vector3(), _lift = new Vector3();
 
 export class MergeRun {
   readonly world: World;
@@ -46,6 +70,18 @@ export class MergeRun {
   endAt: number | null = null;
   private lastRounds: number;
   private prevLead: Vector3 | null = null;
+  /** Demo autopilot 'ai': the fighting AI flying your jet. */
+  private apAi: BfmAiState | null = null;
+  /** Pass bookkeeping (merge, circles): last range, opening since the first pass, velocity at start and at the pass. */
+  private prevRange = Infinity;
+  private opening = false;
+  private reclosing = false;
+  private startDir: Vector3;
+  private passDir: Vector3 | null = null;
+  private hisPassDir: Vector3 | null = null;
+  private passAlt = 0;
+  private wasBehind = true;
+  private yoyoLiftRaised = false;
 
   constructor(readonly ac: FighterId, readonly lesson: LessonId, readonly banditMode: BanditMode, seed: number, private hooks: RunHooks = {}) {
     const w = this.world = new World(seed);
@@ -56,23 +92,29 @@ export class MergeRun {
     const redType: FighterId = ac === 'su27' ? 'f15c' : 'su27';
     let meSpeed = m08, bSpeed = m08 * 0.95;
     let mePos = { x: 0, y: START_ALT, z: 0 }, bPos = { x: 0, y: START_ALT, z: -1200 };
-    let bHeading = 0;
+    let bHeading = 0, meHeading = 0;
     switch (def.start) {
       case 'solo': meSpeed = corner + 70 * MPS_PER_KT; bPos = { x: 3500, y: START_ALT + 300, z: -2500 }; break;
       case 'behind': bPos = { x: 0, y: START_ALT, z: -1300 }; meSpeed = bSpeed * 1.02; break;
       case 'close-behind': bPos = { x: 220, y: START_ALT, z: -650 }; bHeading = 35 * D2R; meSpeed = bSpeed; break;
       case 'defend': mePos = { x: 0, y: START_ALT, z: 0 }; bPos = { x: 150, y: START_ALT + 60, z: 900 }; meSpeed = m08 * 0.9; bSpeed = m08; break;
       case 'merge': bPos = { x: 450, y: START_ALT, z: -7000 }; bHeading = Math.PI; meSpeed = bSpeed = m08; break;
+      // Fast, behind and inside a slow bandit in a hard turn: an overshoot unless you go out of plane.
+      case 'overshoot': mePos = { x: -900, y: START_ALT, z: 700 }; meHeading = 30 * D2R; meSpeed = m08 * 1.15; bPos = { x: 0, y: START_ALT, z: 0 }; bSpeed = m08 * 0.66; break;
     }
-    this.me = w.spawnAircraft({ side: 'blue', type: ac, callsign: 'You', controller: 'player', pos: mePos, heading: 0, speed: meSpeed });
+    this.me = w.spawnAircraft({ side: 'blue', type: ac, callsign: 'You', controller: 'player', pos: mePos, heading: meHeading, speed: meSpeed });
     this.bandit = w.spawnAircraft({ side: 'red', type: redType, callsign: 'Bandit', controller: 'script', pos: bPos, heading: bHeading, speed: bSpeed });
     this.me.cmd.maxG = spec.perf.maxG;
-    this.bandit.cmd.maxG = 7;
+    this.bandit.cmd.maxG = isAiMode(banditMode) ? AIRCRAFT[redType].perf.maxG : 7;
     if (lesson !== 'tracking' && lesson !== 'fight') this.bandit.damage = -1e9;   // the drills keep their bandit
     if (lesson === 'defence') this.me.damage = 0;
     this.stick = newStick(def.start === 'solo' ? 'mil' : 'ab');
-    this.banditState = newBandit(banditMode, this.bandit, 1);
+    this.banditState = newBandit(banditMode, this.bandit, 1, { enemyType: ac, rand: () => w.rand() });
     if (banditMode === 'turn' || banditMode === 'reverse') this.bandit.roll = Math.acos(1 / TURN_G);
+    if (banditMode === 'hard') this.bandit.roll = 70 * D2R;
+    if (def.start === 'overshoot') this.me.roll = 60 * D2R;
+    this.metrics.circleAdvised = chooseCircle(ac, redType, 'veteran');
+    this.startDir = this.me.vel.clone().normalize();
     this.lastRounds = this.me.gun.rounds;
     this.pursuit = classifyPursuit(this.me.pos, this.me.vel, this.bandit.pos, this.bandit.vel);
     // Everyone starts in BFM mode, wings level.
@@ -105,7 +147,15 @@ export class MergeRun {
       else { me.cmd.bfm = stepStick(this.stick, me, h); me.cmd.trigger = this.stick.trigger; }
     } else me.cmd.trigger = false;
     this.applyBandit(h);
+    const scoring = this.phase === 'run';
+    const damageTaken = me.damage, damageDealt = this.bandit.damage;
     w.step(h);
+    // Hits are random visual/coaching events; damage is continuous, including the killing step.
+    // Deltas also work for drill bandits whose damage starts negative to keep them alive.
+    if (scoring) {
+      this.metrics.damageTaken += Math.max(0, me.damage - damageTaken);
+      this.metrics.damageDealt += Math.max(0, this.bandit.damage - damageDealt);
+    }
     if (this.phase === 'run') this.measure(h);
     else if (this.phase === 'end' && this.endAt !== null && w.t >= this.endAt) {
       this.endAt = null;
@@ -116,9 +166,17 @@ export class MergeRun {
   private applyBandit(h: number): void {
     const b = this.bandit;
     if (!b.alive) { b.cmd.trigger = false; return; }
-    const r = banditStep(this.banditState, b, this.me.alive ? this.me : null, this.world.t, h);
+    const bs = this.banditState;
+    const before = bs.aiMode;
+    const r = banditStep(bs, b, this.me.alive ? this.me : null, this.world.t, h);
     b.cmd.bfm = r.bfm;
     b.cmd.trigger = this.phase === 'run' && r.trigger;
+    if (bs.aiMode && bs.aiMode !== before && this.phase === 'run') {
+      const mv = this.metrics.aiMoves;
+      mv[bs.aiMode] = (mv[bs.aiMode] ?? 0) + 1;
+      const text = AI_LOG[bs.aiMode];
+      if (text) this.hooks.log?.(text, this.world.t);
+    }
   }
 
   /** Demo autopilot (pre-rolls, tests): flies a lesson's goal with the steering law. */
@@ -151,7 +209,71 @@ export class MergeRun {
       case 'defend':
         me.cmd.bfm = { bank: -80 * D2R, g: 'max', throttle: 'ab' };
         break;
+      case 'ai': {
+        // The fighting AI (veteran) flies your jet: lead turn, circle choice, yo-yo, guns.
+        this.apAi ??= newBfmAi(me, b.type, 'veteran', () => this.world.rand());
+        const o = bfmAiStep(this.apAi, me, b.alive ? b : null, this.world.t, h, () => this.world.rand());
+        me.cmd.bfm = o.bfm;
+        me.cmd.trigger = this.phase === 'run' && o.trigger;
+        break;
+      }
     }
+  }
+
+  /** Pass, circle, angles and yo-yo bookkeeping for the merge, circles and yo-yo drills. */
+  private measureGeometry(h: number): void {
+    const m = this.metrics, me = this.me, b = this.bandit;
+    const a = anglesOf(me, b);
+    const closing = a.range < this.prevRange;
+    // First pass: the range stops closing inside 3 km.
+    if (m.passT === null && !closing && Number.isFinite(this.prevRange) && this.prevRange < 3000 && (this.lesson === 'merge' || this.lesson === 'circles' || this.lesson === 'fight')) {
+      m.passT = m.t;
+      m.passRange = this.prevRange;
+      this.passDir = me.vel.clone().normalize();
+      m.leadTurnDeg = Math.acos(Math.max(-1, Math.min(1, this.passDir.dot(this.startDir)))) / D2R;
+      this.hisPassDir = b.vel.clone().normalize();
+      this.passAlt = me.pos.y;
+      this.opening = true;
+      this.hooks.log?.('First pass', m.t);
+    }
+    if (m.passT !== null && this.passDir) {
+      const since = m.t - m.passT;
+      if (m.circleFlown === null && since >= 3 && this.hisPassDir) {
+        // Both jets turning the same way round (seen from above): two-circle; opposite ways: one-circle.
+        const yaw = (d0: Vector3, v: Vector3) => Math.sign(d0.z * v.x - d0.x * v.z);
+        m.circleFlown = yaw(this.passDir, me.vel) === yaw(this.hisPassDir, b.vel) ? 'two' : 'one';
+      }
+      if (m.vertical === null && since >= 6) {
+        const dy = me.pos.y - this.passAlt;
+        m.vertical = dy > 150 ? 'high' : dy < -150 ? 'low' : 'level';
+      }
+      // Second pass: after opening, the range closes again and then opens.
+      if (this.opening && closing) { this.opening = false; this.reclosing = true; }
+      else if (this.reclosing && !closing && m.secondPassT === null && since > 5) {
+        m.secondPassT = m.t;
+        m.anglesDeg = a.hisAta - a.myAta;
+        this.hooks.log?.('Second pass', m.t);
+        if (this.lesson === 'merge') this.end();
+      }
+      if (m.secondPassT === null) m.anglesDeg = a.hisAta - a.myAta;
+      if (this.lesson === 'circles') {
+        m.myAtaDeg = a.myAta; m.aotDeg = 180 - a.hisAta; m.rangeM = a.range;
+        if (since >= CIRCLE_EVAL_S) this.end();
+      }
+    }
+    if (this.lesson === 'yoyo') {
+      if (this.wasBehind && !a.behind && a.range < HOLD_MAX_M) { m.overshoots++; this.hooks.log?.('Overshoot', m.t); }
+      this.wasBehind = a.behind;
+      const held = a.behind && a.range >= HOLD_MIN_M && a.range <= HOLD_MAX_M;
+      if (held) m.heldS += h;
+      const height = me.pos.y - b.pos.y; // The scripted bandit turns in a horizontal plane.
+      m.climbM = Math.max(m.climbM, height);
+      if (me.vel.y > 10 && me.g > 1.5 && liftVector(me, _lift).y > 0.5) this.yoyoLiftRaised = true;
+      if (this.yoyoLiftRaised && height > YOYO_CLIMB_M) m.outOfPlane = true;
+      // Recover after the climb: descending back onto him, behind his wing line with the nose on him.
+      if (m.outOfPlane && held && a.myAta < 60 && me.vel.y < b.vel.y) m.recoveredS += h;
+    }
+    this.prevRange = a.range;
   }
 
   private measure(h: number): void {
@@ -173,6 +295,7 @@ export class MergeRun {
         if (fired > 0) { m.roundsFired += fired; if (sol.inSolution) m.roundsInSolution += fired; }
         if (gunSolution(b, me).inSolution) m.hisSolutionS += h;
         if (this.lesson === 'pursuit' && stepPursuitPhase(m, this.pursuit.kind, h)) this.end();
+        this.measureGeometry(h);
       } else if (fired > 0) m.roundsFired += fired;
     }
     if (m.t >= LESSONS[this.lesson].durationS) this.end();
@@ -187,10 +310,11 @@ export class MergeRun {
   }
 
   private onEvent(e: SimEvent): void {
+    if (this.phase !== 'run') return;
     const m = this.metrics;
     if (e.type === 'gun-hit') {
-      if (e.shooterId === this.me.id) { m.hits += e.hits; m.damageDealt = Math.max(m.damageDealt, e.damage); }
-      else if (e.targetId === this.me.id) { m.hitsTaken += e.hits; m.damageTaken = Math.max(m.damageTaken, e.damage); }
+      if (e.shooterId === this.me.id) m.hits += e.hits;
+      else if (e.targetId === this.me.id) m.hitsTaken += e.hits;
       if (e.targetId === this.me.id) this.hooks.log?.(`Hit: ${e.hits} rounds`, e.t);
     } else if (e.type === 'kill') {
       if (e.targetId === this.bandit.id) { m.killed = 'bandit'; this.hooks.log?.('Splash the bandit', e.t); }

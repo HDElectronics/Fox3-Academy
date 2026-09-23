@@ -6,7 +6,9 @@
  * - While `cmd.trigger` is held the gun uses rounds at the data rate of fire. Each tick, for every jet inside the
  *   gun's max range (data/wvr.ts), the lead point is the target's relative motion over the TOF; a round can hit
  *   when the angle between the gun line and the lead point is inside the target's angular size, with a chance
- *   that falls off toward the edge (world.rand, deterministic). Hits fill a damage pool; at 1 the jet dies.
+ *   that falls off toward the edge (world.rand, deterministic) for the hit count and sparks. Damage is by time in
+ *   the solution: dead on at mid range (600 m) a kill takes GUN_KILL_S (2 s), about 1.25 s inside 300 m and 4 s
+ *   at max range; off-centre aim is slower. A gameplay target so tracking drills last, not a DCS damage model.
  * - Sight helpers give the HUD where a pipper or funnel point sits for a range, from the jet's own turn rate
  *   (lead-computing idea). Simplified, not verified against any DCS sight.
  */
@@ -26,9 +28,36 @@ export const GUN_TRACER_S = 0.1;
 /** Chance per round that passes through the centre of the target. Falls to 0 at the edge of the target. */
 export const GUN_P_CENTRE = 0.35;
 
-/** Arcade damage per hit by calibre; the damage pool is 1. */
-export function hitDamage(calibreMm: number): number {
-  return calibreMm >= 30 ? 0.25 : calibreMm >= 23 ? 0.14 : 0.1;
+/** Seconds of dead-on fire in the solution at GUN_MID_RANGE_M that kill (trainer gameplay target, simplified). */
+export const GUN_KILL_S = 2;
+/** Range where GUN_KILL_S applies (m); inside GUN_CLOSE_RANGE_M lethality is GUN_CLOSE_FACTOR times higher. */
+export const GUN_MID_RANGE_M = 600;
+export const GUN_CLOSE_RANGE_M = 300;
+export const GUN_CLOSE_FACTOR = 1.6;
+/** Lethality factor at the gun's max range. */
+export const GUN_FAR_FACTOR = 0.5;
+
+/** Lethality factor by range: 1.6 inside 300 m, 1 at 600 m, 0.5 at max range, linear between (simplified). */
+export function gunRangeFactor(range: number, maxRangeM: number): number {
+  if (range <= GUN_CLOSE_RANGE_M) return GUN_CLOSE_FACTOR;
+  if (range <= GUN_MID_RANGE_M) return GUN_CLOSE_FACTOR + (1 - GUN_CLOSE_FACTOR) * (range - GUN_CLOSE_RANGE_M) / (GUN_MID_RANGE_M - GUN_CLOSE_RANGE_M);
+  const far = Math.max(GUN_MID_RANGE_M + 1, maxRangeM);
+  return 1 + (GUN_FAR_FACTOR - 1) * Math.min(1, (range - GUN_MID_RANGE_M) / (far - GUN_MID_RANGE_M));
+}
+
+/**
+ * Damage per second while firing in the solution. `missRatio` = miss angle / target angular size (0 centre,
+ * 1 edge): the edge of the solution does half the damage of the centre. 0 outside the solution.
+ */
+export function gunDamageRate(range: number, maxRangeM: number, missRatio: number): number {
+  if (range > maxRangeM || missRatio >= 1) return 0;
+  return (1 - 0.5 * missRatio * missRatio) * gunRangeFactor(range, maxRangeM) / GUN_KILL_S;
+}
+
+/** Seconds of continuous fire in the solution that kill at this range and aim (Infinity outside it). */
+export function gunKillSeconds(range: number, maxRangeM: number, missRatio = 0): number {
+  const r = gunDamageRate(range, maxRangeM, missRatio);
+  return r > 0 ? 1 / r : Infinity;
 }
 
 export function createGunState(type: string): GunState {
@@ -121,9 +150,8 @@ export function stepGuns(world: World, dt: number): void {
     p.acc -= n;
     gun.rounds -= n;
     gun.firing = n > 0;
-    if (n === 0) continue;
 
-    if (p.tracer <= 0) {
+    if (n > 0 && p.tracer <= 0) {
       p.tracer += GUN_TRACER_S;
       const u = _u.copy(ac.vel).normalize();
       world.emit({
@@ -132,6 +160,7 @@ export function stepGuns(world: World, dt: number): void {
       });
     }
 
+    // Damage accrues with firing time in the solution (ticks between rounds included); rounds give hit counts.
     for (const tgt of world.aircraft.values()) {
       if (tgt === ac || !tgt.alive) continue;
       if (tgt.pos.distanceToSquared(ac.pos) > spec.maxRangeM.value ** 2) continue;
@@ -141,14 +170,12 @@ export function stepGuns(world: World, dt: number): void {
       const ph = GUN_P_CENTRE * (1 - r * r);
       let hits = 0;
       for (let i = 0; i < n; i++) if (world.rand() < ph) hits++;
-      if (!hits) continue;
-      const dmg = hits * hitDamage(spec.calibreMm);
+      const damage = tgt.damage + gunDamageRate(sol.range, spec.maxRangeM.value, r) * dt;
+      tgt.damage = damage >= 1 - 1e-9 ? 1 : damage;
       gun.hits += hits;
-      const damage = tgt.damage + dmg;
-      // Decimal hit increments can sum just below 1 (e.g. ten 20 mm hits).
-      tgt.damage = damage >= 1 - 1e-12 ? 1 : damage;
-      world.emit({ t: world.t, type: 'gun-hit', shooterId: ac.id, targetId: tgt.id, hits, damage: tgt.damage });
-      if (tgt.damage >= 1) world.kill(tgt.id, ac.id);
+      const dead = tgt.damage >= 1;
+      if (hits || dead) world.emit({ t: world.t, type: 'gun-hit', shooterId: ac.id, targetId: tgt.id, hits, damage: tgt.damage });
+      if (dead) world.kill(tgt.id, ac.id);
     }
   }
 }

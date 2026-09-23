@@ -8,7 +8,7 @@ import { Vector3 } from 'three';
 import type { Aircraft, BfmCommand, BfmThrottle } from '../../sim/types';
 import { availableG } from '../../sim/flight';
 import { sigma } from '../../sim/atmosphere';
-import { D2R, G0, MPS_PER_KT, R2D, clamp, wrapPi } from '../../sim/math';
+import { D2R, MPS_PER_KT, R2D, clamp, wrapPi } from '../../sim/math';
 
 export type Pursuit = 'lead' | 'pure' | 'lag';
 
@@ -111,29 +111,10 @@ export function stepStick(s: Stick, ac: Aircraft, dt: number): BfmCommand {
 
 // ---- steering law (scripted bandit, pre-rolls) ---------------------------------------------------------------
 
-const _u = new Vector3(), _e = new Vector3(), _l0 = new Vector3(), _r0 = new Vector3();
+const _u = new Vector3(), _e = new Vector3();
 
-/**
- * Roll the lift vector onto `dir` (unit, world) and pull to bring the nose there: turn rate = gain × angle.
- * Unloads while the bank is far off (roll first, then pull). `maxG` caps the pull.
- */
-export function steerTo(ac: Aircraft, dir: Vector3, throttle: BfmThrottle, gain = 1.2, maxG = Infinity): BfmCommand {
-  const v = Math.max(1, ac.vel.length());
-  const u = _u.copy(ac.vel).divideScalar(v);
-  const e = _e.copy(dir).addScaledVector(u, -u.dot(dir));
-  const angle = Math.acos(clamp(u.dot(dir), -1, 1));
-  const avail = Math.min(availableG(ac), maxG);
-  const h = 1 - u.y * u.y;
-  if (e.length() < 1e-4 || h < 0.002) return { bank: ac.roll, g: Math.min(avail, 1), throttle };
-  const k = 1 / Math.sqrt(h);
-  _l0.set(-u.y * u.x * k, h * k, -u.y * u.z * k);
-  _r0.crossVectors(u, _l0);
-  const bank = Math.atan2(e.dot(_r0), e.dot(_l0));
-  const liftUp = Math.cos(bank) * Math.sqrt(h);        // lift vector's share against gravity
-  let g = gain * angle * v / G0 + Math.max(0, liftUp);
-  if (Math.abs(wrapPi(bank - ac.roll)) > 60 * D2R) g = Math.min(g, 1);
-  return { bank, g: clamp(g, 0, avail), throttle };
-}
+/** Steering law shared with the fighting AI (sim/bfmAi.ts): roll the lift vector onto a direction and pull. */
+export { steerBfm as steerTo } from '../../sim/bfmAi';
 
 /** Direction to fly for a pursuit kind against `bandit`: lead ahead of him, pure at him, lag behind him. */
 export function pursuitAim(me: Aircraft, bandit: Aircraft, kind: Pursuit, out = new Vector3()): Vector3 {

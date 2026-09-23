@@ -1,7 +1,7 @@
 # sim-ai: AI pilots and scenario builders
 
 Files: `src/sim/ai.ts` (AI pilots, scripted drill targets), `src/sim/scenarios.ts` (ready-made setups for pages),
-`src/sim/ai.test.ts`.
+`src/sim/ai.test.ts`, and `src/sim/bfmAi.ts` (close-combat fighting AI for the Merge page, see the last section).
 
 Pages normally use only **scenarios.ts** plus the `World` API. They reach into **ai.ts** only to reconfigure an AI
 (`configureAi`), to read what it is doing (`aiStatus`), or to change a drill target's manoeuvre (`setManeuver`
@@ -368,3 +368,48 @@ forced STT configuration or a single-target drill does not use a pair. GCI posit
 
 Long regular fights are tracked in [ai-engagement-review.md](../research/ai-engagement-review.md); the
 review did not reduce sourced notch gates or alter skill values to force a six-minute outcome.
+
+## Fighting AI (bfmAi.ts)
+
+A separate close-combat AI for the Merge & guns free fight. It does not touch `ai.ts` or the BVR AI. The page calls
+it for a `controller: 'script'` jet each tick and writes the result into `ac.cmd.bfm` and `ac.cmd.trigger`.
+Rule-based and arcade (AGENTS.md rule 1): the rules community BFM guides teach for DCS, flown through the sim's
+BFM command. No flight-model or ballistics detail.
+
+```ts
+const s = newBfmAi(ac, enemyType, 'regular', () => world.rand());   // draws the reaction delay once
+const o = bfmAiStep(s, ac, enemy, world.t, dt, () => world.rand()); // { bfm, trigger, mode }
+ac.cmd.bfm = o.bfm; ac.cmd.trigger = o.trigger;
+chooseCircle(me, them, skill)   // 'one' | 'two'
+pursuitFor(range, gunRangeM)    // 'lag' | 'lead' | 'guns'
+overshootRisk(me, tgtPos, tgtVel), cornerThrottle(ac), steerBfm(ac, dir, throttle, gain?, maxG?)
+BFM_SKILL, BFM_SKILLS, LAG_RANGE_M (1800), YOYO_S (3), AI_BURST_S, AI_PAUSE_S, RECOVER_ALT_M
+```
+
+What it does, in priority order each step:
+
+| Rule | Behaviour |
+|---|---|
+| Recover | Below 1200 m and descending: pull toward 30° nose up. |
+| Jink | The enemy's gun line within 2.5 target sizes of the lead point for longer than the reaction delay: roll 90–135° out of plane (side from `world.rand`) and pull everything for `jinkS`. |
+| Merge | Head-on: fly to pass about 300 m off his side (keeps the side it is on). Two-circle with `leadTurn`: lead turn when he is 25° off the nose or inside 500 m, a level max-rate turn toward his side. One-circle: pass, then turn away (fixed direction) until he is within 70° of the nose. |
+| High yo-yo | `yoyo` skills, in a turn (bank > 40°): overshoot risk (inside 1000 m, closing, angle off > 35° and < 8 s to go, or line-of-sight rate above 90 % of its turn rate) rolls the lift vector 60° toward the vertical and pulls 5 g on mil for up to 3 s, then back down onto him. 6 s between yo-yos. |
+| Pursuit | Lag beyond 1800 m, lead inside it, guns inside 1.15 × gun range. Throttle holds corner speed; in guns it matches his speed (idle and speedbrake while closing inside gun range). |
+| Guns | Tracks the live lead point with the lead drift fed forward and a trim that walks the pipper on; fires 0.8 s bursts with 0.7 s pauses when the miss is under `fireWithin` target sizes. |
+
+Circle choice (`chooseCircle`, trainer rule): rookies always two-circle; a sustained-turn advantage of 0.3 g or
+more (turn tables in `data/wvr.ts`, Mach 0.6, 5000 ft) fights two-circle; a corner speed 20 kt lower, or a rate
+deficit of 0.5 g, fights one-circle; otherwise veterans with any rate deficit fight one-circle.
+
+Skill levels (trainer levels, not DCS AI skills): the AI sees the enemy as he was `reactionS` ago (extrapolated),
+drawn once per fight as 0.8–1.2 × the mean.
+
+| Skill | Reaction | g used | Tracking gain | Fires within | Lead turn | Yo-yo | Jink |
+|---|---|---|---|---|---|---|---|
+| Rookie | 1.1 s | 80 % | 2 | 3 sizes | no | no | 0.9 s |
+| Regular | 0.6 s | 92 % | 3.5 | 2 sizes | yes | yes | 1.3 s |
+| Veteran | 0.3 s | 100 % | 5 | 1.4 sizes | yes | yes | 1.6 s |
+
+`state.entered` counts each mode entered (the Merge debrief lists the moves). Deterministic for a seed.
+Tests: `src/sim/bfmAi.test.ts` (lead turn, jink survives a straight-flying attacker better than a non-jinking
+bandit, gun solutions on a level turn, yo-yo on an overshoot, determinism).

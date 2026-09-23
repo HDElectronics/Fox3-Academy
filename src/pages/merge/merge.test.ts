@@ -7,8 +7,8 @@ import type { FighterId } from '../../data/types';
 import { FIGHTER_ORDER } from '../../data/aircraft';
 import { atCorner, classifyPursuit, levelG, newStick, stepStick } from './bfm';
 import { banditStep, newBandit, REVERSE_S, type BanditMode } from './bandit';
-import { debrief, emptyMetrics, LESSON_ORDER, PURSUIT_HOLD_S, scoreLesson, stepPursuitPhase, type LessonId } from './lessons';
-import { MergeRun, type Autopilot } from './runner';
+import { debrief, emptyMetrics, LESSON_ORDER, PURSUIT_HOLD_S, rangeScore, scoreLesson, stepPursuitPhase, type LessonId } from './lessons';
+import { anglesOf, MergeRun, type Autopilot } from './runner';
 
 const v = (x: number, y: number, z: number) => new Vector3(x, y, z);
 
@@ -85,6 +85,22 @@ describe('scoring', () => {
       expect(JSON.stringify(d)).not.toContain('!');
     }
   });
+  it('a passing yo-yo needs height, a raised lift vector and recovery after the climb', () => {
+    const m = emptyMetrics();
+    m.heldS = 15;
+    expect(scoreLesson('yoyo', m)).toBeLessThan(50);
+    m.climbM = 300;
+    expect(scoreLesson('yoyo', m)).toBeLessThan(50);
+    m.outOfPlane = true;
+    expect(scoreLesson('yoyo', m)).toBeLessThan(50);
+    m.recoveredS = 0.99;
+    expect(scoreLesson('yoyo', m)).toBeLessThan(50);
+    m.recoveredS = 1;
+    m.climbM = 150;
+    expect(scoreLesson('yoyo', m)).toBeLessThan(50);
+    m.climbM = 300;
+    expect(scoreLesson('yoyo', m)).toBe(100);
+  });
 });
 
 function fly(mode: BanditMode, seconds: number) {
@@ -141,6 +157,52 @@ function run(ac: FighterId, lesson: LessonId, mode: BanditMode, ap: Autopilot | 
 }
 
 describe('lesson runs (demo autopilot)', () => {
+  it.each(['dealt', 'taken'] as const)('scores actual damage %s even on steps without hit events, including the kill', direction => {
+    const r = new MergeRun('su27', 'tracking', direction === 'dealt' ? 'straight' : 'guns', 7);
+    r.world.record = false;
+    const shooter = direction === 'dealt' ? r.me : r.bandit;
+    const target = direction === 'dealt' ? r.bandit : r.me;
+    shooter.pos.set(0, 4600, 0); target.pos.set(0, 4600, -600);
+    for (const ac of [shooter, target]) {
+      ac.vel.set(0, 0, -230); ac.heading = 0; ac.roll = 0;
+      ac.damage = 0;
+    }
+    r.stick.trigger = direction === 'dealt';
+    r.banditState.aim.copy(shooter.vel).normalize();
+    r.start();
+    let withoutHits = 0;
+    for (let i = 0; i < 1200 && r.phase === 'run'; i++) {
+      const damage = target.damage;
+      const hits = r.metrics.hits + r.metrics.hitsTaken;
+      r.tick(1 / 120);
+      const scored = direction === 'dealt' ? r.metrics.damageDealt : r.metrics.damageTaken;
+      expect(scored).toBeCloseTo(target.damage, 10);
+      if (target.damage > damage && r.metrics.hits + r.metrics.hitsTaken === hits) withoutHits++;
+    }
+    expect(withoutHits).toBeGreaterThan(0);
+    expect(target.alive).toBe(false);
+    expect(direction === 'dealt' ? r.metrics.damageDealt : r.metrics.damageTaken).toBe(1);
+    const finalMetrics = structuredClone(r.metrics);
+    r.tick(2);
+    expect(r.metrics).toEqual(finalMetrics);
+  });
+
+  it('scores damage deltas for a drill bandit with a negative damage baseline', () => {
+    const r = new MergeRun('su27', 'yoyo', 'straight', 7);
+    r.world.record = false;
+    r.me.pos.set(0, 4600, 0); r.bandit.pos.set(0, 4600, -600);
+    for (const ac of [r.me, r.bandit]) {
+      ac.vel.set(0, 0, -230); ac.heading = 0; ac.roll = 0;
+    }
+    const initial = r.bandit.damage;
+    expect(initial).toBeLessThan(0);
+    r.stick.trigger = true;
+    r.start();
+    for (let i = 0; i < 60; i++) r.tick(1 / 60);
+    expect(r.metrics.damageDealt).toBeGreaterThan(0);
+    expect(r.metrics.damageDealt).toBeCloseTo(r.bandit.damage - initial, 10);
+  });
+
   it('every fighter can start every lesson', () => {
     for (const ac of FIGHTER_ORDER) for (const id of LESSON_ORDER) {
       const r = new MergeRun(ac, id, 'turn', 1);
@@ -161,5 +223,98 @@ describe('lesson runs (demo autopilot)', () => {
     const broke = run('f15c', 'defence', 'guns', 'defend', 20).metrics.damageTaken;
     expect(straight).toBeGreaterThan(0);
     expect(broke).toBeLessThan(straight);
+  });
+});
+
+describe('merge, circle and yo-yo drills', () => {
+  it('scores reward angles, the advised circle, and no overshoot', () => {
+    const m = emptyMetrics();
+    expect(scoreLesson('merge', m)).toBe(0);
+    expect(scoreLesson('circles', m)).toBe(0);
+    m.passT = 10; m.passRange = 400; m.leadTurnDeg = 40; m.anglesDeg = 90;
+    expect(scoreLesson('merge', m)).toBe(100);
+    m.anglesDeg = -60;
+    expect(scoreLesson('merge', m)).toBe(40);
+    m.aotDeg = 0; m.myAtaDeg = 0; m.rangeM = 900; m.circleFlown = 'two'; m.circleAdvised = 'two';
+    expect(scoreLesson('circles', m)).toBe(100);
+    m.circleFlown = 'one';
+    expect(scoreLesson('circles', m)).toBe(90);
+    expect(rangeScore(900)).toBe(1);
+    expect(rangeScore(4000)).toBe(0);
+    expect(rangeScore(Infinity)).toBe(0);
+    m.heldS = 15; m.climbM = 300; m.outOfPlane = true; m.recoveredS = 1;
+    expect(scoreLesson('yoyo', m)).toBe(100);
+    m.overshoots = 1;
+    expect(scoreLesson('yoyo', m)).toBe(50);
+  });
+
+  it('the merge bandit turns toward you after the pass (two-circle) or away (one-circle)', () => {
+    const two = run('f16c', 'circles', 'two-circle', null, 20).banditState;
+    const one = run('f16c', 'circles', 'one-circle', null, 20).banditState;
+    expect(two.passed && one.passed).toBe(true);
+    expect(two.dir).toBe(-one.dir);
+  });
+
+  it('the fighting AI flying your jet lead turns the merge and records the pass', () => {
+    const r = run('f16c', 'merge', 'two-circle', 'ai', 60);
+    expect(r.metrics.passT).not.toBeNull();
+    expect(r.metrics.leadTurnDeg).toBeGreaterThan(10);
+    expect(r.metrics.passRange).toBeLessThan(1500);
+    expect(r.metrics.vertical).not.toBeNull();
+  });
+
+  it.each([1 / 60, 1 / 30, 0.01, 0.013, 0.1])('circle scoring finishes on the first step crossing 30 s (dt=%s)', dt => {
+    const r = new MergeRun('fa18c', 'circles', 'two-circle', 7);
+    r.world.record = false;
+    r.autopilot = 'ai';
+    r.start();
+    for (let t = 0; t < 60 && r.phase === 'run'; t += dt) r.tick(dt);
+    expect(r.metrics.circleAdvised).toBe('one');
+    expect(r.metrics.circleFlown).not.toBeNull();
+    expect(r.phase).toBe('end');
+    const h = dt / Math.ceil(dt * 60 - 1e-6);
+    expect(r.metrics.t - r.metrics.passT!).toBeGreaterThanOrEqual(30);
+    expect(r.metrics.t - r.metrics.passT!).toBeLessThan(30 + h + 1e-9);
+    if (dt <= 1 / 60) {
+      const a = anglesOf(r.me, r.bandit);
+      expect(r.metrics.myAtaDeg).toBeCloseTo(a.myAta, 10);
+      expect(r.metrics.rangeM).toBeCloseTo(a.range, 10);
+    }
+    const score = scoreLesson('circles', r.metrics);
+    r.tick(1);
+    expect(scoreLesson('circles', r.metrics)).toBe(score);
+  });
+
+  it('rolling level for 0.43 s then flying hands-off cannot pass the yo-yo', () => {
+    const r = new MergeRun('fa18c', 'yoyo', 'hard', 7);
+    r.world.record = false;
+    r.start();
+    r.stick.roll = -1;
+    for (let i = 0; i < 43; i++) r.tick(0.01);
+    r.stick.roll = 0;
+    while (r.phase === 'run') r.tick(0.01);
+    expect(r.metrics.overshoots).toBe(0);
+    expect(r.metrics.climbM).toBeLessThan(150);
+    expect(scoreLesson('yoyo', r.metrics)).toBeLessThan(50);
+  });
+
+  it('a yo-yo avoids the overshoot that holding the turn gives', () => {
+    const held = run('fa18c', 'yoyo', 'hard', null, 25).metrics;
+    const yoyo = run('fa18c', 'yoyo', 'hard', 'ai', 25).metrics;
+    expect(held.overshoots).toBeGreaterThan(0);
+    expect(yoyo.overshoots).toBe(0);
+    expect(yoyo.climbM).toBeGreaterThan(held.climbM);
+    expect(yoyo.climbM).toBeGreaterThan(150);
+    expect(yoyo.outOfPlane).toBe(true);
+    expect(yoyo.recoveredS).toBeGreaterThanOrEqual(1);
+    expect(scoreLesson('yoyo', yoyo)).toBeGreaterThanOrEqual(50);
+    expect(scoreLesson('yoyo', yoyo)).toBeGreaterThan(scoreLesson('yoyo', held));
+  });
+
+  it.each(['rookie', 'regular', 'veteran'] as const)('free fight against the %s fighting AI runs and names its moves', skill => {
+    const r = run('m2000c', 'fight', skill, 'ai', 40);
+    expect(Object.keys(r.metrics.aiMoves).length).toBeGreaterThan(0);
+    const d = debrief('fight', r.metrics, { corner: '360 kt', minSpeed: '200 kt', skill });
+    expect(d.stats.find(([k]) => k === 'Bandit moves')?.[1]).not.toBe('-');
   });
 });
