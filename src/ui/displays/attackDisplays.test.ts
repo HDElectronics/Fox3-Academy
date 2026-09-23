@@ -1,6 +1,7 @@
+import { CCRP_TOL_DEG } from '../../sim/agWeapons';
 import { describe, expect, it } from 'vitest';
 import { azToX, elToY, fmtSlantKm, targetFramePx } from './it23m';
-import { hudAngles, hudModeLabel, rangeScaleKm } from './su25tHud';
+import { ccrpDirectorGeometry, hudAngles, hudModeLabel, rangeScaleKm } from './su25tHud';
 
 describe('IT-23M overlay mapping', () => {
   it('maps the azimuth scale −40..+40 across and clamps', () => {
@@ -44,4 +45,16 @@ describe('Su-25T HUD helpers', () => {
     expect(rangeScaleKm(10000, 13000)).toBe(15);
     expect(rangeScaleKm(4000, null)).toBe(5);
   });
+});
+
+
+it('puts the keel inside the CCRP director exactly within the simulation tolerance at every HUD size', () => {
+  for (const width of [180, 390, 640]) {
+    for (const error of [-30, -2.01, -2, -1.99, -1, 0, 1, 1.99, 2, 2.01, 30]) {
+      const circle = ccrpDirectorGeometry(error, width);
+      expect(Math.abs(circle.offset) <= circle.radius).toBe(Math.abs(error) <= CCRP_TOL_DEG);
+    }
+    const edge = ccrpDirectorGeometry(CCRP_TOL_DEG, width);
+    expect(edge.offset).toBe(edge.radius);
+  }
 });

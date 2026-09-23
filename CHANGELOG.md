@@ -23,6 +23,16 @@
   second camera renders the Shkval TV picture in black and white on the IT-23M with its symbology, next to the
   Su-25T HUD (mode and store labels, range scale, laser cursor, CCIP pipper, station boxes). Lessons for the Shkval,
   the laser, a scored Vikhr drill and a rocket / gun CCIP pass, with touch controls and a debrief per drill.
+- Su-25T strike lessons (#37): **Bombs** (a CCRP pass on a Shkval + laser designation: hold release, fly the keel
+  into the director circle, 10 s time-to-release arrow, automatic release; then a CCIP dive; scored on miss
+  distance and the automatic release), **Kh-58 SEAD** (L-081 pod: [I] passive detection, emitter diamonds inside
+  ±30° with a type code, slew the square, [Enter] locks the diamond into a circle, range bar current / max, ПР;
+  scored on the kill, launching outside the ring, and time inside the SA-15 ring) and **SAM threat** (a tank
+  platoon under an SA-15, optional SA-11 with `?sa11=1`; SPO-15 search / lock / launch cues, notch coaching,
+  flares do not decoy radar SAMs; scored on kills, hits taken and time in the ring). The sim gains a CCRP release
+  rule (`ccrpSolution`, `World.ccrpHold`) and the HUD draws the director circle, the time-to-release scale, the
+  Kh-58 diamonds, circle and square. SAM sites are destroyable by air-to-ground weapons (Kh-58 on the site, or any
+  weapon on its radar vehicle) with `ground-kill` events.
 
 - Pattern & landing adds air-to-air refuelling (#28): Tanker rejoin and Pre-contact starts for the Su-33 (IL-78M
   with UPAZ pods), F-15C and F-16C (KC-135 boom) and the F/A-18C, F-14B, JF-17 and M-2000C (KC-135 MPRS or KC-130
