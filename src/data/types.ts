@@ -11,7 +11,7 @@ export type FighterId =
   | 'f15c' | 'fa18c' | 'f16c' | 'f14b' | 'jf17' | 'm2000c';
 
 /** Attack jets: no air-to-air radar. Shown only on air-to-ground routes. */
-export type AttackId = never;
+export type AttackId = 'su25t';
 
 /** Every jet in the picker. BVR code keys on FighterId; the shell, store and 3D models key on this. */
 export type AircraftId = FighterId | AttackId;
@@ -212,7 +212,8 @@ export interface RwrSpec {
   teach: string[];
 }
 
-export type BindGroup = 'radar' | 'weapons' | 'defence';
+/** 'targeting': optical targeting system keys (Su-25T Shkval), for jets without an air-to-air radar. */
+export type BindGroup = 'radar' | 'weapons' | 'defence' | 'targeting';
 export interface KeyBind {
   action: string;
   /** FC3 keyboard label or full-fidelity HOTAS/cockpit function name. */

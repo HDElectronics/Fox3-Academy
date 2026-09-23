@@ -166,6 +166,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   f14b: ['hbF14Manual', 'hbRadarGeneral', 'hbRadarInterface', 'hbAcm', 'hbAim54', 'hbAim7', 'hbJester', 'hbJesterBU', 'chucksF14', 'fawRio'],
   jf17: ['chucksJf17', 'edShopThunder', 'fawKlj7Search', 'fawKlj7Track', 'dmKlj7', 'dmSd10'],
   m2000c: ['chucksM2000', 'dmMirage', 'fseliteRazbam'],
+  su25t: ['edSu25tManual'],
 
   r27r: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],
   r27er: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],

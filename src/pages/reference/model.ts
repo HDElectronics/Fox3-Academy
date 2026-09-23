@@ -102,10 +102,11 @@ export const BIND_GROUP_TITLE: Record<BindGroup, string> = {
   radar: 'Radar and sensors',
   weapons: 'Weapons',
   defence: 'Countermeasures and RWR',
+  targeting: 'Targeting sight',
 };
 
 export function groupBinds(binds: readonly KeyBind[]): Record<BindGroup, KeyBind[]> {
-  const out: Record<BindGroup, KeyBind[]> = { radar: [], weapons: [], defence: [] };
+  const out: Record<BindGroup, KeyBind[]> = { radar: [], weapons: [], defence: [], targeting: [] };
   for (const b of binds) out[b.group].push(b);
   return out;
 }
@@ -275,7 +276,7 @@ export const EMITTER_NAME: Record<Exclude<RwrSymbol['emitter'], FighterId>, stri
 };
 
 export function emitterName(e: RwrSymbol['emitter']): string {
-  return (AIRCRAFT as Record<string, AircraftSpec | undefined>)[e]?.short ?? EMITTER_NAME[e as keyof typeof EMITTER_NAME] ?? e;
+  return (AIRCRAFT as unknown as Record<string, AircraftSpec | undefined>)[e]?.short ?? EMITTER_NAME[e as keyof typeof EMITTER_NAME] ?? e;
 }
 
 export interface RwrRow { symbol: string; emitters: RwrSymbol['emitter'][]; airborne: boolean }

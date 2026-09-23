@@ -9,7 +9,7 @@ import { h, $$ } from '../ui/dom';
 export function buildShell(root: HTMLElement, app: AppStore) {
   const select = h('select', { id: 'jetSelect', class: 'jet-select', 'aria-label': 'Aircraft' },
     AIRCRAFT_ORDER.map(id => h('option', { value: id }, AIRCRAFT[id].short + (AIRCRAFT[id].module === 'fc3' ? '  ·  FC3' : ''))));
-  select.value = app.aircraft;
+  select.value = app.jet;
   select.addEventListener('change', () => app.setAircraft(select.value as AircraftId));
 
   const unitsBtn = h('button', { class: 'units-btn', id: 'unitsBtn', type: 'button', title: 'Switch units' });
@@ -37,10 +37,10 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   chromeSize.observe(contextNav);
 
   const sync = () => {
-    const spec = AIRCRAFT[app.aircraft];
+    const spec = app.jetSpec;
     document.documentElement.dataset.cockpit = spec.cockpit;
     document.documentElement.dataset.aircraft = spec.id;
-    select.value = app.aircraft;
+    select.value = app.jet;
     unitsBtn.textContent = app.units === 'metric' ? 'km · m' : 'nm · ft';
   };
   sync();

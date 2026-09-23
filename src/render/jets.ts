@@ -1,5 +1,5 @@
 /**
- * Procedural low-poly jets for every AircraftId, plus missiles. Geometry is built once per type in
+ * Procedural low-poly jets for every AircraftId (fighters and the Su-25T), plus missiles. Geometry is built once per type in
  * metres (nose → −z, right wing +x, top +y) and shared; materials are shared per Stage palette and side.
  * Silhouette cues: Flanker twin tails on booms + long stinger (Su-33 canards), Fulcrum canted tails and
  * LERX, Eagle shoulder wing + box intakes, Hornet canted tails + LEX, Viper single tail + bubble canopy +
@@ -66,6 +66,7 @@ export const JET_DIMENSIONS: Record<AircraftId, { length: number; span: number }
   f14b: { length: 19.1, span: 19.55 },
   jf17: { length: 14.9, span: 9.45 },
   m2000c: { length: 14.4, span: 9.13 },
+  su25t: { length: 15.3, span: 14.4 },
 };
 
 /** Nominal length used for the screen-size floor so relative sizes survive the Tacview scale boost. */
@@ -281,6 +282,31 @@ function m2000c(): BufferGeometry {
   return b.build(14.36);
 }
 
+function su25t(): BufferGeometry {
+  const b = new ModelBuilder();
+  // Long slim nose with the Shkval window, humped cockpit, fuselage tapering to the tail cone.
+  b.loft([
+    S(0, 0, 0, 0, -0.05), S(0.6, 0.24, 0.24, 0.26, -0.05), S(1.8, 0.44, 0.44, 0.48, -0.05), S(3.2, 0.56, 0.62, 0.56, 0.0),
+    S(5.0, 0.62, 0.76, 0.6, 0.05), S(7.5, 0.62, 0.7, 0.62, 0.1), S(10.5, 0.55, 0.6, 0.55, 0.15),
+    S(13.0, 0.4, 0.45, 0.4, 0.25), S(14.9, 0.18, 0.22, 0.18, 0.32),
+  ], { seg: 12 });
+  // Twin engine nacelles along the fuselage sides, intakes just aft of the cockpit.
+  b.loft([
+    S(5.3, 0.36, 0.4, 0.44, -0.05, 2), S(6.5, 0.46, 0.5, 0.52, -0.05), S(10.0, 0.46, 0.5, 0.5, -0.05),
+    S(12.8, 0.4, 0.42, 0.42, 0.0), S(13.6, 0.36, 0.38, 0.38, 0.0),
+  ], { x: 0.98, mirror: true, frontCap: Slot.dark, seg: 10 });
+  b.cyl(13.5, 14.1, 0.34, 0.3, { x: 0.98, y: 0.0 });
+  // Shoulder-mounted, nearly straight wing (about 20° leading-edge sweep), wingtip pods with the airbrakes.
+  b.plate([[0.6, 6.4], [7.2, 8.6], [7.2, 10.0], [0.6, 10.5]], { t: 0.28, y: 0.35 });
+  b.loft([S(8.0, 0.02, 0.02, 0.02, 0.35), S(8.5, 0.12, 0.14, 0.14, 0.35), S(10.0, 0.12, 0.14, 0.14, 0.35), S(10.9, 0.04, 0.05, 0.05, 0.35)], { x: 7.2, mirror: true, seg: 6 });
+  // Tailplane with slight dihedral and a single swept fin.
+  b.plate([[0.3, 12.9], [2.5, 14.1], [2.5, 14.8], [0.3, 15.0]], { t: 0.14, y: 0.45 });
+  b.fin([[11.4, 0], [13.9, 3.2], [14.8, 3.2], [15.3, 0]], { x: 0, y: 0.45, t: 0.16 });
+  b.canopy(3.4, 5.4, 0.42, 0.52, 0.62);
+  navLights(b, 7.25, 9.6, 0.35);
+  return b.build(15.3);
+}
+
 // ------------------------------------------------------------------------------------------ config parts
 
 /*
@@ -393,6 +419,22 @@ const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
     // Big dorsal speedbrake behind the canopy.
     brake: { plates: [{ x0: -0.6, x1: 0.6, z0: 7.6, z1: 10.2, y: 0.9, up: true, mirror: false }], maxDeg: 45 },
   },
+  su25t: {
+    L: 15.3, groundY: -1.9,
+    nose: { x: 0, y: -0.5, z: 2.6, wheelR: 0.3 },
+    // Mains retract into the nacelle sides under the wing.
+    main: { x: 1.3, y: -0.45, z: 8.6, wheelR: 0.42 },
+    // Double-slotted flaps on the inboard trailing edge.
+    flap: { xi: 1.4, zi: 10.43, xo: 4.8, zo: 10.18, chord: 0.9, y: 0.35, maxDeg: 35 },
+    // Split airbrakes at the back of each wingtip pod: one half opens up, the other down.
+    brake: {
+      plates: [
+        { x0: 7.08, x1: 7.32, z0: 10.0, z1: 10.9, y: 0.42, up: true, mirror: true },
+        { x0: 7.08, x1: 7.32, z0: 10.0, z1: 10.9, y: 0.28, up: false, mirror: true },
+      ],
+      maxDeg: 60,
+    },
+  },
   f16c: {
     L: 15.06, groundY: -2.05,
     nose: { x: 0, y: -1.0, z: 5.0, wheelR: 0.28 },
@@ -489,6 +531,7 @@ export function getJetModel(id: AircraftId): JetModel {
     case 'f14b': { const t = f14b(); m = { id, geometry: t.geometry, swing: t.swing, lengthM: dim.length, spanM: dim.span }; break; }
     case 'jf17': m = { id, geometry: jf17(), lengthM: dim.length, spanM: dim.span }; break;
     case 'm2000c': m = { id, geometry: m2000c(), lengthM: dim.length, spanM: dim.span }; break;
+    case 'su25t': m = { id, geometry: su25t(), lengthM: dim.length, spanM: dim.span }; break;
   }
   const spec = PART_SPECS[id];
   if (spec) m.parts = buildParts(spec);

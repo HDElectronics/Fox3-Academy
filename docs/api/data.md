@@ -49,7 +49,8 @@ air-to-air radar (the Su-25T). `JetSpec = AircraftSpec | AttackSpec` is discrimi
 (`'fighter' | 'attack'`): `AircraftSpec` keeps its name and every field (radar, display, loadout, missiles) and
 gains `role: 'fighter'`; `AttackSpec` has `radar: null` and a `weapons` label list. BVR-only maps and the sim key
 on `FighterId` (`src/sim/types.ts` aircraft `type`, radar rules, DLZ, scenarios `ADVERSARY`, radar-lab notes,
-RWR emitter symbols, flight ops). Maps every jet needs (`AIRCRAFT_CAVEATS`, `PROCEDURES`, `JET_DIMENSIONS`,
+RWR emitter symbols, flight ops). `BindGroup` gains `'targeting'` for optical sight keys (Su-25T Shkval);
+Su-25T procedures are `'shkval-lock'`, `'laser-shot'`, `'tv-shot'`, `'sead'` instead of the BVR set. Maps every jet needs (`AIRCRAFT_CAVEATS`, `PROCEDURES`, `JET_DIMENSIONS`,
 source topics) key on `AircraftId`. `RwrSymbol.emitter` uses `FighterId`: an attack jet with no radar is never an
 RWR emitter.
 
@@ -179,6 +180,11 @@ specify its repetition sequence. Keyboard defaults beyond explicitly sourced ent
 KY-58 internal selectors, exhaustive HOTAS context tables and software page trees are outside mapped coverage.
 
 ### Aircraft
+- **Su-25T** (`AIRCRAFT_CAVEATS.su25t`): perf and RCS are rough gameplay numbers; chaff load not in the manual
+  (shown as 0); laser limit conflict (20 min per flight with cooling vs 1 min continuous); gun conflict (30 mm
+  twin-barrel with 200 rounds in the manual vs GSh-30 with 150); no guided air-to-ground launch ranges in the
+  manual. Target-size presets beyond the manual's 10 m / 60 m examples are not verified. See
+  `docs/research/su25t.md`.
 - **Russian FC3 detection** (68.4/38 km N-001, 60/30 km N-019M): AI sensor tables; whether the player radars read
   them is not confirmed. ED's Su-33 manual gives the real N001K ≥ 100 km head-on vs 3 m².
 - **Russian FC3 bars/beam/scan speed**: bars are not selectable and the count is undocumented; 4 × 2.5° assumed,

@@ -1,6 +1,10 @@
-/** Global app state: selected aircraft, units, and per-viewer progress (localStorage, best effort). */
-import type { AircraftId } from '../data/types';
-import { AIRCRAFT } from '../data/aircraft';
+/**
+ * Global app state: selected jet, units, and per-viewer progress (localStorage, best effort).
+ * `jet` is the picker selection (any role). `aircraft` is the fighter BVR pages fly: the jet when it is a
+ * fighter, otherwise the last fighter picked. Routes that do not accept the jet's role show a gate panel.
+ */
+import type { AircraftId, FighterId, JetSpec } from '../data/types';
+import { AIRCRAFT, isFighter } from '../data/aircraft';
 import type { Units } from './format';
 
 type Listener = (s: AppStore, what: 'aircraft' | 'units' | 'progress') => void;
@@ -15,7 +19,8 @@ function save(data: Record<string, unknown>) {
 }
 
 export class AppStore {
-  aircraft: AircraftId;
+  jet: AircraftId;
+  aircraft: FighterId;
   units: Units;
   private progress: Record<string, number | boolean | string>;
   private unitsOverride: boolean;
@@ -23,14 +28,18 @@ export class AppStore {
 
   constructor() {
     const d = load();
-    const ac = d.aircraft as AircraftId;
-    this.aircraft = ac && AIRCRAFT[ac] ? ac : 'su27';
+    const known = (v: unknown): v is AircraftId => typeof v === 'string' && Object.hasOwn(AIRCRAFT, v);
+    this.jet = known(d.aircraft) ? d.aircraft : 'su27';
+    this.aircraft = isFighter(this.jet) ? this.jet : known(d.fighter) && isFighter(d.fighter) ? d.fighter : 'su27';
     this.unitsOverride = d.unitsOverride === true;
-    this.units = this.unitsOverride && (d.units === 'metric' || d.units === 'imperial') ? d.units : AIRCRAFT[this.aircraft].units;
+    this.units = this.unitsOverride && (d.units === 'metric' || d.units === 'imperial') ? d.units : AIRCRAFT[this.jet].units;
     this.progress = (d.progress as Record<string, number | boolean | string>) ?? {};
   }
 
+  /** The fighter spec BVR pages use. */
   get spec() { return AIRCRAFT[this.aircraft]; }
+  /** The selected jet's spec, any role. */
+  get jetSpec(): JetSpec { return AIRCRAFT[this.jet]; }
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -38,8 +47,9 @@ export class AppStore {
   }
 
   setAircraft(id: AircraftId) {
-    if (id === this.aircraft || !AIRCRAFT[id]) return;
-    this.aircraft = id;
+    if (id === this.jet || !Object.hasOwn(AIRCRAFT, id)) return;
+    this.jet = id;
+    if (isFighter(id)) this.aircraft = id;
     if (!this.unitsOverride) this.units = AIRCRAFT[id].units;
     this.persist(); this.fire('aircraft');
   }
@@ -57,7 +67,7 @@ export class AppStore {
   }
 
   private persist() {
-    save({ aircraft: this.aircraft, units: this.units, unitsOverride: this.unitsOverride, progress: this.progress });
+    save({ aircraft: this.jet, fighter: this.aircraft, units: this.units, unitsOverride: this.unitsOverride, progress: this.progress });
   }
   private fire(what: 'aircraft' | 'units' | 'progress') { for (const fn of this.listeners) fn(this, what); }
 }

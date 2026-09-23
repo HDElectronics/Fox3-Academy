@@ -13,9 +13,9 @@ import {
   CameraRig, createMissileMesh, JetMesh, JET_DIMENSIONS, RadarVolume, ReplayView, rosterFromWorld, Stage, stepSyntheticScan, Tag, WorldView,
   type CameraMode,
 } from '../src/render';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../src/data/aircraft';
+import { AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER } from '../src/data/aircraft';
 import { MISSILES } from '../src/data/missiles';
-import type { AircraftId, MissileId } from '../src/data/types';
+import type { AircraftId, FighterId, MissileId } from '../src/data/types';
 import { World } from '../src/sim/world';
 import type { Aircraft, Missile, RecordFrame, TrackFile } from '../src/sim/types';
 import { dirFrom, D2R, wrap2Pi } from '../src/sim/math';
@@ -86,7 +86,7 @@ interface Demo { world: World; me: Aircraft; b1: Aircraft; b2: Aircraft; step(dt
 function buildDemo(): Demo {
   const world = new World(7);
   world.record = false;
-  const me = world.spawnAircraft({ side: 'blue', type: (q.get('ac') as AircraftId) ?? 'f15c', controller: 'script', callsign: 'VIPER 1', pos: { x: 0, y: 9500, z: 0 }, heading: 10 * D2R, speed: 270 });
+  const me = world.spawnAircraft({ side: 'blue', type: (q.get('ac') as FighterId) ?? 'f15c', controller: 'script', callsign: 'VIPER 1', pos: { x: 0, y: 9500, z: 0 }, heading: 10 * D2R, speed: 270 });
   const b1 = world.spawnAircraft({ side: 'red', type: 'su27', controller: 'script', callsign: 'BANDIT 1', pos: { x: 9000, y: 8200, z: -52000 }, heading: 195 * D2R, speed: 250 });
   const b2 = world.spawnAircraft({ side: 'red', type: 'mig29s', controller: 'script', callsign: 'BANDIT 2', pos: { x: -14000, y: 6100, z: -64000 }, heading: 170 * D2R, speed: 240 });
   const frames: RecordFrame[] = [];
@@ -225,7 +225,7 @@ function worldView(): void {
 
 function heroView(): void {
   // Hangar-style hero: the jet at true size with a stylised short-range scan volume sweeping ahead.
-  const id = (q.get('ac') as AircraftId) ?? 'su27';
+  const id = (q.get('ac') as FighterId) ?? 'su27';
   const spec = AIRCRAFT[id];
   const jet = new JetMesh(id, 'blue', stage.palette);
   jet.scale.setScalar(0.001);
@@ -269,7 +269,7 @@ function stressView(): void {
   const world = new World(3);
   world.record = false;
   const jets: Aircraft[] = [];
-  AIRCRAFT_ORDER.forEach((id, i) => {
+  FIGHTER_ORDER.forEach((id, i) => {
     const ang = (i / 10) * Math.PI * 2;
     jets.push(world.spawnAircraft({ side: i % 2 ? 'red' : 'blue', type: id, controller: 'script', callsign: id.toUpperCase(),
       pos: { x: Math.sin(ang) * 30000, y: 4000 + i * 900, z: -Math.cos(ang) * 30000 }, heading: ang + Math.PI / 2, speed: 240 + i * 5 }));

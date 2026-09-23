@@ -33,7 +33,7 @@ export const RWRS: Record<RwrId, RwrSpec> = {
     id: 'spo15',
     name: 'SPO-15 "Beryoza"',
     kind: 'lamps',
-    aircraft: ['su27', 'su33', 'j11a', 'mig29s'],
+    aircraft: ['su27', 'su33', 'j11a', 'mig29s', 'su25t'],
     symbols: table(
       { su27: 'П', su33: 'П', j11a: 'П', mig29s: 'П', f15c: 'П', fa18c: 'П', f16c: 'П', f14b: 'П', jf17: 'П', m2000c: 'П' },
       { missile: 'П', awacs: 'С', 'sam-long': 'З', 'sam-medium': 'Х', 'sam-short': 'Н', unknown: '' },

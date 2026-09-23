@@ -515,12 +515,37 @@ export const AIRCRAFT: JetTable = {
       'Razbam module, frozen since April 2025',
     ],
   },
+  su25t: {
+    id: 'su25t', role: 'attack', name: 'Su-25T Frogfoot', short: 'Su-25T', nation: 'ru', module: 'fc3', developer: 'Eagle Dynamics',
+    cockpit: 'ru', units: 'metric', rwr: 'spo15',
+    radar: null,
+    weapons: ['9А4172 Vikhr', 'Kh-25ML (25МЛ)', 'Kh-29L (29Л)', 'Kh-29T (29Т)', 'KAB-500Kr (500Кр)', 'S-8 rockets', 'Free-fall bombs (АБ)', 'Kh-58 with the L-081 pod (58)', 'R-60 / R-73', '30 mm cannon (ВПУ)'],
+    cms: { chaff: 0, flares: 192 },
+    perf: { maxMach: 0.8, cruiseMach: 0.6, maxG: 6.5, cornerKts: 300, ceilingFt: 23000 },
+    rcsM2: 7,
+    blurb:
+      'The free attack jet in DCS World, with FC3-level keyboard avionics. It has no air-to-air radar: it finds ' +
+      'targets with the Shkval TV sight, locks them by size, and guides Vikhr and laser missiles by keeping the ' +
+      'laser on until impact. The SPO-15 is your only warning of the SAMs that hunt you.',
+    strengths: [
+      'Shkval TV sight with 8x and 23x zoom: a tank at 8–10 km, a house at 15 km',
+      'Vikhr anti-tank missiles, fired in pairs, several targets per pass',
+      'Laser and TV guided missiles and bombs, CCIP and CCRP bombing',
+      'Kh-58 anti-radiation missiles with the Fantasmagoria pod',
+    ],
+    limits: [
+      'No air-to-air radar: R-60 and R-73 are cued by their own seeker only',
+      'Laser weapons need the lock and the laser held until impact',
+      'Shkval gimbal ±35° azimuth, +15° to −85° elevation',
+      'Subsonic and slow to climb: terrain and the SPO-15 are your defence',
+    ],
+  },
 };
 
 /** Fighters in picker order. BVR pages, tests and tables iterate this. */
 export const FIGHTER_ORDER: FighterId[] = ['su27', 'su33', 'j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'];
 /** Attack jets in picker order (air-to-ground routes only). */
-export const ATTACK_ORDER: AttackId[] = [];
+export const ATTACK_ORDER: AttackId[] = ['su25t'];
 /** Every jet: fighters first, then attack jets. The picker and the 3D models use this. */
 export const AIRCRAFT_ORDER: AircraftId[] = [...FIGHTER_ORDER, ...ATTACK_ORDER];
 
@@ -608,5 +633,12 @@ export const AIRCRAFT_CAVEATS: Record<AircraftId, string[]> = {
     'PSID (single-target track-while-scan) is not modelled; only RECH and PSIC are.',
     'Chaff and flare counts (112/16) are not in research.',
     PERF_NOTE, RCS_NOTE,
+  ],
+  su25t: [
+    'Performance and RCS values are rough gameplay numbers, not verified.',
+    'The flight manual lists 192 flares and no chaff load; chaff is shown as 0 until checked in game.',
+    'Laser limit conflict: the manual says 20 minutes total per flight with cooling; a 1-minute continuous limit is also reported. Not verified.',
+    'Gun conflict: the manual names a 30 mm twin-barrel cannon with 200 rounds; GSh-30 with 150 rounds is also reported. Not verified.',
+    'The manual gives no launch ranges for guided air-to-ground weapons; any range shown later is a community value, not verified.',
   ],
 };

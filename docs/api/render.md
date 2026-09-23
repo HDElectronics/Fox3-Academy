@@ -1,7 +1,8 @@
 # Render kit (`src/render`): API
 
 The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
-high-altitude `Environment`, procedural jets and missiles for all ten `AircraftId`s, `WorldView`
+high-altitude `Environment`, procedural jets and missiles for every `AircraftId` (ten fighters and the Su-25T, straight wing,
+wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
 
 ```ts
