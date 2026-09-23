@@ -11,11 +11,12 @@ import { aimPointM, aoaForLoad, approachSpeedMs, hasFlapSelector, headingErr, lo
 import { NAV_AUTO_SWITCH_M } from './nav';
 import { aimPointU, carrierData, carrierGeometry, crabHeading, shipData, shipFrame } from './carrier';
 import { ballInRange } from './lso';
+import { launchPowerNeed, powerMet } from './launch';
 import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
 
-export type DemoLeg = 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout'
+export type DemoLeg = 'launch' | 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout'
   | 'bolter';
-interface Memory { leg: DemoLeg }
+interface Memory { leg: DemoLeg; nextActT?: number; powerT?: number }
 const memory = new WeakMap<FlightOpsState, Memory>();
 
 /** Seconds past the threshold at which the demo breaks (the guides give 5–10 s). */
@@ -35,6 +36,7 @@ export function demoLeg(s: FlightOpsState): DemoLeg | null {
 }
 
 function initialLeg(s: FlightOpsState): DemoLeg {
+  if (s.launch) return s.launch.stage === 'free' ? 'climbout' : 'launch';
   if (s.phase === 'ready' || s.phase === 'roll') return 'takeoff';
   if (s.phase !== 'air') return 'rollout';
   if (s.nav) return s.nav.mode === 'landing' ? 'approach' : 'nav';
@@ -65,6 +67,10 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   let m = memory.get(s);
   if (!m) { m = { leg: initialLeg(s) }; memory.set(s, m); }
   const actions: FlightOpsAction[] = [];
+  if (s.launch) {
+    if (m.leg === 'launch' && s.launch.stage === 'free') m.leg = 'climbout';
+    return launchPilot(s, d, m, actions);
+  }
   if (m.leg === 'takeoff' && s.phase === 'air') m.leg = 'climbout';
   if ((m.leg === 'takeoff' && (s.phase === 'ready' || s.phase === 'roll')) || (m.leg === 'climbout' && s.phase === 'air')) {
     return takeoffPilot(s, d, m.leg, actions);
@@ -391,4 +397,66 @@ export function carrierTurn(s: FlightOpsState, d: FlightOpsJetData) {
   const turnS = ((Math.PI - ang) * r) / va;
   const rollInA = -grooveM * Math.cos(ang) + s.ship!.speedMs * turnS + r * Math.sin(ang) - ROLL_IN_LEAD_M;
   return { r, bank, rollInA, grooveM };
+}
+
+/** Launch demo: one sequence step every LAUNCH_STEP_S, so the strip fills in order. */
+export const LAUNCH_STEP_S = 0.8;
+/** Clearing turn: heading change the demo flies, radians. */
+const CLEARING_TURN_RAD = 20 * D2R;
+
+/**
+ * Deck launch (#27): perform the sequence in the data order (catapult: one action per LAUNCH_STEP_S, trim in
+ * 1° clicks, power, salute once the power has been set a second; ski-jump: full afterburner, special
+ * afterburner), hands off through the stroke and the settle, then gear up, flaps up (AUTO), the clearing turn
+ * away from the other catapults and a climb to CLIMB_ALT_FT.
+ */
+function launchPilot(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions: FlightOpsAction[]): FlightOpsInput & { actions: FlightOpsAction[] } {
+  const L = s.launch!;
+  const l = d.launch!;
+  const need = launchPowerNeed(l, L.weight);
+  if (m.leg === 'launch') {
+    if (L.stage !== 'hold') return { pitch: 0, roll: 0, throttle: 1, afterburner: need === 'AB' || l.kind === 'skiJump', actions };
+    let throttle = 0;
+    let ab = false;
+    const ready = s.t >= (m.nextActT ?? 0);
+    const act = (a: FlightOpsAction) => { if (ready) { actions.push(a); m.nextActT = s.t + LAUNCH_STEP_S; } };
+    for (const st of l.steps) {
+      const isDone = L.stepsDone.some(x => x.id === st.id);
+      if (st.id === 'power') {
+        throttle = 1; ab = need === 'AB';
+        if (!powerMet(s, need)) { m.powerT = undefined; break; }
+        if (m.powerT === undefined) { m.powerT = s.t; m.nextActT = Math.max(m.nextActT ?? 0, s.t + LAUNCH_STEP_S); }
+        continue;
+      }
+      if (isDone || st.id === 'handsOff' || st.id === 'release') continue;
+      if (st.id === 'trim') {
+        if (L.trimDeg === L.trimWantDeg) continue;
+        act((L.trimDeg ?? 0) < (L.trimWantDeg ?? 0) ? 'trimUp' : 'trimDown');
+        break;
+      }
+      if (st.id === 'salute' && s.t - (m.powerT ?? s.t) < 1) break;
+      act(st.id as FlightOpsAction);
+      break;
+    }
+    return { pitch: 0, roll: 0, throttle, afterburner: ab, actions };
+  }
+
+  // After the launch: hands off through the settle, then clean up, clearing turn, climb.
+  const kt = s.speed / MPS_PER_KT;
+  if (s.gearDown && s.vs > 1) actions.push('gearToggle');
+  if (!s.gearDown && s.gearPos < 0.5 && s.flapIndex > 0 && kt > d.takeoff.vrKt.value + 20) actions.push('flapsUp');
+  if (L.stage === 'settle') return { pitch: 0, roll: 0, throttle: 1, afterburner: need === 'AB' || l.kind === 'skiJump', actions };
+  const side = l.clearingTurn?.value[L.station];
+  const target = (L.endHeading ?? 0) + (side === 'right' ? CLEARING_TURN_RAD : side === 'left' ? -CLEARING_TURN_RAD : 0);
+  const roll = clamp((clamp(headingErr(target, s.heading) * 1.5, -0.4, 0.4) - s.bank) * 3, -1, 1);
+  const targetY = CLIMB_ALT_FT * M_PER_FT;
+  const gammaCmd = clamp((targetY - s.pos.y) * 0.004, -6 * D2R, 10 * D2R);
+  const n = Math.cos(s.gamma) / Math.max(0.5, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * 0.5) / G0;
+  const aoaT = aoaForLoad(s, d, clamp(n, 0, 3));
+  const pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);
+  const clean = !s.gearDown && s.gearPos < 0.05;
+  const limitKt = Math.min(d.pattern.gearMaxKt.value, d.takeoff.gearUpMaxKt.value) - 15;
+  const targetMs = (clean ? CLIMB_KT : limitKt) * MPS_PER_KT;
+  const throttle = clamp(0.45 + (targetMs - s.speed) * 0.15, 0, 1);
+  return { pitch, roll, throttle, afterburner: false, actions };
 }

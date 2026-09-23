@@ -15,13 +15,15 @@
  *
  * TakeoffEvaluator (#24) grades brakeRelease, rotate, liftoff, gearUp and climb; see its class comment.
  * CarrierEvaluator (#26) grades the Case I pass and gives the DCS-format LSO grade; see its class comment.
+ * LaunchEvaluator (#27) grades the deck launch sequence and the climb-out; see its class comment.
  */
 import { M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, D2R, clamp } from '../math';
-import { aimPointM, aoaCue, configWarnings, loadFactor, noFlapControl, rotateAtKt } from './model';
+import { aimPointM, aoaCue, configWarnings, headingErr, loadFactor, noFlapControl, rotateAtKt } from './model';
 import {
   RUNWAY, type ApproachGeometry, type ApproachScore, type CarrierGradeMark, type CarrierScore, type FlightOpsJetData,
-  type FlightOpsState, type GateId, type GateResult, type LsoCall, type TakeoffScore,
+  type FlightOpsState, type GateId, type GateResult, type LaunchScore, type LsoCall, type TakeoffScore,
 } from './types';
+import { LAUNCH_CLIMB_M, launchPowerNeed } from './launch';
 import { carrierData, carrierGeometry, shipData, shipFrame, targetWire } from './carrier';
 import { LSO_THRESHOLDS } from './lso';
 
@@ -609,5 +611,104 @@ export class CarrierEvaluator {
     };
     const verdict = this.crash ? `Cut pass: ${this.crash.toLowerCase()}.` : `${lead[grade]}${wire}${tail}`;
     return { ...base, grade, comments: sm.comments.map(commentText), total, verdict };
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- launch (#27)
+
+/** Clearing turn: at least this heading change to the right side within the window after the launch. */
+export const CLEARING_TURN_MIN_DEG = 10;
+export const CLEARING_TURN_WINDOW_S = 30;
+
+/**
+ * Deck-launch grading (#27). Gates appear as they are flown:
+ * - sequence (at the end of the stroke or the ramp): no sequence faults (refused hook-up or salute, steps out of
+ *   order, wrong trim, FOD screens, special afterburner missing, heavy on a short position).
+ * - shot: catapult power at the shot (no cold cat); ski-jump ramp speed at or above the minimum.
+ * - handsOff (catapult): no stick from the salute to the end of the settle.
+ * - cleanUp: gear up and flaps to the after-launch setting in a climb, below the gear limit.
+ * - clearingTurn (catapult): 10°+ toward the published side within 30 s of the launch.
+ * - climb: 1000 ft above the sea, climbing, gear up. Ends the grade.
+ * Total = 100 × passed gates / expected gates; a crash scores 0.
+ */
+export class LaunchEvaluator {
+  private readonly gates = new Map<GateId, GateResult>();
+  private done = false;
+  private crash: string | null = null;
+
+  constructor(private readonly d: FlightOpsJetData) {}
+
+  private pass(id: GateId, t: number, ok: boolean, notes: string[]) {
+    if (!this.gates.has(id)) this.gates.set(id, { id, label: LABELS[id], passedAt: t, ok, notes });
+  }
+
+  private expected(): GateId[] {
+    const l = this.d.launch;
+    if (!l) return [];
+    const cat = l.kind === 'catapult';
+    return ['sequence', 'shot', ...(cat && l.steps.some(x => x.id === 'handsOff') ? ['handsOff' as const] : []), 'cleanUp',
+      ...(cat && l.clearingTurn ? ['clearingTurn' as const] : []), 'climb'];
+  }
+
+  update(s: FlightOpsState): void {
+    const L = s.launch;
+    const l = this.d.launch;
+    if (this.done || !L || !l) return;
+    const kt = s.speed / MPS_PER_KT;
+    if (L.endT !== undefined && !this.gates.has('sequence')) {
+      const errs = [...L.errors];
+      this.pass('sequence', L.endT, errs.length === 0, errs.length ? errs : ['Every step in order']);
+      if (l.kind === 'catapult') {
+        const need = launchPowerNeed(l, L.weight);
+        const cold = L.outcome === 'cold cat';
+        this.pass('shot', L.endT, !cold, [cold ? `Cold cat: power below ${need} at the shot` : `${need} at the shot, ${Math.round(L.endKt ?? 0)} kt off the stroke`]);
+      } else {
+        const short = L.outcome === 'short run';
+        this.pass('shot', L.endT, !short, [`${Math.round(L.endKt ?? 0)} kt at the ramp, want ${Math.round(L.minKt ?? 0)} or more`]);
+      }
+    }
+    if (L.stage === 'free' && l.kind === 'catapult' && this.expected().includes('handsOff') && !this.gates.has('handsOff')) {
+      this.pass('handsOff', s.t, !L.handsOn, [L.handsOn ? 'Stick moved during the stroke or the settle' : 'Hands off through the stroke']);
+    }
+    const flapIdx = Math.max(0, this.d.flapLabels.indexOf(l.after.flapLabel));
+    const limit = this.d.takeoff.gearUpMaxKt.value;
+    if (L.endT !== undefined && s.phase === 'air' && !this.gates.has('cleanUp')) {
+      const clean = !s.gearDown && (noFlapControl(this.d) || s.flapIndex === flapIdx);
+      if (clean) this.pass('cleanUp', s.t, kt <= limit, [`Gear up, flaps ${l.after.flapLabel} at ${Math.round(kt)} kt, limit ${limit}`]);
+      else if (kt > limit) this.pass('cleanUp', s.t, false, [`Not clean at ${Math.round(kt)} kt, limit ${limit}`]);
+    }
+    const side = l.clearingTurn?.value[L.station];
+    if (side && L.endT !== undefined && L.endHeading !== undefined && !this.gates.has('clearingTurn')) {
+      const turn = headingErr(s.heading, L.endHeading) * R2D;
+      const toward = side === 'right' ? turn : -turn;
+      if (toward >= CLEARING_TURN_MIN_DEG) this.pass('clearingTurn', s.t, true, [`Turned ${side} from catapult ${L.station}`]);
+      else if (toward <= -CLEARING_TURN_MIN_DEG) this.pass('clearingTurn', s.t, false, [`Turned the wrong way: ${side} from catapult ${L.station}`]);
+      else if (s.t - L.endT > CLEARING_TURN_WINDOW_S) this.pass('clearingTurn', s.t, false, [`No clearing turn: ${side} from catapult ${L.station}`]);
+    }
+    if (s.phase === 'air' && L.endT !== undefined && s.pos.y >= LAUNCH_CLIMB_M) {
+      if (!this.gates.has('cleanUp')) this.pass('cleanUp', s.t, false, ['Not clean at 1000 ft']);
+      if (side && !this.gates.has('clearingTurn')) this.pass('clearingTurn', s.t, false, [`No clearing turn: ${side} from catapult ${L.station}`]);
+      this.pass('climb', s.t, s.vs > 0 && !s.gearDown, [`1000 ft at ${Math.round(kt)} kt, ${Math.round(s.vs * 196.85)} ft/min`]);
+      this.done = true;
+    }
+    if (s.phase === 'crashed') { this.done = true; this.crash = s.crashReason ?? 'Crashed'; }
+  }
+
+  score(s?: FlightOpsState): LaunchScore {
+    const order = this.expected();
+    const gates = order.map(id => this.gates.get(id)).filter((g): g is GateResult => !!g);
+    const outcome = s?.launch?.outcome ?? null;
+    const errors = s?.launch ? [...s.launch.errors] : [];
+    const base: LaunchScore = { gates, outcome, errors, total: null, verdict: null };
+    if (!this.done) return base;
+    if (this.crash) {
+      const why = outcome === 'cold cat' ? 'cold cat, ' : outcome === 'short run' ? 'short run, ' : '';
+      return { ...base, total: 0, verdict: `Crashed: ${why}${this.crash.toLowerCase()}.` };
+    }
+    const total = Math.round((100 * gates.filter(g => g.ok).length) / Math.max(1, order.length));
+    const faults = gates.filter(g => !g.ok).map(g => g.label.toLowerCase());
+    const head = total >= 100 ? 'Good launch' : total >= 80 ? 'Fair launch' : 'Poor launch';
+    const verdict = faults.length ? `${head}: ${faults.join(', ')} out of limits.` : `${head}. Sequence in order, clean up, climb.`;
+    return { ...base, total, verdict };
   }
 }
