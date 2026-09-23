@@ -56,7 +56,8 @@ Size `RAlt+=`/`RAlt+-`), `docs/research/f15c-fc3.md` (Cannon `C`, Weapon Fire `S
   (shared shape scaled per jet). Simplified, not verified. The existing `perf.maxG` and `perf.cornerKts` still
   set the instantaneous limit.
 - **Gun hits:** arcade rule, time with the gun line on the lead point inside the jet's max range. One bullet
-  speed for every gun, straight-line flight, no gravity drop. Damage per hit by calibre.
+  speed for every gun, straight-line flight, no gravity drop. Damage by time in the solution (about 2 s dead on
+  at 600 m, 1.25 s inside 300 m, 4 s at max range), the same for every gun: a gameplay target.
 - **Sight geometry:** pipper and funnel points displaced against the jet's own turn rate × time of flight. A
   teaching approximation of the lead-computing idea, not any jet's sight law.
 
