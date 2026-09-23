@@ -8,6 +8,7 @@
  * URL params: ?ac=<id> (select a jet once), ?drill=lock|pitbull|drag|late|free, ?threat=<missile>,
  * ?method=auto|tws|stt, ?shot=launch|notch|active|result|live (pre-roll to a state for screenshots), ?cam=tactical,
  * ?scroll=explainer (open at the explainer), ?only=explainer (explainer alone, for screenshots).
+ * ?drill=sa10|sa11|sa15 opens the SAM drill lab instead (samLab.ts, its own params).
  */
 import './style.css';
 import { Vector3 } from 'three';
@@ -40,6 +41,8 @@ import type { Debrief } from './debrief';
 import { DrillRunner } from './runner';
 import { cmKeys } from './cmkeys';
 import { buildExplainer } from './explainer';
+import { SAM_DRILLS, isSamDrill, samShort } from './samRun';
+import { mountSamLab } from './samLab';
 
 const RWR_LABEL: Record<string, string> = {
   spo15: 'СПО-15', alr56c: 'TEWS', alr67: 'ALR-67', alr56m: 'ALR-56M', jf17rwr: 'RWR', serval: 'SERVAL',
@@ -64,6 +67,9 @@ const factory: PageFactory = (): Page => {
       try { history.replaceState(history.state, '', `#/defense${qs ? '?' + qs : ''}`); } catch { /* sandboxed: fine */ }
       if (acParam !== ctx.app.aircraft) { ctx.app.setAircraft(acParam); return; }
     }
+
+    const samParam = ctx.params.get('drill');
+    if (isSamDrill(samParam)) { mountSamLab(ctx, bag, samParam, () => dead); return; }
 
     const ac = ctx.app.aircraft;
     const spec = ctx.app.spec;
@@ -138,7 +144,12 @@ const factory: PageFactory = (): Page => {
         best);
         drillButtons.set(id, { el, best });
         return el;
-      }));
+      }),
+      // SAM sites open their own lab (samLab.ts).
+      SAM_DRILLS.map(id => h('button', {
+        type: 'button', class: 'dfn-drill dfn-drill--sam', 'aria-pressed': 'false', id: `dfn-drill-${id}`,
+        onclick: () => ctx.navigate(`defense?drill=${id}`),
+      }, h('span', { class: 'dfn-drill__n' }, '▲'), h('span', { class: 'dfn-drill__title' }, `${samShort(id)} site`))));
     const goalEl = h('p', { class: 'dfn-goal' });
     const cueEl = h('p', { class: 'dfn-cue' });
     const threatSel = select<MissileId>({
