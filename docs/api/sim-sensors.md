@@ -211,8 +211,8 @@ Rules:
 - After a drop the site waits `REACQUIRE_S`, then may lock again and the acquisition delay restarts.
 - Recording: `RecordFrame.sams` and `RecordFrame.samMissiles` (optional; absent without SAMs).
 
-Known gaps: aircraft AI (ai.ts) does not react to SAM contacts yet; sites cannot be destroyed; no SAM rendering
-in `WorldView` yet (render agent: draw `world.samSites` / `world.samMissiles`).
+Known gaps: aircraft AI (ai.ts) does not react to SAM contacts yet; sites cannot be destroyed. Rendering:
+`docs/api/render.md`, "SAM sites".
 
 ## launch.ts
 

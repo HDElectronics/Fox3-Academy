@@ -141,3 +141,7 @@
   background: color-mix(in srgb, var(--screen) 55%, transparent);
   text-shadow: none;
 }
+.r3-tag[data-kind="site"] .r3-tag-body {
+  font-size: 10px;
+  background: color-mix(in srgb, var(--screen) 45%, transparent);
+}
