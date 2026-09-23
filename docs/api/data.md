@@ -233,6 +233,18 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
   used is machine-translated, so exact wording remains caveated.
 - M-2000C: radar emission switch, range/azimuth/bar controls not in research; most binds have no default key.
 
+### Flight ops
+
+`src/data/flightOps.ts` (`FLIGHT_OPS`, `FLIGHT_OPS_CAVEATS`); every `Sourced` value with `verified: false`:
+- Keys: gear `G`, flaps `F`, speed brake `B` are common DCS defaults, not verified per module. No hook key is given.
+- F/A-18C: approach speed 140 kt; gear and FULL-flap limit 250 kt (the guide's carrier section says 150 KIAS).
+- F-16C: approach speed 150 kt; abeam 1.2 nm, gear limit 300 kt and aim point 500 ft are not in Chuck's guide.
+  The on-speed value is 11° with the 11–14° green band as the guide gives it; no flap selector (flaps follow gear).
+- F-15C: approach 180 kt (the quick start flies about 150 kt at the outer beacon); the whole overhead pattern
+  (350 kt / 800 ft initial, 3.5 g break, 600 ft downwind, 1.2 nm abeam, 250 kt gear limit) and the 500 ft aim
+  point are Hornet stand-ins.
+- Touchdown zone (350 ft short to 1000 ft past the aim point) is a trainer choice, not a DCS number.
+
 ## Requests (to the architect)
 
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
