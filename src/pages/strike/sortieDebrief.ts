@@ -111,8 +111,7 @@ export function mountSortieDebrief(o: SortieDebriefOptions): { dispose(): void }
   const seekFromX = (clientX: number) => {
     const r = tl.getBoundingClientRect();
     const f = (clientX - r.left - LABEL_W) / Math.max(1, r.width - LABEL_W - 8);
-    t = Math.max(0, Math.min(endT, f * endT));
-    draw();
+    seek(f * endT);
   };
   let dragging = false;
   bag.on(tl, 'pointerdown', (e: Event) => { dragging = true; seekFromX((e as PointerEvent).clientX); });
@@ -120,7 +119,7 @@ export function mountSortieDebrief(o: SortieDebriefOptions): { dispose(): void }
   bag.on(window, 'pointerup', () => { dragging = false; });
   bag.on(tl, 'keydown', (e: Event) => {
     const k = (e as KeyboardEvent).key;
-    if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); t = Math.max(0, Math.min(endT, t + (k === 'ArrowRight' ? 5 : -5))); draw(); }
+    if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); seek(t + (k === 'ArrowRight' ? 5 : -5)); }
   });
 
   let raf = 0, last = 0;
@@ -129,6 +128,7 @@ export function mountSortieDebrief(o: SortieDebriefOptions): { dispose(): void }
     if (!playing) { draw(); return; }
     last = performance.now();
     const step = (now: number) => {
+      if (!playing) return;
       t = Math.min(endT, t + ((now - last) / 1000) * speed); last = now;
       draw();
       if (t >= endT) { playing = false; playBtn.setLabel('Play'); return; }
@@ -136,13 +136,19 @@ export function mountSortieDebrief(o: SortieDebriefOptions): { dispose(): void }
     };
     raf = requestAnimationFrame(step);
   }
-  bag.add(() => cancelAnimationFrame(raf));
+  bag.add(() => { playing = false; cancelAnimationFrame(raf); });
   const ro = new ResizeObserver(() => draw());
   ro.observe(map); ro.observe(tl);
   bag.add(() => ro.disconnect());
 
   // ───────────────────────────── results in the console
-  const seek = (x: number) => { t = Math.max(0, Math.min(endT, x)); playing = false; playBtn.setLabel('Play'); draw(); };
+  function seek(x: number): void {
+    playing = false;
+    cancelAnimationFrame(raf);
+    t = Math.max(0, Math.min(endT, x));
+    playBtn.setLabel('Play');
+    draw();
+  }
   const stars = '★'.repeat(sc.stars) + '☆'.repeat(3 - sc.stars);
   const guided = s.shots.filter(x => x.guided && x.weapon !== 'gun25t');
   const result = (x: SortieShot) => (x.result === 'hit' ? 'Hit' : x.reason && x.reason !== 'hit' ? `Miss: ${x.reason}` : 'Miss');

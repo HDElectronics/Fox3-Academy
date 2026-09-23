@@ -39,7 +39,7 @@ import { pickArmEmitter } from './targeting';
 import { projectArmHudPoint } from '../../ui/displays/su25tHud';
 import { BUNKER_AT, START, TANKS_AT, TRUCKS_AT, buildScenario, centreOf, type Scenario } from './scenario';
 import {
-  IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TIME_S, SortieTracker, navCue, scoreSortie, steerPoint, terrainFollowAlt, type EndReason,
+  IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TIME_S, SortieFlight, SortieTracker, navCue, scoreSortie, steerPoint, terrainFollowAlt, type EndReason,
 } from './sortie';
 import { AREA_VIEW, drawPlan, type MapScene } from './sortieMap';
 import { mountSortieDebrief } from './sortieDebrief';
@@ -101,7 +101,7 @@ const factory: PageFactory = (): Page => {
     let aglSet = AGL_DEFAULT, scripted = false;
     let tracker: SortieTracker | null = null;
     let sortieDebrief: { dispose(): void } | null = null;
-    let sortieEnd: EndReason = 'pilot';
+    let sortieFlight: SortieFlight | null = null;
     bag.add(() => { tracker?.dispose(); sortieDebrief?.dispose(); });
 
     // ------------------------------------------------------------------ DOM
@@ -382,7 +382,7 @@ const factory: PageFactory = (): Page => {
     // ------------------------------------------------------------------ lesson lifecycle
     function restart(): void {
       result?.destroy(); result = null;
-      tracker?.dispose(); tracker = null;
+      tracker?.dispose(); tracker = null; sortieFlight = null;
       sortieDebrief?.dispose(); sortieDebrief = null;
       sc = buildScenario(lesson, 7, { sa11: lesson === 'sortie' ? sortieSa11 : sa11, loadout });
       me = sc.me;
@@ -396,9 +396,9 @@ const factory: PageFactory = (): Page => {
       ccrpBombs = new Set(); armFired = 0; armLaunchRangeM = null; ringS = 0; samLaunches = 0; hitsTaken = 0;
       armCursor.x = 0; armCursor.y = -4;
       rwrBezel.el.hidden = !sc.sams.length;
-      sortieState = 'brief'; aglSet = AGL_DEFAULT; scripted = false; sortieEnd = 'pilot';
+      sortieState = 'brief'; aglSet = AGL_DEFAULT; scripted = false;
       const isSortie = lesson === 'sortie';
-      if (isSortie) tracker = new SortieTracker(sc.world, sc);
+      if (isSortie) { tracker = new SortieTracker(sc.world, sc); sortieFlight = new SortieFlight(tracker); }
       briefOverlay.hidden = !isSortie;
       lab.el.classList.toggle('strk--plan', isSortie);
       navBox.hidden = true;
@@ -494,9 +494,9 @@ const factory: PageFactory = (): Page => {
     function followTerrain(): void { me.cmd.altitude = terrainFollowAlt(world(), me, aglSet); }
     function sortieFinish(reason: EndReason): void {
       const w = world();
-      if (!tracker || sortieState !== 'flying') return;
-      sortieState = 'done'; ended = true;
-      tracker.close(w.t);
+      if (!tracker || !sortieFlight || sortieState !== 'flying') return;
+      sortieState = 'done'; ended = true; endAt = null;
+      sortieFlight.finish(reason);
       const summary = tracker.summary(reason, loadout);
       const score = scoreSortie(summary);
       if (score.passed && !scripted) ctx.app.setProgress(SORTIE_PROGRESS, true);
@@ -515,7 +515,7 @@ const factory: PageFactory = (): Page => {
     function updateNav(): void {
       if (!tracker || sortieState !== 'flying') return;
       const w = world();
-      const sp = steerPoint(tracker.phase, tracker.phase === 'egress' && Math.hypot(me.pos.x - steerPoint('attack').x, me.pos.z - steerPoint('attack').z) > IP_DIST_M);
+      const sp = steerPoint(tracker.phase, tracker.egressAt != null);
       const c = navCue(me, sp);
       const agl = me.pos.y - w.groundHeight(me.pos.x, me.pos.z);
       const turn = Math.abs(c.turnDeg) < 2 ? 'on course' : `${c.turnDeg > 0 ? 'right' : 'left'} ${Math.abs(c.turnDeg).toFixed(0)}°`;
@@ -555,9 +555,11 @@ const factory: PageFactory = (): Page => {
 
     function tick(dt: number): void {
       const w = world();
+      if (lesson === 'sortie' && sortieState === 'done') return;
       if (lesson === 'sortie' && sortieState === 'brief') { uiClock += dt; if (uiClock > 0.5) { uiClock = 0; updateUi(false); } return; }
       if (lesson === 'sortie' && sortieState === 'flying' && me.alive) followTerrain();
-      if (!ended || endAt != null) { w.step(dt); if (lesson === 'sortie' && sortieState === 'flying') tracker?.step(dt); }
+      if (lesson === 'sortie') sortieFlight?.step(dt);
+      else if (!ended || endAt != null) w.step(dt);
       const sh = me.ag!.shkval;
       if (sh.laserOn) { laserRunS += dt; laserS += dt; if (laserRunS >= 5) lasedLongEnough = true; } else laserRunS = 0;
       if (armMode()) {
@@ -569,8 +571,9 @@ const factory: PageFactory = (): Page => {
       flyLesson();
       checkSteps();
       // Missions end once own weapons and SAMs aimed at the jet are resolved; a time-out or a loss ends at once.
-      const hardEnd = lesson === 'sortie' && (sortieEnd === 'time' || !me.alive);
-      if (endAt != null && w.t >= endAt && (hardEnd || strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values()))) { endAt = null; finish(); }
+      if (lesson === 'sortie') {
+        if (sortieFlight?.readyToFinish()) sortieFinish(sortieFlight.reason);
+      } else if (endAt != null && w.t >= endAt && strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values())) { endAt = null; finish(); }
       uiClock += dt;
       if (uiClock > 0.1) { uiClock = 0; updateUi(false); }
     }
@@ -631,12 +634,7 @@ const factory: PageFactory = (): Page => {
           return;
         }
       }
-      if (lesson === 'sortie') {
-        if (ended || !tracker || sortieState !== 'flying') return;
-        const why = tracker.endReason();
-        if (why && endAt == null) { sortieEnd = why; endAt = w.t + (why === 'dead' ? 3 : 1); }
-        return;
-      }
+      if (lesson === 'sortie') return;
       if (lesson === 'sead' || lesson === 'threat') {
         if (ended) return;
         const resolved = strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values());
@@ -750,7 +748,7 @@ const factory: PageFactory = (): Page => {
     function finish(): void {
       if (result) return;
       if (lesson === 'sortie') {
-        if (sortieState === 'flying') sortieFinish(endAt == null && sortieEnd === 'pilot' ? tracker?.endReason() ?? 'pilot' : sortieEnd);
+        if (sortieState === 'flying') sortieFinish(tracker?.endReason() ?? 'pilot');
         return;
       }
       ended = true;

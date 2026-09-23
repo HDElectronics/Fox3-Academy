@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { SamMissile } from '../../sim/types';
 import { SU25T_LOADOUTS } from '../../data/agWeapons';
 import { samRingM } from '../../sim/sam';
 import { D2R, R2D, relBearing } from '../../sim/math';
 import { SORTIE_AAA_AT, SORTIE_IP, SORTIE_START, buildScenario, type Scenario } from './scenario';
 import { progressKey } from './lessons';
 import {
-  AAA_LETHAL, IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SortieTracker, navCue, scoreSortie, shkvalMarginDeg, steerPoint,
+  AAA_LETHAL, IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TARGET, SortieFlight, SortieTracker, navCue, scoreSortie, shkvalMarginDeg, steerPoint,
   terrainFollowAlt, weaponRows, type SortieShot, type SortieSummary,
 } from './sortie';
 
@@ -57,6 +58,98 @@ describe('sortie layout', () => {
 });
 
 describe('sortie end conditions', () => {
+  it('does not credit flying north through the target and away from the IP', () => {
+    const sc = buildScenario('sortie'); quiet(sc);
+    const tr = new SortieTracker(sc.world, sc);
+    for (const z of [8000, 0, -2000, -14000]) {
+      sc.me.pos.set(0, 5000, z); sc.me.heading = 0;
+      sc.world.t++;
+      tr.step(1);
+    }
+    expect(tr.phase).toBe('egress');
+    expect(tr.ipAt).toBeNull();
+    expect(tr.egressAt).toBeNull();
+    expect(tr.endReason()).toBeNull();
+    expect(tr.markers.some(m => m.text === 'Out past the IP')).toBe(false);
+    expect(scoreSortie(tr.summary('pilot', 'vikhr')).score).toBe(10);
+    tr.dispose();
+  });
+
+  it('credits only the outbound crossing of the IP gate, once', () => {
+    const sc = buildScenario('sortie'); quiet(sc);
+    const tr = new SortieTracker(sc.world, sc);
+    const ux = (SORTIE_TARGET.x - SORTIE_IP.x) / IP_DIST_M;
+    const uz = (SORTIE_TARGET.z - SORTIE_IP.z) / IP_DIST_M;
+    const visit = (distance: number) => {
+      sc.me.pos.set(SORTIE_IP.x + ux * distance, 5000, SORTIE_IP.z + uz * distance);
+      sc.world.t++;
+      tr.step(1);
+    };
+    visit(-100); visit(100); // Inbound crossing cannot end the sortie.
+    expect(tr.egressAt).toBeNull();
+    visit(6000); visit(4000); visit(100);
+    expect(tr.phase).toBe('egress');
+    expect(tr.egressAt).toBeNull();
+    visit(-100);
+    expect(tr.endReason()).toBe('egress');
+    expect(scoreSortie(tr.summary('egress', 'vikhr')).score).toBe(30);
+    visit(100); visit(-100);
+    expect(tr.markers.filter(m => m.text === 'Out past the IP')).toHaveLength(1);
+    tr.dispose();
+  });
+
+  it.each(['time', 'dead'] as const)('%s overrides pending egress despite an incoming SAM', reason => {
+    const sc = buildScenario('sortie'); quiet(sc);
+    const tr = new SortieTracker(sc.world, sc), flight = new SortieFlight(tr);
+    // Isolate mission scheduling from missile motion: the SAM remains unresolved throughout.
+    vi.spyOn(sc.world, 'step').mockImplementation(dt => { sc.world.t += dt; });
+    sc.world.samMissiles.set('incoming', { alive: true, targetId: sc.me.id } as SamMissile);
+    sc.world.t = 590; tr.egressAt = 590;
+    flight.step(1);
+    const deadline = flight.endAt;
+    flight.step(1);
+    expect(flight.endAt).toBe(deadline);
+    expect(flight.readyToFinish()).toBe(false);
+    if (reason === 'time') sc.world.t = 599;
+    else sc.me.alive = false;
+    flight.step(1);
+    expect(tr.endReason()).toBe(reason);
+    expect(flight.reason).toBe(reason);
+    expect(flight.readyToFinish()).toBe(true);
+    if (reason === 'time') {
+      expect(sc.world.t).toBe(600);
+      sc.world.t = 601;
+      expect(tr.endReason()).toBe('time');
+    }
+    flight.finish(reason);
+  });
+
+  it('manual finalisation clears pending egress and freezes the world, recording and tracker', () => {
+    const sc = buildScenario('sortie'); quiet(sc);
+    const w = sc.world, tr = new SortieTracker(w, sc), flight = new SortieFlight(tr);
+    tr.egressAt = 0;
+    flight.step(0.5);
+    expect(flight.endAt).not.toBeNull();
+    w.emit({ type: 'cm', t: w.t, ownerId: sc.me.id, what: 'flare' });
+    expect(tr.flares).toBe(1);
+    flight.finish('pilot');
+    expect(flight.endAt).toBeNull();
+    expect(flight.readyToFinish()).toBe(false);
+    const time = w.t, recording = structuredClone(w.recording);
+    const summary = structuredClone(tr.summary('pilot', 'vikhr'));
+    const markers = structuredClone(tr.markers);
+    const step = vi.spyOn(w, 'step');
+    flight.step(10);
+    w.emit({ type: 'cm', t: w.t + 2, ownerId: sc.me.id, what: 'flare' });
+    expect(step).not.toHaveBeenCalled();
+    expect(w.t).toBe(time);
+    expect(w.recording).toEqual(recording);
+    expect(tr.summary('pilot', 'vikhr')).toEqual(summary);
+    expect(tr.markers).toEqual(markers);
+    flight.finish('time'); // Finalisation is idempotent.
+    expect(flight.reason).toBe('pilot');
+  });
+
   it('runs ingress → IP → attack → egress and ends on egress past the IP', () => {
     const sc = buildScenario('sortie'); quiet(sc);
     const tr = new SortieTracker(sc.world, sc);
@@ -197,6 +290,8 @@ describe('sortie scoring', () => {
     expect(d.stars).toBe(0);
     const c = d.coaching.join(' | ');
     for (const k of ['Laser off', 'never flew the IP', 'of the ingress below', 'inside a SAM ring', 'ZSU-23-4 envelope', '1 minute continuous', 'Flares decoy IR', 'SPO-15 launch cue']) expect(c).toContain(k);
+    expect(c).toContain('This trainer models no chaff; the DCS chaff load is not verified.');
+    expect(c).not.toContain('Su-25T carries no chaff');
   });
 
   it('caps a loss at one star and says what got the jet', () => {

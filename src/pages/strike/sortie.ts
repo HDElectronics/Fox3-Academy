@@ -14,7 +14,7 @@ import { R2D, relBearing } from '../../sim/math';
 import { SHKVAL_LOCK_GIMBAL } from '../../sim/shkval';
 import { samRingM } from '../../sim/sam';
 import { BUNKER_AT, COLUMN_AT, SORTIE_AAA_AT, SORTIE_IP, SORTIE_START, type Scenario } from './scenario';
-import { MISS_TEXT, type Debrief } from './lessons';
+import { MISS_TEXT, strikeWeaponsResolved, type Debrief } from './lessons';
 
 /** Mission time limit (s). */
 export const SORTIE_TIME_S = 600;
@@ -35,6 +35,12 @@ export const LASER_CONTINUOUS_S = 60;
 /** Target area centre, for steering and phases. */
 export const SORTIE_TARGET = { x: COLUMN_AT.x, z: COLUMN_AT.z } as const;
 export const IP_DIST_M = Math.hypot(SORTIE_IP.x - SORTIE_TARGET.x, SORTIE_IP.z - SORTIE_TARGET.z);
+
+/** Signed distance from the line through the IP, positive on the target side. */
+function ipGateDistance(p: { x: number; z: number }): number {
+  return ((p.x - SORTIE_IP.x) * (SORTIE_TARGET.x - SORTIE_IP.x)
+    + (p.z - SORTIE_IP.z) * (SORTIE_TARGET.z - SORTIE_IP.z)) / IP_DIST_M;
+}
 
 /** Loadouts offered in the brief (SU25T_LOADOUTS) with the plan each one implies. */
 export const SORTIE_PLANS: Record<string, string> = {
@@ -130,9 +136,11 @@ export class SortieTracker {
   ingressS = 0;
   lowS = 0;
   private minRange = Infinity;
+  private previousGateDistance: number;
   private off: () => void;
 
   constructor(readonly world: World, readonly sc: Scenario) {
+    this.previousGateDistance = ipGateDistance(sc.me.pos);
     this.rings = sc.sams.map(id => {
       const s = world.samSites.get(id)!;
       return { id, name: s.callsign, ringM: samRingM(s.type), s: 0, intervals: [] };
@@ -241,9 +249,12 @@ export class SortieTracker {
     if (this.phase !== 'egress') {
       this.minRange = Math.min(this.minRange, d);
       if (this.attackStarted && d > this.minRange + 1000) { this.phase = 'egress'; this.mark(t, 'egress', 'Egress', 'dim'); }
-    } else if (this.egressAt == null && d > IP_DIST_M + 500) {
+    }
+    const gateDistance = ipGateDistance(me.pos);
+    if (this.phase === 'egress' && this.egressAt == null && this.previousGateDistance > 0 && gateDistance <= 0) {
       this.egressAt = t; this.mark(t, 'egress', 'Out past the IP', 'ok');
     }
+    this.previousGateDistance = gateDistance;
     // SAM rings: slant range to a live site.
     for (const r of this.rings) {
       const s = w.samSites.get(r.id);
@@ -290,8 +301,8 @@ export class SortieTracker {
   /** Why the mission ends now, or null. Egress waits for the phase; weapons in flight are the page's call. */
   endReason(limitS = SORTIE_TIME_S): EndReason | null {
     if (!this.me.alive) return 'dead';
-    if (this.egressAt != null) return 'egress';
     if (this.world.t >= limitS) return 'time';
+    if (this.egressAt != null) return 'egress';
     return null;
   }
 
@@ -327,6 +338,46 @@ export class SortieTracker {
       lowFrac: this.ingressS > 0 ? this.lowS / this.ingressS : 0,
       flares: this.flares, samLaunches: this.samLaunches, hitsTaken: this.hitsTaken,
     };
+  }
+}
+
+/** Owns the live sortie deadline and freezes the world and tracker before the debrief captures them. */
+export class SortieFlight {
+  endAt: number | null = null;
+  reason: EndReason = 'pilot';
+  ended = false;
+
+  constructor(readonly tracker: SortieTracker) {}
+
+  step(dt: number): void {
+    if (this.ended) return;
+    const tr = this.tracker;
+    tr.world.step(dt);
+    tr.step(dt);
+    const why = tr.endReason();
+    if (why === 'dead' || why === 'time') {
+      this.reason = why;
+      this.endAt = tr.world.t;
+    } else if (why && this.endAt == null) {
+      this.reason = why;
+      this.endAt = tr.world.t + 1;
+    }
+  }
+
+  readyToFinish(): boolean {
+    const w = this.tracker.world;
+    return !this.ended && this.endAt != null && w.t >= this.endAt
+      && (this.reason === 'dead' || this.reason === 'time'
+        || strikeWeaponsResolved(this.tracker.me.id, w.agWeapons.values(), w.samMissiles.values()));
+  }
+
+  finish(reason: EndReason): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.endAt = null;
+    this.reason = reason;
+    this.tracker.close();
+    this.tracker.dispose();
   }
 }
 
@@ -414,7 +465,7 @@ export function scoreSortie(s: SortieSummary): SortieScore {
   if (s.ringS > 10) coaching.push(`${Math.round(s.ringS)} s inside a SAM ring. Fire from outside it (Vikhr 10 km, Kh-58 well beyond 12 km) or kill the SA-15 first.`);
   if (s.aaaS > 3) coaching.push(`${Math.round(s.aaaS)} s inside the ZSU-23-4 envelope (2.5 km, trainer value). Stay out of gun range: stand off with guided weapons.`);
   if (s.longestLaserS > LASER_CONTINUOUS_S) coaching.push(`Laser on ${Math.round(s.longestLaserS)} s in one go. S1: about 1 minute continuous, then it must cool. Lase for range and guidance only.`);
-  if (s.flares > 0 && s.samLaunches > 0) coaching.push('Flares decoy IR missiles only. The SA-15 and SA-11 are radar guided: notch and descend instead (the Su-25T carries no chaff).');
+  if (s.flares > 0 && s.samLaunches > 0) coaching.push('Flares decoy IR missiles only. The SA-15 and SA-11 are radar guided: notch and descend instead. This trainer models no chaff; the DCS chaff load is not verified.');
   if (s.samLaunches > 0 && s.alive) coaching.push('A SAM was fired at you. On the SPO-15 launch cue put it at 3 or 9 o\'clock and descend into the terrain.');
   if (!s.shots.length) coaching.push('Nothing fired. Past the IP: pop up, 7, O, find the column, lock (10 m), laser on, fire at ПР.');
   if (s.end === 'time') coaching.push(`Time limit ${SORTIE_TIME_S / 60} min: keep the attack to one or two passes and get out.`);
