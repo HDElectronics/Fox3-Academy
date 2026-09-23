@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Pattern & landing adds air-to-air refuelling (#28): Tanker rejoin and Pre-contact starts for the Su-33 (IL-78M
+  with UPAZ pods), F-15C and F-16C (KC-135 boom) and the F/A-18C, F-14B, JF-17 and M-2000C (KC-135 MPRS or KC-130
+  hose), low-poly tankers with hose, basket and boom, Wing and Receiver cameras, probe / door / lights / radio-call
+  keys and touch buttons, a contact position box, the UPAZ hose-band gauge, simplified boom cues, closure and fuel
+  readouts, a radio log and a graded refuelling debrief with its own progress key. The other jets see a note.
+
 - Pattern & landing adds Catapult (F/A-18C, F-14B) and Ski-jump (Su-33) launch starts (#27) in Watch and Fly: a
   catapult or position picker and a Heavy toggle, catapult tracks, shuttle and jet-blast deflectors on the CVN,
   marked positions, deck stoppers and a ski-jump on the sim's 12° ramp on the Kuznetsov, a Deck (shooter) camera,

@@ -136,6 +136,21 @@ the strip tags them. After the launch: gear and flaps up, the clearing turn (rig
 1000 ft. The debrief gives the outcome (good launch, sequence error, cold cat, short run), the gates and a score;
 70 or more in Fly mode completes the launch lesson. The Deck camera is the shooter's view beside the jet.
 
+**Tanker rejoin and Pre-contact** (Su-33 on the IL-78M; F-15C and F-16C on the KC-135 boom; F/A-18C, F-14B,
+JF-17 and M-2000C on the KC-135 MPRS or KC-130 hose, picked under Start): Tanker rejoin starts 2 nm behind the
+tanker; Pre-contact starts stable behind the basket or boom, already cleared pre-contact. Call the tanker with `\`
+(a trainer key: in DCS it is the radio menu), probe out (Su-33 LCtrl+R, refuelling lights LAlt+R) or door open
+(F-16C below 400 kt / M0.85). Close behind the tanker; inside the pre-contact zone the throttle sets closure and
+the stick moves the jet up, down, left and right. Hold still for 3 s and the tanker clears you to contact; close
+at 2–3 kt (probe) or slowly to the boom. The Position box shows the probe tip or receptacle against the limits;
+the Su-33's Hose gauge shows the UPAZ bands (yellow 3–13 m, yellow+green 13–16, green 16–22, green+red 22–24,
+red 24–26 cone to pod: hold green, 3–6 m below the pod); boom jets get simplified up/down and forward/back cues
+(the KC-135 director lights are not modelled). Fuel flows in the green band or inside the boom limits; the Radio
+panel logs every call, bounce and disconnect. The debrief grades rejoin, pre-contact, closure at contact, time in
+the envelope and a clean disconnect; 70 or more in Fly mode completes the refuelling lesson. Cameras: Chase, Wing
+(from the tanker's wing), Receiver (behind your jet, looking at the basket or boom) and Cockpit. The Su-27, J-11A
+and MiG-29S have no refuelling lesson.
+
 On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,
