@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- SAM threats (#10): the 3D views draw SA-10, SA-11 and SA-15 sites with their threat ring, minimum-range ring
+  and altitude band, and SAMs in flight with smoke and trails, live and in the debrief replay. Defense adds a
+  drill per site (brief, search / lock / launch on your RWR, beam and chaff, an optional ridge, coaching and a
+  debrief); Sortie can add one or two sites with coach hints and debrief notes; the Reference RWR section lists
+  each site's symbol, ring and band. Rings and bands are marked not verified; the AI jets ignore the sites.
 - Pattern & landing adds a runway Takeoff start for all ten jets (#24): Watch and Fly, wheel brakes on W (also
   on the landing rollout), a HUD speed tape with VR and PULL bugs, a pitch bracket with the tail-strike line, a
   BRAKES · POWER · RELEASE · ROTATE · GEAR UP · FLAPS strip, per-jet lesson steps, a graded takeoff debrief and
