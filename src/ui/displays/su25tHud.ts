@@ -9,6 +9,7 @@
  * a type code under each radar the missile can attack, a circle on the locked emitter, and the slewed square.
  */
 import { Gfx, Surface } from './surface';
+import { CCRP_TOL_DEG } from '../../sim/agWeapons';
 
 export interface HudStation { station: number; label: string; count: number; selected: boolean }
 
@@ -42,6 +43,17 @@ export const CCRP_SCALE_S = 10;
 
 /** HUD field of view across (deg); the trainer's scale for placing angular symbols. */
 export const HUD_FOV_DEG = 26;
+
+/** Shared Kh-58 symbol/cursor projection, including the HUD edge clamps. */
+export function projectArmHudPoint(p: { xDeg: number; yDeg: number }): { xDeg: number; yDeg: number } {
+  return { xDeg: clampDeg(p.xDeg), yDeg: clampDeg(p.yDeg, 8.5) };
+}
+
+/** Pixel geometry: the keel touches the circle at the simulation's release tolerance. */
+export function ccrpDirectorGeometry(errDeg: number, width: number): { offset: number; radius: number } {
+  const ppd = width / HUD_FOV_DEG;
+  return { offset: clampDeg(errDeg) * ppd, radius: CCRP_TOL_DEG * ppd };
+}
 
 /** Angles (deg) of a world point from the boresight given the jet's heading and pitch (rad). + right, + up. */
 export function hudAngles(from: { x: number; y: number; z: number }, heading: number, pitch: number, p: { x: number; y: number; z: number }): { xDeg: number; yDeg: number } {
@@ -141,23 +153,25 @@ export class Su25tHud {
 
     // CCRP director circle at the keel height; the keel is the datum's vertical tick.
     if (s.ccrp) {
-      const [dx] = at(clampDeg(s.ccrp.errDeg), 0);
+      const director = ccrpDirectorGeometry(s.ccrp.errDeg, W);
       g.dash(s.ccrp.inCircle ? null : [1.4, 1.2]);
-      g.circle(dx, cy - 2.8 * u, 2.2 * u);
+      g.circle(cx + director.offset, cy - 2.8 * u, director.radius);
       g.dash(null);
     }
     // Kh-58 emitters: diamond (circle once locked), type code below, slewed square.
     if (s.arm) {
       g.font(2.8, 700, 8);
       for (const e of s.arm.emitters) {
-        const [ex, ey] = at(clampDeg(e.xDeg), clampDeg(e.yDeg, 8.5));
+        const p = projectArmHudPoint(e);
+        const [ex, ey] = at(p.xDeg, p.yDeg);
         const r = 1.8 * u;
         if (e.locked) g.circle(ex, ey, r);
         else g.poly([ex, ey - r, ex + r, ey, ex, ey + r, ex - r, ey], true);
         if (e.code) g.text(e.code, ex, ey + r + 2 * u);
       }
       if (s.arm.cursor) {
-        const [qx, qy] = at(clampDeg(s.arm.cursor.xDeg), clampDeg(s.arm.cursor.yDeg, 8.5));
+        const p = projectArmHudPoint(s.arm.cursor);
+        const [qx, qy] = at(p.xDeg, p.yDeg);
         g.rect(qx - 2.6 * u, qy - 2.6 * u, 5.2 * u, 5.2 * u);
       }
     }

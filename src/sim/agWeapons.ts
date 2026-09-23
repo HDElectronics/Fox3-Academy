@@ -343,23 +343,30 @@ export function setCcrpHold(world: World, ac: Aircraft, on: boolean): { ok: bool
   if (!on) { ag.ccrpHeld = false; return { ok: true, reason: '' }; }
   const s = ccrpSolution(world, ac);
   if (!s.active) return { ok: false, reason: s.reason };
+  if (s.ttrS! > CCRP_LATE_S) ag.ccrpReleased = false;
+  if (ag.ccrpReleased) return { ok: false, reason: 'Bomb already released on this pass: go around' };
   if (s.passed) return { ok: false, reason: 'Release point passed: go around' };
   ag.ccrpHeld = true;
   return { ok: true, reason: '' };
 }
 
 /**
- * One tick while release is held: at time to release 0 with the keel in the circle, release one bomb and stop
- * holding. Outside the circle nothing releases; once the point is passed the pass is lost.
+ * Update the pass latch every tick. At time to release 0 with release held and the keel in the circle,
+ * release one bomb and consume the pass. A solution more than 0.5 s ahead establishes a new pass.
+ * Outside the circle nothing releases; once the point is passed the pass is lost.
  */
 export function stepCcrp(world: World, ac: Aircraft): void {
   const ag = ac.ag;
-  if (!ag?.ccrpHeld) return;
+  if (!ag || (!ag.ccrpHeld && !ag.ccrpReleased)) return;
   const s = ccrpSolution(world, ac);
+  if (s.active && s.ttrS! > CCRP_LATE_S) ag.ccrpReleased = false;
+  if (!ag.ccrpHeld) return;
+  if (ag.ccrpReleased) { ag.ccrpHeld = false; return; }
   if (!s.active || s.passed) { ag.ccrpHeld = false; return; }
   if (s.ttrS! > 0 || !s.inCircle) return;
   ag.ccrpHeld = false;
-  agLaunch(world, ac, { ccrp: true });
+  const released = agLaunch(world, ac, { ccrp: true });
+  if (Array.isArray(released) && released.length > 0) ag.ccrpReleased = true;
 }
 
 // ─────────────────────────────────────────────────────────── flight

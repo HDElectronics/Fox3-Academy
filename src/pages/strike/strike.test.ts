@@ -4,11 +4,15 @@ import { jetAllowed, pickerJets } from '../../app/roleGate';
 import { LESSON_LINKS } from '../../app/navigation';
 import { PROCEDURES } from '../../data/procedures';
 import { parseKeyList } from '../../ui/keys';
-import { LESSONS, LESSON_ORDER, MISS_TEXT, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr, type ShotRecord } from './lessons';
-import { AG_WEAPONS } from '../../data/agWeapons';
+import { LESSONS, LESSON_ORDER, MISS_TEXT, STRIKE_CAVEATS, strikeWeaponsResolved, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr, type ShotRecord } from './lessons';
+import { AG_CAVEATS, AG_WEAPONS } from '../../data/agWeapons';
 import { samRingM } from '../../sim/sam';
 import { D2R, relBearing } from '../../sim/math';
 import { START, buildScenario, centreOf } from './scenario';
+
+import { SAM_CAVEATS } from '../../data/sams';
+import { hudAngles, projectArmHudPoint } from '../../ui/displays/su25tHud';
+import { pickArmEmitter } from './targeting';
 
 const shot = (result: ShotRecord['result'], reason?: ShotRecord['reason']): ShotRecord => ({ weapon: 'vikhr', rangeM: 8000, result, reason, killed: result === 'hit' });
 
@@ -151,5 +155,51 @@ describe('bombs, SEAD and SAM-threat lessons', () => {
     world.on(e => { if (e.type === 'ag-launch') launched.push(!!e.ccrp); });
     for (let t = 0; t < 90 && !launched.length; t += 0.1) world.step(0.1);
     expect(launched).toEqual([true]);
+  });
+});
+
+
+describe('strike review regressions', () => {
+  it('waits after the last tank dies and counts a later SAM hit and exposure in the debrief', () => {
+    const weapons = [{ alive: false }];
+    const incoming = { alive: true, targetId: 'me' };
+    const score = { tanks: 4, tanksKilled: 4, samsKilled: 0, hitsTaken: 0, ringS: 10, samLaunches: 1 };
+    const finish = () => strikeWeaponsResolved('me', weapons, [incoming]) ? scoreThreat(score) : null;
+    expect(finish()).toBeNull(); // last tank killed, no A-G weapons left
+    score.ringS += 3; // the old 2 s deadline has elapsed
+    expect(finish()).toBeNull();
+    incoming.alive = false;
+    score.hitsTaken = 1;
+    score.ringS += 4;
+    expect(finish()).toMatchObject({ stars: 1, passed: false });
+    expect(finish()!.lines).toContain('Time inside a SAM ring 17 s');
+    score.hitsTaken = 0; // if the SAM missed instead, the extra exposure still reduces the score
+    expect(finish()).toMatchObject({ stars: 2, passed: true });
+  });
+
+  it('waits for all incoming SAMs, including a live missile after track loss, and accepts terminal misses', () => {
+    const sams = [{ alive: false, targetId: 'me' }, { alive: true, targetId: 'me', guided: false }];
+    expect(strikeWeaponsResolved('me', [], sams)).toBe(false);
+    sams[1]!.alive = false;
+    expect(strikeWeaponsResolved('me', [], sams)).toBe(true);
+    expect(strikeWeaponsResolved('me', [{ alive: true }], sams)).toBe(false);
+    expect(strikeWeaponsResolved('me', [], [{ alive: true, targetId: 'other' }])).toBe(true);
+  });
+
+  it('picks the Kh-58 diamond drawn below the HUD at 3000 m and 13 km', () => {
+    const raw = hudAngles({ x: 0, y: 3000, z: 0 }, 0, 0, { x: 0, y: 0, z: -13000 });
+    expect(raw.yDeg).toBeCloseTo(-12.995, 2);
+    const diamond = { id: 'sam', ...raw };
+    expect(projectArmHudPoint(diamond).yDeg).toBe(-8.5);
+    expect(pickArmEmitter([diamond], { xDeg: 0, yDeg: -9 })?.id).toBe('sam');
+    expect(pickArmEmitter([diamond], { xDeg: 3.01, yDeg: -9 })).toBeNull();
+    const neighbour = { id: 'nearer', xDeg: 2, yDeg: -8.5 };
+    expect(pickArmEmitter([diamond, neighbour], { xDeg: 2, yDeg: -9 })?.id).toBe('nearer');
+  });
+
+  it('labels SAM ranges and includes SAM caveats alongside A-G caveats', () => {
+    for (const id of ['threat', 'sead'] as const) expect(LESSONS[id].goal).toMatch(/12 km, not verified/);
+    expect(LESSONS.threat.steps[0]!.text).toMatch(/15 km.*simplified.*1.25.*not verified/);
+    expect(STRIKE_CAVEATS).toEqual(expect.arrayContaining([...AG_CAVEATS, ...SAM_CAVEATS]));
   });
 });

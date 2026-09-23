@@ -189,7 +189,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     stepGuns(this, h);
     if (this.groundUnits.size) stepGroundUnits(this, h);
-    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); if (ac.ag.ccrpHeld) stepCcrp(this, ac); }
+    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); stepCcrp(this, ac); }
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);

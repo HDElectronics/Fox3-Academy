@@ -60,6 +60,29 @@ describe('CCRP release rule', () => {
     expect(impact && impact.type === 'ag-impact' && Math.hypot(impact.pos[0] - tank.pos.x, impact.pos[2] - tank.pos.z)).toBeLessThan(30);
   });
 
+  it('consumes the automatic release pass even if release is pressed again on consecutive ticks', () => {
+    const { world, ac, events } = designate();
+    world.laser('me', true);
+    world.ccrpHold('me', true);
+    runUntil(world, () => events.some(e => e.type === 'ag-launch'), 60);
+    const remaining = ac.ag!.stores.fab250;
+    expect(ccrpSolution(world, ac).ttrS!).toBeGreaterThan(-0.5);
+    expect(ac.ag!.ccrpReleased).toBe(true);
+    for (let i = 0; i < 10; i++) {
+      expect(world.ccrpHold('me', true)).toMatchObject({ ok: false, reason: expect.stringContaining('already released') });
+      world.step(1 / 60);
+    }
+    expect(ac.ag!.stores.fab250).toBe(remaining);
+    expect(events.filter(e => e.type === 'ag-launch')).toHaveLength(1);
+    // A new approach to the same designation resets the latch, even with release let go.
+    ac.pos.z = 0;
+    world.step(1 / 60);
+    expect(ac.ag!.ccrpReleased).toBe(false);
+    expect(world.ccrpHold('me', true).ok).toBe(true);
+    runUntil(world, () => events.filter(e => e.type === 'ag-launch').length === 2, 60);
+    expect(events.filter(e => e.type === 'ag-launch')).toHaveLength(2);
+  });
+
   it('does not release with the keel outside the director circle, and drops the pass once the point is behind', () => {
     const { world, ac, events } = designate(700);
     world.laser('me', true);

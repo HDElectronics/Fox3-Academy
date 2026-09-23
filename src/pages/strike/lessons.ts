@@ -3,6 +3,21 @@
  * Keys and cockpit words come from PROCEDURES.su25t and the ED Su-25T Flight Manual (S1). Game level only.
  */
 import type { AgMissReason, GroundUnitKind } from '../../sim/types';
+import { AG_CAVEATS } from '../../data/agWeapons';
+import { SAM_CAVEATS } from '../../data/sams';
+
+export const STRIKE_CAVEATS = [...AG_CAVEATS, ...SAM_CAVEATS];
+
+/** Keep scoring live until weapons resolve, including ballistic SAMs that can still hit after track loss. */
+export function strikeWeaponsResolved(
+  playerId: string,
+  weapons: Iterable<{ alive: boolean }>,
+  sams: Iterable<{ alive: boolean; targetId: string | null }>,
+): boolean {
+  for (const w of weapons) if (w.alive) return false;
+  for (const m of sams) if (m.alive && m.targetId === playerId) return false;
+  return true;
+}
 
 export type LessonId = 'shkval' | 'laser' | 'vikhr' | 'ccip' | 'bombs' | 'sead' | 'threat';
 export const LESSON_ORDER: LessonId[] = ['shkval', 'laser', 'vikhr', 'ccip', 'bombs', 'sead', 'threat'];
@@ -117,7 +132,7 @@ export const LESSONS: Record<LessonId, LessonDef> = {
   },
   sead: {
     id: 'sead', title: 'Kh-58 SEAD', short: 'Kh-58 SEAD', scored: true,
-    goal: 'An SA-15 is emitting 30 km ahead. Find it with the L-081 pod and kill it with a Kh-58 from outside its 12 km ring.',
+    goal: 'An SA-15 is emitting 30 km ahead. Find it with the L-081 pod and kill it with a Kh-58 from outside its trainer ring (12 km, not verified in DCS).',
     steps: [
       { id: 'mode', text: 'Air-to-ground mode and the Kh-58: 58 on the HUD.', keys: '7, D', check: s => s.master === 'ag' && s.selected === 'kh58' },
       { id: 'detect', text: 'Passive detection on: ПРГ on the HUD.', keys: 'I', check: s => s.armDetecting },
@@ -130,9 +145,9 @@ export const LESSONS: Record<LessonId, LessonDef> = {
   },
   threat: {
     id: 'threat', title: 'Attack under a SAM threat', short: 'SAM threat', scored: true,
-    goal: 'A tank platoon covered by an SA-15 (12 km ring). Suppress it with a Kh-58 first, or stand off with Vikhrs outside the ring.',
+    goal: 'A tank platoon covered by an SA-15 (trainer ring: 12 km, not verified in DCS). Suppress it with a Kh-58 first, or stand off with Vikhrs outside the ring.',
     steps: [
-      { id: 'mode', text: 'Air-to-ground mode. Watch the SPO-15: the SA-15 search radar paints you inside 15 km.', keys: '7', check: s => s.master === 'ag' },
+      { id: 'mode', text: 'Air-to-ground mode. Watch the SPO-15: the trainer gives the SA-15 a 15 km search reach (simplified: 1.25 × its ring, not verified in DCS).', keys: '7', check: s => s.master === 'ag' },
       { id: 'choose', text: 'Choose: Kh-58 on the SA-15 first (58, I, Enter), or Vikhrs (9А4172) fired from outside its ring.', keys: 'D', check: s => s.selected === 'kh58' || s.selected === 'vikhr' },
       { id: 'first', text: 'Kill the SA-15, or put a Vikhr into a tank while you stay outside the ring.', check: s => s.samsKilled > 0 || s.tanksKilled > 0 },
       { id: 'platoon', text: 'Destroy the platoon. On a launch cue: notch, descend, or leave the ring.', check: s => s.tanksKilled >= 4 },
@@ -230,7 +245,7 @@ export function scoreSead(o: { killed: boolean; fired: number; launchRangeM: num
   if (o.fired && !outside) coaching.push('Launch before the ring: the Kh-58 band reaches far beyond the SA-15 ring, so there is no need to enter it.');
   if (o.fired && !o.killed && !o.shotDown) coaching.push('The Kh-58 homes only while the radar emits. A radar that goes silent makes it miss.');
   if (o.ringS >= 1) coaching.push('Turn away after the launch: the missile needs nothing more from you, and every second in the ring invites a SAM.');
-  if (o.shotDown) coaching.push('Shot down inside the ring. Stay outside 12 km, and notch or descend on the launch cue.');
+  if (o.shotDown) coaching.push('Shot down inside the ring. Stay outside the trainer ring (12 km, not verified in DCS), and notch or descend on the launch cue.');
   if (stars === 3) coaching.push('Clean SEAD: detected, locked and fired from outside the ring, never exposed.');
   return { stars, title: ['No kill', 'Missile away', 'Site destroyed', 'Clean SEAD'][stars]!, lines, coaching, passed: stars >= 2 };
 }
@@ -249,8 +264,8 @@ export function scoreThreat(o: { tanks: number; tanksKilled: number; samsKilled:
   const coaching: string[] = [];
   if (!alive) coaching.push('Shot down. On the SPO-15 launch cue put the SAM at 3 or 9 o\'clock (notch) and descend, or turn out of the ring.');
   if (o.samLaunches > 0) coaching.push('Flares (192 on the Su-25T) decoy IR missiles. The SA-15 and SA-11 are radar guided: here flares do not help against them, and the Su-25T carries no chaff.');
-  if (o.ringS >= 15) coaching.push('Too long inside the ring. Kill the SA-15 first with the Kh-58, or fire the Vikhr from beyond 12 km and turn off within the Shkval gimbal.');
-  if (o.samsKilled === 0 && o.tanksKilled < o.tanks) coaching.push('The Vikhr reaches 10 km and the SA-15 ring is 12 km: stand-off works only while the SAM sits behind the target. Otherwise suppress it first.');
+  if (o.ringS >= 15) coaching.push('Too long inside the ring. Kill the SA-15 first with the Kh-58, or fire the Vikhr from beyond the trainer ring (12 km, not verified in DCS) and turn off within the Shkval gimbal.');
+  if (o.samsKilled === 0 && o.tanksKilled < o.tanks) coaching.push('The Vikhr reaches 10 km and the SA-15 trainer ring is 12 km (not verified in DCS): stand-off works only while the SAM sits behind the target. Otherwise suppress it first.');
   if (stars === 3) coaching.push('Platoon destroyed without taking a hit.');
   return { stars, title: ['Mission failed', 'Partial', 'Good attack', 'Target destroyed'][stars]!, lines, coaching, passed: stars >= 2 };
 }

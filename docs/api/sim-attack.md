@@ -39,7 +39,7 @@ Game level only (AGENTS.md rule 1). Rules come from the ED *DCS World Su-25T Fli
 
 `master` (`'nav' | 'ag' | 'fixed'`), `stores` by `AgWeaponId` (cannon counts rounds), `stations` (counts go down),
 `selected`, `station` (next pylon; alternates left / right), `pair`, `pod` (L-081), `arm` (passive detection and
-locked emitter), `ccrpHeld` (CCRP release held), `shkval`.
+locked emitter), `ccrpHeld` (CCRP release held), `ccrpReleased` (automatic release consumed this pass), `shkval`.
 
 `ShkvalState`: `on`, `mode` `'КС' | 'АС'`, `az` / `el` relative to the heading and the horizon (pitch and roll are
 ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 1 | 8 | 23, `targetSizeM` 5..60,
@@ -80,7 +80,8 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
   `ttrS` is the along-track distance from the no-dispersion impact point to the designated point over the ground
   speed; `errDeg` the ground-track error (+ right). `World.ccrpHold(id, true)` holds release; each tick
   `stepCcrp` releases one bomb (`ag-launch` with `ccrp: true`) at `ttrS <= 0` with `|errDeg| <= CCRP_TOL_DEG` (2°,
-  trainer value), then stops holding. Outside the circle nothing releases; more than 0.5 s past the point the
+  trainer value), then stops holding and latches `ccrpReleased`. Re-pressing cannot release again on that pass;
+  the latch resets when an active solution is more than 0.5 s ahead again (another approach or designation). Outside the circle nothing releases; more than 0.5 s past the point the
   pass is lost (`passed`) and the hold drops. Letting go of release stops it.
 - **Kh-58 targets**: `armLock` accepts only emitters the Kh-58 can attack (`kh58CanAttack`, data); the HUD type code
   is `KH58_TARGET_CODES` (trainer labels, not verified).

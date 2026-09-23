@@ -11,7 +11,7 @@
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import { AG_WEAPONS, AG_CAVEATS, KH58_TARGET_CODES } from '../../data/agWeapons';
+import { AG_WEAPONS, KH58_TARGET_CODES } from '../../data/agWeapons';
 import { PROCEDURES } from '../../data/procedures';
 import type { AgWeaponId } from '../../data/types';
 import type { Aircraft, AgMissReason, EntityId } from '../../sim/types';
@@ -27,9 +27,11 @@ import {
 } from '../../ui';
 import { RwrDisplay, It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
 import {
-  LESSONS, LESSON_ORDER, MISS_TEXT, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr,
+  LESSONS, LESSON_ORDER, MISS_TEXT, STRIKE_CAVEATS, strikeWeaponsResolved, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr,
   type Debrief, type LessonId, type ShotRecord, type StrikeSnap,
 } from './lessons';
+import { pickArmEmitter } from './targeting';
+import { projectArmHudPoint } from '../../ui/displays/su25tHud';
 import { BUNKER_AT, START, TANKS_AT, TRUCKS_AT, buildScenario, centreOf, type Scenario } from './scenario';
 
 const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
@@ -43,8 +45,6 @@ const SHOT_LESSON: Record<Shot, LessonId> = {
 const ARM_HUD_DEG = 11;
 /** HUD degrees per second the Kh-58 square slews (trainer value). */
 const ARM_SLEW_DPS = 6;
-/** The square must sit within this many HUD degrees of a diamond to lock it (trainer value). */
-const ARM_PICK_DEG = 3;
 /** Trainer estimate of the Vikhr's mean speed for the pre-launch time of flight (not DCS data). */
 const VIKHR_MEAN_MS = 480;
 const STATION_LABEL: Record<string, string> = { r60: '60', r73: '73', l081: 'L-081' };
@@ -154,7 +154,7 @@ const factory: PageFactory = (): Page => {
       title: 'Simplified and not verified', id: 'strk-caveats',
       content: h('div', null,
         callout({ kind: 'simplified', body: 'The jet flies itself: you steer with trainer keys. Vikhr, rockets and the gun use an arcade model tuned to teach the procedure.' }),
-        h('ul', { class: 'strk-caveats' }, AG_CAVEATS.map(c => h('li', null, c)))),
+        h('ul', { class: 'strk-caveats' }, STRIKE_CAVEATS.map(c => h('li', null, c)))),
     });
 
     const camSeg = segmented<Cam>({
@@ -251,7 +251,7 @@ const factory: PageFactory = (): Page => {
         const site = w.samSites.get(id)!;
         const a = hudAngles(me.pos, me.heading, me.pitch, site.pos);
         return {
-          id, xDeg: (relBearing(me.pos, me.heading, site.pos) * R2D) * ARM_HUD_DEG / 30, yDeg: a.yDeg,
+          id, ...projectArmHudPoint({ xDeg: (relBearing(me.pos, me.heading, site.pos) * R2D) * ARM_HUD_DEG / 30, yDeg: a.yDeg }),
           code: KH58_TARGET_CODES[site.type] ?? null, locked: me.ag!.arm.emitterId === id,
         };
       });
@@ -259,11 +259,7 @@ const factory: PageFactory = (): Page => {
     function armEnter(): void {
       const w = world(), ag = me.ag!;
       if (ag.arm.emitterId) { ag.arm.emitterId = null; log.push('Emitter unlocked', { t: w.t }); return; }
-      let best: { id: EntityId; d: number } | null = null;
-      for (const m of armMarks()) {
-        const d = Math.hypot(m.xDeg - armCursor.x, m.yDeg - armCursor.y);
-        if (d <= ARM_PICK_DEG && (!best || d < best.d)) best = { id: m.id, d };
-      }
+      const best = pickArmEmitter(armMarks(), { xDeg: armCursor.x, yDeg: armCursor.y });
       if (!best) { log.push('Put the square on a diamond first', { t: w.t, tone: 'caution' }); return; }
       const r = w.armLock(me.id, best.id);
       log.push(r.ok ? `Emitter locked: ${w.samSites.get(best.id)!.callsign}` : r.reason, { t: w.t, tone: r.ok ? 'ok' : 'caution' });
@@ -420,7 +416,7 @@ const factory: PageFactory = (): Page => {
       readEvents();
       flyLesson();
       checkSteps();
-      if (endAt != null && w.t >= endAt && ![...w.agWeapons.values()].some(x => x.alive)) { endAt = null; finish(); }
+      if (endAt != null && w.t >= endAt && strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values())) { endAt = null; finish(); }
       uiClock += dt;
       if (uiClock > 0.1) { uiClock = 0; updateUi(false); }
     }
@@ -483,9 +479,9 @@ const factory: PageFactory = (): Page => {
       }
       if (lesson === 'sead' || lesson === 'threat') {
         if (ended) return;
-        const flying = [...w.agWeapons.values()].some(x => x.alive && x.shooterId === me.id);
+        const resolved = strikeWeaponsResolved(me.id, w.agWeapons.values(), w.samMissiles.values());
         const win = lesson === 'sead' ? sc.sams.every(id => !w.samSites.get(id)?.alive) : sc.tanks.every(id => !w.groundUnits.get(id)?.alive);
-        if (endAt == null && (!me.alive || (win && !flying) || w.t > 300)) endAt = w.t + (me.alive ? 2 : 3);
+        if (endAt == null && (!me.alive || (win && resolved) || w.t > 300)) endAt = w.t + (me.alive ? 2 : 3);
         return;
       }
       const tgt = lesson === 'ccip' || lesson === 'bombs' ? centreOf(w, sc.trucks) ?? { x: TRUCKS_AT.x, y: sc.groundM, z: TRUCKS_AT.z } : { x: TANKS_AT.x, y: sc.groundM, z: TANKS_AT.z };

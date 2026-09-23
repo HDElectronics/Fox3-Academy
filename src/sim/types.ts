@@ -272,6 +272,8 @@ export interface AttackState {
   arm: { detecting: boolean; emitterId: EntityId | null };
   /** CCRP: the pilot holds weapon release; the bomb releases automatically at the release point (S1). */
   ccrpHeld: boolean;
+  /** One automatic release per pass; reset when the solution is more than 0.5 s ahead again. */
+  ccrpReleased: boolean;
   shkval: ShkvalState;
 }
 

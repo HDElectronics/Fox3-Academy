@@ -223,6 +223,10 @@ the last `CCRP_SCALE_S` seconds; `arm` (`{ emitters: { xDeg, yDeg, code, locked 
 emitter diamonds with the type code below, a circle for the locked emitter and the slewed square. The page passes
 `modeLabel: 'ПРГ'` in Kh-58 detection (S1).
 
+The CCRP director radius uses `CCRP_TOL_DEG` with the same pixels-per-degree scale as its offset
+(`ccrpDirectorGeometry`), so keel containment matches the simulation tolerance. Kh-58 drawing and
+strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevation clamp.
+
 ## Also exported
 
 `rwrPriority`, `rwrTypeRank(contact)`, `isAirborne(contact)`, `rwrSymbolFor(spec, contact)`, `scopeRadius(rwrId, contact, rank)`, `spoLamps(bearing)`,
