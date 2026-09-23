@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { World } from '../../sim/world';
 import { wrapPi } from '../../sim/math';
-import type { AircraftId } from '../../data/types';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { atCorner, classifyPursuit, levelG, newStick, stepStick } from './bfm';
 import { banditStep, newBandit, REVERSE_S, type BanditMode } from './bandit';
 import { debrief, emptyMetrics, LESSON_ORDER, PURSUIT_HOLD_S, scoreLesson, stepPursuitPhase, type LessonId } from './lessons';
@@ -131,7 +131,7 @@ describe('scripted bandit paths', () => {
   });
 });
 
-function run(ac: AircraftId, lesson: LessonId, mode: BanditMode, ap: Autopilot | null, s: number) {
+function run(ac: FighterId, lesson: LessonId, mode: BanditMode, ap: Autopilot | null, s: number) {
   const r = new MergeRun(ac, lesson, mode, 7);
   r.world.record = false;
   r.autopilot = ap;
@@ -142,7 +142,7 @@ function run(ac: AircraftId, lesson: LessonId, mode: BanditMode, ap: Autopilot |
 
 describe('lesson runs (demo autopilot)', () => {
   it('every fighter can start every lesson', () => {
-    for (const ac of AIRCRAFT_ORDER) for (const id of LESSON_ORDER) {
+    for (const ac of FIGHTER_ORDER) for (const id of LESSON_ORDER) {
       const r = new MergeRun(ac, id, 'turn', 1);
       r.start(); r.tick(0.5);
       expect(r.me.alive).toBe(true);

@@ -188,12 +188,10 @@ export class GunSightDisplay {
       const txt = p.units === 'metric' ? `${Math.round(p.range / 10) * 10} M` : `${Math.round(p.range / FT / 50) * 50} FT`;
       g.text(txt, box.l, box.b, 'left', 'bottom');
     }
+    // SHOOT is the Hornet director's own cue. Other sights show no in-range text in DCS, so none is drawn here.
     if (p.shoot) {
       g.ink(th.symHi, 1.2, 0.3); g.font(fs * 1.4, 700);
       g.text('SHOOT', cx, Math.min(box.b - 8 * k, cy + 22 * k), 'center', 'middle');
-    } else if (p.inRange && p.style.kind !== 'hornet-director') {
-      g.ink(dim, 0.6, 0.3); g.font(fs);
-      g.text('IN RNG', box.r, box.t, 'right', 'top');
     }
     if (p.firing && blinkOn(4)) { g.ink(th.symHi, 1, 0.3); g.font(fs, 700); g.text('GUN', cx, box.b, 'center', 'bottom'); }
     else { g.ink(dim, 0, 0.3); g.font(fs * 0.8); g.text('SIMPLIFIED', cx, box.b, 'center', 'bottom'); }

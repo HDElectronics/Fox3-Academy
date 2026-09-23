@@ -4,7 +4,7 @@
  * The page drives it from its frame loop; tests drive it headless.
  */
 import { Vector3 } from 'three';
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { World } from '../../sim/world';
 import type { Aircraft, SimEvent } from '../../sim/types';
@@ -47,13 +47,13 @@ export class MergeRun {
   private lastRounds: number;
   private prevLead: Vector3 | null = null;
 
-  constructor(readonly ac: AircraftId, readonly lesson: LessonId, readonly banditMode: BanditMode, seed: number, private hooks: RunHooks = {}) {
+  constructor(readonly ac: FighterId, readonly lesson: LessonId, readonly banditMode: BanditMode, seed: number, private hooks: RunHooks = {}) {
     const w = this.world = new World(seed);
     const def = LESSONS[lesson];
     const spec = AIRCRAFT[ac];
     const corner = spec.perf.cornerKts * MPS_PER_KT / Math.sqrt(sigma(START_ALT));
     const m08 = speedFromMach(0.8, START_ALT);
-    const redType: AircraftId = ac === 'su27' ? 'f15c' : 'su27';
+    const redType: FighterId = ac === 'su27' ? 'f15c' : 'su27';
     let meSpeed = m08, bSpeed = m08 * 0.95;
     let mePos = { x: 0, y: START_ALT, z: 0 }, bPos = { x: 0, y: START_ALT, z: -1200 };
     let bHeading = 0;

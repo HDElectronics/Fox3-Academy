@@ -1,11 +1,11 @@
 /** [OWNER: displays] Gun sight mapping per jet and the sight picture geometry (pure). */
 import { describe, expect, it } from 'vitest';
 import { World } from '../../sim/world';
-import type { AircraftId } from '../../data/types';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { buildGunSight, hudAngles, noLockOptions, sightStyleFor } from './gunSightModel';
 
-function pair(type: AircraftId, range: number) {
+function pair(type: FighterId, range: number) {
   const w = new World(3);
   w.record = false;
   const me = w.spawnAircraft({ side: 'blue', type, controller: 'script', pos: { x: 0, y: 5000, z: 0 }, heading: 0, speed: 220 });
@@ -14,12 +14,12 @@ function pair(type: AircraftId, range: number) {
 }
 
 describe('gun sight style per jet', () => {
-  const expected: Record<AircraftId, [string, string]> = {
+  const expected: Record<FighterId, [string, string]> = {
     su27: ['funnel', 'lcos'], su33: ['funnel', 'lcos'], j11a: ['funnel', 'lcos'], mig29s: ['funnel', 'lcos'],
     f15c: ['lcos', 'range-reticle'], fa18c: ['hornet-funnel', 'hornet-director'], f16c: ['eegs-funnel', 'eegs-pipper'],
     f14b: ['rtgs', 'rtgs-track'], jf17: ['ss', 'lcos'], m2000c: ['cclt', 'cclt'],
   };
-  for (const id of AIRCRAFT_ORDER) {
+  for (const id of FIGHTER_ORDER) {
     it(`${id}: no lock and lock sights match the data`, () => {
       expect(sightStyleFor(id, false)?.kind).toBe(expected[id][0]);
       expect(sightStyleFor(id, true)?.kind).toBe(expected[id][1]);

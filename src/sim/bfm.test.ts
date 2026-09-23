@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { Aircraft } from './types';
-import type { AircraftId } from '../data/types';
+import type { FighterId } from '../data/types';
 import { MIN_ALT_AGL, stepAircraft, sustainedGAt } from './flight';
 import { GUNS, GUN_JET_IDS, TURN_PERF, sustainedG } from '../data/wvr';
 import { AIRCRAFT } from '../data/aircraft';
@@ -14,7 +14,7 @@ import { D2R, wrapPi } from './math';
 
 const DT = 1 / 60;
 
-function jet(w: World, type: AircraftId, x: number, y: number, z: number, heading: number, speed: number): Aircraft {
+function jet(w: World, type: FighterId, x: number, y: number, z: number, heading: number, speed: number): Aircraft {
   return w.spawnAircraft({ side: 'blue', type, controller: 'script', pos: { x, y, z }, heading, speed });
 }
 

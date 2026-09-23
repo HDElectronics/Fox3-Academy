@@ -4,14 +4,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { World } from './world';
 import type { Aircraft, SimEvent } from './types';
-import type { AircraftId } from '../data/types';
+import type { FighterId } from '../data/types';
 import { stepAircraft } from './flight';
 import { GUN_TRACER_S, funnelPoints, gunSolution, sightPoint, stepGuns } from './guns';
 import { GUNS } from '../data/wvr';
 
 const DT = 1 / 60;
 
-function jet(w: World, type: AircraftId, x: number, y: number, z: number, heading: number, speed: number, side: 'blue' | 'red' = 'blue'): Aircraft {
+function jet(w: World, type: FighterId, x: number, y: number, z: number, heading: number, speed: number, side: 'blue' | 'red' = 'blue'): Aircraft {
   return w.spawnAircraft({ side, type, controller: 'script', pos: { x, y, z }, heading, speed });
 }
 
@@ -20,7 +20,7 @@ function fly(w: World, ac: Aircraft, seconds: number, each?: () => void): void {
 }
 
 /** Shooter behind a target flying the same line at `range`. */
-function gunSetup(seed: number, range: number, type: AircraftId = 'f15c') {
+function gunSetup(seed: number, range: number, type: FighterId = 'f15c') {
   const w = new World(seed);
   w.record = false;
   const s = jet(w, type, 0, 5000, 0, 0, 200);
