@@ -217,6 +217,11 @@ the circular laser cursor with the launch-zone reticle (dashed out of range), th
 mode and store labels, ПР, the range scale (band, maximum, caret with the current range) and station boxes.
 Layout is simplified; `HUD_FOV_DEG` (26) scales the angles. Pure helpers (tested): `hudAngles`, `hudModeLabel`,
 `rangeScaleKm`.
+Optional: `ccrp` (`{ errDeg, inCircle, ttrS, held }` from `ccrpSolution`) draws the director circle at the keel
+(solid inside the tolerance) and turns the range scale into a 0–10 s time-to-release scale whose arrow shows in
+the last `CCRP_SCALE_S` seconds; `arm` (`{ emitters: { xDeg, yDeg, code, locked }[], cursor }`) draws Kh-58
+emitter diamonds with the type code below, a circle for the locked emitter and the slewed square. The page passes
+`modeLabel: 'ПРГ'` in Kh-58 detection (S1).
 
 ## Also exported
 

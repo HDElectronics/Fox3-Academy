@@ -4,6 +4,9 @@
  * scale (9А4172, С8, АБ, ВПУ for the cannon), the launch range scale with the current and maximum range, the
  * launch-authorised cue ПР, the circular laser cursor where the Shkval looks, a launch-zone reticle, the CCIP
  * pipper for rockets, bombs and the gun, and the station boxes. Layout and glyph shapes are simplified.
+ * CCRP (S1): the director circle the pilot flies the keel of the aircraft symbol into, and the range scale turned
+ * into a time-to-release scale whose arrow starts 10 s before release. Kh-58 (S1): emitter diamonds inside ±30°,
+ * a type code under each radar the missile can attack, a circle on the locked emitter, and the slewed square.
  */
 import { Gfx, Surface } from './surface';
 
@@ -28,7 +31,14 @@ export interface Su25tHudState {
   /** Guided launch-zone reticle: shown with a guided store selected; solid inside the band. */
   reticle: 'in' | 'out' | null;
   stations: HudStation[];
+  /** CCRP director: track error (deg, + right), keel inside the circle, seconds to release, release held. */
+  ccrp?: { errDeg: number; inCircle: boolean; ttrS: number | null; held: boolean } | null;
+  /** Kh-58 passive detection: emitters (HUD deg), their type code (null: cannot attack), lock, and the square. */
+  arm?: { emitters: { xDeg: number; yDeg: number; code: string | null; locked: boolean }[]; cursor: { xDeg: number; yDeg: number } | null } | null;
 }
+
+/** Seconds on the CCRP time-to-release scale (S1: the arrow starts 10 s before release). */
+export const CCRP_SCALE_S = 10;
 
 /** HUD field of view across (deg); the trainer's scale for placing angular symbols. */
 export const HUD_FOV_DEG = 26;
@@ -129,14 +139,54 @@ export class Su25tHud {
       g.circle(px, py, 0.5 * u, true);
     }
 
+    // CCRP director circle at the keel height; the keel is the datum's vertical tick.
+    if (s.ccrp) {
+      const [dx] = at(clampDeg(s.ccrp.errDeg), 0);
+      g.dash(s.ccrp.inCircle ? null : [1.4, 1.2]);
+      g.circle(dx, cy - 2.8 * u, 2.2 * u);
+      g.dash(null);
+    }
+    // Kh-58 emitters: diamond (circle once locked), type code below, slewed square.
+    if (s.arm) {
+      g.font(2.8, 700, 8);
+      for (const e of s.arm.emitters) {
+        const [ex, ey] = at(clampDeg(e.xDeg), clampDeg(e.yDeg, 8.5));
+        const r = 1.8 * u;
+        if (e.locked) g.circle(ex, ey, r);
+        else g.poly([ex, ey - r, ex + r, ey, ex, ey + r, ex - r, ey], true);
+        if (e.code) g.text(e.code, ex, ey + r + 2 * u);
+      }
+      if (s.arm.cursor) {
+        const [qx, qy] = at(clampDeg(s.arm.cursor.xDeg), clampDeg(s.arm.cursor.yDeg, 8.5));
+        g.rect(qx - 2.6 * u, qy - 2.6 * u, 5.2 * u, 5.2 * u);
+      }
+    }
+
     // Mode and store labels (below the pitch scale), ПР cue.
     g.font(3.8, 700, 9);
     if (s.modeLabel) g.text(s.modeLabel, W * 0.06, H * 0.8, 'left');
     if (s.weaponLabel) g.text(s.weaponLabel + (s.rounds != null ? `  ${s.rounds}` : ''), W * 0.06, H * 0.86, 'left');
     if (s.pr) { g.font(4.6, 700, 10); g.text('ПР', cx, H * 0.74); }
 
+    // CCRP: the range scale becomes a time-to-release scale; the arrow shows inside the last 10 s.
+    if (s.ccrp) {
+      const top = H * 0.2, bot = H * 0.72, x = W * 0.9;
+      const y = (sec: number) => bot - (bot - top) * Math.min(1, Math.max(0, sec / CCRP_SCALE_S));
+      g.lw(0.3);
+      g.line(x, top, x, bot);
+      g.line(x - 1.2 * u, top, x + 1.2 * u, top);
+      g.lw(0.32);
+      g.font(3, 400, 8);
+      g.text(String(CCRP_SCALE_S), x + 3.2 * u, top, 'left');
+      g.text('0', x + 3.2 * u, bot, 'left');
+      const ttr = s.ccrp.ttrS;
+      if (ttr != null && ttr <= CCRP_SCALE_S && ttr >= -1) {
+        const yc = y(Math.max(0, ttr));
+        g.poly([x - 0.5 * u, yc, x - 3 * u, yc - 1.4 * u, x - 3 * u, yc + 1.4 * u], true, true);
+        g.text(String(Math.max(0, Math.ceil(ttr))), x - 3.6 * u, yc, 'right');
+      }
+    } else if (s.range) {
     // Launch range scale (right): band, maximum mark, current caret.
-    if (s.range) {
       const top = H * 0.2, bot = H * 0.72, x = W * 0.9;
       const scale = rangeScaleKm(s.range.max, s.range.cur) * 1000;
       const y = (m: number) => bot - (bot - top) * Math.min(1, Math.max(0, m / scale));
