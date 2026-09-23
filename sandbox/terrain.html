@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrain render harness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  #viewport { position: fixed; inset: 0; }
+  .hud { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 5; width: fit-content;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 10px;
+    border-radius: var(--r-2); background: color-mix(in srgb, var(--screen) 85%, transparent);
+    font: 11px var(--font-mono); color: var(--sym); }
+  .hud button { font: inherit; color: var(--btn-ink); background: var(--btn); border: 1px solid var(--panel-line);
+    padding: 7px; border-radius: var(--r-1); cursor: pointer; }
+  .hud button[aria-pressed="true"] { color: var(--btn-on-ink); background: var(--btn-on); }
+  .hud p { flex-basis: 100%; margin: 0; }
+  #stats { color: var(--sym-hi); }
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+<nav class="hud" aria-label="Terrain harness">
+  <span>Simplified terrain</span>
+  <button id="overview" type="button">Overview</button>
+  <button id="close" type="button">Ground detail</button>
+  <button id="zoom" type="button" aria-pressed="false">23× zoom</button>
+  <p>Drag to orbit · right-drag / two fingers to pan · scroll / pinch to move</p>
+  <p id="stats"></p>
+</nav>
+<script type="module" src="./terrain.ts"></script>
+</body>
+</html>

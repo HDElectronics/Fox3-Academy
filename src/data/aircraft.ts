@@ -637,7 +637,7 @@ export const AIRCRAFT_CAVEATS: Record<AircraftId, string[]> = {
   su25t: [
     'Performance and RCS values are rough gameplay numbers, not verified.',
     'The flight manual lists 192 flares and no chaff load; chaff is shown as 0 until checked in game.',
-    'Laser limit conflict: the manual says 20 minutes total per flight with cooling; a 1-minute continuous limit is also reported. Not verified.',
+    'The manual documents about 1 minute of continuous laser operation with cooling (p. 57) and 20 minutes total per flight (p. 32). These are separate limits; current-game behavior is not verified.',
     'Gun conflict: the manual names a 30 mm twin-barrel cannon with 200 rounds; GSh-30 with 150 rounds is also reported. Not verified.',
     'The manual gives no launch ranges for guided air-to-ground weapons; any range shown later is a community value, not verified.',
   ],

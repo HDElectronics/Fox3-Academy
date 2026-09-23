@@ -6,7 +6,7 @@
 import { Vector3 } from 'three';
 import type { FighterId, MissileId, SamId } from '../../data/types';
 import { SAMS, SAM_ORDER } from '../../data/sams';
-import { AIRCRAFT } from '../../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import type { AiSkill } from '../../sim/types';
 import { World } from '../../sim/world';
@@ -61,7 +61,7 @@ export function parseSetup(ac: FighterId, raw: unknown): SortieSetup {
     const num = (v: unknown, lo: number, hi: number, def: number) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def);
     return {
       scenario: o.scenario === '1v2' || o.scenario === '2v2' ? o.scenario : '1v1',
-      enemy: typeof o.enemy === 'string' && Object.hasOwn(AIRCRAFT, o.enemy) ? o.enemy : d.enemy,
+      enemy: FIGHTER_ORDER.find(id => id === o.enemy) ?? d.enemy,
       skill: o.skill && SKILLS.includes(o.skill) ? o.skill : d.skill,
       range: num(o.range, RANGE_MIN_M, RANGE_MAX_M, d.range),
       playerAlt: num(o.playerAlt, 2_000, 13_000, d.playerAlt),

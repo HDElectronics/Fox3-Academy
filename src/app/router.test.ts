@@ -84,6 +84,38 @@ describe('router deep links and remounts', () => {
     expect(staleMount).not.toHaveBeenCalled();
     expect(mounted).toHaveLength(1);
   });
+  function restoreAttackSelection() {
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ aircraft: 'su25t', fighter: 'f15c' }),
+      setItem: vi.fn(), removeItem: vi.fn(),
+    });
+    app = new AppStore();
+    router = new Router(outlet, app);
+  }
+  it('renders the fighter gate when a deep link repeats the stored attack jet', async () => {
+    restoreAttackSelection();
+    location.hash = '#/tws?ac=su25t';
+    await router.resolve();
+    expect(app.jet).toBe('su25t');
+    expect(location.hash).toBe('#/tws');
+    expect(mounted).toHaveLength(0);
+    expect(outlet.dataset.page).toBe('tws');
+    expect(outlet.replaceChildren).toHaveBeenCalledWith(expect.objectContaining({
+      args: expect.arrayContaining([expect.objectContaining({ class: 'role-gate' })]),
+    }));
+  });
+  it('leaves the stored attack jet gate when a deep link selects the saved fighter', async () => {
+    restoreAttackSelection();
+    await router.resolve();
+    expect(mounted).toHaveLength(0);
+    location.hash = '#/tws?ac=f15c&lab=free';
+    await router.resolve();
+    expect(app.jet).toBe('f15c');
+    expect(location.hash).toBe('#/tws?lab=free');
+    expect(mounted).toHaveLength(1);
+    expect(mounted[0]?.params.get('lab')).toBe('free');
+    expect(mounted[0]?.params.has('ac')).toBe(false);
+  });
   it('shows the role gate instead of a BVR page for the Su-25T, then mounts once a fighter is picked', async () => {
     location.hash = '#/tws?ac=su25t';
     await router.resolve();

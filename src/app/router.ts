@@ -34,7 +34,7 @@ export class Router {
       params.delete('ac');
       const qs = params.toString();
       history.replaceState(history.state, '', '#/' + path + (qs ? '?' + qs : ''));
-      if (Object.hasOwn(AIRCRAFT, aircraft) && aircraft !== this.app.aircraft) {
+      if (Object.hasOwn(AIRCRAFT, aircraft) && aircraft !== this.app.jet) {
         this.app.setAircraft(aircraft as AircraftId);
         return;
       }

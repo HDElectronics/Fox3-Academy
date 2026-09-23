@@ -185,9 +185,11 @@ KY-58 internal selectors, exhaustive HOTAS context tables and software page tree
 
 ### Aircraft
 - **Su-25T** (`AIRCRAFT_CAVEATS.su25t`): perf and RCS are rough gameplay numbers; chaff load not in the manual
-  (shown as 0); laser limit conflict (20 min per flight with cooling vs 1 min continuous); gun conflict (30 mm
+  (shown as 0); the manual documents separate laser limits of about 1 min continuous with cooling (printed
+  p. 57) and 20 min total per flight (printed p. 32), with current-game enforcement not verified; gun conflict (30 mm
   twin-barrel with 200 rounds in the manual vs GSh-30 with 150); no guided air-to-ground launch ranges in the
-  manual. Target-size presets beyond the manual's 10 m / 60 m examples are not verified. See
+  manual. Target-size presets are documented in the manual (printed pp. 56–57); current-game behavior is
+  not verified. See
   `docs/research/su25t.md`.
 - **Russian FC3 detection** (68.4/38 km N-001, 60/30 km N-019M): AI sensor tables; whether the player radars read
   them is not confirmed. ED's Su-33 manual gives the real N001K ≥ 100 km head-on vs 3 m².

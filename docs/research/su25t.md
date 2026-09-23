@@ -47,14 +47,18 @@ SEAD mode label ПРГ (anti-radiation seeker).
 - Target size (TV target frame) [RCtrl-]] larger / [RCtrl-[] smaller, shown upper left in metres. S1: armour about
   10 m, aircraft 10–60 m, ships and buildings usually 60 m. Auto-lock happens only when the object in the cursor is
   within 5 m of the set size; objects larger than 60 m can still be locked at the 60 m maximum.
-  **(research pass)**: presets personnel 5 m, armour 10 m, aircraft 20 m, buildings 20–60 m, ships 60 m.
+  S1 (printed pp. 56–57) recommends target-size presets: personnel and minor structures 5 m, cars and armour
+  10 m, tactical aircraft and helicopters 20 m, transport and strategic aircraft 30–60 m, buildings 20–60 m,
+  ships 60 m. These are manual-documented recommendations; current-game behavior is not verified.
 - Gimbal once locked: ±35° azimuth, +15° to −85° elevation. The IT-23M scales read −40..+40° azimuth and
   +20..−90° elevation.
 - Laser rangefinder / designator [RShift-O]. Needed for Kh-25ML, Kh-29L and Vikhr: the target must stay
   illuminated for the whole time of flight.
-- Laser limit **conflict**: S1 says the laser switches off at its temperature limit, needs cooling about as
-  long as it was on, and should not be used for more than 20 minutes total per flight; ЛД flashes while it cools.
-  **(research pass)**: 1 minute continuous illumination limit. Not verified which one DCS enforces.
+- Laser limits: S1 documents about 1 minute of continuous operation before cooling (printed p. 57), and
+  recommends no more than 20 minutes total per flight (printed p. 32). These are separate limits, not a
+  conflict. Cooling takes about as long as illumination; the laser switches off at its temperature limit
+  and ЛД flashes while it cools (printed p. 32). Both limits are documented in the manual; enforcement in
+  the current game is not verified.
 - ID ranges through the optics (S1): a house 15 km, a tank 8–10 km, a helicopter 6 km.
 
 ### IT-23M symbology (S1)

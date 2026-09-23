@@ -9,7 +9,7 @@ import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import { AIRCRAFT } from '../src/data/aircraft';
 import { RWRS } from '../src/data/rwr';
-import type { FighterId } from '../src/data/types';
+import { fighterParam } from './fighterParam';
 import { World } from '../src/sim/world';
 import { pair } from '../src/sim/scenarios';
 import { buildRadarPicture } from '../src/sim/picture';
@@ -17,7 +17,7 @@ import type { Aircraft } from '../src/sim/types';
 import { DlzBar, MissileTimeline, RadarDisplay, RwrDisplay } from '../src/ui/displays';
 
 const qs = new URLSearchParams(location.search);
-const jet = (qs.get('jet') ?? 'f15c') as FighterId;
+const jet = fighterParam(qs, 'jet', 'f15c');
 const spec = AIRCRAFT[jet];
 document.documentElement.dataset.cockpit = spec.cockpit;
 

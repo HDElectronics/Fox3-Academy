@@ -15,7 +15,8 @@ import {
 } from '../src/render';
 import { AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER } from '../src/data/aircraft';
 import { MISSILES } from '../src/data/missiles';
-import type { AircraftId, FighterId, MissileId } from '../src/data/types';
+import type { AircraftId, MissileId } from '../src/data/types';
+import { fighterParam } from './fighterParam';
 import { World } from '../src/sim/world';
 import { fighterSpec } from '../src/sim/jet';
 import type { Aircraft, Missile, RecordFrame, TrackFile } from '../src/sim/types';
@@ -87,7 +88,7 @@ interface Demo { world: World; me: Aircraft; b1: Aircraft; b2: Aircraft; step(dt
 function buildDemo(): Demo {
   const world = new World(7);
   world.record = false;
-  const me = world.spawnAircraft({ side: 'blue', type: (q.get('ac') as FighterId) ?? 'f15c', controller: 'script', callsign: 'VIPER 1', pos: { x: 0, y: 9500, z: 0 }, heading: 10 * D2R, speed: 270 });
+  const me = world.spawnAircraft({ side: 'blue', type: fighterParam(q, 'ac', 'f15c'), controller: 'script', callsign: 'VIPER 1', pos: { x: 0, y: 9500, z: 0 }, heading: 10 * D2R, speed: 270 });
   const b1 = world.spawnAircraft({ side: 'red', type: 'su27', controller: 'script', callsign: 'BANDIT 1', pos: { x: 9000, y: 8200, z: -52000 }, heading: 195 * D2R, speed: 250 });
   const b2 = world.spawnAircraft({ side: 'red', type: 'mig29s', controller: 'script', callsign: 'BANDIT 2', pos: { x: -14000, y: 6100, z: -64000 }, heading: 170 * D2R, speed: 240 });
   const frames: RecordFrame[] = [];
@@ -226,7 +227,7 @@ function worldView(): void {
 
 function heroView(): void {
   // Hangar-style hero: the jet at true size with a stylised short-range scan volume sweeping ahead.
-  const id = (q.get('ac') as FighterId) ?? 'su27';
+  const id = fighterParam(q, 'ac', 'su27');
   const spec = AIRCRAFT[id];
   const jet = new JetMesh(id, 'blue', stage.palette);
   jet.scale.setScalar(0.001);
