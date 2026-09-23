@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AircraftId, RwrId } from '../../data/types';
-import { AIRCRAFT_ORDER, AIRCRAFT } from '../../data/aircraft';
+import type { FighterId, RwrId } from '../../data/types';
+import { FIGHTER_ORDER, AIRCRAFT } from '../../data/aircraft';
 import { rwrPriority } from '../../ui/displays/geometry';
 import {
   type Threat, acceptedClocks, canBe, clockOf, contactsAt, emitterKindsFor, isAircraft, isSam, missilesFor, normalizeThreat, rad, statesFor,
@@ -126,7 +126,7 @@ describe('what do you do now', () => {
 });
 
 describe('question generator', () => {
-  const rwrs: { rwr: RwrId; own: AircraftId }[] = [
+  const rwrs: { rwr: RwrId; own: FighterId }[] = [
     { rwr: 'spo15', own: 'su27' }, { rwr: 'alr56c', own: 'f15c' }, { rwr: 'alr67', own: 'fa18c' },
     { rwr: 'alr56m', own: 'f16c' }, { rwr: 'jf17rwr', own: 'jf17' }, { rwr: 'serval', own: 'm2000c' },
   ];
@@ -239,7 +239,7 @@ describe('question generator', () => {
   });
 
   it('reaches every "what now" answer', () => {
-    for (const { rwr, own } of [{ rwr: 'spo15' as RwrId, own: 'su27' as AircraftId }, { rwr: 'alr67' as RwrId, own: 'fa18c' as AircraftId }]) {
+    for (const { rwr, own } of [{ rwr: 'spo15' as RwrId, own: 'su27' as FighterId }, { rwr: 'alr67' as RwrId, own: 'fa18c' as FighterId }]) {
       const seen = new Set<string>();
       for (let seed = 1; seed < 400; seed++) {
         const q = makeQuestion({ rwr, own, difficulty: 'hard', seed, kind: 'action' });
@@ -250,7 +250,7 @@ describe('question generator', () => {
   });
 
   it('works for every jet in the top bar', () => {
-    for (const own of AIRCRAFT_ORDER) {
+    for (const own of FIGHTER_ORDER) {
       const q = makeQuestion({ rwr: AIRCRAFT[own].rwr, own, difficulty: 'hard', seed: 99, kind: 'action' });
       expect(q.answer.type).toBe('choice');
     }

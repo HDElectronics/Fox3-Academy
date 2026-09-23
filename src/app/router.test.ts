@@ -84,6 +84,53 @@ describe('router deep links and remounts', () => {
     expect(staleMount).not.toHaveBeenCalled();
     expect(mounted).toHaveLength(1);
   });
+  function restoreAttackSelection() {
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ aircraft: 'su25t', fighter: 'f15c' }),
+      setItem: vi.fn(), removeItem: vi.fn(),
+    });
+    app = new AppStore();
+    router = new Router(outlet, app);
+  }
+  it('renders the fighter gate when a deep link repeats the stored attack jet', async () => {
+    restoreAttackSelection();
+    location.hash = '#/tws?ac=su25t';
+    await router.resolve();
+    expect(app.jet).toBe('su25t');
+    expect(location.hash).toBe('#/tws');
+    expect(mounted).toHaveLength(0);
+    expect(outlet.dataset.page).toBe('tws');
+    expect(outlet.replaceChildren).toHaveBeenCalledWith(expect.objectContaining({
+      args: expect.arrayContaining([expect.objectContaining({ class: 'role-gate' })]),
+    }));
+  });
+  it('leaves the stored attack jet gate when a deep link selects the saved fighter', async () => {
+    restoreAttackSelection();
+    await router.resolve();
+    expect(mounted).toHaveLength(0);
+    location.hash = '#/tws?ac=f15c&lab=free';
+    await router.resolve();
+    expect(app.jet).toBe('f15c');
+    expect(location.hash).toBe('#/tws?lab=free');
+    expect(mounted).toHaveLength(1);
+    expect(mounted[0]?.params.get('lab')).toBe('free');
+    expect(mounted[0]?.params.has('ac')).toBe(false);
+  });
+  it('shows the role gate instead of a BVR page for the Su-25T, then mounts once a fighter is picked', async () => {
+    location.hash = '#/tws?ac=su25t';
+    await router.resolve();
+    await Promise.resolve();
+    expect(app.jet).toBe('su25t');
+    expect(app.aircraft).toBe('su27');
+    expect(mounted).toHaveLength(0);
+    type Fake = { args: [string, Record<string, unknown> | null, ...unknown[]] };
+    const shown = vi.mocked(outlet.replaceChildren).mock.calls.at(-1)?.[0] as unknown as Fake;
+    expect(shown.args[1]?.class).toBe('role-gate');
+    app.setAircraft('f15c');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(1);
+    expect(app.aircraft).toBe('f15c');
+  });
   it('shows a retryable error when a page chunk fails to load', async () => {
     const tws = ROUTES.find(route => route.path === 'tws')!;
     vi.mocked(tws.load).mockRejectedValueOnce(new TypeError('Failed to fetch dynamically imported module'));

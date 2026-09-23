@@ -1,6 +1,6 @@
 /**
  * Displays driven by the real simulation (World + buildRadarPicture + RWR), as pages will use them.
- *   ?jet=f15c   player aircraft (any AircraftId)      ?t=40   pre-roll seconds before showing
+ *   ?jet=f15c   player aircraft (any FighterId)      ?t=40   pre-roll seconds before showing
  *   ?pause=1    freeze after the pre-roll
  * The player auto-flies: TWS (or RWS on the Mirage), designates up to two firm tracks once each (the
  * Mirage locks), fires when canLaunch() says ok, two missiles at most.
@@ -9,7 +9,7 @@ import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import { AIRCRAFT } from '../src/data/aircraft';
 import { RWRS } from '../src/data/rwr';
-import type { AircraftId } from '../src/data/types';
+import { fighterParam } from './fighterParam';
 import { World } from '../src/sim/world';
 import { pair } from '../src/sim/scenarios';
 import { buildRadarPicture } from '../src/sim/picture';
@@ -17,7 +17,7 @@ import type { Aircraft } from '../src/sim/types';
 import { DlzBar, MissileTimeline, RadarDisplay, RwrDisplay } from '../src/ui/displays';
 
 const qs = new URLSearchParams(location.search);
-const jet = (qs.get('jet') ?? 'f15c') as AircraftId;
+const jet = fighterParam(qs, 'jet', 'f15c');
 const spec = AIRCRAFT[jet];
 document.documentElement.dataset.cockpit = spec.cockpit;
 

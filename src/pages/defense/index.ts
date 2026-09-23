@@ -14,7 +14,7 @@ import './style.css';
 import { Vector3 } from 'three';
 import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageFactory, PageContext } from '../../app/page';
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES, MISSILE_REF_NOTE } from '../../data/missiles';
 import { RWRS } from '../../data/rwr';
@@ -59,7 +59,7 @@ const factory: PageFactory = (): Page => {
 
   function mount(ctx: PageContext): void {
     // ?ac=<id>: select that jet once, then drop the param so a later jet change in the top bar sticks.
-    const acParam = ctx.params.get('ac') as AircraftId | null;
+    const acParam = ctx.params.get('ac') as FighterId | null;
     if (acParam && AIRCRAFT[acParam]) {
       const rest = new URLSearchParams(ctx.params);
       rest.delete('ac');
@@ -156,7 +156,7 @@ const factory: PageFactory = (): Page => {
       id: 'dfn-threat-sel', label: 'Threat', value: setup.threat, options: [],
       onChange: v => applySetup(setupFor(setup.drill, ac, v, { aspect: setup.aspect, skill: setup.skill, method: setup.method, alt: setup.alt })),
     });
-    const shooterSel = select<AircraftId>({
+    const shooterSel = select<FighterId>({
       id: 'dfn-shooter-sel', label: 'Shooter', value: setup.shooter, options: [],
       onChange: v => applySetup(setupFor(setup.drill, ac, setup.threat, { ...setup, shooter: v, range: undefined })),
     });

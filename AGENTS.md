@@ -88,7 +88,7 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
 
 ## Common tasks
 
-- **Add a jet:** add the id to `AircraftId` in `src/data/types.ts`; add its spec in `src/data/aircraft.ts`,
+- **Add a jet:** add the id to `FighterId` (or `AttackId` for a jet with no air-to-air radar) in `src/data/types.ts`; add its spec in `src/data/aircraft.ts`,
   binds and procedures in `procedures.ts`, RWR symbols in `rwr.ts`; add a model in `src/render/jets.ts`; add
   per-jet radar rules in `src/sim/radar.ts` (`radarRules`) if it behaves differently; run all tests
   (several iterate over every jet) and screenshot every page with `?ac=<id>`.
@@ -135,6 +135,10 @@ Headless gotchas:
 - `RwrContact.emitterType` accepts SAM, AWACS and unknown emitters for trainer pages; the sim only produces
   aircraft and missiles.
 - The `[hidden]` attribute is forced to `display: none` globally; use `el.hidden`.
+- Jet roles: `ctx.app.aircraft` is always a fighter (`FighterId`); `ctx.app.jet` is the picker selection and may be
+  the Su-25T. Routes declare `roles` (default `['fighter']`); the picker lists only jets the route accepts, and the
+  router shows a pick-a-fighter panel (`src/app/roleGate.ts`) instead of mounting a page that does not accept the
+  selected jet. An air-to-ground page sets `roles: ['attack']` and reads `ctx.app.jet`.
 
 ## Git branches and commits
 

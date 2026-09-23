@@ -3,7 +3,7 @@
  * clutter, why chaff only works in the notch, SARH vs ARH defense, and what this jet's RWR shows and
  * when. Everything is read from the data layer for the selected jet.
  */
-import type { AircraftId, MissileId } from '../../data/types';
+import type { FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS, RWR_CAVEATS } from '../../data/rwr';
@@ -77,7 +77,7 @@ function keyRow(label: string, k: CmKey): HTMLElement {
     k.note ? h('span', { class: 'dfx-keynote' }, k.note) : null);
 }
 
-export interface ExplainerOptions { ac: AircraftId; units: Units }
+export interface ExplainerOptions { ac: FighterId; units: Units }
 
 export function buildExplainer(o: ExplainerOptions): HTMLElement {
   const spec = AIRCRAFT[o.ac];
@@ -87,7 +87,7 @@ export function buildExplainer(o: ExplainerOptions): HTMLElement {
   const v = cruise.speed;
 
   // Radars that fire the drill threats at this jet.
-  const shooters: AircraftId[] = [];
+  const shooters: FighterId[] = [];
   for (const m of THREATS) for (const s of carriersOf(m, o.ac)) if (!shooters.includes(s)) shooters.push(s);
   const radarRows = shooters.map(s => {
     const r = AIRCRAFT[s].radar;

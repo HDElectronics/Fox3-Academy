@@ -3,8 +3,8 @@
  * and your jet's rules in one paragraph each, and the head-on launch zones of both sides at the
  * chosen altitudes (the in-game DLZ numbers), drawn to one scale.
  */
-import type { AircraftId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILE_REF_NOTE } from '../../data/missiles';
 import type { AiSkill } from '../../sim/types';
 import type { PageContext } from '../../app/page';
@@ -52,10 +52,10 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
     ],
     onChange: v => { s.scenario = v; refresh(); },
   });
-  const byBloc = (id: AircraftId) => (['ru', 'cn'].includes(AIRCRAFT[id].nation) ? 'Eastern' : 'Western');
-  const enemySel = select<AircraftId>({
+  const byBloc = (id: FighterId) => (['ru', 'cn'].includes(AIRCRAFT[id].nation) ? 'Eastern' : 'Western');
+  const enemySel = select<FighterId>({
     id: 'sortie-enemy', label: 'Adversary', value: s.enemy,
-    options: AIRCRAFT_ORDER.map(id => ({ value: id, label: `${AIRCRAFT[id].short}${id === defaultAdversary(ac) ? ' (default)' : ''}`, group: byBloc(id) })),
+    options: FIGHTER_ORDER.map(id => ({ value: id, label: `${AIRCRAFT[id].short}${id === defaultAdversary(ac) ? ' (default)' : ''}`, group: byBloc(id) })),
     onChange: v => { s.enemy = v; const a = snapAlt(cruiseFor(v).alt); s.enemyAlt = a * altUnit; enemyAlt.set(a); refresh(); },
   });
   const skill = segmented<AiSkill>({

@@ -1,7 +1,8 @@
 # Render kit (`src/render`): API
 
 The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
-high-altitude `Environment`, procedural jets and missiles for all ten `AircraftId`s, `WorldView`
+high-altitude `Environment`, procedural jets and missiles for every `AircraftId` (ten fighters and the Su-25T, straight wing,
+wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
 
 ```ts
@@ -488,7 +489,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
-- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any AircraftId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
+- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
   `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts.
 
 ## BfmAids (`bfmAids.ts`, close-combat lessons)
@@ -552,3 +553,106 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
   trails start empty.
 - **Performance** (M4 Max, DPR 2, 10 jets + 20 missiles + chaff, every layer): 120 fps, ~190 draw calls,
   kit JS ≈ 0.35 ms per frame, no per-frame allocations in the hot paths.
+
+## Terrain (`terrain/`)
+
+Reusable synthetic scenery for upcoming air-to-ground lessons. Import from `src/render/terrain`
+(the top-level render barrel does not re-export it). It is a gameplay backdrop, not a geographic
+map or a model of real sensor/weapon internals. No changes to `World` or existing pages are required.
+
+```ts
+import { Group } from 'three';
+import { createHeightField, heightAt, TerrainMesh, TerrainProps } from './terrain';
+
+const field = createHeightField({ seed: 17 });
+field.flatten(0, 0, 220, heightAt(field, 0, 0)); // prepare all pads before rendering
+const root = new Group();
+root.scale.setScalar(0.001); // authored in metres; Stage's scene uses kilometres
+const terrain = new TerrainMesh(field, stage.palette);
+const props = new TerrainProps(field, stage.palette);
+root.add(terrain, props);
+stage.scene.add(root);
+terrain.setFocus(0, 0);
+props.setFocus(0, 0); // use the pod's ground aim point when looking at a distant target
+// On unmount: terrain.dispose(); props.dispose(); root.removeFromParent();
+```
+
+**Height field (`heightmap.ts`, pure, no three.js).** Metres throughout, origin at map centre,
+x east / y up / z south. Seeded layered value noise combines broad valleys and folded ridges.
+
+- `createHeightField(opts?: HeightFieldOptions): HeightField` accepts `seed` (default 1),
+  `extentM` (number for a square or `{ x, z }`, default 40000 × 40000), `segments` (cells per axis,
+  default 512, integer 2–2048), and `maxReliefM` (default 600; generated heights stay within
+  0…maxReliefM, but need not reach the maximum). Zero relief produces level ground.
+- `field.heights: Float64Array` contains `(segments + 1)²` row-major nodes;
+  index = `rowZ * (segments + 1) + columnX`. `cellXM`, `cellZM`, `extentM`, `seed`, `segments`,
+  `maxReliefM` and `flattenedAreas` are readable. Treat heights and metadata as read-only.
+- `field.flatten(x, z, radiusM, heightM): void` guarantees the requested height throughout the
+  disc, with a smooth collar outside it. To preserve bilinear sampling, the flat region extends
+  by one grid-cell diagonal and blends over `max(radiusM * 0.25, 2 * max(cellXM, cellZM))`.
+  `flattenedAreas` records `{ x, z, radiusM, heightM, outerRadiusM }`; interpolation can extend
+  the outer transition by a cell. Later overlapping calls take precedence. Flatten before
+  creating meshes/props; existing render objects are snapshots and must be rebuilt after edits.
+- `heightAt(field, x, z): number` bilinearly samples the grid; out-of-bounds positions clamp to
+  the nearest edge. `normalAt(field, x, z): { x, y, z }` returns an upward unit normal using
+  finite differences (one-sided at the edges). `slopeAt(field, x, z): number` returns radians.
+- `lineOfSight(field, from: TerrainPoint, to: TerrainPoint, stepM?: number): boolean` checks
+  terrain clearance across the entire segment. Every crossed cell and its quadratic interior
+  minimum are checked; `stepM` optionally adds subdivisions and cannot skip a ridge. Both
+  endpoints must be above ground (tolerance 1e-7 m); a ray touching terrain returns false.
+  Out-of-bounds endpoints return false because there is no confirmed coverage. Coincident and
+  vertical segments are supported. Props do not occlude this query. Non-finite coordinates,
+  invalid dimensions and nonpositive explicit steps throw `RangeError`.
+
+**Mesh (`terrainMesh.ts`).** `new TerrainMesh(field, palette, opts?: TerrainMeshOptions)` extends
+`Group`. Both render classes build in metres: put them under a 0.001-scaled root, as in flight ops.
+
+- `chunkCells` defaults to 64 (positive multiple of 4). Partial chunks cover non-divisible grids.
+  Three LODs sample every 1, 2 or 4 grid nodes; `lodDistancesM` defaults to `[3000, 10000]`,
+  measured from focus to the nearest edge of each chunk. `setFocus(x, z): void` switches LODs,
+  building each needed geometry once and caching it. It does not own a loop or camera.
+- `chunks: readonly TerrainChunk[]` exposes `xM`, `zM`, `widthM`, `depthM`, `mesh`, and
+  `level` (0 = finest, 2 = coarsest) for diagnostics. Normals sampled from the common field
+  keep shared edges lit consistently; perimeter skirts conceal gaps between different LODs.
+- Vertex colours mix palette earth/ok for low ground, earth/smoke for higher ground, and
+  smoke/dark on steep slopes. `detail` (default true) adds derivative-filtered procedural
+  pigment variation at 95 m, 18 m and 2.5 m scales for close pod views; all pigments come from
+  the palette. No texture downloads, texture allocation or custom lighting are needed.
+- `dispose(): void` is idempotent, frees every cached geometry and the shared material, and
+  detaches the group. The caller owns Stage, lighting, environment and frame subscriptions.
+
+**Props (`props.ts`).** `new TerrainProps(field, palette, opts?: TerrainPropsOptions)` extends
+`Group`. Deterministic three-tree clumps, simple roofed buildings, and short terrain-following
+access roads use `InstancedMesh`, sharing five geometries and materials across spatial batches.
+All values below are drawing choices, not DCS facts.
+
+- `seed` defaults to the field seed. `density` defaults to 1: attempts 8 tree clumps plus
+  1 building/road site per square km on average; `0` produces no props. Placement rejection
+  reduces the final count. `maxSites` (default 20000) caps attempts even at high density.
+- `maxSlopeRad` defaults to 0.2 radians. Positions/footprints on steeper slopes or outside the
+  extent are rejected. `includeFlattened` defaults to false: flatten discs and collars remain
+  clear, including prop footprints. True permits scatter there; it does not force placement.
+- `chunkSizeM` defaults to 2500. `setFocus(x, z): void` shows batches whose nearest edge is
+  within `viewDistanceM` (default 3000; `Infinity` disables distance culling). Match the terrain
+  focus to the pod aim point. Built-in instance bounds also allow camera frustum culling.
+- `counts` reports instantiated `tree`, `trunk`, `building`, `roof`, and `road` counts over the
+  whole field, including hidden batches. `dispose(): void` releases instance resources and
+  each shared geometry/material exactly once, and detaches the group.
+
+**Limits and budget.** The default grid is about 78 m between height samples and 2.1 MB of
+height data. Close-view texture variation is visual only. Mesh triangles approximate the
+bilinear field; coarser distant LODs can differ in height and switch visibly. Skirts hide cracks,
+not transitions. Small prop foundations and road strips are decorative approximations on that
+surface; they are not terrain collision geometry. Props are culled by whole batches without
+cross-fading. The finite 40 km map does not stream or wrap. For a small detailed target region,
+use a smaller extent at the same grid resolution. Increase budgets deliberately for phones:
+64 default chunks, lazy LOD caching, five shared prop geometries, bounded scatter, focus culling,
+and no runtime regeneration are the default tradeoffs. Physical-device frame rates remain to be
+measured by the consuming page, especially with a second pod viewport.
+
+**Harness.** `/sandbox/terrain.html?seed=17&focus=0,0` provides free orbit, pan and dolly,
+a flat target pad, an overview, a ground-detail view and a 23× optical zoom toggle. Optional
+`view=close`, `zoom=23`, `density=<multiplier>` and `cockpit=us|ru` support screenshot checks.
+The focus param is `x,z` in metres, clamped inside the map; panning updates terrain/prop focus.
+The HUD reports chunk LOD counts, draw calls and triangles. It caps DPR at 1.5 and cleans up
+controls, listeners, frame subscription, terrain, props and Stage on page hide or hot reload.

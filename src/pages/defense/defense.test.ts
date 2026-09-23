@@ -5,8 +5,8 @@
  */
 import { describe, expect, test } from 'vitest';
 import { Vector3 } from 'three';
-import type { AircraftId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { carriersOf } from '../../sim/scenarios';
 import { parseChord, splitAlternatives } from '../../ui/keys';
@@ -23,7 +23,7 @@ import { newPilot, pilotHeading, pressManeuver } from './pilot';
 import { RESERVED_KEYS, cmKeys } from './cmkeys';
 import { beamWindowDeg } from './explainer';
 
-function fly(ac: AircraftId, drill: DrillId, defend: boolean, seed = 1): DrillRunner {
+function fly(ac: FighterId, drill: DrillId, defend: boolean, seed = 1): DrillRunner {
   const r = new DrillRunner(ac, defaultSetup(drill, ac), AIRCRAFT[ac].units, seed);
   r.start();
   const st = { lastChaff: -9 };
@@ -35,7 +35,7 @@ function fly(ac: AircraftId, drill: DrillId, defend: boolean, seed = 1): DrillRu
 }
 
 describe('drill defaults', () => {
-  test.each(AIRCRAFT_ORDER)('%s: every drill has a threat, a shooter that carries it and a range inside its zone', ac => {
+  test.each(FIGHTER_ORDER)('%s: every drill has a threat, a shooter that carries it and a range inside its zone', ac => {
     for (const drill of DRILL_ORDER) {
       const s = defaultSetup(drill, ac);
       expect(threatsFor(drill)).toContain(s.threat);
@@ -58,7 +58,7 @@ describe('drill defaults', () => {
 
 describe('headless drills (the lesson happens in the sim)', () => {
   // Three jets from different blocs and RWRs keep this fast; the page itself runs all ten.
-  const jets: AircraftId[] = ['su27', 'f15c', 'm2000c'];
+  const jets: FighterId[] = ['su27', 'f15c', 'm2000c'];
 
   test.each(jets)('%s: every scored drill gets a shot off and resolves', ac => {
     for (const drill of SCORED_DRILLS) {
@@ -203,7 +203,7 @@ describe('gates and geometry', () => {
 });
 
 describe('countermeasure keys', () => {
-  test.each(AIRCRAFT_ORDER)('%s: chaff and flare keys are real chords that do not steer', ac => {
+  test.each(FIGHTER_ORDER)('%s: chaff and flare keys are real chords that do not steer', ac => {
     const k = cmKeys(ac);
     for (const key of [k.chaff, k.flare]) {
       const alts = splitAlternatives(key.bind);

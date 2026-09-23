@@ -3,7 +3,7 @@
  * tags, links to other lessons and the filter contract every filterable block implements.
  */
 import { h } from '../../ui/dom';
-import type { AircraftId, AircraftSpec } from '../../data/types';
+import type { FighterId, AircraftSpec } from '../../data/types';
 import type { Units } from './model';
 import { splitHits } from './model';
 
@@ -16,11 +16,11 @@ export interface Filterable {
 
 /** Shared state every section needs. */
 export interface RefCtx {
-  ac: AircraftId;
+  ac: FighterId;
   spec: AircraftSpec;
   units: Units;
   /** Switch the selected jet, returning the reader to a section after the remount. */
-  switchJet(id: AircraftId, returnTo: string): void;
+  switchJet(id: FighterId, returnTo: string): void;
   /** Register a block with the quick filter. */
   filterable(f: Filterable): void;
 }

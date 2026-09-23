@@ -8,20 +8,20 @@
  * 'sam-long', 'sam-medium', 'sam-short', 'unknown'). Use rwrSymbol() for lookups.
  * SPO-15: the symbol is the threat-type lamp letter; '' means no type lamp lights.
  */
-import type { AircraftId, RwrId, RwrSpec, RwrSymbol } from './types';
+import type { FighterId, RwrId, RwrSpec, RwrSymbol } from './types';
 
 type Emitter = RwrSymbol['emitter'];
 
 /** ED's airborne code list (F/A-18C guide, F-15C table): Flanker family and Fulcrum all read "29". */
-const ED_AIR: Record<AircraftId, string> = {
+const ED_AIR: Record<FighterId, string> = {
   su27: '29', su33: '29', j11a: '29', mig29s: '29',
   f15c: '15', fa18c: '18', f16c: '16', f14b: '14', jf17: 'JF', m2000c: 'M2',
 };
 
-function table(air: Record<AircraftId, string>, other: Record<Exclude<Emitter, AircraftId>, string>): RwrSymbol[] {
+function table(air: Record<FighterId, string>, other: Record<Exclude<Emitter, FighterId>, string>): RwrSymbol[] {
   return [
-    ...(Object.keys(air) as AircraftId[]).map(emitter => ({ emitter, symbol: air[emitter] })),
-    ...(Object.keys(other) as Exclude<Emitter, AircraftId>[]).map(emitter => ({ emitter, symbol: other[emitter] })),
+    ...(Object.keys(air) as FighterId[]).map(emitter => ({ emitter, symbol: air[emitter] })),
+    ...(Object.keys(other) as Exclude<Emitter, FighterId>[]).map(emitter => ({ emitter, symbol: other[emitter] })),
   ];
 }
 
@@ -33,7 +33,7 @@ export const RWRS: Record<RwrId, RwrSpec> = {
     id: 'spo15',
     name: 'SPO-15 "Beryoza"',
     kind: 'lamps',
-    aircraft: ['su27', 'su33', 'j11a', 'mig29s'],
+    aircraft: ['su27', 'su33', 'j11a', 'mig29s', 'su25t'],
     symbols: table(
       { su27: 'П', su33: 'П', j11a: 'П', mig29s: 'П', f15c: 'П', fa18c: 'П', f16c: 'П', f14b: 'П', jf17: 'П', m2000c: 'П' },
       { missile: 'П', awacs: 'С', 'sam-long': 'З', 'sam-medium': 'Х', 'sam-short': 'Н', unknown: '' },

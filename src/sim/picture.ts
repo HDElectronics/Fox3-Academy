@@ -6,7 +6,7 @@
  */
 import type { World } from './world';
 import type { Aircraft, EntityId, Missile, RadarPicture } from './types';
-import type { AircraftId, AircraftSpec, DisplayFormat, MissileId } from '../data/types';
+import type { FighterId, AircraftSpec, DisplayFormat, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { D2R, R2D, aspectAngle, closureRate, headingOf, relBearing, wrapPi } from './math';
@@ -23,7 +23,7 @@ export interface PictureOptions {
  * FC3 Russian HUD 'ПР'; F-15C a flashing star under the TD box for AIM-120/AIM-9 ('*') or a triangle for
  * AIM-7 ('▲'), no SHOOT text; Hornet / JF-17 'SHOOT'; M-2000C 'TIR'. Viper and classic F-14 use geometric cues, no text label.
  */
-export function cueLabelFor(type: AircraftId, missile: MissileId | null): string {
+export function cueLabelFor(type: FighterId, missile: MissileId | null): string {
   if (type === 'f16c' || type === 'f14b') return '';
   const display: DisplayFormat = AIRCRAFT[type].display;
   switch (display) {
@@ -36,7 +36,7 @@ export function cueLabelFor(type: AircraftId, missile: MissileId | null): string
 }
 
 /** Jets whose shoot cue only lights inside Rne (JF-17 SHOOT inside the NEZ, M-2000C TIR in the most restrictive domain). */
-const CUE_INSIDE_RNE: Partial<Record<AircraftId, boolean>> = { jf17: true, m2000c: true };
+const CUE_INSIDE_RNE: Partial<Record<FighterId, boolean>> = { jf17: true, m2000c: true };
 
 function missileLabels(world: World, ownerId: EntityId): Map<EntityId, string> {
   const out = new Map<EntityId, string>();

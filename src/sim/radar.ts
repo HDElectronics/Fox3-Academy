@@ -15,7 +15,7 @@
 import { Vector3 } from 'three';
 import type { GuidanceSupport, World } from './world';
 import type { Aircraft, EntityId, RadarState, TrackFile } from './types';
-import type { AircraftId, AircraftSpec, RadarModeId } from '../data/types';
+import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import {
@@ -109,7 +109,7 @@ const RU_FC3: RuleOverride = {
   redesignate: 'lock', whenFull: 'replace-last', unlockKeepsDesignation: false, supportNeedsDesignation: true,
 };
 
-const RULES: Partial<Record<AircraftId, RuleOverride>> = {
+const RULES: Partial<Record<FighterId, RuleOverride>> = {
   su27: RU_FC3, su33: RU_FC3, j11a: RU_FC3, mig29s: RU_FC3,
   // F-15C: Enter on a new track = PDT then SDTs (max 4); Enter again on PDT/SDT = STT; ripple PDT → SDTs → PDT;
   // support split across the designated tracks.
@@ -127,10 +127,10 @@ const RULES: Partial<Record<AircraftId, RuleOverride>> = {
   m2000c: { sttMemoryS: 5 },
 };
 
-const RULE_CACHE = new Map<AircraftId, RadarRules>();
+const RULE_CACHE = new Map<FighterId, RadarRules>();
 
 /** Per-jet radar behaviour used by radar.ts, launch.ts and picture.ts. */
-export function radarRules(type: AircraftId): RadarRules {
+export function radarRules(type: FighterId): RadarRules {
   const hit = RULE_CACHE.get(type);
   if (hit) return hit;
   const tws = AIRCRAFT[type].radar.tws;

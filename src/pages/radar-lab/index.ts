@@ -10,7 +10,7 @@ import './style.css';
 import { mobileAction } from '../../ui/mobileAction';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import { AIRCRAFT } from '../../data/aircraft';
-import type { AircraftId, AircraftSpec, RadarModeId } from '../../data/types';
+import type { FighterId, AircraftSpec, RadarModeId } from '../../data/types';
 import { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import { setManeuver as scriptManeuver } from '../../sim/scenarios';
@@ -88,7 +88,7 @@ const factory: PageFactory = (): Page => {
     }
     if (wantAc && wantAc in AIRCRAFT && wantAc !== ctx.app.aircraft) {
       if (wantUnits === 'metric' || wantUnits === 'imperial') ctx.app.setUnits(wantUnits);
-      ctx.app.setAircraft(wantAc as AircraftId);
+      ctx.app.setAircraft(wantAc as FighterId);
       return;
     }
     if ((wantUnits === 'metric' || wantUnits === 'imperial') && wantUnits !== ctx.app.units) { ctx.app.setUnits(wantUnits); return; }

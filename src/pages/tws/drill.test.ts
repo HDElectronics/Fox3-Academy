@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT_ORDER } from '../../data/aircraft';
+import { FIGHTER_ORDER } from '../../data/aircraft';
 import { TwsLesson } from './drill';
 import { resolveBinds } from './binds';
 import { article, banditWhy, coachFor, detectWhy, endSummary, introFor, stepsFor } from './lesson';
@@ -7,7 +7,7 @@ import { MISSILES } from '../../data/missiles';
 import { canLaunchSnp2 } from '../../sim/launch';
 import { autopilotTick, newAutopilot } from './autopilot';
 
-function fly(ac: (typeof AIRCRAFT_ORDER)[number], seconds = 300) {
+function fly(ac: (typeof FIGHTER_ORDER)[number], seconds = 300) {
   const L = new TwsLesson(ac);
   const ap = newAutopilot();
   const b = resolveBinds(ac);
@@ -30,7 +30,7 @@ function fly(ac: (typeof AIRCRAFT_ORDER)[number], seconds = 300) {
 }
 
 describe('tws lesson', () => {
-  for (const ac of AIRCRAFT_ORDER) {
+  for (const ac of FIGHTER_ORDER) {
     it(`${ac}: the demo pilot finishes the checklist`, () => {
       const { L, steps, done, coach } = fly(ac);
       const missing = steps.filter(s => !done.has(s.id)).map(s => s.id);
@@ -185,7 +185,7 @@ describe('tws lesson', () => {
     expect(article('J-11A')).toBe('a');
     expect(article('JF-17')).toBe('a');
     expect(article('Super 530D')).toBe('a');
-    for (const ac of AIRCRAFT_ORDER) expect(introFor(ac).lede, ac).not.toMatch(/\ba [AEIO]|\ba [FHLMNRSX]-/);
+    for (const ac of FIGHTER_ORDER) expect(introFor(ac).lede, ac).not.toMatch(/\ba [AEIO]|\ba [FHLMNRSX]-/);
   });
 
   it('a crank puts the group about 50° off the nose and slows the closure (Su-27)', () => {

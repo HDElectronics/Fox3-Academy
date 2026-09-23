@@ -6,7 +6,7 @@
 import { PROCEDURES } from '../../data/procedures';
 import { AIRCRAFT } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
-import type { AircraftId, KeyBind, MissileId } from '../../data/types';
+import type { FighterId, KeyBind, MissileId } from '../../data/types';
 import { parseChord, splitAlternatives } from '../../ui/keys';
 
 export type PageAct =
@@ -77,7 +77,7 @@ function dcsKey( b: KeyBind | undefined, alt = -1): string | null {
   return alt >= 0 ? alternative(raw, alt) : raw;
 }
 
-function make(ac: AircraftId, act: PageAct, b: KeyBind | undefined, o: { alt?: number; fallback?: string; name?: string; note?: string; holdS?: number; noKey?: boolean } = {}): ActBind | undefined {
+function make(ac: FighterId, act: PageAct, b: KeyBind | undefined, o: { alt?: number; fallback?: string; name?: string; note?: string; holdS?: number; noKey?: boolean } = {}): ActBind | undefined {
   if (!b && !o.fallback) return undefined;
   const k = o.noKey ? null : dcsKey(b, o.alt ?? -1);
   const fc3 = AIRCRAFT[ac].module === 'fc3';
@@ -88,7 +88,7 @@ function make(ac: AircraftId, act: PageAct, b: KeyBind | undefined, o: { alt?: n
 }
 
 /** Cursor keys, in the order the bind names the directions ("Up / Left / Down / Right"). */
-function cursorOf(ac: AircraftId, binds: KeyBind[]): CursorKeys | null {
+function cursorOf(ac: FighterId, binds: KeyBind[]): CursorKeys | null {
   const b = find(binds, /^Cursor/i);
   if (!b) return { up: ';', down: '.', left: ',', right: '/', name: 'Trainer radar cursor', source: 'page' };
   const fc3 = AIRCRAFT[ac].module === 'fc3';
@@ -106,7 +106,7 @@ function cursorOf(ac: AircraftId, binds: KeyBind[]): CursorKeys | null {
 }
 
 /** Every key the TWS lesson binds for this jet, from its PROCEDURES. */
-export function resolveBinds(ac: AircraftId): JetBinds {
+export function resolveBinds(ac: FighterId): JetBinds {
   const binds = PROCEDURES[ac].binds;
   const acts: Partial<Record<PageAct, ActBind>> = {};
   const put = (a: ActBind | undefined) => { if (a) acts[a.act] = a; };

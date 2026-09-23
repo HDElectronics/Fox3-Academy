@@ -9,7 +9,7 @@
  * This is also three.js' frame (y-up, right-handed); the renderer only rescales (1 unit = 1 km).
  */
 import type { Vector3 } from 'three';
-import type { AircraftId, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
+import type { FighterId, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
 
 export type Side = 'blue' | 'red';
 export type EntityId = string;
@@ -139,7 +139,7 @@ export interface Aircraft {
   kind: 'aircraft';
   id: EntityId;
   side: Side;
-  type: AircraftId;
+  type: FighterId;
   callsign: string;
   /** 'player' and 'script' are flown by the page through `cmd` (no AI logic runs); 'ai' runs ai.ts. */
   controller: 'player' | 'ai' | 'script';
@@ -343,7 +343,7 @@ export type SimEvent =
 export interface SpawnOptions {
   id?: EntityId;
   side: Side;
-  type: AircraftId;
+  type: FighterId;
   callsign?: string;
   controller: Aircraft['controller'];
   /** Position in metres; heading in radians; speed in m/s. */
@@ -370,7 +370,7 @@ export interface RecordedRadarContacts {
 export interface RecordFrame {
   t: number;
   aircraft: {
-    id: EntityId; side: Side; type: AircraftId;
+    id: EntityId; side: Side; type: FighterId;
     pos: [number, number, number]; heading: number; pitch: number; roll: number; alive: boolean;
     radarMode: RadarModeId; sttTarget: EntityId | null;
     radar: { azCenter: number; azHalf: number; elCenter: number; bars: number; beamAz: number; beamEl: number };
@@ -397,7 +397,7 @@ export interface RecordFrame {
 export interface RadarPicture {
   t: number;
   ownerId: EntityId;
-  aircraftType: AircraftId;
+  aircraftType: FighterId;
   units: 'metric' | 'imperial';
   /** Own heading (rad), for ground-stabilised displays (F-14 TID) and heading tapes. */
   ownHeading: number;

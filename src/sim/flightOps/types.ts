@@ -13,10 +13,10 @@
  * Owners: this file is a contract (coordinator). `src/sim/flightOps/*` (sim agent), `src/data/flightOps.ts`
  * (sim agent), `src/render/flightOps/*` (render agent), `src/pages/flight-ops/*` (page agent).
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 
 /** Jets with flight-ops data: all ten since issue #22 (the MVP covered fa18c, f16c, f15c). */
-export type FlightOpsJetId = AircraftId;
+export type FlightOpsJetId = FighterId;
 
 export const RUNWAY = { lengthM: 2500, widthM: 45 } as const;
 

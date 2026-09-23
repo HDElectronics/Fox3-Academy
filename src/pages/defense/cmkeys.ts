@@ -3,7 +3,7 @@
  * keyboard default where one exists and does not collide with the page's flying keys; otherwise it falls
  * back to the FC3 defaults (Insert / Delete), always with a letter key for keyboards without Insert.
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { PROCEDURES } from '../../data/procedures';
 import { splitAlternatives } from '../../ui/keys';
 
@@ -27,7 +27,7 @@ function reserved(chord: string): boolean {
   return splitAlternatives(chord).some(k => RESERVED_KEYS.some(r => r.toLowerCase() === k.trim().toLowerCase()));
 }
 
-function build(kind: 'chaff' | 'flare', ac: AircraftId, fallback: string, letter: string): CmKey {
+function build(kind: 'chaff' | 'flare', ac: FighterId, fallback: string, letter: string): CmKey {
   const binds = PROCEDURES[ac].binds;
   const re = kind === 'chaff' ? /chaff/i : /flare/i;
   const own = binds.find(b => re.test(b.action));
@@ -49,6 +49,6 @@ function build(kind: 'chaff' | 'flare', ac: AircraftId, fallback: string, letter
   return { bind: `${fallback} / ${letter}`, dcsKey: null, dcsName: '', exact: false, note: 'Not in research: check your controls menu.' };
 }
 
-export function cmKeys(ac: AircraftId): { chaff: CmKey; flare: CmKey } {
+export function cmKeys(ac: FighterId): { chaff: CmKey; flare: CmKey } {
   return { chaff: build('chaff', ac, 'Insert', 'C'), flare: build('flare', ac, 'Delete', 'F') };
 }

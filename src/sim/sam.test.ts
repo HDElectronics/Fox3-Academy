@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { World } from './world';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../data/aircraft';
 import { rwrSymbol } from '../data/rwr';
 import { SAMS } from '../data/sams';
-import type { AircraftId, SamId } from '../data/types';
+import type { FighterId, SamId } from '../data/types';
 import type { RwrContact, SimEvent } from './types';
 import { SAM_MODEL, samRingM, samSightBlock } from './sam';
 import { bearingTo, wrap2Pi } from './math';
@@ -12,7 +12,7 @@ import { duel, samDrill } from './scenarios';
 const SITE = 'site';
 
 /** Player `range` m south of a site at the origin, flying north (hot) at `alt`. */
-function setup(opts: { type?: AircraftId; sam?: SamId; range?: number; alt?: number; seed?: number; maskAltM?: number; holdFire?: boolean } = {}) {
+function setup(opts: { type?: FighterId; sam?: SamId; range?: number; alt?: number; seed?: number; maskAltM?: number; holdFire?: boolean } = {}) {
   const world = new World(opts.seed ?? 7);
   world.record = false;
   const sam = opts.sam ?? 'sa11';
@@ -67,7 +67,7 @@ describe('SAM site: search, track, launch', () => {
   });
 
   it('shows search, lock and launch on the RWR of every jet, with that RWR\'s symbol', () => {
-    for (const type of AIRCRAFT_ORDER) {
+    for (const type of FIGHTER_ORDER) {
       const { world, me } = setup({ type, range: 48000 });
       const seen = new Set<RwrContact['state']>();
       runUntil(world, () => {

@@ -4,7 +4,7 @@
  * hit-testing (click -> target id) and screen -> radar coordinates for cursor slewing.
  * It only draws what the picture says the radar knows; targetId is used for picking only.
  */
-import type { AircraftId, DisplayFormat } from '../../data/types';
+import type { FighterId, DisplayFormat } from '../../data/types';
 import type { EntityId, RadarPicture } from '../../sim/types';
 import { Gfx, Surface, nowS } from './surface';
 import { MissileClock } from './glyphs';
@@ -159,7 +159,7 @@ export class RadarDisplay {
     ctx.fillRect(0, 0, W, H);
     this.hits = [];
     const units: Units = this.opts.units ?? pic?.units ?? 'imperial';
-    const aircraft: AircraftId = this.opts.aircraft ?? pic?.aircraftType ?? 'f15c';
+    const aircraft: FighterId = this.opts.aircraft ?? pic?.aircraftType ?? 'f15c';
     const f: Omit<FrameCtx, 'pic'> = {
       g: this.gfx, th, S, ox, oy, u, W, H, units, aircraft, opts: this.opts, now: nowS(), hits: this.hits,
       clock: this.clock, ownHeading: extra?.ownHeading ?? pic?.ownHeading ?? null,

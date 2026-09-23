@@ -7,8 +7,8 @@
  * detection range; search 0.15-0.7, lock 0.5-0.9, launch 0.8-1.0, active missile 0.85-1.0 inside
  * 20 km), so the sandbox looks like the sim's RWR.
  */
-import type { AircraftId, MissileId, RwrId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../../data/aircraft';
+import type { FighterId, MissileId, RwrId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS } from '../../data/rwr';
 import type { RwrContact } from '../../sim/types';
@@ -18,7 +18,7 @@ const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 
 export type SamKind = 'sam-long' | 'sam-medium' | 'sam-short';
-export type EmitterKind = AircraftId | 'awacs' | SamKind;
+export type EmitterKind = FighterId | 'awacs' | SamKind;
 /** 'active' = the emitter's ARH missile has gone pitbull on you (the shooter keeps searching). */
 export type ThreatState = 'search' | 'lock' | 'launch' | 'active';
 
@@ -67,7 +67,7 @@ const SAM_SHORT: Record<SamKind, string> = {
 /** Notional RWR hearing ranges (m) for emitters that have no AircraftSpec. Trainer values. */
 const PAINT_M: Record<'awacs' | SamKind, number> = { awacs: 400_000, 'sam-long': 300_000, 'sam-medium': 150_000, 'sam-short': 50_000 };
 
-export const isAircraft = (k: EmitterKind): k is AircraftId => k in AIRCRAFT;
+export const isAircraft = (k: EmitterKind): k is FighterId => k in AIRCRAFT;
 export const isSam = (k: EmitterKind): k is SamKind => k === 'sam-long' || k === 'sam-medium' || k === 'sam-short';
 
 export function emitterLabel(k: EmitterKind): string {
@@ -86,7 +86,7 @@ export function emitterShort(k: EmitterKind): string {
  * an exhaustive identity library; each RWR supplies its own code and its own uncertainty caveats.
  */
 export function emitterKindsFor(_rwr: RwrId): EmitterKind[] {
-  return [...AIRCRAFT_ORDER, 'awacs', 'sam-long', 'sam-medium', 'sam-short'];
+  return [...FIGHTER_ORDER, 'awacs', 'sam-long', 'sam-medium', 'sam-short'];
 }
 
 /** RWR hearing range for strength scaling (m), as sim/rwr.ts computes it for aircraft. */

@@ -1,15 +1,22 @@
 /** App chrome: brand, aircraft selector, module nav, units toggle. Cockpit skin follows the jet. */
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
+import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
-import type { RouteDef } from './routes';
+import { routeFor, type RouteDef } from './routes';
+import { pickerJets } from './roleGate';
 import { contextualLinks, DESTINATIONS, destinationFor } from './navigation';
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
 
 export function buildShell(root: HTMLElement, app: AppStore) {
-  const select = h('select', { id: 'jetSelect', class: 'jet-select', 'aria-label': 'Aircraft' },
-    AIRCRAFT_ORDER.map(id => h('option', { value: id }, AIRCRAFT[id].short + (AIRCRAFT[id].module === 'fc3' ? '  ·  FC3' : ''))));
-  select.value = app.aircraft;
+  const select = h('select', { id: 'jetSelect', class: 'jet-select', 'aria-label': 'Aircraft' });
+  // The picker lists the jets the current route accepts (fighters on BVR pages), plus the selected jet.
+  let route = routeFor(location.hash.replace(/^#\/?/, '').split('?')[0] ?? '');
+  const fillPicker = () => {
+    select.replaceChildren(...pickerJets(route, app.jet).map(id =>
+      h('option', { value: id }, AIRCRAFT[id].short + (AIRCRAFT[id].module === 'fc3' ? '  ·  FC3' : ''))));
+    select.value = app.jet;
+  };
+  fillPicker();
   select.addEventListener('change', () => app.setAircraft(select.value as AircraftId));
 
   const unitsBtn = h('button', { class: 'units-btn', id: 'unitsBtn', type: 'button', title: 'Switch units' });
@@ -37,16 +44,18 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   chromeSize.observe(contextNav);
 
   const sync = () => {
-    const spec = AIRCRAFT[app.aircraft];
+    const spec = app.jetSpec;
     document.documentElement.dataset.cockpit = spec.cockpit;
     document.documentElement.dataset.aircraft = spec.id;
-    select.value = app.aircraft;
+    fillPicker();
     unitsBtn.textContent = app.units === 'metric' ? 'km · m' : 'nm · ft';
   };
   sync();
   app.subscribe(sync);
 
-  const setActive = (route: RouteDef, params = new URLSearchParams(location.hash.split('?')[1] ?? '')) => {
+  const setActive = (next: RouteDef, params = new URLSearchParams(location.hash.split('?')[1] ?? '')) => {
+    route = next;
+    fillPicker();
     const destination = destinationFor(route.path, params);
     for (const a of $$('a', nav)) a.setAttribute('aria-current', a.dataset.destination === destination ? 'page' : 'false');
     const links = contextualLinks(destination);

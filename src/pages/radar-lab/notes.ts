@@ -3,7 +3,7 @@
  * (ru-fc3.md, f15c-fc3.md, hornet-viper.md, tomcat-thunder-mirage.md, bvr-mechanics.md).
  * Keys in the text are DCS keyboard defaults; `keys` holds the <kbd> string for each line.
  */
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 
 export interface JetNote { title: string; text: string; keys?: string }
 
@@ -26,7 +26,7 @@ const FC3_RU = (name: string, extra: JetNote[] = []): JetNote[] => [
   ...extra,
 ];
 
-export const JET_NOTES: Record<AircraftId, JetNote[]> = {
+export const JET_NOTES: Record<FighterId, JetNote[]> = {
   su27: FC3_RU('N001', [{ title: 'N001 in the AI table', text: 'About 68 km head-on and 38 km tail-on against a fighter; tail-on in look-down drops to about 27 km. The Doppler gate is 113 kt (210 km/h), twice the Eagle\'s 54 kt: an easy radar to notch. Hot look-down retains the head-on range.' }]),
   su33: FC3_RU('N001K', [{ title: 'Same N-001 model', text: 'The Su-33 uses the Su-27 radar model in DCS: about 68 km head-on, 38 km tail-on, 113 kt gate. ED\'s Su-33 manual quotes the real N001K at 100 km or more, but the game table is what counts here.' }]),
   j11a: FC3_RU('N001VE', [{ title: 'Same N-001 model', text: 'The J-11A shares the N-001 table: about 68 km head-on, 38 km tail-on and a 113 kt gate. Your R-77 still needs STT, so every scan setting here ends in a lock.' }]),

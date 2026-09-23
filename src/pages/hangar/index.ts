@@ -1,7 +1,7 @@
 /**
  * Learn (#/learn, legacy #/hangar): resume lessons for the globally selected jet, with a 3D scan-volume
  * hero and aircraft capability reference. Practice and Fly are separate entry points.
- * Query params: ?ac=<AircraftId> selects a jet once (then is removed from the URL);
+ * Query params: ?ac=<FighterId> selects a jet once (then is removed from the URL);
  * ?shot=band|lessons|weapons|notes scrolls to a section (for screenshots).
  */
 import './style.css';
@@ -9,7 +9,7 @@ import type { Page, PageContext, PageFactory } from '../../app/page';
 import { ROUTES } from '../../app/routes';
 import { lessonPath } from '../../app/navigation';
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data';
-import type { AircraftId, AircraftSpec } from '../../data/types';
+import type { FighterId, AircraftSpec } from '../../data/types';
 import type { Units } from '../../app/format';
 import { Stage } from '../../render';
 import { button, callout, cleanup, consolePanel, cx, h, kbd, readouts, screenBezel, setText, type Child } from '../../ui';
@@ -33,7 +33,7 @@ const factory: PageFactory = (): Page => {
       if (want !== null) {
         replaceHashParams(p => p.delete('ac'));
         if (want !== ctx.app.aircraft && want in AIRCRAFT) {
-          ctx.app.setAircraft(want as AircraftId);   // the router remounts this page with the new jet
+          ctx.app.setAircraft(want as FighterId);   // the router remounts this page with the new jet
           return;
         }
       }

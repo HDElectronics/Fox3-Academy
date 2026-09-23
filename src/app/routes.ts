@@ -1,4 +1,5 @@
 /** Stable route table. Top-level and contextual navigation live in navigation.ts. */
+import type { AircraftRole } from '../data/types';
 import type { PageFactory } from './page';
 
 export interface RouteDef {
@@ -7,6 +8,8 @@ export interface RouteDef {
   label: string;         // nav label
   title: string;         // one-line purpose, shown as nav tooltip and hangar card
   load: () => Promise<{ default: PageFactory }>;
+  /** Jet roles this route teaches; default ['fighter']. The picker and the role gate (roleGate.ts) read it. */
+  roles?: readonly AircraftRole[];
 }
 
 export const ROUTES: RouteDef[] = [

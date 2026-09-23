@@ -1,7 +1,7 @@
 /**
  * [OWNER: displays] Frame context and helpers shared by the radar display formats.
  */
-import type { AircraftId, DisplayFormat } from '../../../data/types';
+import type { FighterId, DisplayFormat } from '../../../data/types';
 import type { EntityId, RadarPicture } from '../../../sim/types';
 import type { Theme } from '../../theme';
 import type { Gfx } from '../surface';
@@ -19,7 +19,7 @@ export interface RadarDisplayOptions {
   /** Display units. Defaults to the picture's units. */
   units?: Units;
   /** Wording variant (Hornet / Viper / JF-17 on 'mfd'; Su-27 vs MiG-29 on 'ru-hud'). Defaults to picture.aircraftType. */
-  aircraft?: AircraftId;
+  aircraft?: FighterId;
   /** How non-friendly tracks are identified on HAFU/TID symbols. Own-sensor pictures usually say 'unknown'. Default 'unknown'. */
   nonFriendly?: 'unknown' | 'hostile';
   /** F-14 TID stabilisation. 'ground' (north-up) needs `ownHeading` in draw(). Default 'aircraft'. */
@@ -35,7 +35,7 @@ export interface RadarDisplayOptions {
 export interface ResolvedOptions {
   format: DisplayFormat;
   units: Units | null;
-  aircraft: AircraftId | null;
+  aircraft: FighterId | null;
   nonFriendly: 'unknown' | 'hostile';
   tidStab: 'aircraft' | 'ground';
   glow: number;
@@ -61,7 +61,7 @@ export interface FrameCtx {
   H: number;
   pic: RadarPicture;
   units: Units;
-  aircraft: AircraftId;
+  aircraft: FighterId;
   opts: ResolvedOptions;
   /** Real-time seconds, for blinking. */
   now: number;

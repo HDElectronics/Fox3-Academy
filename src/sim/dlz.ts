@@ -9,10 +9,10 @@
  *   Rne: target turns cold at launch). Used by the generator and the Missile Lab's "compute exactly".
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId } from '../data/types';
+import type { FighterId, MissileId } from '../data/types';
 import type { Aircraft, Dlz, Missile, SimEvent, PhoenixLaunchMode } from './types';
 import { MISSILES } from '../data/missiles';
-import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../data/aircraft';
 import { World } from './world';
 import { irAcquisitionRange } from './launch';
 import { lockTarget, setRadarMode, stepRadar } from './radar';
@@ -40,9 +40,9 @@ export interface ShotSetup {
   /** Seed for the chaff / flare rolls (same seed → same shot). Default 1. */
   seed?: number;
   /** Target jet type (turn and acceleration performance). Default: dlzTargetType(missile), the jet the tables were flown against. */
-  targetType?: AircraftId;
+  targetType?: FighterId;
   /** Shooter radar/platform for the lab; default first carrier used by the range tables. */
-  shooterType?: AircraftId;
+  shooterType?: FighterId;
   /** false: fly this shot without the loft (what-if). Default: the missile lofts if it does in DCS. */
   loft?: boolean;
   /** Default perfect support preserves kinematic comparisons; radar steps the shooter's actual radar. */
@@ -78,17 +78,17 @@ const CM_EVERY_S = 1.0;
 const CM_START_M = 15000;
 
 /**
- * The jets the launch-zone tables are flown with: the first jet (AIRCRAFT_ORDER) that carries the missile
+ * The jets the launch-zone tables are flown with: the first jet (FIGHTER_ORDER) that carries the missile
  * as the shooter, and a typical opponent as the target (F-15C for Russian / Chinese missiles, Su-27 for the rest).
  */
-export function platformsFor(missile: MissileId): { shooter: AircraftId; target: AircraftId } {
-  const shooter = AIRCRAFT_ORDER.find(id => AIRCRAFT[id].missiles.includes(missile)) ?? 'f15c';
+export function platformsFor(missile: MissileId): { shooter: FighterId; target: FighterId } {
+  const shooter = FIGHTER_ORDER.find(id => AIRCRAFT[id].missiles.includes(missile)) ?? 'f15c';
   const east = AIRCRAFT[shooter].nation === 'ru' || AIRCRAFT[shooter].nation === 'cn';
   return { shooter, target: east ? 'f15c' : 'su27' };
 }
 
 /** The target jet the DLZ tables (and simulateShot by default) assume for this missile. */
-export function dlzTargetType(missile: MissileId): AircraftId {
+export function dlzTargetType(missile: MissileId): FighterId {
   return platformsFor(missile).target;
 }
 

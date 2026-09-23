@@ -94,6 +94,12 @@ kbd {
 @keyframes page-loading-in { from { opacity: 0; } to { opacity: 1; } }
 .page-error p { margin: 0 0 var(--gap-3); color: var(--warning); }
 .page-error__actions { display: flex; flex-wrap: wrap; gap: var(--gap-2); }
+/* Route role gate (src/app/roleGate.ts): the selected jet does not fit this page. */
+.role-gate { display: flex; justify-content: center; padding: var(--gap-6) var(--gap-4); }
+.role-gate > .ui-console { max-width: 560px; width: 100%; }
+.role-gate p { font-family: var(--font-body); margin: 0 0 var(--gap-3); }
+.role-gate__lead { font-weight: 600; }
+.role-gate__jets { display: flex; flex-wrap: wrap; gap: var(--gap-2); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }

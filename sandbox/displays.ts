@@ -11,7 +11,7 @@ import '../src/styles/base.css';
 import { AIRCRAFT } from '../src/data/aircraft';
 import { MISSILES } from '../src/data/missiles';
 import { RWRS } from '../src/data/rwr';
-import type { AircraftId, DisplayFormat, MissileId, RwrId } from '../src/data/types';
+import type { FighterId, DisplayFormat, MissileId, RwrId } from '../src/data/types';
 import type { EntityId, MissileGuidance, RadarPicture, RwrContact } from '../src/sim/types';
 import { DlzBar, MissileTimeline, RadarDisplay, RwrAudio, RwrDisplay } from '../src/ui/displays';
 
@@ -51,7 +51,7 @@ function relAt(tg: Tgt, t: number): Rel {
 
 interface Shot { id: string; target: string; t0: number; tta0: number | null; tti0: number; missile: MissileId }
 interface Script {
-  type: AircraftId;
+  type: FighterId;
   format: DisplayFormat;
   title: string;
   rangeScale: number;

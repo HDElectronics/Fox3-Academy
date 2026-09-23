@@ -3,7 +3,7 @@ import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import '../src/styles/components.css';
 import { AppStore } from '../src/app/store';
-import type { AircraftId } from '../src/data/types';
+import type { FighterId } from '../src/data/types';
 
 const q = new URLSearchParams(location.search);
 if (q.get('reduced') === '1') {
@@ -20,7 +20,7 @@ const raf = window.requestAnimationFrame.bind(window);
 window.requestAnimationFrame = (cb: FrameRequestCallback) => { rafs++; return raf(cb); };
 
 const app = new AppStore();
-const ac = q.get('ac') as AircraftId | null;
+const ac = q.get('ac') as FighterId | null;
 if (ac) app.setAircraft(ac);
 document.documentElement.dataset.cockpit = app.spec.cockpit;
 const outlet = document.getElementById('outlet') as HTMLElement;

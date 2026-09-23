@@ -3,14 +3,14 @@
  * Learn: the RWR big in the centre with a numbered anatomy guide, and a sandbox plan with draggable
  * threats. Quiz: generated pictures on the RWR alone, answered by tap, clock or choice, then the truth.
  *
- * URL params: ?mode=learn|quiz, ?ac=<AircraftId> (sets the jet once, then drops the param),
+ * URL params: ?mode=learn|quiz, ?ac=<FighterId> (sets the jet once, then drops the param),
  * learn: ?shot=demo|lock|sarh|fox3|busy|clear|part-<id>, ?tab=parts|cues|misreads;
  * quiz: ?diff=easy|medium|hard, ?timer=1, ?kind=<QuestionKind>, ?seed=<n>, ?shot=answer|wrong.
  */
 import './style.css';
 import type { Page, PageFactory } from '../../app/page';
 import { AIRCRAFT } from '../../data/aircraft';
-import type { AircraftId } from '../../data/types';
+import type { FighterId } from '../../data/types';
 import { RWRS } from '../../data/rwr';
 import { h, cleanup, pageHeader, segmented, toggle } from '../../ui';
 import { RwrAudio } from '../../ui/displays';
@@ -36,7 +36,7 @@ const factory: PageFactory = (): Page => {
         const qs = rest.toString();
         history.replaceState(history.state, '', `#/rwr${qs ? '?' + qs : ''}`);
         if (acParam in AIRCRAFT && acParam !== ctx.app.aircraft) {
-          ctx.app.setAircraft(acParam as AircraftId);   // the router remounts this page for the new jet
+          ctx.app.setAircraft(acParam as FighterId);   // the router remounts this page for the new jet
           return;
         }
       }

@@ -3,8 +3,8 @@
  * presets, key extraction from the jet's binds. Everything here is testable in node.
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId } from '../../data/types';
-import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, PROCEDURES } from '../../data';
+import type { FighterId, MissileId } from '../../data/types';
+import { AIRCRAFT, FIGHTER_ORDER, MISSILES, PROCEDURES } from '../../data';
 import type { Dlz, PhoenixLaunchMode } from '../../sim/types';
 import { dlzFor, dlzTargetType, simulateShot, type ShotResult, type ShotSetup, type TargetManeuver } from '../../sim/dlz';
 import { sigma, speedFromMach } from '../../sim/atmosphere';
@@ -34,7 +34,7 @@ export interface LabSetup {
   range: number;
   /** What-if: switch the missile's automatic loft off (lab only; DCS lofts by itself). */
   loftOff?: boolean;
-  shooterType?: AircraftId;
+  shooterType?: FighterId;
   support?: 'perfect' | 'radar';
   phoenixLaunchMode?: PhoenixLaunchMode;
 }
@@ -50,21 +50,21 @@ export const LIMITS = {
 // ------------------------------------------------------------------------------------------ jets & missiles
 
 /** The jet that plays the shooter in 3D: yours if it carries the missile, else the first carrier. */
-export function shooterTypeFor(ac: AircraftId, missile: MissileId): AircraftId {
+export function shooterTypeFor(ac: FighterId, missile: MissileId): FighterId {
   if (AIRCRAFT[ac].missiles.includes(missile)) return ac;
-  return AIRCRAFT_ORDER.find(id => AIRCRAFT[id].missiles.includes(missile)) ?? ac;
+  return FIGHTER_ORDER.find(id => AIRCRAFT[id].missiles.includes(missile)) ?? ac;
 }
 
 /**
  * The target jet simulateShot flies (its turn and run performance): the sim's own rule for the jet the
  * launch-zone tables were flown against (an eastern missile shoots at an F-15C, a western one at an Su-27).
  */
-export function targetTypeFor(missile: MissileId): AircraftId {
+export function targetTypeFor(missile: MissileId): FighterId {
   return dlzTargetType(missile);
 }
 
 /** Your jet's missiles first, then every other missile for comparison. */
-export function missileChoices(ac: AircraftId): { own: MissileId[]; other: MissileId[] } {
+export function missileChoices(ac: FighterId): { own: MissileId[]; other: MissileId[] } {
   const own = [...AIRCRAFT[ac].missiles];
   const all = Object.keys(MISSILES) as MissileId[];
   const other = all.filter(m => !own.includes(m)).sort((a, b) => MISSILES[a].fox - MISSILES[b].fox || MISSILES[b].ref.highHeadOnKm - MISSILES[a].ref.highHeadOnKm);
@@ -73,7 +73,7 @@ export function missileChoices(ac: AircraftId): { own: MissileId[]; other: Missi
 }
 
 /** The jet's main BVR missile: the longest-reaching radar missile of its default loadout. */
-export function defaultMissile(ac: AircraftId): MissileId {
+export function defaultMissile(ac: FighterId): MissileId {
   const spec = AIRCRAFT[ac];
   const radar = spec.loadout.map(l => l.missile).filter(m => MISSILES[m].seeker !== 'ir');
   const pool = radar.length ? radar : spec.missiles;
@@ -81,9 +81,9 @@ export function defaultMissile(ac: AircraftId): MissileId {
 }
 
 /** The missile's guidance rule without clauses that name another jet (the AIM-7M's F-15C-only FLOOD note on a Hornet). */
-export function guidanceRuleFor(missile: MissileId, ac: AircraftId): string {
+export function guidanceRuleFor(missile: MissileId, ac: FighterId): string {
   const rule = MISSILES[missile].guidanceRule;
-  const others = AIRCRAFT_ORDER.filter(id => id !== ac).map(id => AIRCRAFT[id].short);
+  const others = FIGHTER_ORDER.filter(id => id !== ac).map(id => AIRCRAFT[id].short);
   const parts = rule.split(/;\s*/).filter(p => !others.some(n => p.includes(n)));
   const out = (parts.length ? parts : [rule]).join('; ').trim();
   return /[.!?]$/.test(out) ? out : out + '.';
@@ -178,7 +178,7 @@ export interface CueNames {
 }
 
 /** The jet's own words for the launch-zone marks (research: bvr-mechanics, f15c-fc3, ru-fc3, hornet-viper, tomcat-thunder-mirage). */
-export function cueNames(ac: AircraftId, missile: MissileId): CueNames {
+export function cueNames(ac: FighterId, missile: MissileId): CueNames {
   const spec = AIRCRAFT[ac];
   const base = { prFraction: null, cueInsideRne: false, cueSimplified: false };
   switch (ac) {
@@ -256,13 +256,13 @@ function bindableKey(keys: string | null): string | null {
 }
 
 /** The jet's missile launch key (keyboard default), or null when research has none. */
-export function launchKey(ac: AircraftId): string | null {
+export function launchKey(ac: FighterId): string | null {
   const b = PROCEDURES[ac].binds.find(x => /^launch/i.test(x.action));
   return b ? bindableKey(b.keyboard) : null;
 }
 
 /** The jet's weapon-step key (FC3 "Weapon Change", Viper missile step), or null. */
-export function weaponStepKey(ac: AircraftId): string | null {
+export function weaponStepKey(ac: FighterId): string | null {
   const b = PROCEDURES[ac].binds.find(x => /weapon cycle|missile step/i.test(x.action));
   return b ? bindableKey(b.keyboard) : null;
 }
@@ -298,12 +298,12 @@ export function roundRange(m: number, u: Units): number {
 }
 
 /** A missile of this jet that lofts in DCS, or null. */
-export function loftingMissileOf(ac: AircraftId): MissileId | null {
+export function loftingMissileOf(ac: FighterId): MissileId | null {
   return AIRCRAFT[ac].missiles.find(m => MISSILES[m].lofts) ?? null;
 }
 
 /** Build a preset's shots from the current setup (missile, and for some presets the shooter state). */
-export function buildPreset(id: PresetId, base: LabSetup, ac: AircraftId, u: Units): Preset {
+export function buildPreset(id: PresetId, base: LabSetup, ac: FighterId, u: Units): Preset {
   const std: LabSetup = {
     ...base, loftOff: false, maneuver: 'none', reactAfter: base.reactAfter,
   };
@@ -367,7 +367,7 @@ export function buildPreset(id: PresetId, base: LabSetup, ac: AircraftId, u: Uni
 }
 
 /** Default setup for a jet: its main missile, cruise-ish altitude, co-altitude hot target at 80 % Rmax. */
-export function defaultSetup(ac: AircraftId, u: Units, missile = defaultMissile(ac)): LabSetup {
+export function defaultSetup(ac: FighterId, u: Units, missile = defaultMissile(ac)): LabSetup {
   const alt = u === 'metric' ? 9000 : altFromUser(30, u);
   const s: LabSetup = {
     missile, shooterType: shooterTypeFor(ac, missile), shooterAlt: alt, shooterMach: 0.9, targetAlt: alt, targetMach: 0.9, aspect: 'hot',
