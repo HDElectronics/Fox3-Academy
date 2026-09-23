@@ -1,0 +1,69 @@
+/* [OWNER: page-flight-ops] Pattern and landing page. Tokens only. */
+.fo-page { display: flex; flex-direction: column; min-width: 0; }
+.fo-page [hidden] { display: none !important; }
+.fo-lab { --lab-console-w: clamp(320px, 28vw, 400px); }
+.fo-viewport { background: var(--sky-top); }
+.fo-canvas { display: block; width: 100%; height: 100%; }
+.fo-no3d {
+  position: absolute; inset: auto 16px 16px 16px; margin: 0; padding: 10px 12px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s);
+}
+.fo-pill {
+  padding: 4px 9px; border-radius: var(--r-1); background: var(--screen); color: var(--sym);
+  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* ---- strip ---- */
+.ui-lab__strip > .fo-cfg { flex: 1 1 200px; min-width: 150px; max-width: 320px; overflow-x: hidden; }
+.fo-lamps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr)); gap: 5px; min-width: 0; }
+.fo-lamps > * { min-width: 0; }
+.fo-cfg .ui-readouts { min-width: 0; }
+.fo-cfg .ui-readout { padding: 2px 0; gap: 6px; flex-wrap: wrap; }
+.fo-cfg .ui-readout__label { flex: 0 1 auto; min-width: 0; letter-spacing: 0.04em; }
+.fo-cfg .ui-readout__value { margin-left: auto; font-size: var(--fs-xs); }
+
+/* ---- console ---- */
+.fo-numbers { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); }
+.fo-numbers dt { color: var(--s-label); text-transform: uppercase; letter-spacing: 0.05em; }
+.fo-numbers dd { margin: 0; color: var(--s-ink); }
+.fo-nv {
+  display: inline-block; margin-left: 6px; padding: 0 4px; border: 1px dashed var(--caution); border-radius: var(--r-1);
+  color: var(--s-ink); font-size: 0.66rem; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+}
+.fo-keys { display: flex; flex-direction: column; gap: 4px; }
+.fo-notes ul { margin: 8px 0 0; padding-left: 18px; font-family: var(--font-body); font-size: var(--fs-s); }
+.fo-notes li + li { margin-top: 4px; }
+
+.fo-debrief { display: flex; flex-direction: column; gap: 10px; }
+.fo-score { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-family: var(--font-mono); }
+.fo-score__n { font-size: 2.2rem; line-height: 1; color: var(--s-ink); }
+.fo-score__of { color: var(--s-label); }
+.fo-score__verdict { flex-basis: 100%; margin: 2px 0 0; font-family: var(--font-body); font-size: var(--fs-s); }
+.fo-gates { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fo-gates li { display: grid; grid-template-columns: 44px 1fr; gap: 0 8px; font-family: var(--font-mono); font-size: var(--fs-xs); }
+.fo-gates__mark { grid-row: span 2; align-self: start; padding: 1px 0; text-align: center; border-radius: var(--r-1); background: var(--screen); }
+.fo-gates li.is-ok .fo-gates__mark { color: var(--ok); }
+.fo-gates li.is-miss .fo-gates__mark { color: var(--warning); }
+.fo-gates__label { text-transform: uppercase; letter-spacing: 0.05em; }
+.fo-gates__notes { color: var(--s-label); font-family: var(--font-body); font-size: var(--fs-xs); }
+.fo-debrief__foot { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); }
+
+/* ---- other jets ---- */
+.fo-unsupported { display: flex; justify-content: center; padding: 32px 16px; }
+.fo-unsupported > .ui-console { max-width: 560px; width: 100%; }
+.fo-unsupported__lead { font-weight: 600; }
+.fo-unsupported p { font-family: var(--font-body); }
+.fo-unsupported__jets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* ---- phones ---- */
+@media (max-width: 900px) {
+  .fo-lab .ui-lab__view { aspect-ratio: 16 / 10; max-height: 44vh; min-height: 200px; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-hud { flex: 1 1 100%; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-idx { flex: 0 1 110px; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-trace { flex: 1 1 180px; }
+  .ui-lab__strip > .fo-cfg { max-width: none; flex-basis: 100%; }
+}
+
+@media (max-width: 600px) {
+  .fo-lab .ui-lab__hud--tl { display: none; }
+}

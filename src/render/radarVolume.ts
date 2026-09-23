@@ -13,7 +13,7 @@ import type { Units } from '../app/format';
 import { M_PER_FT, M_PER_NM } from '../sim/math';
 import type { Stage } from './stage';
 import { LineBatch } from './lines';
-import { Note } from './tags';
+import { LabelPriority, Note, type LabelHost } from './tags';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 import { headingQuaternion, UNIT_PER_M, type XYZ } from './units';
 
@@ -158,6 +158,8 @@ const _dir = (az: number, el: number, r: number, out: Vector3) =>
 const _a = new Vector3();
 const _b = new Vector3();
 const _w = new Vector3();
+/** A coverage note belongs to its frame: past this many CSS px it would read as another object's label. */
+const COVERAGE_MAX_MOVE = 80;
 
 export class RadarVolume {
   /** Root object (in the scene); follows the aircraft, yaw only. */
@@ -169,6 +171,8 @@ export class RadarVolume {
   private beam: Mesh<ConeGeometry, ShaderMaterial>;
   private lines: LineBatch;
   private notes: Note[] = [];
+  private labelHost: LabelHost | null = null;
+  private noteOffs: (() => void)[] = [];
   /** Geometry key (azLo, azHi, elLo, elHi, R, stt); NaN forces a rebuild. No per-frame strings. */
   private key = [NaN, NaN, NaN, NaN, NaN, NaN];
   private q = new Quaternion();
@@ -225,6 +229,27 @@ export class RadarVolume {
     this.key[0] = NaN;
   }
   set visible(v: boolean) { this.object.visible = v; for (const n of this.notes) n.visible = v; }
+
+  /**
+   * Join the coverage notes to a view's shared label layout (WorldView does this for its own volume).
+   * They take the lowest priority, so aircraft, missile and lesson tags keep their spot; a crowded
+   * coverage note moves a short way or hides until space is free. null leaves the layout.
+   */
+  setLabelHost(host: LabelHost | null): void {
+    if (host === this.labelHost) return;
+    this.releaseNotes();
+    this.labelHost = host;
+    for (const n of this.notes) this.joinLayout(n);
+  }
+
+  private joinLayout(note: Note): void {
+    if (this.labelHost) this.noteOffs.push(this.labelHost.registerLabel(note, { priority: LabelPriority.coverage, maxMove: COVERAGE_MAX_MOVE }));
+  }
+
+  private releaseNotes(): void {
+    for (const off of this.noteOffs) off();
+    this.noteOffs = [];
+  }
   get visible(): boolean { return this.object.visible; }
 
   /** Drawn range in metres for a state. */
@@ -305,7 +330,11 @@ export class RadarVolume {
 
     // Altitude coverage frames at horizontal ranges.
     const ranges = stt ? [] : this.opts.coverageAt.map(r => (r === 'cursor' ? s.cursor.range : r)).filter(r => r > 0 && r <= Rm * 1.05);
-    while (this.notes.length < ranges.length) this.notes.push(new Note(this.stage.labels, 'r3-center r3-above', this.stage.theme.symHi));
+    while (this.notes.length < ranges.length) {
+      const note = new Note(this.stage.labels, 'r3-center r3-above', this.stage.theme.symHi);
+      this.notes.push(note);
+      this.joinLayout(note);
+    }
     this.notes.forEach((nt, i) => { nt.visible = this.opts.labels && i < ranges.length; });
     ranges.forEach((rm, i) => {
       const rh = rm * UNIT_PER_M;
@@ -393,6 +422,8 @@ export class RadarVolume {
     this.faces.geometry.dispose(); this.faces.material.dispose();
     this.beam.geometry.dispose(); this.beam.material.dispose();
     this.lines.dispose();
+    this.releaseNotes();
+    this.labelHost = null;
     for (const n of this.notes) n.dispose();
     this.notes = [];
     this.stage.untrack(this);

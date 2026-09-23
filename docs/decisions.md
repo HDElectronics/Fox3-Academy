@@ -5,8 +5,9 @@ maintainer might want to undo.
 
 ## 1. Portable single-file build
 The current app ships as one self-contained HTML file (`vite-plugin-singlefile`, three.js inlined).
-This keeps deployment simple and removes runtime dependencies except web fonts. A future normal static-host
-build can split modules and load licensed aircraft assets without removing the portable option.
+This keeps deployment simple and removes runtime dependencies except web fonts. A second, code-split build
+(`npm run build:web`) serves normal static hosts with a smaller first load and can later carry licensed
+aircraft assets without removing the portable option.
 
 ## 2. TypeScript strict, no UI framework
 Typed DOM factories (`h()` plus kit components) instead of React or similar. The app is canvas and WebGL heavy;

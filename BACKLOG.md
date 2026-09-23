@@ -28,11 +28,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B15. Hyphenated jet names wrap** ("Su-" / "27") in narrow prose. A no-break hyphen falls back to another font;
-  a `white-space: nowrap` span around jet names in copy would work.
-
-- **B21. Radar-volume annotation overlap.** Coverage annotations can overlap nearby aircraft tags in
-  crowded Radar Lab views. Coordinate them with shared label placement and check desktop/phone layouts.
+No open items.
 
 ## P3 — Quality and infrastructure
 
@@ -40,8 +36,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
   M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
   routes, and frame rate on low-end GPUs. Hold cancellation and thresholds have automated regression tests.
-- **B19. Bundle size.** The single file is 1.8 MB (545 KB gzipped). For a normal static host, a second Vite
-  config with code splitting per page would cut first load.
 
 ## P4 — Ideas
 

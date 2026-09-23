@@ -4,6 +4,8 @@
  * Attributes: `class`, `style` (string or object), `on*` functions become listeners, booleans toggle
  * attributes, `dataset` object, everything else setAttribute. Children: strings, nodes, arrays, null.
  */
+import { canWrapJetNames, jetNameParts, proseNodes } from './jetName';
+
 export type Child = Node | string | number | null | undefined | false | Child[];
 export type Attrs = Record<string, unknown>;
 
@@ -26,17 +28,22 @@ export function h(tag: string, attrs?: Attrs | null, ...children: Child[]): HTML
   return el;
 }
 
+/** Append children. Strings become text; jet names in them go in nowrap spans (see jetName.ts). */
 export function append(el: Node, children: Child[]): void {
   for (const c of children) {
     if (c === null || c === undefined || c === false) continue;
     if (Array.isArray(c)) append(el, c);
-    else el.appendChild(typeof c === 'object' ? c : document.createTextNode(String(c)));
+    else if (typeof c === 'object') el.appendChild(c);
+    else if (typeof c === 'string' && canWrapJetNames(el)) for (const n of proseNodes(c)) el.appendChild(n);
+    else el.appendChild(document.createTextNode(String(c)));
   }
 }
 
-/** Set textContent only when it changed (cheap to call every frame). */
+/** Set textContent only when it changed (cheap to call every frame). Jet names stay unbroken. */
 export function setText(el: Element, s: string): void {
-  if (el.textContent !== s) el.textContent = s;
+  if (el.textContent === s) return;
+  if (jetNameParts(s) && canWrapJetNames(el)) el.replaceChildren(...proseNodes(s));
+  else el.textContent = s;
 }
 
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T | null;

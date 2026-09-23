@@ -22,7 +22,7 @@ import { Shape, SymbolLayer } from './symbols';
 import { createRibbonMaterial, RibbonGeometry, Trail } from './ribbon';
 import { createMissileMesh, f14SweepForMach, JetMesh, NOMINAL_JET_M, NOMINAL_MISSILE_M, smokeDensity } from './jets';
 import { sideColor, type Palette } from './palette';
-import { Tag, LabelRegistry, layoutLabels, type DeclutterLabel, type LabelRegistration, type LabelCandidate } from './tags';
+import { Tag, LabelPriority, LabelRegistry, layoutLabels, type DeclutterLabel, type LabelRegistration, type LabelCandidate } from './tags';
 import { boostedScale, orientationQuaternion, UNIT_PER_M } from './units';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 
@@ -264,6 +264,8 @@ export abstract class TacticalScene implements EntitySource {
   private offs: (() => void)[] = [];
   private disposed = false;
   private pageLabels = new LabelRegistry();
+  /** Last visible layout offset per label, fed back so placements stay put while still free. */
+  private lastPlacement = new WeakMap<DeclutterLabel, { x: number; y: number }>();
 
   constructor(stage: Stage, opts: TacticalOptions = {}) {
     this.stage = stage;
@@ -786,7 +788,7 @@ export abstract class TacticalScene implements EntitySource {
     const labels: { label: DeclutterLabel; x: number; y: number }[] = [];
     const boxes: LabelCandidate[] = [];
     const hidden: DeclutterLabel[] = [];
-    const add = (label: DeclutterLabel, priority: number, ox = 0, oy = 0) => {
+    const add = (label: DeclutterLabel, priority: number, ox = 0, oy = 0, maxMove?: number) => {
       if (!label.visible || !label.obj.parent) { hidden.push(label); return; }
       label.obj.updateWorldMatrix(true, false);
       _v.setFromMatrixPosition(label.obj.matrixWorld).project(cam);
@@ -794,18 +796,21 @@ export abstract class TacticalScene implements EntitySource {
       const b = label.bounds();
       labels.push({ label, x: ox, y: oy });
       boxes.push({ ...b, left: (_v.x * 0.5 + 0.5) * W + b.left + ox,
-        top: (-_v.y * 0.5 + 0.5) * H + b.top + oy, priority });
+        top: (-_v.y * 0.5 + 0.5) * H + b.top + oy, priority, maxMove, prev: this.lastPlacement.get(label) });
     };
-    for (const j of this.jets.values()) add(j.tag, j.id === this.selected ? 0 : 1, Math.max(0, Math.min(40, j.px * 0.42 - 8)));
-    for (const m of this.missiles.values()) add(m.tag, 2);
-    for (const [label, options] of this.pageLabels.entries()) add(label, options.priority ?? 3, options.offset?.x ?? 0, options.offset?.y ?? 0);
+    for (const j of this.jets.values()) add(j.tag, j.id === this.selected ? LabelPriority.selected : LabelPriority.aircraft, Math.max(0, Math.min(40, j.px * 0.42 - 8)));
+    for (const m of this.missiles.values()) add(m.tag, LabelPriority.missile);
+    for (const [label, options] of this.pageLabels.entries()) {
+      add(label, options.priority ?? LabelPriority.annotation, options.offset?.x ?? 0, options.offset?.y ?? 0, options.maxMove);
+    }
     const positions = layoutLabels(boxes, W, H);
     // Finish every DOM measurement before writing placement/visibility.
-    for (const label of hidden) label.setLayoutVisible(false);
+    for (const label of hidden) { label.setLayoutVisible(false); this.lastPlacement.delete(label); }
     for (let i = 0; i < labels.length; i++) {
       const { label, x, y } = labels[i], p = positions[i];
       label.place(x + p.x, y + p.y);
       label.setLayoutVisible(p.visible);
+      if (p.visible) this.lastPlacement.set(label, { x: p.x, y: p.y }); else this.lastPlacement.delete(label);
     }
   }
 

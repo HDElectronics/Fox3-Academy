@@ -6,7 +6,8 @@
  * belly intake, Tomcat swing wings + pancake + beaver tail, JF-17 side intakes + single tail, Mirage delta.
  */
 import {
-  BufferGeometry, Color, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
+  BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
+  Vector3,
 } from 'three';
 import type { AircraftId, MissileId } from '../data/types';
 import { MISSILES } from '../data/missiles';
@@ -21,7 +22,35 @@ export interface JetModel {
   spanM: number;
   /** Swing wing (F-14): right outer panel, pivot in model metres (centred frame), reference sweep. */
   swing?: { geometry: BufferGeometry; pivot: [number, number, number]; refSweepDeg: number };
+  /** Configurable parts (gear, flaps, speedbrake) for the jets that have them (flight ops MVP). */
+  parts?: JetParts;
 }
+
+/** What drives a configurable part: gear position (leg or door), flap position or speedbrake position. */
+export type JetPartDrive = 'gearLeg' | 'gearDoor' | 'flaps' | 'brake';
+
+/**
+ * One hinged part. Geometry is in metres around its hinge; `pivot` is the hinge in the centred model
+ * frame, `axis` the hinge direction (right side), `maxRad` the signed rotation at full travel (gear
+ * legs: the retracted angle). `mirror` adds a left copy.
+ */
+export interface JetPart {
+  drive: JetPartDrive;
+  geometry: BufferGeometry;
+  pivot: [number, number, number];
+  axis: [number, number, number];
+  maxRad: number;
+  mirror: boolean;
+}
+
+export interface JetParts {
+  list: JetPart[];
+  /** Height of the model origin above the wheel contact line with the gear down (m). */
+  groundClearanceM: number;
+}
+
+/** Gear, flap and speedbrake positions, each 0..1 (0 = gear up, flaps up, speedbrake in). */
+export interface JetConfig { gear: number; flaps: number; speedbrake: number }
 
 /** Real overall lengths / spans (m) used for sizing and camera distances. */
 export const JET_DIMENSIONS: Record<AircraftId, { length: number; span: number }> = {
@@ -250,6 +279,112 @@ function m2000c(): BufferGeometry {
   return b.build(14.36);
 }
 
+// ------------------------------------------------------------------------------------------ config parts
+
+/*
+ * Gameplay-level moving parts: what the player selects (gear, flaps, speedbrake), drawn as simple
+ * low-poly plates and struts. Positions are metres from the nose, like the airframe builders.
+ */
+interface GearLeg { x: number; y: number; z: number; wheelR: number }
+interface BrakePlate { x0: number; x1: number; z0: number; z1: number; y: number; up: boolean; mirror: boolean }
+interface PartsSpec {
+  L: number;
+  /** Wheel contact line, model y (m). */
+  groundY: number;
+  nose: GearLeg;
+  main: GearLeg;
+  /** Trailing-edge flap (right side): inboard / outboard trailing-edge points, chord, mid-plane y, max deflection. */
+  flap: { xi: number; zi: number; xo: number; zo: number; chord: number; y: number; maxDeg: number };
+  /** Speedbrake plates hinged at their front edge (z0); `up` plates rise, the others drop. */
+  brake: { plates: BrakePlate[]; maxDeg: number };
+}
+
+const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
+  fa18c: {
+    L: 17.07, groundY: -2.35,
+    nose: { x: 0, y: -0.45, z: 3.4, wheelR: 0.3 },
+    main: { x: 1.55, y: -0.7, z: 9.9, wheelR: 0.4 },
+    flap: { xi: 1.95, zi: 12.58, xo: 4.4, zo: 11.95, chord: 0.8, y: 0.06, maxDeg: 40 },
+    // Dorsal speedbrake between the fins.
+    brake: { plates: [{ x0: -0.45, x1: 0.45, z0: 11.6, z1: 12.9, y: 0.63, up: true, mirror: false }], maxDeg: 60 },
+  },
+  f15c: {
+    L: 19.4, groundY: -2.5,
+    nose: { x: 0, y: -0.45, z: 4.2, wheelR: 0.33 },
+    main: { x: 1.35, y: -0.65, z: 11.0, wheelR: 0.42 },
+    flap: { xi: 1.3, zi: 15.87, xo: 3.9, zo: 15.46, chord: 0.9, y: 0.45, maxDeg: 40 },
+    // Big dorsal speedbrake behind the canopy.
+    brake: { plates: [{ x0: -0.6, x1: 0.6, z0: 7.6, z1: 10.2, y: 0.9, up: true, mirror: false }], maxDeg: 45 },
+  },
+  f16c: {
+    L: 15.06, groundY: -2.05,
+    nose: { x: 0, y: -1.0, z: 5.0, wheelR: 0.28 },
+    main: { x: 1.18, y: -0.55, z: 8.4, wheelR: 0.36 },
+    // Flaperons.
+    flap: { xi: 0.95, zi: 11.6, xo: 3.7, zo: 11.57, chord: 0.7, y: -0.02, maxDeg: 25 },
+    // Split petals either side of the nozzle.
+    brake: {
+      plates: [
+        { x0: 0.62, x1: 1.07, z0: 13.3, z1: 14.6, y: 0.12, up: true, mirror: true },
+        { x0: 0.62, x1: 1.07, z0: 13.3, z1: 14.6, y: -0.02, up: false, mirror: true },
+      ],
+      maxDeg: 60,
+    },
+  },
+};
+
+const DEG = Math.PI / 180;
+
+/** Finish a part: raw builder coordinates → geometry around the hinge, pivot in the centred frame. */
+function part(b: ModelBuilder, L: number, hinge: [number, number, number], drive: JetPartDrive, axis: [number, number, number], maxRad: number, mirror: boolean): JetPart {
+  const geometry = b.build(undefined, false);
+  geometry.translate(-hinge[0], -hinge[1], -hinge[2]);
+  geometry.computeBoundingSphere();
+  const n = Math.hypot(axis[0], axis[1], axis[2]) || 1;
+  return { drive, geometry, pivot: [hinge[0], hinge[1], hinge[2] - L / 2], axis: [axis[0] / n, axis[1] / n, axis[2] / n], maxRad, mirror };
+}
+
+function gearLeg(g: GearLeg, groundY: number, L: number, retractRad: number, mirror: boolean): JetPart {
+  const b = new ModelBuilder();
+  const len = Math.max(0.3, g.y - groundY - g.wheelR);
+  const strut = new CylinderGeometry(0.07, 0.09, len, 6);
+  strut.translate(g.x, g.y - len / 2, g.z);
+  b.add(Slot.dark, strut);
+  const wheel = new CylinderGeometry(g.wheelR, g.wheelR, g.wheelR * 0.7, 12);
+  wheel.rotateZ(Math.PI / 2);
+  wheel.translate(g.x, g.y - len, g.z);
+  b.add(Slot.dark, wheel);
+  return part(b, L, [g.x, g.y, g.z], 'gearLeg', [1, 0, 0], retractRad, mirror);
+}
+
+function gearDoor(x: number, y: number, z: number, w: number, len: number, L: number): JetPart {
+  const b = new ModelBuilder();
+  b.box(x + w / 2, y - 0.03, z, w, 0.04, len, Slot.body);
+  // Hinged on its inboard edge (along z); the outboard edge drops to hang open.
+  return part(b, L, [x, y, z], 'gearDoor', [0, 0, 1], -80 * DEG, true);
+}
+
+function buildParts(s: PartsSpec): JetParts {
+  const { L } = s;
+  const list: JetPart[] = [];
+  // Nose leg retracts forward, main legs aft; a door beside each bay.
+  list.push(gearLeg(s.nose, s.groundY, L, 90 * DEG, false));
+  list.push(gearLeg(s.main, s.groundY, L, -90 * DEG, true));
+  list.push(gearDoor(0.14, s.nose.y, s.nose.z, 0.28, 1.4, L));
+  list.push(gearDoor(s.main.x - 0.4, s.main.y, s.main.z, 0.6, 1.8, L));
+  // Trailing-edge flap: hinge along its leading edge, the trailing edge drops.
+  const f = s.flap;
+  const fb = new ModelBuilder();
+  fb.plate([[f.xi, f.zi - f.chord], [f.xo, f.zo - f.chord], [f.xo, f.zo], [f.xi, f.zi]], { t: 0.1, y: f.y, mirror: false });
+  list.push(part(fb, L, [f.xi, f.y, f.zi - f.chord], 'flaps', [f.xo - f.xi, 0, f.zo - f.zi], f.maxDeg * DEG, true));
+  for (const p of s.brake.plates) {
+    const b = new ModelBuilder();
+    b.plate([[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]], { t: 0.08, y: p.y, mirror: false });
+    list.push(part(b, L, [p.x0, p.y, p.z0], 'brake', [1, 0, 0], (p.up ? -1 : 1) * s.brake.maxDeg * DEG, p.mirror));
+  }
+  return { list, groundClearanceM: -s.groundY };
+}
+
 const cache = new Map<AircraftId, JetModel>();
 
 /** Shared model for an aircraft type (built on first use). */
@@ -268,6 +403,8 @@ export function getJetModel(id: AircraftId): JetModel {
     case 'jf17': m = { id, geometry: jf17(), lengthM: dim.length, spanM: dim.span }; break;
     case 'm2000c': m = { id, geometry: m2000c(), lengthM: dim.length, spanM: dim.span }; break;
   }
+  const spec = PART_SPECS[id];
+  if (spec) m.parts = buildParts(spec);
   cache.set(id, m);
   return m;
 }
@@ -311,6 +448,8 @@ export class JetMesh extends Group {
   readonly body: Mesh;
   private wings: [Mesh, Mesh] | null = null;
   private sweep = 20;
+  private partMeshes: { part: JetPart; mesh: Mesh; left: boolean }[] = [];
+  private cfg: JetConfig = { gear: 0, flaps: 0, speedbrake: 0 };
 
   constructor(id: AircraftId, side: VisualSide, palette: Palette) {
     super();
@@ -330,7 +469,18 @@ export class JetMesh extends Group {
       this.wings = [r, l];
       this.setSweep(20);
     }
+    for (const p of this.model.parts?.list ?? []) {
+      for (const left of p.mirror ? [false, true] : [false]) {
+        const mesh = new Mesh(p.geometry, mats);
+        mesh.name = 'part:' + p.drive;
+        mesh.position.set(left ? -p.pivot[0] : p.pivot[0], p.pivot[1], p.pivot[2]);
+        if (left) mesh.scale.x = -1;
+        this.add(mesh);
+        this.partMeshes.push({ part: p, mesh, left });
+      }
+    }
     this.name = 'jet:' + id;
+    this.applyConfig();
   }
 
   get lengthM(): number { return this.model.lengthM; }
@@ -346,6 +496,45 @@ export class JetMesh extends Group {
     this.wings[1].rotation.y = a;
   }
 
+  /** Which configurable parts this model has (setConfig is a no-op for the others). */
+  get configParts(): { gear: boolean; flaps: boolean; speedbrake: boolean } {
+    const has = (d: JetPartDrive) => this.partMeshes.some(p => p.part.drive === d);
+    return { gear: has('gearLeg'), flaps: has('flaps'), speedbrake: has('brake') };
+  }
+
+  /** Current configuration (0..1 each). Default: gear up, flaps up, speedbrake in. */
+  get config(): Readonly<JetConfig> { return this.cfg; }
+
+  /** Wheel contact line below the model origin with the gear down (m); 0 without gear parts. */
+  get groundClearanceM(): number { return this.model.parts?.groundClearanceM ?? 0; }
+
+  /**
+   * Gear, flap and speedbrake positions, 0..1 each (clamped; missing or non-finite values keep the
+   * previous one). Parts at 0 are hidden, so a clean jet is exactly the BVR model. No-op without parts.
+   */
+  setConfig(c: Partial<JetConfig>): void {
+    const clamp = (v: number | undefined, old: number) => (v === undefined || !Number.isFinite(v) ? old : Math.max(0, Math.min(1, v)));
+    this.cfg = { gear: clamp(c.gear, this.cfg.gear), flaps: clamp(c.flaps, this.cfg.flaps), speedbrake: clamp(c.speedbrake, this.cfg.speedbrake) };
+    this.applyConfig();
+  }
+
+  private applyConfig(): void {
+    const { gear, flaps, speedbrake } = this.cfg;
+    for (const { part: p, mesh, left } of this.partMeshes) {
+      let k: number, visible: boolean;
+      switch (p.drive) {
+        case 'gearLeg': k = 1 - gear; visible = gear > 0.001; break;
+        case 'gearDoor': k = Math.min(1, gear * 3); visible = gear > 0.001; break;
+        case 'flaps': k = flaps; visible = flaps > 0.001; break;
+        case 'brake': k = speedbrake; visible = speedbrake > 0.001; break;
+      }
+      mesh.visible = visible;
+      // Left copies are mirrored in x: mirror the hinge axis and reverse the angle.
+      _axis.set(left ? -p.axis[0] : p.axis[0], p.axis[1], p.axis[2]);
+      mesh.quaternion.setFromAxisAngle(_axis, (left ? -1 : 1) * k * p.maxRad);
+    }
+  }
+
   /** Swap to another side's shared materials. */
   setSide(side: VisualSide, palette: Palette): void {
     const mats = jetMaterials(palette, side);
@@ -357,6 +546,8 @@ export class JetMesh extends Group {
     this.traverse(o => { if ((o as Mesh).isMesh) (o as Mesh).material = m; });
   }
 }
+
+const _axis = new Vector3();
 
 /** F-14 wing sweep schedule (simplified CADC): 20° below M0.4 to 68° at M0.9 and above. */
 export function f14SweepForMach(mach: number): number {

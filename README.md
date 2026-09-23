@@ -50,6 +50,7 @@ npm run dev          # http://localhost:5173
 ```
 
 `npm run build` produces one self-contained `dist/index.html` you can open offline or drop on any static host.
+`npm run build:web` produces a code-split `dist-web/` folder with a faster first load for normal static hosts.
 
 ## What it is, and what it is not
 

@@ -32,10 +32,12 @@ npm run dev        # Vite dev server (the team shares one on http://localhost:51
 npm run typecheck  # tsc --noEmit (TypeScript 7, strict)
 npm test           # vitest (node env) — sim tests live next to code as *.test.ts
 npm run build      # single-file build → dist/index.html (three.js inlined)
+npm run build:web  # code-split build → dist-web/ (page chunks, three.js vendor chunk)
 ```
 
-The application runs in a normal browser on a static host. Keep the current single-file build working;
-future model assets and additional modules may use a separate split-bundle build. Store preferences through
+The application runs in a normal browser on a static host. Keep the single-file build working; the
+split-bundle build (`vite.config.ts`, mode `web`) loads each route through `ROUTES[].load` and is the place
+for future model assets and additional modules. Store preferences through
 `src/app/store.ts`. External assets require documented redistribution rights and a local fallback.
 
 ## Navigation and lab presentation

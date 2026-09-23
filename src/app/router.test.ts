@@ -9,6 +9,7 @@ vi.mock('../ui/dom', () => ({ h: (...args: unknown[]) => ({ args }) }));
 describe('router deep links and remounts', () => {
   let app: AppStore;
   let router: Router;
+  let outlet: HTMLElement;
   const mounted: PageContext[] = [];
   const unmount = vi.fn();
   beforeEach(() => {
@@ -21,7 +22,8 @@ describe('router deep links and remounts', () => {
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
     for (const route of ROUTES) vi.spyOn(route, 'load').mockResolvedValue({ default: () => ({ mount: ctx => { mounted.push(ctx); }, unmount }) });
     app = new AppStore();
-    router = new Router({ replaceChildren: vi.fn(), dataset: {} } as unknown as HTMLElement, app);
+    outlet = { replaceChildren: vi.fn(), dataset: {} } as unknown as HTMLElement;
+    router = new Router(outlet, app);
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -80,6 +82,21 @@ describe('router deep links and remounts', () => {
     release({ default: () => ({ mount: staleMount, unmount }) });
     await old;
     expect(staleMount).not.toHaveBeenCalled();
+    expect(mounted).toHaveLength(1);
+  });
+  it('shows a retryable error when a page chunk fails to load', async () => {
+    const tws = ROUTES.find(route => route.path === 'tws')!;
+    vi.mocked(tws.load).mockRejectedValueOnce(new TypeError('Failed to fetch dynamically imported module'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await router.resolve();
+    expect(mounted).toHaveLength(0);
+    type Fake = { args: [string, Record<string, unknown> | null, ...unknown[]] };
+    const shown = vi.mocked(outlet.replaceChildren).mock.calls.at(-1)?.[0] as unknown as Fake;
+    expect(shown.args[1]?.class).toBe('page-error');
+    const actions = shown.args[3] as Fake;
+    const retry = actions.args[2] as Fake;
+    expect(retry.args[2]).toBe('Retry');
+    await (retry.args[1]!.onclick as () => Promise<void>)();
     expect(mounted).toHaveLength(1);
   });
 });

@@ -28,6 +28,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run build:web
       - uses: actions/upload-artifact@v4
         with:
           name: fox3-academy-build

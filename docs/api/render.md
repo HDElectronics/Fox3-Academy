@@ -148,12 +148,15 @@ whole tag: `'caution'` amber, `'warning'` red, `'ok'`, `'hi'` designation amber,
 omitted for the side colour; e.g. what that bandit's RWR hears). `Tag.setTone(tone)` does the same
 on your own tags.
 
-`view.registerLabel(label, { priority?, offset?: { x, y } }) → unregister()` adds a page-owned
+`view.registerLabel(label, { priority?, offset?: { x, y }, maxMove? }) → unregister()` adds a page-owned
 `Tag` or `Note` to the same screen-space layout as aircraft and missile tags. Set its text,
 `visible` flag and `obj.position` normally; the position is in **render units**, like other CSS2D
-labels. Lower priority wins: selected aircraft 0, aircraft 1, missiles 2, annotations 3 by default.
-Use priority 1 for the current lesson explanation or selected replay result; secondary markers can
-use 4. `offset` is a preferred CSS-pixel offset, not a fixed position.
+labels. Lower priority wins; `LabelPriority` names the levels: `selected` 0, `aircraft` 1, `missile` 2,
+`annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
+current lesson explanation or selected replay result; secondary markers can use 4. `offset` is a
+preferred CSS-pixel offset, not a fixed position. `maxMove` caps how far (CSS px) the label may be
+nudged before it hides instead, for text that only reads next to its anchor. `WorldView`,
+`ReplayView` and any other `TacticalScene` satisfy the `LabelHost` interface (`registerLabel`).
 
 Call `unregister()` before disposing the label. It is idempotent and restores the label's original
 placement/visibility; ownership and disposal remain with the page. Entity `clear()`/world resets
@@ -163,6 +166,9 @@ Layout measures the rendered text (including centered/left/above notes), tries n
 positions and keeps them inside a 6 px viewport margin. It follows the camera each frame; text still
 refreshes at about 8 Hz. Labels can move up to 100 px in narrow views or 160 px in wider views. If no
 nearby space fits, lower-priority text is hidden for that frame and returns when space is available.
+Each label's last offset is fed back, and a spot within 8 px of it wins unless another is more than
+8 px closer to the anchor, so labels do not flip sides of a neighbour as the camera moves. The pure
+pass is `layoutLabels(candidates, width, height)` in `tags.ts` (unit-tested).
 Offscreen anchors stay offscreen. Hidden text does not hide its aircraft, trail or marker. Keep the
 full explanation/result available outside the 3D view; exceptionally long labels may not fit at all.
 Labels intentionally left unregistered (for example the radar-volume coverage overlay) remain
@@ -275,7 +281,11 @@ Options: `range: 'scale' | 'detect' | metres` (default `'scale'` = `rangeScale`;
 head-on detection range), `coverageAt: (metres | 'cursor')[]` (default `['cursor']`), `units`,
 `color` (default `--sym`), `showBeam = true`, `labels = true`, `opacity = 0.035`.
 Methods: `update(state, posM, heading)`, `setSpec(spec)`, `setOptions(o)`, `visible`,
-`rangeFor(state)`, `dispose()`. `object` is the root Group.
+`rangeFor(state)`, `setLabelHost(host | null)`, `dispose()`. `object` is the root Group.
+`setLabelHost(view)` joins the coverage labels to that view's shared label layout at
+`LabelPriority.coverage` with an 80 px move limit: aircraft, missile and lesson tags keep their spot,
+and a crowded coverage label moves a short way or hides until space is free. `WorldView` does this
+for its own volume; a standalone volume has no layout until you call it.
 
 Pure helpers (tested): `scanElevationLimits(elCenter, bars, barSpacing, beamWidth) → { hi, lo }`,
 `altitudeCoverage(ownAltM, rangeM, elHi, elLo) → { top, bottom }` (flat earth, range × tan),
@@ -339,10 +349,60 @@ offset from a centre inside the view).
   anhedral stabs), F-14B (swing wings, glove, beaver tail, wide nacelles), JF-17 (side intakes, single
   tall fin), M-2000C (tailless delta, shock cones). Materials per side: body (side colour lightened),
   fins (side colour), canopy tint, dark nozzles/intakes, red/green nav lights.
-- `getJetModel(id)`, `JET_DIMENSIONS`, `jetMaterials(palette, side)`, `f14SweepForMach(mach)`.
+- `jet.setConfig({ gear?, flaps?, speedbrake? })`: configurable parts, each position 0..1 (clamped;
+  missing or non-finite values keep the previous one). F/A-18C, F-16C and F-15C have landing gear
+  (nose + two mains, strut and wheel, a door beside each bay; the nose leg swings forward, the mains
+  aft), trailing-edge flaps (F-16C: flaperons) that drop up to 40° (flaperons 25°), and a speedbrake
+  (Hornet dorsal between the fins, Eagle dorsal behind the canopy, Viper split petals beside the
+  nozzle). Simple low-poly plates in the shared materials, geometry cached per type like the swing
+  wing. Default config is gear up, flaps up, speedbrake in, and parts at 0 are hidden, so BVR pages
+  see the unchanged clean jet. Other jets: `setConfig` is a no-op. Read back with `jet.config`,
+  `jet.configParts` (which parts exist) and `jet.groundClearanceM` (model origin above the wheel
+  contact line with the gear down, metres; 0 without gear).
+- `getJetModel(id)` (`model.parts` holds the part list), `JET_DIMENSIONS`, `jetMaterials(palette, side)`,
+  `f14SweepForMach(mach)`.
 - `createMissileMesh(missileId, palette)`: sized from `MISSILES[id].lengthM/diameterM` (AIM-54 is
   fat, R-27 has butterfly wings, R-77 short strakes + grid-like tail, IR missiles canards).
   `getMissileGeometry(id)`, `smokeDensity(id)`.
+
+## Flight ops (`flightOps/`)
+
+The airfield pattern and approach view (issue #19), in the runway frame of `src/sim/flightOps/types.ts`:
+metres, origin at the landing threshold centreline, x east, y up, z south, landing toward −z.
+
+- **Render scale.** The global 1 unit = 1 km stays (the Environment is built for it). Runway and
+  overlay live in `scene.root`, a Group scaled by 0.001, so they are authored in metres; add
+  page-specific objects there in metres too. The jet is true size in the chase and cockpit views and
+  gets a screen-size floor (`boostPx`, default 56 px) in the side and tower views. The scene lowers
+  the Stage camera near plane to 0.5 m (cockpit view) and restores it on dispose.
+- `new FlightOpsScene(stage, aircraft: FlightOpsJetId, { camera?, side?, boostPx?, glideDeg?,
+  aimPointM?, lengthM?, vTolDeg?, hTolDeg?, minHalfM? })`: switches the Environment to land without
+  the grid, adds the runway, the approach overlay and a `JetMesh`.
+  - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
+    the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
+    speedbrakePos)`; swaps the jet if `state.aircraft` changed.
+  - `setCamera('chase' | 'side' | 'tower' | 'cockpit')`: chase = low behind the jet on its heading;
+    side = abeam from the east looking west, framing the jet and the aim point so the glide path reads
+    as a line (approach runs left to right); tower = fixed beside the runway past the aim point,
+    looking at the jet; cockpit = eye in the jet, jet hidden. Camera runs at `FramePriority.camera`.
+  - `setApproach({ glideDeg?, aimPointM?, ... })` (moves the painted aim blocks too),
+    `setAircraft(id)`, `dispose()` (runway, overlay, frame subscription; the Stage stays yours).
+  - `scene.overlay`, `scene.runway`, `scene.jet`, `scene.root` are public.
+- `ApproachOverlay(stage.shared, palette, opts)`: translucent glide corridor from the aim point back
+  `lengthM` (default 4 nm) with rails and 1 nm frames, the dashed glide-path line, the extended
+  centreline, the aim-point ring. Corridor half-angles `vTolDeg` / `hTolDeg` (defaults 0.7° / 1.5°)
+  are display choices, not DCS numbers: pass the lesson's scoring tolerances.
+  `setGates([{ id, pos, radiusM, state: 'pending' | 'ok' | 'miss', headingRad? }])` draws a ring
+  across the flight direction plus a drop line (sym / ok / warning tokens).
+  `pushTrail(pos, level: 0 | 1 | 2)` appends to the flown trail (ok / caution / warning; points closer
+  than `minTrailSpacingM`, default 2 m, are skipped), `clearTrail()`, `setGeometry(opts)`,
+  `setCorridorVisible(on)`. `glidePoint(d, glideDeg, aimPointM)` gives the glide-path point `d` m
+  before the aim point.
+- `RunwayMesh(palette, { lengthM?, widthM?, aimPointM? })`: asphalt (default `RUNWAY` 2500 x 45 m),
+  an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
+  dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
+  `runwayMarkings(L, W, aim)` returns the paint rectangles.
+- Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=fa18c|f16c|f15c&d=1400&gear=1&flaps=1&brake=0&fly=1`.
 
 ## Low-level pieces (for page-specific symbology)
 

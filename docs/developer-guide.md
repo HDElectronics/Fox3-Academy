@@ -8,7 +8,7 @@ guide explains the same system at a slower pace.
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm run check      # typecheck + tests + build
+npm run check      # typecheck + tests + both production builds
 ```
 
 Requirements: Node 20+ (built with Node 24), a browser with WebGL. For screenshots, Google Chrome at the default
@@ -134,9 +134,17 @@ the page (`src/pages/<name>/style.css`).
 
 ## Publishing
 
-Run `npm run check`, then serve `dist/` on a static host. The single-file build embeds application code and
-styles; web fonts are the only current external runtime dependency. Use `npm run preview` to inspect a
-production build locally. Deployment accounts and personal URLs are not part of the source repository.
+Run `npm run check`, then pick one of the two builds. Web fonts are the only external runtime dependency of
+either.
+
+- `npm run build` writes `dist/index.html`: one self-contained file with all code, styles and three.js
+  inlined. It opens offline from disk and suits hosts that take a single file. Inspect it with `npm run preview`.
+- `npm run build:web` writes `dist-web/`: `index.html` plus hashed chunks in `assets/`. The shell loads first,
+  each route in `src/app/routes.ts` is its own chunk, and three.js is a shared vendor chunk, so the first
+  visit downloads only the shell and the opened page. Serve the whole folder from a normal static host;
+  hashed chunk names can be cached long-term, `index.html` should not be. Inspect it with
+  `npm run preview:web`. If a chunk fails to load (offline, or a redeploy removed an old chunk), the page
+  shows Retry and Reload app actions. Deployment accounts and personal URLs are not part of the source repository.
 
 ## Extending
 

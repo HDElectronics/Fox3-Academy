@@ -20,15 +20,19 @@ export {
   JetMesh, getJetModel, jetMaterials, JET_DIMENSIONS, NOMINAL_JET_M, NOMINAL_MISSILE_M, createMissileMesh, getMissileGeometry,
   missileMaterials, smokeDensity, f14SweepForMach, solidMaterial,
 } from './jets';
-export type { JetModel } from './jets';
+export type { JetModel, JetConfig, JetPart, JetParts, JetPartDrive } from './jets';
+export { FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint } from './flightOps';
+export type {
+  FlightOpsCamera, FlightOpsSceneOptions, RunwayOptions, ApproachGate, ApproachGeometryOptions, ErrLevel, GateState,
+} from './flightOps';
 export { LineBatch } from './lines';
 export type { LineStyle, LineBatchOptions } from './lines';
 export { SymbolLayer, Shape } from './symbols';
 export type { ShapeId, SymbolLayerOptions } from './symbols';
 export { RibbonGeometry, Trail, createRibbonMaterial } from './ribbon';
 export type { RibbonStyle } from './ribbon';
-export { Tag, Note } from './tags';
-export type { DeclutterLabel, LabelBounds, LabelRegistration } from './tags';
+export { Tag, Note, LabelPriority } from './tags';
+export type { DeclutterLabel, LabelBounds, LabelHost, LabelRegistration } from './tags';
 export { readPalette, paletteFromTheme, sideColor } from './palette';
 export type { Palette, VisualSide } from './palette';
 export { ORDER, VERT_PRELUDE, VERT_END, FRAG_PRELUDE, FRAG_END, createSharedUniforms } from './shared';

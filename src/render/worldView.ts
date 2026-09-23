@@ -75,7 +75,10 @@ export class WorldView extends TacticalScene {
     }
     const ac = this.world.aircraft.get(id);
     const spec = AIRCRAFT[ac?.type ?? 'su27'].radar;
-    if (!this.volume) this.volume = new RadarVolume(this.stage, spec, this.volumeOpts);
+    if (!this.volume) {
+      this.volume = new RadarVolume(this.stage, spec, this.volumeOpts);
+      this.volume.setLabelHost(this);
+    }
     else { this.volume.setSpec(spec); if (opts) this.volume.setOptions(opts); }
     this.layers.radarVolume = true;
     this.stage.requestRender();
