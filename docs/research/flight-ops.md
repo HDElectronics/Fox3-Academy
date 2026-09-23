@@ -20,6 +20,9 @@ Values the data file marks `verified: false` are listed in `docs/api/data.md` ("
    Chuck's Guides F-16C, JF-17, M-2000C, "Takeoff"; Heatblur F-14 manual, "Takeoff" (work-in-progress stub).
 8. ED, *DCS: F/A-18C Hornet Early Access Guide*, "Case 1"; Heatblur *F-14 Tomcat Manual*, Landing Procedures
    (carrier); ED *DCS: Su-33 FC3 Flight Manual*, carrier landing (hook, Svetlana-2, Luna-3).
+9. ED, *DCS: F/A-18C Hornet Early Access Guide*, carrier takeoff; ED, *DCS Supercarrier Operations Guide*,
+   catapult launch and Kuznetsov ski-jump; Heatblur DCS F-14 training lesson, carrier takeoff; ED, *DCS: Su-33
+   FC3 Flight Manual*, intake FOD screens.
 
 ## Pattern and approach by jet
 
@@ -90,3 +93,20 @@ the Kuznetsov LSO (calls and grades) and the Su-33 pattern numbers are not in th
 a radio-menu call in DCS; the trainer maps it to a key. The trainer turns the thresholds into an arcade rule
 table (hysteresis, a waveoff range, comment bands) and grades from them; these are trainer rules, not the game's
 own grading code. No wind: wind over the deck is the ship's speed (a gameplay value).
+
+## Deck launch (#27)
+
+| Item | What the source gives | Source |
+|---|---|---|
+| F/A-18C catapult | Nose-wheel steering HI `S`, wings spread, launch bar down behind the shuttle, hook up `U`. T/O trim by gross weight: 16° below 44000 lb, 17° at 45000–48000 lb, 19° at 49000 lb and above (afterburner). MIL, wipe out the controls, salute, hands off the stick. After the stroke gear up and flaps AUTO, then the clearing turn | 9 |
+| Salute key | Supercarrier guide: `LCtrl+LShift+LAlt+S` or the radio menu. Heatblur lesson: `LShift+U` | 9 |
+| Clearing turn | Right from catapults 1 and 2, left from 3 and 4 | 9 |
+| F-14B catapult | Hook up `U`, salute `LShift+U` (lesson text) | 9 |
+| Su-33 ski-jump | Positions 1 and 2 give a 90 m run, position 3 a 180 m run: use it heavy. The deck stoppers hold the jet during the run-up. Full afterburner, then special afterburner `LShift+E` (10-minute limit). Do not use the intake FOD screens `LAlt+I` (12 % less thrust) | 9 |
+
+Conflicts and gaps: the salute key (the two sources disagree; the trainer shows the Supercarrier key for the
+Hornet and the lesson key for the Tomcat, both flagged); the Hornet launch bar key; whether the Tomcat launches
+in MIL without afterburner; how the Kuznetsov stoppers release; the weight above which position 3 is needed;
+the gaps in the Hornet trim table (44000–45000 lb and 48000–49000 lb). The catapult stroke, the shooter delay,
+the ski-jump run and ramp, the cold-cat and short-run settle are arcade rules that reproduce the outcome the
+player sees, not catapult, ramp or engine data (AGENTS.md rule 1).
