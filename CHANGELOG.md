@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Pattern & landing adds Catapult (F/A-18C, F-14B) and Ski-jump (Su-33) launch starts (#27) in Watch and Fly: a
+  catapult or position picker and a Heavy toggle, catapult tracks, shuttle and jet-blast deflectors on the CVN,
+  marked positions, deck stoppers and a ski-jump on the sim's 12° ramp on the Kuznetsov, a Deck (shooter) camera,
+  a launch sequence strip with keys and not-verified tags, the Hornet trim-by-weight readout, power and FOD-screen
+  warnings, launch keys and touch buttons, and a graded launch debrief with its own progress key.
+
 - SAM threats (#10): the 3D views draw SA-10, SA-11 and SA-15 sites with their threat ring, minimum-range ring
   and altitude band, and SAMs in flight with smoke and trails, live and in the debrief replay. Defense adds a
   drill per site (brief, search / lock / launch on your RWR, beam and chaff, an optional ridge, coaching and a
