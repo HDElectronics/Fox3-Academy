@@ -288,29 +288,33 @@ function geoOf(ac: Aircraft, p: Vector3): Geo {
  * tail by aspect, with separate look-down endpoints and the radar table's reference RCS.
  */
 export function detectionRange(world: World, observer: Aircraft, target: Aircraft): number {
+  if (!isFighterAc(observer)) return 0;
   const d = specOf(observer).radar.detectKm;
   const asp = aspectAngle(target.pos, target.vel, observer.pos);
   const down = isLookDown(observer.pos, target.pos, world.groundAlt);
   const hot = d.headOn * (down ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
   const cold = d.tail * (down ? d.lookDownFactor : 1);
   let km = lerp(hot, cold, (1 - Math.cos(asp)) / 2);
-  km *= Math.pow(Math.max(specOf(target).rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
+  km *= Math.pow(Math.max(AIRCRAFT[target.type].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
   return km * 1000;
 }
 
 /** Is `target` inside `observer`'s Doppler notch (spec.notchKts, spec.notchNeedsLookDown)? */
 export function isNotched(world: World, observer: Aircraft, target: Aircraft): boolean {
+  if (!isFighterAc(observer)) return false;
   const r = specOf(observer).radar;
   return inDopplerNotch(observer.pos, target.pos, target.vel, r.notchKts * MPS_PER_KT, r.notchNeedsLookDown, world.groundAlt);
 }
 
 /** How far this emitter's beam is heard by an RWR (m). */
 export function paintRange(emitter: Aircraft): number {
+  if (!isFighterAc(emitter)) return 0;
   return PAINT_RANGE_FACTOR * specOf(emitter).radar.detectKm.headOn * 1000;
 }
 
 /** Last time `emitter`'s beam painted `targetId` (s), or null. Used by rwr.ts. */
 export function lastPainted(emitter: Aircraft, targetId: EntityId): number | null {
+  if (!isFighterAc(emitter)) return null;
   return INTERNAL.get(emitter.radar)?.painted.get(targetId) ?? null;
 }
 
@@ -337,6 +341,12 @@ export interface ExplainOptions {
 
 /** Why does (or doesn't) `observer`'s search scan see `target`? For the Radar Lab. */
 export function explainDetection(world: World, observer: Aircraft, target: Aircraft, opts: ExplainOptions = {}): DetectionExplain {
+  if (!isFighterAc(observer)) return {
+    ...geoOf(observer, target.pos), inGimbal: false, inAzimuth: false, inBars: false, detectRange: 0,
+    lookDown: isLookDown(observer.pos, target.pos, world.groundAlt),
+    radialSpeed: radialSpeedVsGround(observer.pos, target.pos, target.vel), notchGate: 0, notched: false,
+    detectable: false, reasons: ['No air-to-air radar'],
+  };
   const spec = specOf(observer), r = spec.radar, st = observer.radar;
   const g = geoOf(observer, target.pos);
   const inGimbal = Math.abs(g.az) <= r.gimbalAzDeg * D2R && Math.abs(g.el) <= r.gimbalElDeg * D2R;
@@ -786,6 +796,7 @@ function breakLock(world: World, ac: Aircraft, why: string): void {
 }
 
 export function setRadarMode(world: World, ac: Aircraft, mode: RadarModeId, targetId?: EntityId): boolean {
+  if (!isFighterAc(ac)) return false;
   const spec = specOf(ac), st = ac.radar, ist = inner(st);
   if (!spec.radar.modes.includes(mode)) return false;
   if (mode === 'stt') {
@@ -836,6 +847,7 @@ function nearestContact(ac: Aircraft): EntityId | null {
  * To remove one designation use undesignate().
  */
 export function designate(world: World, ac: Aircraft, targetId: EntityId): void {
+  if (!isFighterAc(ac)) return;
   const st = ac.radar;
   if (st.mode === 'rws' || st.mode === 'vs') { lockTarget(world, ac, targetId); return; }
   if (st.mode !== 'tws') return;
@@ -856,6 +868,7 @@ export function designate(world: World, ac: Aircraft, targetId: EntityId): void 
 
 /** Remove one TWS designation (F-15C "Unlock TWS Target"). Later designations move up. */
 export function undesignate(world: World, ac: Aircraft, targetId: EntityId): void {
+  if (!isFighterAc(ac)) return;
   const i = ac.radar.designated.indexOf(targetId);
   if (i >= 0) ac.radar.designated.splice(i, 1);
 }
@@ -866,6 +879,7 @@ export function undesignate(world: World, ac: Aircraft, targetId: EntityId): voi
  * none, move the primary to the next firm hostile track by range (Hornet steps L&S down the ranked tracks).
  */
 export function cycleDesignation(world: World, ac: Aircraft): void {
+  if (!isFighterAc(ac)) return;
   const st = ac.radar;
   if (st.mode !== 'tws') return;
   if (st.designated.length >= 2) {
@@ -885,6 +899,7 @@ export interface LockCheck { ok: boolean; reason: string }
 
 /** Can this radar go STT on `targetId` right now? Reason in pilot words when not. */
 export function canLock(world: World, ac: Aircraft, targetId: EntityId): LockCheck {
+  if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
   const spec = specOf(ac), r = spec.radar, st = ac.radar;
   if (st.mode === 'off') return { ok: false, reason: 'Radar is off' };
   if (!r.modes.includes('stt')) return { ok: false, reason: `${spec.short} radar has no STT` };
@@ -905,6 +920,7 @@ export function canLock(world: World, ac: Aircraft, targetId: EntityId): LockChe
  * target), designations become [targetId], the previous search mode is remembered for unlock/break.
  */
 export function lockTarget(world: World, ac: Aircraft, targetId: EntityId): boolean {
+  if (!isFighterAc(ac)) return false;
   if (!canLock(world, ac, targetId).ok) return false;
   const spec = specOf(ac), st = ac.radar, ist = inner(st);
   const tgt = world.get(targetId);
@@ -942,6 +958,7 @@ export function lockTarget(world: World, ac: Aircraft, targetId: EntityId): bool
  * - ACM: leave ACM for the last BVR search mode.
  */
 export function unlock(world: World, ac: Aircraft): void {
+  if (!isFighterAc(ac)) return;
   const st = ac.radar, ist = inner(st), rules = radarRules(fighterType(ac));
   if (st.mode === 'stt') {
     const id = st.stt.targetId;
@@ -961,6 +978,7 @@ export function unlock(world: World, ac: Aircraft): void {
 
 /** Change the scan, validated against the spec and the mode (TWS limits). Values snap to the jet's options. */
 export function setScan(world: World, ac: Aircraft, change: ScanChange): void {
+  if (!isFighterAc(ac)) return;
   const spec = specOf(ac), r = spec.radar, st = ac.radar, ist = inner(st);
   if (change.autoCenter !== undefined) ist.autoCenter = change.autoCenter;
   if (change.azHalf !== undefined) st.azHalf = snap(r.azHalfWidthOptionsDeg, change.azHalf * R2D) * D2R;
@@ -989,6 +1007,7 @@ export function setScan(world: World, ac: Aircraft, change: ScanChange): void {
  * it does not re-apply TWS limits or recompute the scan: cheap to call on every pointer move.
  */
 export function setCursor(world: World, ac: Aircraft, cursor: { az: number; range: number }): void {
+  if (!isFighterAc(ac)) return;
   const r = specOf(ac).radar;
   const maxR = Math.max(...r.rangeScalesKm) * 1000;
   const az = Number.isFinite(cursor.az) ? cursor.az : 0;
@@ -1014,6 +1033,7 @@ export interface Snp2Eligibility {
 }
 
 export function snp2SeparationDeg(ac: Aircraft, a: EntityId, b: EntityId): number | null {
+  if (!isFighterAc(ac)) return null;
   const ta = trackOf(ac.radar, a), tb = trackOf(ac.radar, b);
   if (!ta || !tb) return null;
   return Math.abs(wrapPi(relBearing(ac.pos, ac.heading, ta.pos) - relBearing(ac.pos, ac.heading, tb.pos))) * R2D;
@@ -1021,6 +1041,7 @@ export function snp2SeparationDeg(ac: Aircraft, a: EntityId, b: EntityId): numbe
 
 /** Pair eligibility is shared by launch and datalink support; it uses radar positions, never truth positions. */
 export function snp2Eligibility(world: World, ac: Aircraft, allowCoasting = false): Snp2Eligibility {
+  if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar', targetIds: null, sepDeg: null };
   const st = ac.radar;
   const [lead, second] = st.designated;
   const targetIds: [EntityId, EntityId] | null = lead && second && lead !== second ? [lead, second] : null;
@@ -1044,6 +1065,7 @@ export function snp2Eligibility(world: World, ac: Aircraft, allowCoasting = fals
 
 /** Closest eligible secondary in azimuth. ECM is only a scenario flag, not an ECM propagation model. */
 export function pickSnp2Second(world: World, ac: Aircraft, lead: EntityId): EntityId | null {
+  if (!isFighterAc(ac)) return null;
   return ac.radar.tracks.filter(t => {
     const target = world.get(t.targetId), sep = snp2SeparationDeg(ac, lead, t.targetId);
     return t.targetId !== lead && t.firm && !t.coasting && target?.alive && target.side !== ac.side
@@ -1066,6 +1088,7 @@ function refreshSnp2(world: World, ac: Aircraft): void {
 
 /** Explicitly enter/leave СНП2. Ordinary СНП and other aircraft retain their normal launch rules. */
 export function setSnp2(world: World, ac: Aircraft, enabled: boolean): boolean {
+  if (!isFighterAc(ac)) return false;
   if (ac.type !== 'mig29s') return false;
   if (enabled && ac.radar.mode !== 'tws') setRadarMode(world, ac, 'tws');
   ac.radar.snp2 = enabled;
@@ -1087,6 +1110,7 @@ function isSupportable(st: RadarState, targetId: EntityId, rules: RadarRules): b
  * tws.maxSimultaneousTargets, designated targets first. Empty outside TWS or on jets without launchFromTws.
  */
 export function supportedTargets(world: World, ac: Aircraft): Set<EntityId> {
+  if (!isFighterAc(ac)) return new Set();
   const set = new Set<EntityId>();
   const st = ac.radar, tws = specOf(ac).radar.tws;
   if (st.mode !== 'tws' || !tws || (!tws.launchFromTws && !snp2Eligibility(world, ac, true).ok)) return set;
@@ -1120,7 +1144,7 @@ export function supportedTargets(world: World, ac: Aircraft): Set<EntityId> {
  */
 export function guidanceSupport(world: World, shooter: Aircraft, targetId: EntityId | null): GuidanceSupport {
   const none: GuidanceSupport = { datalink: false, illuminating: false, estimate: null };
-  if (!targetId || !shooter.alive) return none;
+  if (!isFighterAc(shooter) || !targetId || !shooter.alive) return none;
   const st = shooter.radar;
   const trk = trackOf(st, targetId);
   if (!trk) return none;
@@ -1140,5 +1164,6 @@ export function guidanceSupport(world: World, shooter: Aircraft, targetId: Entit
 
 /** Does the radar currently hold a track (TWS or STT) on this target? */
 export function hasTrack(ac: Aircraft, targetId: EntityId): boolean {
+  if (!isFighterAc(ac)) return false;
   return ac.radar.tracks.some(t => t.targetId === targetId);
 }

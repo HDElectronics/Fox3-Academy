@@ -5,8 +5,8 @@
  *  - target size [RCtrl-]] / [RCtrl-[]: locks only an object within 5 m of the set size; objects larger than
  *    60 m lock at the 60 m maximum. КС = manual steering, АС = locked.
  *  - once locked the sight tracks the target inside ±35° azimuth, +15° to −85° elevation; beyond, the lock drops.
- *  - laser [RShift-O] (ЛД): S1 rule implemented: the laser switches off at its limit and cools about as long as it
- *    was on; the limit is S1's 20 minutes of use. (An earlier research pass gives 1 minute continuous: not used.)
+ *  - laser [RShift-O] (ЛД): simplified heat and recovery model, not verified. S1 describes about 1 minute
+ *    continuous with cooling and 20 minutes total per flight; the trainer does not enforce those separate limits.
  * Angles are relative to the jet's heading and the horizon (the trainer ignores pitch and roll for the gimbal).
  */
 import { Vector3 } from 'three';
@@ -22,7 +22,7 @@ export const SHKVAL_SLEW_LIMITS = { azDeg: 40, elUpDeg: 20, elDownDeg: -90 } as 
 export const SHKVAL_ZOOMS: readonly ShkvalZoom[] = [1, 8, 23];
 /** Target size range and step (m). S1 gives the 60 m maximum; the 5 m step and minimum are not verified. */
 export const SHKVAL_SIZE = { min: 5, max: 60, step: 5, matchM: 5 } as const;
-/** S1: "should not be used for more than 20 minutes" per flight; implemented as the laser's heat limit. */
+/** Simplified recoverable 20-minute heat threshold, not verified; NOT S1's 20-minute total per-flight limit. */
 export const LASER_LIMIT_S = 20 * 60;
 /** Slew rate in fields of view per second (trainer value). */
 const SLEW_FOV_PER_S = 0.5;
@@ -74,8 +74,11 @@ export function inLockGimbal(az: number, el: number): boolean {
 
 function clampSlew(sh: ShkvalState): void {
   const l = SHKVAL_SLEW_LIMITS;
+  const az = sh.az, el = sh.el;
   sh.az = clamp(sh.az, -l.azDeg * D2R, l.azDeg * D2R);
   sh.el = clamp(sh.el, l.elDownDeg * D2R, l.elUpDeg * D2R);
+  // Trainer rule (not verified): a sight at its stop cannot keep holding an unreachable ground point.
+  if (sh.az !== az || sh.el !== el) { sh.groundStab = false; sh.stabPoint = null; }
 }
 
 function lookAt(ac: Aircraft, p: Vector3): void {
@@ -125,7 +128,10 @@ export function pointShkval(world: World, ac: Aircraft, p: { x: number; y: numbe
   if (!sh || sh.lockedUnitId) return;
   const v = new Vector3(p.x, p.y, p.z);
   lookAt(ac, v); clampSlew(sh);
-  if (sh.groundStab) sh.stabPoint = groundIntersect(world, ac.pos, shkvalDir(ac)) ?? v;
+  if (sh.groundStab) {
+    sh.stabPoint = groundIntersect(world, ac.pos, shkvalDir(ac));
+    sh.groundStab = sh.stabPoint !== null;
+  }
 }
 
 /** Zoom one step in (+1) or out (−1): wide, 8x, 23x. */
@@ -214,7 +220,7 @@ export function stepShkval(world: World, ac: Aircraft, dt: number): void {
   const sh = ac.ag?.shkval;
   if (!sh) return;
   if (!ac.alive) { setShkvalPower(world, ac, false); return; }
-  // Laser heat (S1): rises while lasing; at the limit the laser trips and cools as long as it was on.
+  // Simplified, not verified: heat rises while lasing, recovers while off, and trips at the trainer threshold.
   if (sh.laserOn) {
     sh.laserUsedS += dt;
     if (sh.laserUsedS >= LASER_LIMIT_S) {
@@ -244,7 +250,7 @@ export function stepShkval(world: World, ac: Aircraft, dt: number): void {
     if (moving) {
       sh.az += sh.slew.x * rate * dt; sh.el += sh.slew.y * rate * dt; clampSlew(sh);
       const p = groundIntersect(world, ac.pos, shkvalDir(ac));
-      if (p) sh.stabPoint = p;
+      if (sh.groundStab) { sh.stabPoint = p; sh.groundStab = p !== null; }
     } else {
       clampSlew(sh);
     }

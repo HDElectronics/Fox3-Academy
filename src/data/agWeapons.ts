@@ -149,9 +149,10 @@ export const SU25T_LOADOUTS: AgLoadout[] = [
 
 export const AG_CAVEATS: string[] = [
   'S1 gives no launch ranges for guided air-to-ground weapons ("observe the maximum launch range scale in the HUD"): every range band is a community value, not verified.',
-  'Laser limit: S1 says the laser switches off at its temperature limit, cools about as long as it was on, and should not be used more than 20 minutes per flight. An earlier research pass says 1 minute of continuous lasing. The trainer implements the S1 rule.',
+  'Laser limits: S1 documents about 1 minute of continuous operation with cooling (p. 57) and 20 minutes total per flight (p. 32). The trainer uses a simplified recoverable 20-minute heat threshold and recovery while off, not verified; it does not enforce the separate manual limits.',
   'Cannon: S1 writes "GSh-20 30-mm twin-barrel cannon with a 200 round magazine"; other sources say GSh-30 with 150 rounds. Not verified.',
   'Station numbers other than the L-081 on station 6 are trainer layouts, not verified against the Mission Editor.',
   'Weapon flight (speed over time, dispersion, kill radius) is an arcade model tuned for teaching, not DCS weapon data.',
+  'Shkval slew stops use the IT-23M scales; releasing ground stabilisation at a stop or when the sight leaves the ground is a simplified trainer rule, not verified.',
   'Shkval field of view below 23x is scaled from the S1 23x figure (0.73 × 0.97°); the wide and 8x fields are not verified.',
 ];

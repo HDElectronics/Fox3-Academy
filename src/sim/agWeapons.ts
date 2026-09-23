@@ -169,6 +169,7 @@ export function canAgLaunch(world: World, ac: Aircraft, weapon?: AgWeaponId): Ag
     const s = ag.arm.emitterId ? world.samSites.get(ag.arm.emitterId) : undefined;
     if (!s || !s.alive) return fail('Lock an emitter [Enter]');
     if (!s.active) return fail('Emitter silent');
+    if (!armEmitters(world, ac).includes(s.id)) return fail('Emitter outside ±30° detection zone');
   } else {
     const sh = ag.shkval;
     if (!sh.on) return fail('Shkval is off [O]');
@@ -394,6 +395,13 @@ export function stepAgWeapon(world: World, wp: AgWeapon, dt: number): void {
     const p = prev.clone().lerp(wp.pos, clamp(k, 0, 1));
     p.y = groundHeight(world, p.x, p.z);
     wp.pos.copy(p);
+    // Guidance loss is final in this trainer: proximity at ground impact cannot rescue the shot.
+    // Emit the impact for the debrief, but apply no damage and retain the original failure reason.
+    if (wp.lostWhy) {
+      world.emit({ t: world.t, type: 'ag-impact', weaponId: wp.id, weapon: wp.type, targetId: null, pos: [p.x, p.y, p.z], killed: [] });
+      finish(world, wp, 'miss', wp.lostWhy);
+      return;
+    }
     const r = impact(world, wp, p, null);
     const ballistic = AG_WEAPONS[wp.type].guidance === 'ballistic';
     if (ballistic) finish(world, wp, r.killed.length ? 'hit' : 'miss', r.killed.length ? 'hit' : 'ground');
