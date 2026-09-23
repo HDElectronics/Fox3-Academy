@@ -39,7 +39,6 @@ No open items.
 
 ## P4 — Ideas
 
-- SAM threats in the Sortie and Defense drills (RWR trainer display prerequisites are complete).
 - A within-visual-range module: IR missiles, flares, basic BFM, the merge.
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
