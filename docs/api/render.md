@@ -152,7 +152,7 @@ on your own tags.
 `Tag` or `Note` to the same screen-space layout as aircraft and missile tags. Set its text,
 `visible` flag and `obj.position` normally; the position is in **render units**, like other CSS2D
 labels. Lower priority wins; `LabelPriority` names the levels: `selected` 0, `aircraft` 1, `missile` 2,
-`annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
+`site` 2.5 (SAM site tags), `annotation` 3 (the default) and `coverage` 4 (radar-volume coverage notes). Use priority 1 for the
 current lesson explanation or selected replay result; secondary markers can use 4. `offset` is a
 preferred CSS-pixel offset, not a fixed position. `maxMove` caps how far (CSS px) the label may be
 nudged before it hides instead, for text that only reads next to its anchor. `WorldView`,
@@ -196,6 +196,7 @@ outside this layout. Do not register a label with two views simultaneously.
 | `bricks` | off | observer's RWS bricks (fade over 8 s) |
 | `radarVolume` | off | set by `setRadarVolume()` |
 | `rwrLines` | off | observer's RWR contacts: search dashed dim, lock amber, launch/missile red flowing |
+| `samRings` | on | SAM threat rings (see below); the site marker, vehicle and tag always draw |
 | `notch` | off | jets inside the observer radar's Doppler gate (`notchKts`, `notchNeedsLookDown`, via `inDopplerNotch`) get an amber diamond and a `NOTCH` tag flag |
 
 ### Methods (WorldView and ReplayView share the first block)
@@ -219,6 +220,23 @@ outside this layout. Do not register a label with two views simultaneously.
 | `truePosition(id, out?)`, `sideOf(id)` | |
 
 ---
+
+### SAM sites (`samSites.ts`)
+
+`WorldView` draws every `world.samSites` entry and `ReplayView` every `RecordFrame.sams` entry, the way the
+DCS F10 map shows a threat: a diamond marker and a small low-poly launcher/radar vehicle (boosted to an 18 px
+floor), a ground ring at `SAMS[type].threatRingKm` (side colour; amber while the site tracks, red while it
+guides a missile), a dashed minimum-range ring, and a faint altitude band (ceiling ring plus posts) up to
+`maxAltM`. With `illumination` on, a dashed line runs from a tracking site to its target. The site tag
+(`site` priority) reads `SA-11 SAM · TRACK · RING 35 km`. Rings are the not-verified values in
+`src/data/sams.ts`. Sites on the other side hide when `truth` is off, like jets.
+
+SAMs in flight use the missile pipeline (mesh, smoke, trail, tag, hit blast) through `samMissileLike(m, out?)`,
+which fills `MissileLike.display` (`{ name, lengthM, guidedText, smoke }`): a SAM has no `MissileId`, so `type`
+only picks a stand-in body mesh. Tags read `SITE TRACK` while guided and `BALLISTIC` once the site loses the
+track. Pure helpers (unit-tested): `samTagText(site, units)`, `samShortName(type)`, `circlePoints(...)`.
+Subclasses of `TacticalScene` feed sites through the protected `samSites()` hook; `view.samSitePosition(id)`
+returns a site's position in render units.
 
 ## ReplayView (`replay.ts`)
 
@@ -385,7 +403,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos)`; swaps the jet if `state.aircraft` changed.
-  - `setCamera('chase' | 'side' | 'tower' | 'cockpit')`: chase = behind the jet on its heading, 9 m
+  - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit')`: chase = behind the jet on its heading, 9 m
     high and 7 m left, looking between the jet and the aim point while the runway is ahead (so the
     jet sits low right and the runway stays visible on final) and along the heading otherwise;
     side = abeam from the east looking west, framing the jet and the aim point so the glide path reads
@@ -399,6 +417,28 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - `setApproach({ glideDeg?, aimPointM?, ... })` (moves the painted aim blocks too),
     `setAircraft(id)`, `dispose()` (runway, overlay, frame subscription; the Stage stays yours).
   - `scene.overlay`, `scene.runway`, `scene.jet`, `scene.root` are public.
+  - Carrier (#26): `setCarrier(shipId | null)` adds a `CarrierMesh` to `root`, hides the runway, switches the
+    Environment to sea, and moves the overlay into `scene.landing` (a group at the ramp at deck height, turned
+    to the landing heading) with the ship's glide angle, the hook aim point (`aimPointU`) and a 1.5 nm corridor
+    (`CARRIER_CORRIDOR_M`). `update(state)` then places the ship from `state.ship`, drives its landing aid
+    from `state.lso.ball` and moves `landing` with it: pass trail and gate points in that frame (x = v right of
+    the axis, y = height above the deck, z = −u). `null` restores the airfield geometry (the last
+    `setApproach` values). Side and chase frame the jet and the hook aim point along the landing heading.
+  - Camera `'lso'`: eye on the LSO platform (`LSO_EYE`, landing frame u 18 m, v −24 m, 3 m above the deck,
+    display choice) looking at the jet up the groove, no smoothing (the platform moves with the ship), jet
+    screen-size floor 24 px. The field of view narrows with range to frame about 90 m around the jet (down to
+    6°); other views restore the Stage FOV, and so does `dispose()`. `'tower'` at sea shows the LSO view and `'lso'` on the airfield shows the tower.
+  - Tail hook: when `state.hookPos` is defined the scene hangs a simple arm under the jet's tail and swings it
+    35° down by `hookPos` (hidden when stowed). Drawn by the scene, not a `JetMesh` part.
+- `CarrierMesh(palette, shipId, targetWire = 3)`: low-poly ship in ship-local metres (origin at the ramp at
+  sea level, x starboard, −z forward) from `SHIPS` / `SHIP_HULL`: hull extruded from `deckOutline(id)`, deck,
+  island and mast, landing-area paint (caution edge lines, dashed centreline, ramp line, wires with the target
+  wire in the ok token), the Kuznetsov ski-jump, and the landing aid on the port side abeam the wires: IFLOLS
+  panel with green datum bars, the amber ball (red in the red low cells), red waveoff and green cut lights, or
+  the Luna-3 colour light. `place({ x, z, heading })`, `setBall(ball | null)`, `dispose()`. Drawing values,
+  not ship plans. Pure helpers: `deckOutline(id)` (ship frame a, c), `landingPaint(ship, targetWire)`
+  (`DeckStrip[]` in the landing frame), `landingLocal(u, v, angledDeg)`, `shipLocal(a, c)`,
+  `shipToLanding(a, c, angledDeg)`, `lensCell(ball)`.
 - `ApproachOverlay(stage.shared, palette, opts)`: translucent glide corridor from the aim point back
   `lengthM` (default 4 nm) with rails and 1 nm frames, the dashed glide-path line, the extended
   centreline, the aim-point ring. Corridor half-angles `vTolDeg` / `hTolDeg` (defaults 0.7° / 1.5°)

@@ -99,6 +99,8 @@
 .pic-jet { stroke: var(--screen); stroke-width: 0.5; }
 .pic-jet--blue { fill: var(--friendly); }
 .pic-jet--red { fill: var(--hostile); }
+.pic-sam { fill: var(--hostile); stroke: var(--screen); stroke-width: 0.5; }
+.pic-sam-ring { fill: color-mix(in srgb, var(--hostile) 5%, transparent); stroke: var(--hostile); stroke-width: 0.8; stroke-dasharray: 3 3; opacity: 0.55; }
 .pic-txt { font-family: var(--font-mono); font-size: 10px; fill: var(--sym); }
 .pic-txt--you { fill: var(--friendly); }
 .pic-txt--them { fill: var(--hostile); }

@@ -4,9 +4,10 @@
  * explosions at kills and hits, countermeasure puffs from 'cm' events, and STT lock lines.
  * Radar perspective holds recorded sensor estimates between samples, without drawing other truth entities.
  * A roster supplies callsigns and exact lifecycle times (rosterFromWorld(world) builds one).
+ * SAM sites (RecordFrame.sams) draw with their threat rings; recorded SAMs join the missile tracks (samSites.ts).
  */
 import { Vector3 } from 'three';
-import type { AircraftId, MissileId, RadarModeId } from '../data/types';
+import type { AircraftId, MissileId, RadarModeId, SamId } from '../data/types';
 import { MISSILES } from '../data/missiles';
 import type { EntityId, Missile, MissileGuidance, RecordFrame, SimEvent, Side } from '../sim/types';
 import type { World } from '../sim/world';
@@ -16,6 +17,7 @@ import { lerpAngle, UNIT_PER_M } from './units';
 import { recordedRadarAt } from './replay-sensors';
 import { Shape } from './symbols';
 import { Tag } from './tags';
+import { SAM_SMOKE_S, samMissileDisplay, samMissileMesh, type SamSiteLike } from './samSites';
 
 export interface ReplayAircraft { type: AircraftId; side: Side; callsign: string; diedAt?: number | null }
 export interface ReplayMissile {
@@ -103,6 +105,7 @@ export class ReplayView extends TacticalScene {
   private cmOut: CountermeasureLike[] = [];
   private listAc: AircraftLike[] = [];
   private listMsl: MissileLike[] = [];
+  private samFrames: { t: number; sites: SamSiteLike[] }[] = [];
   private tNow = 0;
   private t0 = 0;
   private t1 = 0;
@@ -182,6 +185,17 @@ export class ReplayView extends TacticalScene {
         r.t.push(f.t); r.p.push(m.pos[0], m.pos[1], m.pos[2]); r.g.push(m.guidance); r.alive.push(m.alive ? 1 : 0);
       }
     }
+    // SAM sites (static: hold the last sample) and SAMs in flight (joined to the missile tracks below).
+    this.samFrames = [];
+    const samA = new Map<EntityId, { type: SamId; side: Side; siteId: EntityId; targetId: EntityId | null; t: number[]; p: number[]; g: MissileGuidance[]; alive: number[] }>();
+    for (const f of frames) {
+      if (f.sams) this.samFrames.push({ t: f.t, sites: f.sams.map(x => ({ id: x.id, type: x.type, side: x.side, pos: { x: x.pos[0], y: x.pos[1], z: x.pos[2] }, state: x.state, targetId: x.targetId, active: x.active })) });
+      for (const m of f.samMissiles ?? []) {
+        let r = samA.get(m.id);
+        if (!r) { r = { type: m.type, side: m.side, siteId: m.siteId, targetId: m.targetId, t: [], p: [], g: [], alive: [] }; samA.set(m.id, r); }
+        r.t.push(f.t); r.p.push(m.pos[0], m.pos[1], m.pos[2]); r.g.push(m.guided ? 'sarh' : 'ballistic'); r.alive.push(m.alive ? 1 : 0);
+      }
+    }
     this.acs = [];
     for (const [id, r] of acA) {
       const info = roster.aircraft[id] ?? { type: 'su27', side: 'red', callsign: id };
@@ -208,6 +222,19 @@ export class ReplayView extends TacticalScene {
         alive: true, guidance: r.g[0] ?? 'ballistic', motorLeft: 0, launchedAt: launchT, seekerOn: null, timeToActive: null, result: info.result ?? null,
       };
       this.msls.push({ id, info, t: Float64Array.from(r.t), p: Float32Array.from(r.p), g: r.g, alive: Uint8Array.from(r.alive), launchT, deathT, burn: spec?.burnS ?? 0, like, present: false, filled: false });
+    }
+    for (const [id, r] of samA) {
+      const k = r.alive.indexOf(0);
+      const deathT = k >= 0 ? r.t[k] : null;
+      const hit = events.some(e => e.type === 'hit' && e.missileId === id);
+      const result = deathT === null ? null : { kind: hit ? 'hit' as const : 'miss' as const, reason: hit ? 'hit' as const : 'lost-guidance' as const, t: deathT };
+      const info: ReplayMissile = { type: samMissileMesh(r.type), side: r.side, shooterId: r.siteId, targetId: r.targetId, launchedAt: r.t[0], result };
+      const like: MissileLike = {
+        id, type: info.type, side: r.side, shooterId: r.siteId, targetId: r.targetId, pos: new Vector3(), vel: new Vector3(),
+        alive: true, guidance: r.g[0] ?? 'ballistic', motorLeft: 0, launchedAt: r.t[0], seekerOn: null, timeToActive: null, result,
+        display: samMissileDisplay(r.type),
+      };
+      this.msls.push({ id, info, t: Float64Array.from(r.t), p: Float32Array.from(r.p), g: r.g, alive: Uint8Array.from(r.alive), launchT: r.t[0], deathT, burn: SAM_SMOKE_S[r.type], like, present: false, filled: false });
     }
     // Explosions: kills (big, at the aircraft) and missile hits (small, at the missile's last position).
     this.acById.clear();
@@ -316,6 +343,13 @@ export class ReplayView extends TacticalScene {
       v.ribbon.setVisible(Math.min(k, v.ribbon.size - 1), alive ? { x: v.pos.x, y: v.pos.y, z: v.pos.z, t: x } : undefined);
       v.ribbon.flush();
     }
+  }
+
+  protected override samSites(): Iterable<SamSiteLike> {
+    if (this.radarObserver !== null || !this.samFrames.length) return [];
+    let k = -1;
+    for (let i = 0; i < this.samFrames.length && this.samFrames[i].t <= this.tNow + 1e-6; i++) k = i;
+    return this.samFrames[Math.max(0, k)].sites;
   }
 
   protected override countermeasures(): Iterable<CountermeasureLike> {

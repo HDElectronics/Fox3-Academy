@@ -41,8 +41,8 @@ class LabelLayout {
   }
 }
 
-/** Shared layout priorities (lower wins). Coverage annotations yield to every entity and lesson tag. */
-export const LabelPriority = { selected: 0, aircraft: 1, missile: 2, annotation: 3, coverage: 4 } as const;
+/** Shared layout priorities (lower wins). SAM site tags yield to jets and missiles. Coverage annotations yield to every entity and lesson tag. */
+export const LabelPriority = { selected: 0, aircraft: 1, missile: 2, site: 2.5, annotation: 3, coverage: 4 } as const;
 
 export interface LabelRegistration {
   priority?: number;
@@ -129,7 +129,7 @@ export function layoutLabels(labels: readonly LabelCandidate[], width: number, h
   return result;
 }
 
-export type TagKind = 'aircraft' | 'missile' | 'track';
+export type TagKind = 'aircraft' | 'missile' | 'track' | 'site';
 
 export class Tag implements DeclutterLabel {
   readonly obj: CSS2DObject;

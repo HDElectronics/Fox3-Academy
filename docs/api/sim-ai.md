@@ -13,7 +13,7 @@ in scenarios.ts is the friendlier wrapper).
 
 ```ts
 import { World } from '../../sim/world';
-import { duel, twsDrill, defenseDrill, radarLab } from '../../sim/scenarios';
+import { duel, twsDrill, defenseDrill, samDrill, radarLab } from '../../sim/scenarios';
 
 const world = new World(seed);                                // one fresh World per scenario
 const e = duel(world, app.aircraft, undefined, 'veteran');    // 1v1 at 100 km vs the default adversary
@@ -59,6 +59,7 @@ interface Engagement {
   friendIds: EntityId[];        // blue AI (the wingman), not the player
   enemyIds: EntityId[];         // ['bandit1'] or ['bandit1', 'bandit2']
   enemyType: AircraftId; skill: AiSkill; range: number;
+  samIds: EntityId[];           // SAM sites from opts.sams: ['sam1', …], [] without
 }
 ```
 
@@ -75,6 +76,7 @@ interface Engagement {
 | `holdFire` | `false` | AI flies the fight but never shoots |
 | `evade` | `true` | AI defends against missiles |
 | `wingmanType`, `wingmanSkill` | your jet, `'veteran'` | 2v2 wingman |
+| `sams` | none | `SamPlacement[]`: `{ type: SamId, range?, offsetDeg?, maskAltM?, side?, holdFire? }`, relative to your start; default range 1.15 × the ring. Ids `samSiteId(n)` = `'sam1'`, `'sam2'`… The AI pilots do not react to SAMs yet. |
 
 The wingman flies 3 km off your right wing. It stays in formation until its own sensors (or a GCI contact inside
 70 km) find a bandit, then fights on its own and **sorts**: it prefers a bandit that you (your STT target or
@@ -133,6 +135,20 @@ The shooter spawns about 8 s of closure beyond `range` so it can find and track 
 drops to `range` if the launch rules allow it (Rmax, ПР, lock). If you fly cold and the range never closes, it
 fires 14 s after spawn at whatever range the rules allow. If `range` is beyond the missile's Rmax, the shot goes
 when the range comes inside Rmax.
+
+### SAM drill
+
+```ts
+samDrill(world, playerType, sam: SamId = 'sa11', opts?: SamDrillOptions): SamDrill
+// { playerId, siteId: 'sam1', sam, ringM, site(): SamSite, missiles(): SamMissile[] }
+```
+
+You against one SAM site (rules in `sim-sensors.md`, "sam.ts"). The player starts heading north; the site sits
+ahead at `range` (default 1.15 × the ring), so the RWR shows search first, lock inside the ring, launch after the
+site's acquisition delay. Options (plus `ScenarioCommon`): `range`, `offsetDeg`, `maskAltM` (terrain mask height;
+default 0 = only the radar horizon), `holdFire` (lock but never shoot, for RWR drills), `missiles`. Defences the
+page can score: notch + chaff (`sam` event `lost` why `notched`/`chaff`), terrain or low level (`terrain`,
+`horizon`), turning out of the ring (SAM `miss` with `kinematic`/`timeout`).
 
 ### Radar lab
 

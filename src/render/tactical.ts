@@ -24,6 +24,7 @@ import { createMissileMesh, f14SweepForMach, JetMesh, NOMINAL_JET_M, NOMINAL_MIS
 import { sideColor, type Palette } from './palette';
 import { Tag, LabelPriority, LabelRegistry, layoutLabels, type DeclutterLabel, type LabelRegistration, type LabelCandidate } from './tags';
 import { boostedScale, orientationQuaternion, UNIT_PER_M } from './units';
+import { SamSiteLayer, type SamSiteLike } from './samSites';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 
 // ------------------------------------------------------------------------------------------ types
@@ -59,6 +60,11 @@ export interface MissileLike {
   seekerOn: EntityId | null;
   timeToActive: number | null;
   result: Missile['result'];
+  /**
+   * Missiles outside the MissileId catalogue (SAMs, see samSites.ts): `type` then only picks the body mesh;
+   * the tag name, on-screen length, the guided-state text and smoke density come from here.
+   */
+  display?: { name: string; lengthM: number; guidedText: string; smoke: number };
 }
 
 export interface CountermeasureLike {
@@ -110,13 +116,15 @@ export interface Layers {
   rwrLines: boolean;
   /** Flag jets sitting in the observer radar's Doppler notch. (WorldView) */
   notch: boolean;
+  /** SAM threat rings: ground ring, minimum range and altitude band (sites themselves always draw). */
+  samRings: boolean;
 }
 
 export const DEFAULT_LAYERS: Layers = {
   labels: true, missileLabels: true, dropLines: true, shadows: true, trails: true, smoke: true,
   aircraftTrails: true, countermeasures: true, datalink: true, illumination: true, seekers: true,
   effects: true, velocity: false, truth: true, tracks: false, bricks: false, radarVolume: false,
-  rwrLines: false, notch: false,
+  rwrLines: false, notch: false, samRings: true,
 };
 
 export interface TacticalOptions {
@@ -200,6 +208,7 @@ interface MslVis {
   seen: number;
   hidden: boolean;
   burning: boolean;
+  lengthM: number;
 }
 
 interface Blast { x: number; y: number; z: number; t0: number; big: boolean; seed: number }
@@ -263,6 +272,7 @@ export abstract class TacticalScene implements EntitySource {
   private cones = new Map<EntityId, Mesh>();
   private offs: (() => void)[] = [];
   private disposed = false;
+  private samLayer: SamSiteLayer;
   private pageLabels = new LabelRegistry();
   /** Last visible layout offset per label, fed back so placements stay put while still free. */
   private lastPlacement = new WeakMap<DeclutterLabel, { x: number; y: number }>();
@@ -297,6 +307,7 @@ export abstract class TacticalScene implements EntitySource {
     this.coneGeo = new ConeGeometry(1, 1, 20, 1, true);
     this.coneGeo.rotateX(Math.PI / 2);
     this.coneGeo.translate(0, 0, -0.5);
+    this.samLayer = new SamSiteLayer(stage, this.group, (l, o) => this.registerLabel(l, o));
     this.offs.push(stage.onFrame(() => this.syncPhase(), { priority: FramePriority.view, always: true }));
     this.offs.push(stage.onFrame(() => this.latePhase(), { priority: FramePriority.late, always: true }));
     stage.track(this);
@@ -409,6 +420,7 @@ export abstract class TacticalScene implements EntitySource {
     for (const j of this.jets.values()) this.disposeJet(j);
     for (const m of this.missiles.values()) this.disposeMissile(m);
     for (const c of this.cones.values()) c.removeFromParent();
+    this.samLayer.clear();
     this.jets.clear(); this.missiles.clear(); this.cones.clear(); this.retired.clear(); this.blasts = [];
     this.stage.requestRender();
   }
@@ -432,6 +444,10 @@ export abstract class TacticalScene implements EntitySource {
   protected abstract gather(): void;
   /** Extra symbology in the late pass (after camera): lines/symbols batches are open. */
   protected drawExtra(): void {}
+  /** Subclasses return the SAM sites to draw (live world or replay); none by default. */
+  protected samSites(): Iterable<SamSiteLike> { return []; }
+  /** Displayed position (render units) of a SAM site, or null. */
+  samSitePosition(id: EntityId): Vector3 | null { return this.samLayer.positionOf(id); }
   protected onLayerChange(_name: keyof Layers): void {}
 
   // ---------------------------------------------------------------- sync
@@ -440,6 +456,7 @@ export abstract class TacticalScene implements EntitySource {
     if (this.disposed) return;
     this.frame++;
     this.gather();
+    this.samLayer.sync(this.samSites());
   }
 
   /** Feed the current state. `t` is sim (or replay) time in seconds. */
@@ -558,7 +575,7 @@ export abstract class TacticalScene implements EntitySource {
     this.group.add(mesh);
     const ribbon = new RibbonGeometry(512, 0.1);
     const col = sideColor(this.palette, m.side);
-    const dens = smokeDensity(m.type);
+    const dens = m.display?.smoke ?? smokeDensity(m.type);
     const trail = new Trail(ribbon, [
       createRibbonMaterial(this.stage.shared, { color: this.palette.smoke, alpha: 0.55 * dens, widthPx: 3, widthWorld: 0.006, grow: 0.0035, growPx: 1.2, fade: 28, smoke: true }),
       createRibbonMaterial(this.stage.shared, { color: col, alpha: 0.75, widthPx: 1.5 }),
@@ -568,6 +585,7 @@ export abstract class TacticalScene implements EntitySource {
     const v: MslVis = {
       id: m.id, type: m.type, side: m.side, data: m, mesh, tag, ribbon, trail,
       pos: new Vector3(), scale: UNIT_PER_M, px: 0, alive: true, deadAt: null, seen: 0, hidden: false, burning: m.motorLeft > 0,
+      lengthM: m.display?.lengthM ?? MISSILES[m.type]?.lengthM ?? 3.7,
     };
     this.missiles.set(m.id, v);
     return v;
@@ -698,7 +716,7 @@ export abstract class TacticalScene implements EntitySource {
       if (vis) {
         const dist = camPos.distanceTo(v.pos);
         const ppu = stage.pxPerUnit(dist);
-        const len = MISSILES[v.type].lengthM;
+        const len = v.lengthM;
         const s = this.opts.sizeMode === 'true' ? UNIT_PER_M * this.opts.trueScale : boostedScale(ppu, NOMINAL_MISSILE_M, this.opts.minMissilePx, this.opts.trueScale);
         v.scale = s;
         v.px = len * s * ppu;
@@ -774,6 +792,16 @@ export abstract class TacticalScene implements EntitySource {
     // --- countermeasures & explosions
     this.drawCountermeasures();
     if (L.effects) this.drawBlasts(t);
+
+    // --- SAM sites (ring, band, vehicle, tag)
+    if (this.samLayer.size) {
+      this.samLayer.draw({
+        lines: this.lines, symbols: this.symbols, palette: P, units: this.units, rings: L.samRings, labels: L.labels,
+        illumination: L.illumination, minPx: 18, labelTick,
+        jetPos: id => { const j = this.jets.get(id); return j && j.alive && this.jetVisible(j) ? j.pos : undefined; },
+        showSide: side => L.truth || !this.observerSide || side === this.observerSide,
+      });
+    }
 
     this.drawExtra();
     this.declutter();
@@ -899,10 +927,10 @@ export abstract class TacticalScene implements EntitySource {
 
   private writeMissileTag(v: MslVis): void {
     const m = v.data;
-    const name = MISSILES[v.type]?.name ?? v.type;
+    const name = m.display?.name ?? MISSILES[v.type]?.name ?? v.type;
     let sub: string;
     if (!v.alive) sub = m.result?.kind === 'hit' ? 'HIT' : 'MISS' + (m.result?.reason ? ' · ' + m.result.reason.toUpperCase() : '');
-    else sub = guidanceText(m);
+    else sub = m.display ? (m.guidance === 'ballistic' ? 'BALLISTIC' : m.display.guidedText) : guidanceText(m);
     v.tag.set(name, '', sub, '');
     v.tag.setDead(!v.alive);
   }

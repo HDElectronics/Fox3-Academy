@@ -7,8 +7,9 @@
  * Opponents are controller 'ai' (see ai.ts): tactical AI for engagements, scripted flight for drills.
  */
 import type { World } from './world';
-import type { AiSkill, EntityId, Missile } from './types';
-import type { AircraftId, MissileId, RadarModeId } from '../data/types';
+import type { AiSkill, EntityId, Missile, SamMissile, SamSite, Side } from './types';
+import type { AircraftId, MissileId, RadarModeId, SamId } from '../data/types';
+import { SAMS } from '../data/sams';
 import { AIRCRAFT, AIRCRAFT_ORDER } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { speedFromMach } from './atmosphere';
@@ -143,6 +144,23 @@ export interface EngagementOptions extends ScenarioCommon {
   /** 2v2: the player's AI wingman type and skill (default: same jet, 'veteran'). */
   wingmanType?: AircraftId;
   wingmanSkill?: AiSkill;
+  /** Optional SAM sites in the fight (ids 'sam1', 'sam2'…), placed relative to the player's start. */
+  sams?: SamPlacement[];
+}
+
+/** Where to put a SAM site, relative to the player's start (player heads north). */
+export interface SamPlacement {
+  type: SamId;
+  /** Ground range from the player's start, m (default: 1.15 × the threat ring, just outside it). */
+  range?: number;
+  /** Bearing off the player's nose, deg (+ right, default 0). */
+  offsetDeg?: number;
+  /** Terrain mask height around the site, m (default 0: flat). */
+  maskAltM?: number;
+  /** Default 'red'. */
+  side?: Side;
+  /** Track but never launch (default false). */
+  holdFire?: boolean;
 }
 
 export interface Engagement {
@@ -155,6 +173,21 @@ export interface Engagement {
   skill: AiSkill;
   /** Start separation actually used, m. */
   range: number;
+  /** SAM sites placed by `opts.sams` (empty without). */
+  samIds: EntityId[];
+}
+
+export const samSiteId = (n: number) => `sam${n}`;
+
+function placeSams(world: World, sams: SamPlacement[] | undefined): EntityId[] {
+  return (sams ?? []).map((p, i) => {
+    const range = p.range ?? SAMS[p.type].threatRingKm * 1000 * 1.15;
+    const at = place({ x: 0, z: 0 }, (p.offsetDeg ?? 0) * D2R, range, world.groundAlt);
+    return world.spawnSam({
+      id: samSiteId(i + 1), side: p.side ?? 'red', type: p.type, pos: { x: at.x, z: at.z },
+      maskAltM: p.maskAltM, holdFire: p.holdFire,
+    }).id;
+  });
 }
 
 function engagement(world: World, playerType: AircraftId, enemyType: AircraftId, skill: AiSkill, n: 1 | 2, wing: boolean, o: EngagementOptions): Engagement {
@@ -194,7 +227,8 @@ function engagement(world: World, playerType: AircraftId, enemyType: AircraftId,
     });
     enemyIds.push(id);
   }
-  return { playerId: player.id, wingmanId, friendIds: wingmanId ? [wingmanId] : [], enemyIds, enemyType, skill, range };
+  const samIds = placeSams(world, o.sams);
+  return { playerId: player.id, wingmanId, friendIds: wingmanId ? [wingmanId] : [], enemyIds, enemyType, skill, range, samIds };
 }
 
 
@@ -351,6 +385,53 @@ export function defenseDrill(world: World, playerType: AircraftId, threat: Missi
       for (const m of world.missiles.values()) if (m.shooterId === id) return m;
       return null;
     },
+  };
+}
+
+// ───────────────────────────────────────────────────────────── SAM defence drill
+
+export interface SamDrillOptions extends ScenarioCommon {
+  /** Site ground range from the player's start, m (default 1.15 × the threat ring: search first, then lock). */
+  range?: number;
+  /** Site bearing off the player's nose, deg (+ right, default 0 = dead ahead). */
+  offsetDeg?: number;
+  /** Terrain mask height around the site, m (default 0: flat, only the radar horizon hides you). */
+  maskAltM?: number;
+  /** Track and lock but never launch (RWR drills). */
+  holdFire?: boolean;
+  /** Ready missiles (default: the site's gameplay load). */
+  missiles?: number;
+}
+
+export interface SamDrill {
+  playerId: EntityId;
+  siteId: EntityId;
+  sam: SamId;
+  /** Threat-ring radius, m (SAMS[sam].threatRingKm). */
+  ringM: number;
+  site(): SamSite;
+  /** SAMs this site has fired (alive or not), oldest first. */
+  missiles(): SamMissile[];
+}
+
+/**
+ * You against one SAM site. The player starts heading north with the site ahead (default just outside the
+ * ring): the RWR shows its search radar first, a lock inside the ring and a launch after the acquisition delay.
+ * Defend by notch + chaff, terrain (maskAltM), descending under the radar horizon, or turning out of the ring.
+ */
+export function samDrill(world: World, playerType: AircraftId, sam: SamId = 'sa11', opts: SamDrillOptions = {}): SamDrill {
+  const player = spawnPlayer(world, playerType, opts);
+  const ringM = SAMS[sam].threatRingKm * 1000;
+  const at = place({ x: 0, z: 0 }, (opts.offsetDeg ?? 0) * D2R, opts.range ?? ringM * 1.15, world.groundAlt);
+  const siteId = 'sam1';
+  const site = world.spawnSam({
+    id: siteId, side: 'red', type: sam, pos: { x: at.x, z: at.z }, maskAltM: opts.maskAltM,
+    holdFire: opts.holdFire, missiles: opts.missiles,
+  });
+  return {
+    playerId: player.id, siteId, sam, ringM,
+    site: () => site,
+    missiles: () => [...world.samMissiles.values()].filter(m => m.siteId === siteId),
   };
 }
 

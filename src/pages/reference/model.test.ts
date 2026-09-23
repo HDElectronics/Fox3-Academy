@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT, AIRCRAFT_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
 import {
-  beamWindowDeg, filterMissiles, groupBinds, matches, queryTokens, rangeNum, rwrRows,
+  beamWindowDeg, filterMissiles, groupBinds, matches, queryTokens, rangeNum, rwrRows, samRows,
   scanMatrix, simultaneousText, sortMissiles, speedText, splitControlsName, splitHits, twsAllows, twsPatternText, twsPatternsOf, ALL_MISSILES,
 } from './model';
 import { radarRules } from '../../sim/radar';
@@ -147,5 +147,17 @@ describe('radar and RWR', () => {
     for (const id of Object.keys(RWRS) as (keyof typeof RWRS)[]) {
       expect(rwrRows(RWRS[id]).reduce((n, r) => n + r.emitters.length, 0)).toBe(RWRS[id].symbols.length);
     }
+  });
+});
+
+describe('SAM rows', () => {
+  it('lists the three sites with this RWR symbol, ring and band in the chosen units', () => {
+    const m = samRows('alr67', 'metric');
+    expect(m.map(r => r.id)).toEqual(['sa10', 'sa11', 'sa15']);
+    expect(m[1]).toMatchObject({ ring: '35 km', band: '15 m to 22000 m' });
+    for (const r of m) expect(r.beat.length).toBeGreaterThan(10);
+    const i = samRows('spo15', 'imperial');
+    expect(i[0].ring).toMatch(/nm$/);
+    expect(i[0].band).toMatch(/ft to .* ft$/);
   });
 });

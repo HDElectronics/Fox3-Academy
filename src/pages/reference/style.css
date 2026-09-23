@@ -287,3 +287,6 @@
 .ref-src[hidden] { display: none; }
 .ref-src a { color: var(--s-ink); overflow-wrap: anywhere; }
 .ref-src__host { margin-left: 8px; font-family: var(--font-mono); font-size: 0.7rem; color: var(--s-label); overflow-wrap: anywhere; }
+
+.ref-sub--wrap { white-space: normal; max-width: 42ch; }
+.ref-tag--warn { color: var(--caution); border-color: currentColor; }

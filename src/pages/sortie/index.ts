@@ -8,6 +8,7 @@
  *   ?shot=debrief&t=120   fly the whole sortie with the scripted pilot, open the debrief at t
  *   ?shot=debrief&view=radar   show the player's recorded radar estimates instead of truth
  *   ?scenario=1v1|1v2|2v2&enemy=<id>&skill=rookie|regular|veteran|ace&range=<km>
+ *   ?sams=0|1|2&sam=sa10|sa11|sa15   SAM sites on the bandits' side
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
@@ -34,6 +35,10 @@ function applyParams(s: SortieSetup, p: URLSearchParams): SortieSetup {
   if (sk && SKILLS.includes(sk as AiSkill)) out.skill = sk as AiSkill;
   const r = Number(p.get('range'));
   if (r > 0 && isFinite(r)) out.range = Math.min(RANGE_MAX_M, Math.max(RANGE_MIN_M, r * 1000));
+  const n = p.get('sams');
+  if (n === '0' || n === '1' || n === '2') out.sams = Number(n) as 0 | 1 | 2;
+  const st = p.get('sam');
+  if (st === 'sa10' || st === 'sa11' || st === 'sa15') out.samType = st;
   return out;
 }
 

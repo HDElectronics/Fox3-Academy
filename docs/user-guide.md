@@ -78,6 +78,13 @@ R-77 with notch and chaff at pitbull, drag a long shot out of energy, and see wh
 a Doppler gate gauge ("keep the needle in the gate") and missile readouts guide you. Buttons or keys: notch left,
 notch right, drag cold, crank, hot, chaff, flare, plus fine steering. You get a score and coaching after each run.
 
+The **SA-10**, **SA-11** and **SA-15** drills put one SAM site ahead of you. The brief gives its threat ring,
+altitude band, RWR symbol and what defeats it in the game; the 3D view draws the ring and band. Your RWR goes
+search, lock, then launch. Beam the site (1 or 2) and drop chaff while you beam, get under the optional ridge,
+or turn out of the ring (3). The debrief says why the track broke or held. Pick your start altitude and the
+ridge in the brief. Ring sizes and altitude bands are community figures from the game files, not verified in
+the Mission Editor.
+
 ### RWR
 Learn mode explains your jet's RWR part by part (the SPO-15 lamp panel, or the round scope on Western jets) with a
 sandbox where you drag threats around your jet and set them to search, lock, launch or active. Quiz mode asks you
@@ -106,9 +113,20 @@ and, where the jet pulls early, a PULL mark. The takeoff strip lights BRAKES, PO
 FLAPS as you do them. The debrief grades brake release, rotation, liftoff pitch, gear up and the 1000 ft climb,
 and flags a tail strike; 70 or more in Fly mode completes the takeoff lesson. W also brakes the landing rollout.
 
+**Case I and In the groove** (F/A-18C and F-14B on the Supercarrier, Su-33 on the Kuznetsov): the ship steams on
+its BRC. Case I starts 3 nm astern at the initial; In the groove starts ¾ nm out, configured. Break left ahead of
+the ship, drop the hook (H; LAlt+G on the Su-33), gear and flaps on downwind, fly the 180 and roll out on the
+angled deck's centreline. Call the ball with Y (a trainer key: in DCS it is a radio-menu call) when the prompt
+shows. The IFLOLS close-up shows the amber ball against the green datum bars (red in the bottom cells), the
+waveoff and cut lights; the Su-33 gets the Luna-3 colour light (green on glide slope, yellow high, red low). The LSO
+panel logs the calls ("Roger ball", "Power", "Right for lineup", "Wave off", "Bolter"). The debrief gives the DCS
+grade (_OK_, OK, (OK), ---, C, B, WO, OWO) with the comment codes in plain words, the wire, the gates and a score;
+70 or more in Fly mode completes the carrier lesson. The LSO camera views the groove from the platform. Kuznetsov
+LSO calls and grades are not verified: the trainer grades the pass itself.
+
 On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
-afterburner. On a desktop, turn them on with Show on-screen controls.
+afterburner, and HOOK and BALL on the carrier starts. On a desktop, turn them on with Show on-screen controls.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and
@@ -116,6 +134,10 @@ drops chaff, scaled by skill (rookie to ace). The brief compares your launch zon
 autopilot (turn, climb, speed keys), run your radar with your jet's keys, and use time acceleration. Afterwards
 the debrief replays the fight in 3D with a timeline of launches, pitbulls and hits, per-shot stats (range vs
 Rmax, F-pole, how long the target was warned) and coaching on what went right and wrong.
+
+Under **SAM sites** the brief adds one or two SA-10, SA-11 or SA-15 sites on the bandits' side. They show in
+the 3D view with their rings, the coach calls their lock and launch, and the debrief notes a SAM kill or a
+broken track. Simplified: the AI jets ignore the sites, and the sites shoot only at your side.
 
 Use **Truth / Your radar** below the playback controls to compare the complete fight with your recorded
 sensor picture. Your radar shows ownship, echo squares and estimated track rings; dashed rings mean a
@@ -126,7 +148,7 @@ the whole fight using truth. This is a simplified sensor replay, without recorde
 ### Reference
 Your kneeboard: the jet's bindings (FC3 keyboard defaults, or HOTAS function names on full-fidelity modules),
 step-by-step procedures, radar numbers, a missile table for all seventeen missiles, a comparison of all ten
-jets, your RWR's symbols, a BVR glossary, and the research sources. The quick filter searches it all.
+jets, your RWR's symbols and the three SAM sites (ring and altitude band), a BVR glossary, and the research sources. The quick filter searches it all.
 
 ## Keys
 
