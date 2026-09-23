@@ -22,6 +22,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'defense', label: 'Defense', title: 'Beat an incoming missile: notch, chaff, drag and timing', load: () => import('../pages/defense/index') },
   { path: 'flight-ops', label: 'Pattern & landing', title: 'Fly the overhead break, configure, hold on-speed AoA and land in the zone', load: () => import('../pages/flight-ops/index') },
   { path: 'merge', label: 'Merge & guns', title: 'Close combat: corner speed, pursuit, the merge, one vs two circle, yo-yo, guns, and a fighting AI', load: () => import('../pages/merge/index') },
+  { path: 'strike', label: 'Shkval & Vikhr', title: 'Su-25T: find, lock and lase with the Shkval, fire Vikhrs, fly a rocket CCIP pass', load: () => import('../pages/strike/index'), roles: ['attack'] },
   { path: 'rwr', label: 'RWR', title: 'Read your warning receiver: who is searching, locking, launching', load: () => import('../pages/rwr-trainer/index') },
   { path: 'sortie', label: 'Sortie', title: 'Fly a full BVR engagement against AI that shoots back, then debrief it', load: () => import('../pages/sortie/index') },
   { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index') },

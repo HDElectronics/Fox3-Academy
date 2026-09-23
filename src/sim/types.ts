@@ -9,7 +9,9 @@
  * This is also three.js' frame (y-up, right-handed); the renderer only rescales (1 unit = 1 km).
  */
 import type { Vector3 } from 'three';
-import type { FighterId, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
+import type { AgWeaponId, AircraftId, FighterId, GroundUnitKind, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
+
+export type { GroundUnitKind };
 
 export type Side = 'blue' | 'red';
 export type EntityId = string;
@@ -139,7 +141,7 @@ export interface Aircraft {
   kind: 'aircraft';
   id: EntityId;
   side: Side;
-  type: FighterId;
+  type: AircraftId;
   callsign: string;
   /** 'player' and 'script' are flown by the page through `cmd` (no AI logic runs); 'ai' runs ai.ts. */
   controller: 'player' | 'ai' | 'script';
@@ -165,6 +167,137 @@ export interface Aircraft {
   /** Gun damage taken, 0..1; the jet dies at 1 (missiles kill outright). */
   damage: number;
   ai: AiMemory | null;
+  /** Attack jets only (Su-25T): master mode, A-G stores and the Shkval. Absent on fighters. */
+  ag?: AttackState;
+}
+
+// ─── Air-to-ground: terrain hook, ground units, Shkval, A-G weapons ──────────────────────────────────────
+
+/** Anything with a world position (m). */
+export interface XYZ { x: number; y: number; z: number }
+
+/**
+ * Pluggable terrain. The height-map terrain provides it; without one the world is flat at `world.groundAlt`.
+ * heightAt: ground height (m) at x, z. lineOfSight: true when the straight segment a→b clears the ground.
+ */
+export interface TerrainHook {
+  heightAt(x: number, z: number): number;
+  lineOfSight(a: XYZ, b: XYZ): boolean;
+}
+
+/** A ground target. Static unless `speed` > 0 (drives along `heading`, following the terrain). */
+export interface GroundUnit {
+  id: EntityId;
+  /** What it is; drives the default size and hit points. Not an entity discriminator. */
+  kind: GroundUnitKind;
+  side: Side;
+  name: string;
+  /** Position on the ground (y = terrain height). */
+  pos: Vector3;
+  heading: number;      // rad
+  speed: number;        // m/s along heading
+  /** Size the Shkval target-size rule compares against (m, S1: armour about 10 m, buildings 60 m). */
+  sizeM: number;
+  /** Trainer hit points (gameplay, not armour data). */
+  hp: number;
+  alive: boolean;
+  diedAt: number | null;
+  killedBy: EntityId | null;
+  /** Linked SAM site: killing this unit silences the site, and a Kh-58 kill on the site kills this unit. */
+  samSiteId?: EntityId;
+}
+
+export interface GroundUnitSpawnOptions {
+  id?: EntityId;
+  kind: GroundUnitKind;
+  side: Side;
+  name?: string;
+  /** y defaults to the terrain height at x, z. */
+  pos: { x: number; y?: number; z: number };
+  heading?: number;
+  speed?: number;
+  sizeM?: number;
+  hp?: number;
+  samSiteId?: EntityId;
+}
+
+/** Su-25T master mode: [1] navigation, [7] air-to-ground, [8] fixed reticle. */
+export type AgMasterMode = 'nav' | 'ag' | 'fixed';
+
+/** Shkval zoom steps: wide, 8x, 23x (S1). */
+export type ShkvalZoom = 1 | 8 | 23;
+
+/** Why the Shkval dropped its lock. */
+export type ShkvalLostReason = 'gimbal' | 'terrain' | 'target-dead' | 'off' | 'unlocked';
+
+export interface ShkvalState {
+  on: boolean;
+  /** КС: manual steering, no lock. АС: auto-tracking, target locked (IT-23M top line, S1). */
+  mode: 'КС' | 'АС';
+  /** Line of sight relative to the jet: az from the heading (+ right), el from the horizon (+ up), rad. */
+  az: number;
+  el: number;
+  /** Held slew input, −1..1 per axis ([;] [,] [.] [/]); applied each step at the zoom's slew rate. */
+  slew: { x: number; y: number };
+  /** Ground-stabilised ([Enter]): the sight holds `stabPoint` on the ground as the jet moves. */
+  groundStab: boolean;
+  stabPoint: Vector3 | null;
+  zoom: ShkvalZoom;
+  /** TV target frame size (m), 5..60. */
+  targetSizeM: number;
+  lockedUnitId: EntityId | null;
+  lastLost: null | { t: number; unitId: EntityId; why: ShkvalLostReason };
+  /** ЛД: laser rangefinder / designator on. */
+  laserOn: boolean;
+  /** Laser heat in seconds of lasing not yet cooled off (S1 rule, see shkval.ts). */
+  laserUsedS: number;
+  /** > 0: the laser tripped its limit and is cooling (ЛД flashes); it cannot be switched on. */
+  laserCoolS: number;
+}
+
+export interface AttackState {
+  master: AgMasterMode;
+  /** Rounds left per A-G store (the cannon counts rounds). */
+  stores: Partial<Record<AgWeaponId, number>>;
+  /** Pylons as loaded; counts go down as stores are fired. */
+  stations: { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73'; count: number }[];
+  selected: AgWeaponId | null;
+  /** Station the next round of the selected store comes from (alternates left / right). */
+  station: number | null;
+  /** Fire pairs where the weapon allows it (Vikhr). */
+  pair: boolean;
+  /** L-081 Fantasmagoria pod carried (needed for the Kh-58). */
+  pod: boolean;
+  /** Anti-radiation passive detection ([I]) and the emitter (SAM site id) locked for the Kh-58. */
+  arm: { detecting: boolean; emitterId: EntityId | null };
+  shkval: ShkvalState;
+}
+
+/** Why an A-G weapon missed. */
+export type AgMissReason =
+  | 'lock-lost' | 'laser-off' | 'gimbal' | 'terrain' | 'emitter-off' | 'target-dead' | 'ground' | 'timeout';
+
+/** An A-G weapon in flight (missile, bomb, rocket or cannon round). Arcade model in agWeapons.ts. */
+export interface AgWeapon {
+  kind: 'ag-weapon';
+  id: EntityId;
+  type: AgWeaponId;
+  side: Side;
+  shooterId: EntityId;
+  /** Ground unit or SAM site aimed at (null for unguided fire). */
+  targetId: EntityId | null;
+  /** Where it is going: the target position, or the ballistic aim point. */
+  aimPoint: Vector3;
+  pos: Vector3;
+  vel: Vector3;
+  launchedAt: number;
+  alive: boolean;
+  /** Still guided; false once a hold-to-impact rule broke (then it falls ballistic and misses). */
+  guided: boolean;
+  /** Why guidance stopped, once it has. */
+  lostWhy: AgMissReason | null;
+  timeToImpact: number | null;
+  result: null | { kind: 'hit' | 'miss'; reason: AgMissReason | 'hit'; t: number };
 }
 
 export type MissileGuidance =
@@ -338,12 +471,20 @@ export type SimEvent =
   /** One tracer every GUN_TRACER_S while firing: muzzle position and velocity (m, m/s) for the renderer. */
   | { t: number; type: 'tracer'; shooterId: EntityId; pos: [number, number, number]; vel: [number, number, number] }
   | { t: number; type: 'gun-hit'; shooterId: EntityId; targetId: EntityId; hits: number; damage: number }
+  | { t: number; type: 'shkval-lock'; ownerId: EntityId; unitId: EntityId; range: number }
+  | { t: number; type: 'shkval-lost'; ownerId: EntityId; unitId: EntityId; why: ShkvalLostReason }
+  | { t: number; type: 'laser'; ownerId: EntityId; on: boolean; why: 'pilot' | 'limit' | 'shkval-off' }
+  | { t: number; type: 'ag-launch'; weaponId: EntityId; shooterId: EntityId; targetId: EntityId | null; weapon: AgWeaponId; range: number | null }
+  | { t: number; type: 'ag-impact'; weaponId: EntityId; weapon: AgWeaponId; targetId: EntityId | null; pos: [number, number, number]; killed: EntityId[] }
+  | { t: number; type: 'ag-miss'; weaponId: EntityId; weapon: AgWeaponId; reason: AgMissReason }
+  /** A ground unit or SAM site destroyed (separate from 'kill', which is for aircraft). */
+  | { t: number; type: 'ground-kill'; targetId: EntityId; by: EntityId | null; weapon: AgWeaponId | null }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
   id?: EntityId;
   side: Side;
-  type: FighterId;
+  type: AircraftId;
   callsign?: string;
   controller: Aircraft['controller'];
   /** Position in metres; heading in radians; speed in m/s. */
@@ -355,6 +496,8 @@ export interface SpawnOptions {
   stores?: Partial<Record<MissileId, number>>;
   radarMode?: RadarModeId;
   jamming?: boolean;
+  /** Attack jets: SU25T_LOADOUTS id (default: the first loadout). */
+  agLoadout?: string;
 }
 
 /** Sensor estimates at one recording sample. Positions are measured/estimated, never truth lookups. */
@@ -370,7 +513,7 @@ export interface RecordedRadarContacts {
 export interface RecordFrame {
   t: number;
   aircraft: {
-    id: EntityId; side: Side; type: FighterId;
+    id: EntityId; side: Side; type: AircraftId;
     pos: [number, number, number]; heading: number; pitch: number; roll: number; alive: boolean;
     radarMode: RadarModeId; sttTarget: EntityId | null;
     radar: { azCenter: number; azHalf: number; elCenter: number; bars: number; beamAz: number; beamEl: number };
@@ -387,6 +530,11 @@ export interface RecordFrame {
   /** SAM sites and SAMs in flight (absent in recordings without SAMs). */
   sams?: { id: EntityId; type: SamId; side: Side; pos: [number, number, number]; state: SamState; targetId: EntityId | null; active: boolean }[];
   samMissiles?: { id: EntityId; type: SamId; side: Side; siteId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
+  /** Ground units and A-G weapons in flight (absent in recordings without them). */
+  groundUnits?: { id: EntityId; kind: GroundUnitKind; side: Side; pos: [number, number, number]; heading: number; alive: boolean }[];
+  agWeapons?: { id: EntityId; type: AgWeaponId; side: Side; shooterId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
+  /** Shkval per attack jet while the sight is on: ground aim point, locked unit, laser. */
+  shkval?: { ownerId: EntityId; point: [number, number, number] | null; locked: EntityId | null; laser: boolean }[];
 }
 
 /**

@@ -10,6 +10,7 @@ import { AIRCRAFT } from '../../data/aircraft';
 import { D2R, bearingTo, clamp, relBearing, wrap2Pi, wrapPi } from '../../sim/math';
 import { speedFromMach } from '../../sim/atmosphere';
 import { cruiseFor } from '../../sim/scenarios';
+import { fighterType } from '../../sim/jet';
 
 export type Maneuver = 'hold' | 'notch-l' | 'notch-r' | 'drag' | 'crank' | 'hot';
 export type Throttle = 'idle' | 'cruise' | 'mil' | 'ab';
@@ -102,7 +103,7 @@ export function throttleCommand(thr: Throttle, me: Aircraft): { speed: number; a
   const perf = AIRCRAFT[me.type].perf;
   switch (thr) {
     case 'idle': return { speed: 150, ab: false };
-    case 'cruise': return { speed: cruiseFor(me.type).speed, ab: false };
+    case 'cruise': return { speed: cruiseFor(fighterType(me)).speed, ab: false };
     case 'mil': return { speed: speedFromMach(0.95, me.pos.y), ab: false };
     case 'ab': return { speed: speedFromMach(perf.maxMach, me.pos.y), ab: true };
   }

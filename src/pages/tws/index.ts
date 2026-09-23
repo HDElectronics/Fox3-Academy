@@ -7,7 +7,7 @@
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import type { FighterId, MissileId } from '../../data/types';
+import type { AircraftId, FighterId, MissileId } from '../../data/types';
 import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { MISSILES } from '../../data/missiles';
 import { RWRS } from '../../data/rwr';
@@ -385,7 +385,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
 
   // ------------------------------------------------------------------ displays
   const radar = new RadarDisplay(radarCv, { format: spec.display, units, aircraft: ac, manualCursor: L.freeLab && !L.dcsCursorSnap });
-  let rwrFor: FighterId | null = null;
+  let rwrFor: AircraftId | null = null;
   const rwr = new RwrDisplay(rwrCv, { rwr: spec.rwr });
   bag.add(() => radar.dispose());
   bag.add(() => rwr.dispose());

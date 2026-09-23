@@ -264,3 +264,59 @@ export interface SamSpec {
   /** Values research could not confirm, in pilot words. */
   uncertain: string[];
 }
+
+// ─── Air-to-ground (Su-25T) ──────────────────────────────────────────────────────────────────────────────
+
+/** Air-to-ground stores the trainer models. Separate from MissileId: none of these has an air-to-air DLZ. */
+export type AgWeaponId =
+  | 'vikhr' | 'kh25ml' | 'kh29l' | 'kh29t' | 'kab500kr'
+  | 's8' | 's13' | 'fab250' | 'gun25t' | 'kh58';
+
+/**
+ * How the pilot guides the weapon in the game:
+ * 'beam-riding' (Vikhr: lock and laser held to impact), 'laser' (Kh-25ML / Kh-29L: same rule),
+ * 'tv' (Kh-29T / KAB-500Kr: lock, release, fire and forget), 'ballistic' (rockets, bombs, gun),
+ * 'anti-radiation' (Kh-58: needs a radar emitter and the Fantasmagoria pod).
+ */
+export type AgGuidance = 'beam-riding' | 'laser' | 'tv' | 'ballistic' | 'anti-radiation';
+
+export interface AgWeaponSpec {
+  id: AgWeaponId;
+  name: string;               // 'Vikhr', 'Kh-25ML'
+  /** Label the Su-25T HUD shows for the selected store (S1): '9А4172', '25МЛ', 'АБ', 'ВПУ'. */
+  hudLabel: string;
+  kind: 'missile' | 'bomb' | 'rocket' | 'gun';
+  guidance: AgGuidance;
+  /** ПР needs a Shkval lock (АС). */
+  needsLock: boolean;
+  /** ПР needs the laser on (ЛД). */
+  needsLaser: boolean;
+  /** Lock (and laser, if needsLaser) must be held from launch to impact, or the weapon misses. */
+  holdToImpact: boolean;
+  /** Needs an emitting radar and the L-081 Fantasmagoria pod (anti-radiation). */
+  needsEmitter: boolean;
+  /** S1 documents firing this weapon in pairs. */
+  pairable: boolean;
+  /** Gameplay launch band, slant range in km. Community values, not in S1. */
+  rangeKm: { min: number; max: number };
+  /** False for every value S1 does not give (all guided-weapon ranges). */
+  rangeVerified: boolean;
+  /** What the pilot must do, in one sentence. */
+  guidanceRule: string;
+  notes: string[];
+}
+
+/** One store on a pylon. Station numbers are 1..11 left to right. */
+export interface AgStation { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73'; count: number }
+
+export interface AgLoadout {
+  id: string;
+  name: string;
+  stations: AgStation[];
+  /** Cannon rounds. */
+  gunRounds: number;
+  note?: string;
+}
+
+/** Kinds of ground unit the trainer places. */
+export type GroundUnitKind = 'tank' | 'apc' | 'truck' | 'bunker' | 'building' | 'sam-site' | 'aaa';

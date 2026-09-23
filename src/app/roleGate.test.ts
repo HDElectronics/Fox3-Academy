@@ -37,8 +37,8 @@ describe('fighter and attack roles', () => {
 });
 
 describe('route role gate and picker', () => {
-  it('treats every current route as fighter-only', () => {
-    for (const r of ROUTES) {
+  it('treats every route but the attack lessons as fighter-only', () => {
+    for (const r of ROUTES.filter(x => x.path !== 'strike')) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);

@@ -31,7 +31,7 @@ export function roleGatePanel(route: RouteDef, app: AppStore): HTMLElement {
     ? `The ${jet.short} has no air-to-air radar. Pick a fighter.`
     : `${route.label} is for attack jets. Pick one.`;
   const detail = jet.role === 'attack'
-    ? `${route.label} teaches radar and missile work. ${jet.short} air-to-ground lessons are not built yet.`
+    ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in Shkval & Vikhr (Learn).`
     : `The ${jet.short} is a fighter.`;
   const choices = jet.role === 'attack' ? FIGHTER_ORDER : AIRCRAFT_ORDER.filter(id => jetAllowed(route, id));
   return h('div', { class: 'role-gate' },
