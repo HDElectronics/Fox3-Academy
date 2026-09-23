@@ -96,6 +96,9 @@ export class ApproachOverlay extends Group {
 
   setCorridorVisible(on: boolean): void { this.corridor.visible = on; }
 
+  /** Show or hide the approach guides (corridor, glide line, centreline, aim ring and gates); the trail stays. */
+  setGuidesVisible(on: boolean): void { this.corridor.visible = on; this.lines.visible = on; }
+
   /** Append a flown point (runway frame, metres) with its error level. */
   pushTrail(pos: XYZ, level: ErrLevel): void {
     const last = this.pts[this.pts.length - 1];

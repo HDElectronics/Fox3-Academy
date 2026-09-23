@@ -74,6 +74,16 @@
 .fo-gates__notes { color: var(--s-label); font-family: var(--font-body); font-size: var(--fs-xs); }
 .fo-debrief__foot { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); }
 
+/* ---- takeoff checklist strip (#24) ---- */
+.ui-lab__strip > .fo-to { flex: 0 1 250px; min-width: 200px; }
+.fo-to__row .ui-lamp { padding-inline: 4px; }
+.fo-to__row .ui-lamp__legend { letter-spacing: 0.02em; }
+.fo-to__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.fo-to__row > .ui-lamp { min-width: 0; justify-content: center; white-space: nowrap; overflow: hidden; }
+.fo-to__row > .ui-lamp.is-current { outline: 1px solid var(--sym-hi); outline-offset: 1px; }
+.fo-bad { color: var(--warning); }
+.fo-touch .ui-btn.is-held { border-color: var(--sym); color: var(--sym-hi); }
+
 /* ---- other jets ---- */
 .fo-unsupported { display: flex; justify-content: center; padding: 32px 16px; }
 .fo-unsupported > .ui-console { max-width: 560px; width: 100%; }
@@ -89,6 +99,8 @@
   .fo-lab .ui-lab__strip > .ui-bezel.fo-trace,
   .fo-lab .ui-lab__strip > .ui-bezel.fo-navd { flex: 1 1 180px; }
   .ui-lab__strip > .fo-cfg { max-width: none; flex-basis: 100%; }
+  .ui-lab__strip > .fo-to { flex-basis: 100%; }
+  .fo-to__row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 600px) {

@@ -97,8 +97,18 @@ calls above, below or on glide path. On the F-15C, NAV steers to the IAF; press 
 cue. The Nav (HSI) display shows the mode, steer point, bearing pointer, distance, command altitude and, in the
 landing mode, the glide-slope and localizer bars. The HUD adds a steering caret. Units follow the km / nm switch.
 
+**Takeoff** (all ten jets): start on the runway. Hold W for the wheel brakes, set MIL (or full afterburner where
+the jet's takeoff uses it; PgUp sets it in one press), release, steer with Left / Right, and pull with the Down
+arrow at the jet's rotation speed (the F-16C pulls 10 kt before Vr). Hold the nose in the pitch bracket below the
+red tail-strike line, raise the gear with a positive climb before the gear limit, then the flaps (AUTO on the
+Hornet; the F-16C flaps follow the gear; the M-2000C has no flap control). The HUD speed tape carries a VR bug
+and, where the jet pulls early, a PULL mark. The takeoff strip lights BRAKES, POWER, RELEASE, ROTATE, GEAR UP and
+FLAPS as you do them. The debrief grades brake release, rotation, liftoff pitch, gear up and the 1000 ft climb,
+and flags a tail strike; 70 or more in Fly mode completes the takeoff lesson. W also brakes the landing rollout.
+
 On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
-throttle slider and GEAR, FLAPS, BRAKE and NAV buttons. On a desktop, turn them on with Show on-screen controls.
+throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
+afterburner. On a desktop, turn them on with Show on-screen controls.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

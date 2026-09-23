@@ -8,7 +8,7 @@ import { FLIGHT_OPS } from '../../data/flightOps';
 import type { Units } from '../../app/format';
 import { M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, wrapPi } from '../../sim/math';
 import {
-  NAV_AUTO_SWITCH_M, aimPointM, finalTurnGeometry, type AoaCue, type ApproachGeometry, type FlightOpsJetData, type FlightOpsJetId,
+  NAV_AUTO_SWITCH_M, TAKEOFF_CLIMB_FT, aimPointM, finalTurnGeometry, noFlapControl, rotateAtKt, type AoaCue, type ApproachGeometry, type FlightOpsJetData, type FlightOpsJetId,
   type FlightOpsState, type GateId, type GateResult, type IndexerColor, type NavState,
 } from '../../sim/flightOps';
 
@@ -20,14 +20,23 @@ export function isFlightOpsJet(id: AircraftId | string | null | undefined): id i
 }
 
 /**
- * Jets without a flap selector in the cockpit whose data still carries a landing flap (M-2000C: no flap
- * control, no flap parts on the model). The page lowers that flap with the gear so grading works, and shows
- * the flaps as n/a.
+ * How the pilot sets the flaps: a selector, with the gear handle (F-16C), or not at all (M-2000C,
+ * `noFlapControl`: no flap lamp, keys, labels or grading).
  */
-export const NO_FLAP_SELECTOR: readonly FlightOpsJetId[] = ['m2000c'];
 export type FlapControl = 'selector' | 'with-gear' | 'none';
 export function flapControl(d: FlightOpsJetData): FlapControl {
-  return d.flapsWithGear ? 'with-gear' : NO_FLAP_SELECTOR.includes(d.id) ? 'none' : 'selector';
+  return noFlapControl(d) ? 'none' : d.flapsWithGear ? 'with-gear' : 'selector';
+}
+
+/** Landing configuration for the lesson: gear down and locked, landing flaps where the jet has flap control. */
+export function landingConfigured(d: FlightOpsJetData, s: FlightOpsState): boolean {
+  if (!s.gearDown || s.gearPos < 0.99) return false;
+  return flapControl(d) === 'none' || s.flapIndex >= d.landingFlap;
+}
+
+/** OVERSPEED lamp title: the M-2000C has no flaps to overspeed. */
+export function overspeedTitle(d: FlightOpsJetData, limit: string): string {
+  return flapControl(d) === 'none' ? `Gear above ${limit}` : `Gear or landing flaps above ${limit}`;
 }
 
 /** Scoring tolerances the lesson teaches (from the evaluator): corridor half-angles for the 3D view. */
@@ -91,9 +100,13 @@ export function plannedGates(d: FlightOpsJetData): PlannedGate[] {
   ];
 }
 
-/** Gates shown for a start: the return to base joins on a straight-in final (groove and touchdown only). */
-export function gatesForStart(plan: readonly PlannedGate[], rtb: boolean): PlannedGate[] {
-  return rtb ? plan.filter(g => g.id === 'groove' || g.id === 'touchdown') : [...plan];
+/**
+ * Gates shown for a start: the return to base joins on a straight-in final (groove and touchdown only);
+ * the takeoff has no pattern rings.
+ */
+export function gatesForStart(plan: readonly PlannedGate[], kind: boolean | LessonKind): PlannedGate[] {
+  if (kind === 'takeoff') return [];
+  return kind === true || kind === 'rtb' ? plan.filter(g => g.id === 'groove' || g.id === 'touchdown') : [...plan];
 }
 
 /** A flown track point (runway frame, metres) with its sim time. */
@@ -145,11 +158,82 @@ export function errLevel(g: ApproachGeometry, s: FlightOpsState, cue: AoaCue): 0
 
 // ------------------------------------------------------------------ lesson steps
 
-export type StepId = 'navmode' | 'steer' | 'glidepath' | 'initial' | 'break' | 'configure' | 'abeam' | 'onspeed' | 'groove' | 'touchdown';
+export type StepId = 'navmode' | 'steer' | 'glidepath' | 'initial' | 'break' | 'configure' | 'abeam' | 'onspeed' | 'groove' | 'touchdown'
+  | TakeoffItem | 'pitch';
 export const STEP_ORDER: readonly StepId[] = ['initial', 'break', 'configure', 'abeam', 'onspeed', 'groove', 'touchdown'];
 /** Return-to-base lesson (nav jets, 'rtb' start): nav steps, then configure and the final. */
 export const NAV_STEP_ORDER: readonly StepId[] = ['navmode', 'steer', 'glidepath', 'configure', 'onspeed', 'groove', 'touchdown'];
-export const stepOrder = (rtb: boolean): readonly StepId[] => (rtb ? NAV_STEP_ORDER : STEP_ORDER);
+/** Runway takeoff lesson (#24). 'flapsup' is dropped for jets without flap control. */
+export const TAKEOFF_STEP_ORDER: readonly StepId[] = ['brakes', 'power', 'release', 'rotate', 'pitch', 'gearup', 'flapsup'];
+/** Which lesson a start teaches. `true` / `false` are the older rtb flag. */
+export type LessonKind = 'pattern' | 'rtb' | 'takeoff';
+export function stepOrder(kind: LessonKind | boolean, d?: FlightOpsJetData): readonly StepId[] {
+  const k: LessonKind = kind === true ? 'rtb' : kind === false ? 'pattern' : kind;
+  if (k === 'takeoff') return d && flapControl(d) === 'none' ? TAKEOFF_STEP_ORDER.filter(id => id !== 'flapsup') : TAKEOFF_STEP_ORDER;
+  return k === 'rtb' ? NAV_STEP_ORDER : STEP_ORDER;
+}
+
+// ------------------------------------------------------------------ takeoff checklist strip
+
+export type TakeoffItem = 'brakes' | 'power' | 'release' | 'rotate' | 'gearup' | 'flapsup';
+export interface TakeoffCheck { id: TakeoffItem; label: string; state: 'done' | 'current' | 'pending' }
+
+/** Strip items for the jet: BRAKES · POWER (MIL or AB) · RELEASE · ROTATE · GEAR UP · FLAPS (not on the M-2000C). */
+export function takeoffItems(d: FlightOpsJetData): { id: TakeoffItem; label: string }[] {
+  const fc = flapControl(d);
+  const items: { id: TakeoffItem; label: string }[] = [
+    { id: 'brakes', label: 'BRAKES' },
+    { id: 'power', label: d.takeoff.afterburner.value ? 'POWER AB' : 'POWER MIL' },
+    { id: 'release', label: 'RELEASE' },
+    { id: 'rotate', label: 'ROTATE' },
+    { id: 'gearup', label: 'GEAR UP' },
+  ];
+  if (fc !== 'none') items.push({ id: 'flapsup', label: fc === 'selector' ? `FLAPS ${d.flapLabels[0]}` : 'FLAPS (GEAR)' });
+  return items;
+}
+
+/**
+ * Items the state shows done this step (not latched: the page latches them). `brakesHeld` is the wheel-brake
+ * input; the rest comes from `s.takeoff` records and the throttle.
+ */
+export function takeoffItemsNow(d: FlightOpsJetData, s: FlightOpsState, brakesHeld: boolean): Set<TakeoffItem> {
+  const r = s.takeoff, done = new Set<TakeoffItem>();
+  if (!r) return done;
+  if (brakesHeld && s.phase === 'ready') done.add('brakes');
+  const beforeLiftoff = r.liftoffT === undefined;
+  if (beforeLiftoff && s.throttle >= 0.9 && (!d.takeoff.afterburner.value || s.afterburner)) done.add('power');
+  if (r.brakeReleaseT !== undefined) done.add('release');
+  if (r.rotateT !== undefined) done.add('rotate');
+  if (r.gearUpT !== undefined) done.add('gearup');
+  if (!beforeLiftoff && flapControl(d) !== 'none' && s.flapIndex === 0 && s.flapPos < 0.05) done.add('flapsup');
+  return done;
+}
+
+/** Strip state: done items lit, the first open one current. */
+export function takeoffChecklist(d: FlightOpsJetData, done: ReadonlySet<TakeoffItem>): TakeoffCheck[] {
+  let cur = false;
+  return takeoffItems(d).map(i => {
+    if (done.has(i.id)) return { ...i, state: 'done' as const };
+    if (!cur) { cur = true; return { ...i, state: 'current' as const }; }
+    return { ...i, state: 'pending' as const };
+  });
+}
+
+/** Takeoff HUD cues (Vr bug, pitch bracket) show from the brakes to the 1000 ft climb gate. */
+export function showTakeoffCues(s: FlightOpsState): boolean {
+  if (!s.takeoff) return false;
+  return s.phase === 'ready' || s.phase === 'roll' || (s.phase === 'air' && s.pos.y < TAKEOFF_CLIMB_FT * M_PER_FT);
+}
+
+/** Vr and the pull speed in the display unit (kt or km/h), for the speed tape bugs. */
+export function takeoffSpeeds(d: FlightOpsJetData, u: Units): { vr: number; pull: number | null } {
+  const conv = (k: number) => (u === 'metric' ? Math.round(k * MPS_PER_KT * 3.6) : Math.round(k));
+  const at = rotateAtKt(d);
+  return { vr: conv(d.takeoff.vrKt.value), pull: at !== d.takeoff.vrKt.value ? conv(at) : null };
+}
+
+/** Screen y of a value on a moving tape centred on the current value (larger values higher). */
+export const tapeY = (value: number, current: number, centreY: number, pxPerUnit: number) => centreY - (value - current) * pxPerUnit;
 
 export interface LessonSnapshot {
   gates: readonly GateResult[];
@@ -159,6 +243,8 @@ export interface LessonSnapshot {
   onSpeedRunS: number;
   /** Return to base only: latched nav milestones. */
   nav?: NavMilestones;
+  /** Takeoff only: latched checklist items. */
+  takeoff?: ReadonlySet<TakeoffItem>;
 }
 
 export interface NavMilestones {
@@ -197,6 +283,8 @@ export function stepsDone(snap: LessonSnapshot): Set<StepId> {
   if (snap.onSpeedRunS >= 3) done.add('onspeed');
   if (passed('groove')) done.add('groove');
   if (ok('touchdown')) done.add('touchdown');
+  for (const id of snap.takeoff ?? []) done.add(id);
+  if (passed('liftoff')) done.add('pitch');
   return done;
 }
 
@@ -204,6 +292,9 @@ export function stepsDone(snap: LessonSnapshot): Set<StepId> {
 export function currentStep(done: ReadonlySet<StepId>, order: readonly StepId[] = STEP_ORDER): StepId | null {
   return order.find(id => !done.has(id)) ?? null;
 }
+
+/** Progress key for a passed lesson: the pattern / landing key is unchanged, takeoff has its own. */
+export const progressKey = (ac: FlightOpsJetId, kind: LessonKind) => (kind === 'takeoff' ? `flight-ops:${ac}:takeoff` : `flight-ops:${ac}:done`);
 
 /** Progress threshold: a scored landing at or above this marks the lesson done. */
 export const PASS_SCORE = 70;

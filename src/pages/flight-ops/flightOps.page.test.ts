@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { ROUTES, routeFor } from '../../app/routes';
 import { LESSON_LINKS, PRACTICE_LINKS, destinationFor } from '../../app/navigation';
-import { ApproachEvaluator, FLIGHT_OPS_DT, applyAction, createFlightOpsState, demoPilot, stepFlightOps, type GateResult, type NavState } from '../../sim/flightOps';
+import {
+  ApproachEvaluator, FLIGHT_OPS_DT, TakeoffEvaluator, applyAction, createFlightOpsState, demoPilot, rotateAtKt, stepFlightOps,
+  type GateResult, type NavState,
+} from '../../sim/flightOps';
 import {
   FLIGHT_OPS_JETS, NAV_STEP_ORDER, STEP_ORDER, currentStep, flapControl, gateState, gatesForStart, indexerLamps, isFlightOpsJet, lampToken,
   lessonPassed, navMilestones, navPicture, placeGates, plannedGates, pointAt, stepsDone, type FlownPoint,
+  PASS_SCORE, TAKEOFF_STEP_ORDER, landingConfigured, overspeedTitle, progressKey, showTakeoffCues, stepOrder, takeoffChecklist,
+  takeoffItems, takeoffItemsNow, takeoffSpeeds, tapeY, type TakeoffItem,
 } from './logic';
 import { legCaption, lessonSteps } from './lesson';
 import { stickFromPoint } from './touch';
@@ -190,6 +195,91 @@ describe('flight-ops page logic', () => {
       const sc = ev.score();
       expect(s.phase).toBe('stopped');
       expect(sc.total).not.toBeNull();
+    }
+  });
+});
+
+describe('flight-ops page: takeoff (#24)', () => {
+  it('maps jets without flap control to no flap lamp, step or strip item', () => {
+    const m = FLIGHT_OPS.m2000c;
+    expect(flapControl(m)).toBe('none');
+    expect(takeoffItems(m).map(i => i.id)).toEqual(['brakes', 'power', 'release', 'rotate', 'gearup']);
+    expect(stepOrder('takeoff', m)).not.toContain('flapsup');
+    expect(lessonSteps(m, 'imperial', 'takeoff').map(s => s.text).join(' ')).not.toMatch(/flap/i);
+    expect(overspeedTitle(m, '230 kt')).toBe('Gear above 230 kt');
+    expect(overspeedTitle(FLIGHT_OPS.fa18c, '250 kt')).toBe('Gear or landing flaps above 250 kt');
+    const s = createFlightOpsState('m2000c', 'final');
+    expect(s.flapIndex).toBe(0);
+    expect(landingConfigured(m, s)).toBe(true);
+    expect(takeoffItems(FLIGHT_OPS.fa18c).at(-1)!.label).toBe('FLAPS AUTO');
+    expect(takeoffItems(FLIGHT_OPS.f16c).at(-1)!.label).toBe('FLAPS (GEAR)');
+    expect(takeoffItems(FLIGHT_OPS.su27)[1]!.label).toBe('POWER AB');
+  });
+
+  it('lights the checklist in order with the first open item current', () => {
+    const d = FLIGHT_OPS.fa18c;
+    expect(takeoffChecklist(d, new Set<TakeoffItem>(['brakes', 'power'])).map(c => c.state))
+      .toEqual(['done', 'done', 'current', 'pending', 'pending', 'pending']);
+    expect(takeoffChecklist(d, new Set<TakeoffItem>()).filter(c => c.state === 'current')).toHaveLength(1);
+    const s = createFlightOpsState('fa18c', 'takeoff');
+    expect(takeoffItemsNow(d, s, true)).toEqual(new Set(['brakes']));
+    expect(takeoffItemsNow(d, s, false).size).toBe(0);
+  });
+
+  it('the demo lights every checklist item and step for every jet', () => {
+    for (const id of FLIGHT_OPS_JETS) {
+      const d = FLIGHT_OPS[id];
+      const s = createFlightOpsState(id, 'takeoff', d);
+      const ev = new TakeoffEvaluator(d);
+      const done = new Set<TakeoffItem>();
+      for (let i = 0; i < 60 * 180 && ev.score().total === null; i++) {
+        const cmd = demoPilot(s, d);
+        for (const a of cmd.actions) applyAction(s, a, d);
+        stepFlightOps(s, cmd, FLIGHT_OPS_DT, d);
+        ev.update(s);
+        for (const it of takeoffItemsNow(d, s, !!cmd.brakes)) done.add(it);
+      }
+      expect([...done].sort(), id).toEqual(takeoffItems(d).map(i => i.id).sort());
+      const steps = stepsDone({ gates: ev.score().gates, configured: false, onSpeedRunS: 0, takeoff: done });
+      expect(stepOrder('takeoff', d).every(x => steps.has(x)), id).toBe(true);
+      expect(ev.score().total, id).toBeGreaterThanOrEqual(PASS_SCORE);
+    }
+  });
+
+  it('places the Vr bug and the pull mark on the speed tape', () => {
+    expect(tapeY(148, 138, 100, 2)).toBe(80);
+    expect(tapeY(100, 100, 50, 3)).toBe(50);
+    const f16 = takeoffSpeeds(FLIGHT_OPS.f16c, 'imperial');
+    expect(f16.pull).toBe(Math.round(rotateAtKt(FLIGHT_OPS.f16c)));
+    expect(f16.vr - f16.pull!).toBe(10);
+    expect(takeoffSpeeds(FLIGHT_OPS.fa18c, 'imperial').pull).toBeNull();
+    expect(takeoffSpeeds(FLIGHT_OPS.su27, 'metric').vr).toBe(Math.round(140 * 1.852));
+  });
+
+  it('shows takeoff cues from the brakes to 1000 ft, and keeps a separate progress key', () => {
+    const s = createFlightOpsState('f16c', 'takeoff');
+    expect(showTakeoffCues(s)).toBe(true);
+    expect(showTakeoffCues(createFlightOpsState('f16c', 'final'))).toBe(false);
+    s.phase = 'air'; s.pos.y = 400;
+    expect(showTakeoffCues(s)).toBe(false);
+    expect(progressKey('f16c', 'takeoff')).toBe('flight-ops:f16c:takeoff');
+    expect(progressKey('f16c', 'pattern')).toBe('flight-ops:f16c:done');
+    expect(gatesForStart(plannedGates(FLIGHT_OPS.f16c), 'takeoff')).toEqual([]);
+  });
+
+  it('teaches the jet numbers in the takeoff steps and captions', () => {
+    const d = FLIGHT_OPS.f16c;
+    const steps = lessonSteps(d, 'imperial', 'takeoff');
+    expect(steps.map(s => s.id)).toEqual(TAKEOFF_STEP_ORDER);
+    expect(steps.find(s => s.id === 'rotate')!.text).toContain(`Pull at ${Math.round(rotateAtKt(d))} kt`);
+    expect(steps.find(s => s.id === 'brakes')!.keys).toBe('W');
+    expect(lessonSteps(FLIGHT_OPS.fa18c, 'imperial', 'takeoff').find(s => s.id === 'flapsup')!.text).toContain('AUTO');
+    expect(legCaption('takeoff', d, 'imperial', undefined, 0, 'ready').text).toContain('brakes');
+    expect(legCaption('takeoff', d, 'imperial', undefined, 0, 'roll', 50).text).toContain('pull at');
+    expect(legCaption('climbout', FLIGHT_OPS.m2000c).text).toBe('Positive climb: gear up.');
+    for (const id of FLIGHT_OPS_JETS) {
+      const text = lessonSteps(FLIGHT_OPS[id], 'metric', 'takeoff').map(s => s.text).join(' ');
+      expect(text, id).not.toMatch(/!|\bkt\b/);
     }
   });
 });
