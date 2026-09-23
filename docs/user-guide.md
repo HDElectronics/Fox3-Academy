@@ -180,6 +180,17 @@ it over the 3D view. Radar lock Auto locks inside 5 nm and 20° of the nose (sim
 vector, both turn circles on the ground, the bandit's plane of motion, the line of sight coloured by pursuit (amber
 lead, green pure, blue lag), tracers and hit sparks; each can be switched off. Every drill ends with a debrief and
 a score. Sight geometry and hits are simplified; unverified sight and gun values say "not verified".
+Lesson 8, Close-range lock and IR shot: pick your jet's close-combat mode in the Close combat panel (M cycles:
+FC3 VS / BORE / HELMET / Fi0, F-15C VS / BORE / Auto Guns, Hornet BST / VACQ / WACQ / GACQ, F-16C 30×20 / 10×60 /
+BORE, F-14 PLM / VSL HI / VSL LO / PAL, JF-17 VT / BS / HA, M-2000C boresight / vertical / HUD), lock him (automatic,
+or Enter for FC3 BORE and HELMET), get the seeker tone and fire the IR missile (Space with the missile selected, W
+swaps gun and missile). Hornet, Viper, F-15C, F-14 and JF-17 seekers growl first; uncage (C) for the high tone.
+FC3 jets show ПР; Fi0 uses only the R-73 seeker and nothing reaches his RWR. The HUD draws each mode's cue (VS lines,
+BORE circle, HELMET ring flashing for ПР with an X outside the gimbal, Hornet dashed circles, the dim scan area as a
+trainer aid) and the seeker circle. The growl and lock tone play after your first key press or click; the Seeker
+tone toggle mutes them. The bandit flares after your launch. Scored on time to lock, shots in the zone (tone, range
+and the off-boresight limit, R-73 45°) and the result. IR shots also work in the Free fight. Mode areas, lock ranges
+and tones not in the research notes say "not verified".
 ### Shkval & Vikhr (Su-25T)
 Only for the Su-25T (pick it in the top bar; fighters see a panel that sends them back). The IT-23M shows the
 black-and-white Shkval TV picture with its symbology: azimuth and elevation scales, КС / АС, zoom, target size in
