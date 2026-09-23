@@ -28,8 +28,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-- **B21. Radar-volume annotation overlap.** Coverage annotations can overlap nearby aircraft tags in
-  crowded Radar Lab views. Coordinate them with shared label placement and check desktop/phone layouts.
+No open items.
 
 ## P3 — Quality and infrastructure
 

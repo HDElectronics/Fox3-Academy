@@ -41,14 +41,27 @@ class LabelLayout {
   }
 }
 
-export interface LabelRegistration { priority?: number; offset?: { x: number; y: number } }
+/** Shared layout priorities (lower wins). Coverage annotations yield to every entity and lesson tag. */
+export const LabelPriority = { selected: 0, aircraft: 1, missile: 2, annotation: 3, coverage: 4 } as const;
+
+export interface LabelRegistration {
+  priority?: number;
+  offset?: { x: number; y: number };
+  /** Largest CSS-pixel move from the preferred spot before the label hides instead. Default: layout limit. */
+  maxMove?: number;
+}
+
+/** Page code that can place labels in a TacticalScene's shared layout (WorldView, ReplayView). */
+export interface LabelHost {
+  registerLabel(label: DeclutterLabel, options?: LabelRegistration): () => void;
+}
 
 /** Registry is independent of entity resets; callers release page labels before disposing them. */
 export class LabelRegistry {
   private labels = new Map<DeclutterLabel, LabelRegistration>();
   register(label: DeclutterLabel, options: LabelRegistration = {}): () => void {
     if (this.labels.has(label)) throw new Error('Label is already registered');
-    const registration = { ...options, offset: options.offset ? { ...options.offset } : undefined };
+    const registration: LabelRegistration = { ...options, offset: options.offset ? { ...options.offset } : undefined };
     this.labels.set(label, registration);
     let active = true;
     return () => {
@@ -66,22 +79,35 @@ export class LabelRegistry {
   }
 }
 
-export interface LabelCandidate extends LabelBounds { priority: number }
+export interface LabelCandidate extends LabelBounds {
+  priority: number;
+  /** Per-label move limit in CSS px (capped by the layout limit). */
+  maxMove?: number;
+  /** Last frame's placement offset; spots near it are preferred so labels do not flicker between sides. */
+  prev?: { x: number; y: number };
+}
 export interface LabelPlacement { x: number; y: number; visible: boolean }
+
+/** A spot within this many px of last frame's wins unless another is this much closer to home (hysteresis). */
+const STICKY_PX = 8;
 
 /** Place near the preferred anchor, inside the viewport, without overlapping earlier priority labels.
  * When local space is exhausted, hide lower-priority text rather than obscuring another label.
+ * Pure and O(n²) in visible labels; cheap enough to run every frame.
  */
 export function layoutLabels(labels: readonly LabelCandidate[], width: number, height: number): LabelPlacement[] {
-  const margin = 6, gap = 4, maxMove = width < 600 ? 100 : 160;
+  const margin = 6, gap = 4, layoutMove = width < 600 ? 100 : 160;
   const placed: LabelBounds[] = [];
   const result = labels.map(() => ({ x: 0, y: 0, visible: false }));
   const order = labels.map((label, index) => ({ label, index })).sort((a, b) => a.label.priority - b.label.priority || a.index - b.index);
   const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
   for (const { label: l, index } of order) {
     if (l.width > width - 2 * margin || l.height > height - 2 * margin) continue;
+    const maxMove = Math.min(layoutMove, l.maxMove ?? layoutMove);
     const xs = [clamp(l.left, margin, width - margin - l.width)];
     const ys = [clamp(l.top, margin, height - margin - l.height)];
+    const prevLeft = l.prev ? l.left + l.prev.x : NaN, prevTop = l.prev ? l.top + l.prev.y : NaN;
+    if (l.prev) { xs.push(prevLeft); ys.push(prevTop); }
     for (const p of placed) {
       xs.push(p.left - gap - l.width, p.left + p.width + gap);
       ys.push(p.top - gap - l.height, p.top + p.height + gap);
@@ -89,8 +115,9 @@ export function layoutLabels(labels: readonly LabelCandidate[], width: number, h
     let best: LabelBounds | null = null, distance = Infinity;
     for (const left of xs) for (const top of ys) {
       if (left < margin || top < margin || left + l.width > width - margin || top + l.height > height - margin) continue;
-      const d = Math.hypot(left - l.left, top - l.top);
-      if (d > maxMove || d >= distance) continue;
+      const move = Math.hypot(left - l.left, top - l.top);
+      const d = Math.hypot(left - prevLeft, top - prevTop) <= STICKY_PX ? move - STICKY_PX : move;
+      if (move > maxMove || d >= distance) continue;
       if (placed.some(p => left < p.left + p.width + gap && left + l.width + gap > p.left && top < p.top + p.height + gap && top + l.height + gap > p.top)) continue;
       best = { left, top, width: l.width, height: l.height }; distance = d;
     }
