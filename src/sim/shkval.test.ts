@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { SimEvent } from './types';
-import { LASER_LIMIT_S, canIdentify, idRangeKm, inLockGimbal, shkvalFovDeg } from './shkval';
+import { LASER_LIMIT_S, canIdentify, idRangeKm, inLockGimbal, shkvalAimPoint, shkvalDir, shkvalFovDeg } from './shkval';
+import { groundIntersect } from './ground';
 import { D2R, dirFrom } from './math';
 
 /** Su-25T at 2000 m flying north at 200 m/s; ground targets placed by each test. */
@@ -108,7 +109,59 @@ describe('Shkval gimbal and line of sight', () => {
   });
 });
 
-describe('Laser (S1 rule: trips at the 20 minute limit, cools as long as it was on)', () => {
+describe('Shkval aim point consistency', () => {
+  it.each([false, true])('releases an unreachable stabilised point (locked initially: %s)', locked => {
+    const { world, ac, sh } = setup();
+    const tank = world.spawnGroundUnit({ id: 'T', kind: 'tank', side: 'red', pos: { x: 0, z: -6000 } });
+    world.shkvalPointAt('me', tank.pos);
+    world.shkvalStabilise('me', true);
+    if (locked) expect(world.shkvalLock('me').ok).toBe(true);
+    ac.heading = ac.cmd.heading = Math.PI / 2;
+    world.step(1 / 60);
+    expect(sh.groundStab).toBe(false);
+    expect(sh.stabPoint).toBeNull();
+    expect(sh.lockedUnitId).toBeNull();
+    const intersection = groundIntersect(world, ac.pos, shkvalDir(ac));
+    expect(intersection).not.toBeNull();
+    expect(shkvalAimPoint(world, ac)!.distanceTo(intersection!)).toBeLessThan(0.001);
+    expect(shkvalAimPoint(world, ac)!.distanceTo(tank.pos)).toBeGreaterThan(1000);
+  });
+
+  it.each(['slew', 'point'] as const)('releases stabilisation when %s moves the sight above the ground', action => {
+    const { world, ac, sh } = setup();
+    expect(world.shkvalStabilise('me', true).ok).toBe(true);
+    if (action === 'slew') {
+      world.shkvalSlew('me', 0, 1);
+      world.step(2);
+    } else {
+      world.shkvalPointAt('me', { x: 0, y: 2500, z: -6000 });
+    }
+    expect(sh.el).toBeGreaterThan(0);
+    expect(sh.groundStab).toBe(false);
+    expect(sh.stabPoint).toBeNull();
+    expect(shkvalAimPoint(world, ac)).toBeNull();
+  });
+
+  it('records the current unstabilised LOS rather than null or a stale point', () => {
+    const { world, ac, sh } = setup();
+    world.record = true;
+    for (const stale of [false, true]) {
+      sh.stabPoint = stale ? ac.pos.clone() : null;
+      world.shkvalSlew('me', 1, 0);
+      world.record = false;
+      world.step(0.5);
+      world.record = true;
+      world.step(1 / 60);
+      const point = shkvalAimPoint(world, ac)!;
+      expect(point).not.toBeNull();
+      expect(world.recording.at(-1)!.shkval).toEqual([
+        { ownerId: 'me', point: [point.x, point.y, point.z], locked: null, laser: false },
+      ]);
+    }
+  });
+});
+
+describe('Laser (simplified trainer heat and recovery model)', () => {
   it('needs the Shkval on', () => {
     const { world } = setup();
     world.shkvalPower('me', false);

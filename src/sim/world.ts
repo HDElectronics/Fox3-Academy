@@ -32,7 +32,7 @@ import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
 import {
-  pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalLock, shkvalUnlock, stepShkval,
+  pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
 } from './shkval';
 import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
@@ -402,8 +402,8 @@ export class World {
     const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);
     if (sk.length) {
       f.shkval = sk.map(a => {
-        const sh = a.ag!.shkval, u = sh.lockedUnitId ? this.groundUnits.get(sh.lockedUnitId) : undefined;
-        const p = u?.pos ?? sh.stabPoint;
+        const sh = a.ag!.shkval;
+        const p = shkvalAimPoint(this, a);
         return { ownerId: a.id, point: p ? [p.x, p.y, p.z] : null, locked: sh.lockedUnitId, laser: sh.laserOn };
       });
     }

@@ -3,6 +3,7 @@ import { World } from './world';
 import type { AgWeapon, SimEvent } from './types';
 import { AG_WEAPONS } from '../data/agWeapons';
 import type { AgLaunchCheck } from './agWeapons';
+import type { AgWeaponId } from '../data/types';
 
 const isCheck = (r: AgWeapon[] | AgLaunchCheck): r is AgLaunchCheck => !Array.isArray(r);
 
@@ -66,6 +67,31 @@ describe('Vikhr: lock and laser held to impact', () => {
     flyOut(world, r);
     expect(r[0].result).toMatchObject({ kind: 'miss', reason: 'gimbal' });
     expect(tank.alive).toBe(true);
+  });
+
+  it.each<AgWeaponId>(['vikhr', 'kh25ml', 'kh29l'])('%s misses without damage when the laser goes off just before impact', weapon => {
+    const { world, tank, events } = setup({ loadout: weapon === 'vikhr' ? 'vikhr' : 'laser' });
+    lockAndLase(world);
+    world.selectAgWeapon('me', weapon);
+    const r = world.agLaunch('me');
+    if (isCheck(r)) throw new Error(r.reason);
+    const wp = r[0];
+    for (let i = 0; i < 3600 && wp.alive && wp.pos.distanceTo(tank.pos) > 100; i++) world.step(1 / 60);
+    expect(wp.alive).toBe(true);
+    expect(wp.pos.distanceTo(tank.pos)).toBeLessThanOrEqual(100);
+    const hp = tank.hp;
+    world.laser('me', false);
+    world.step(1 / 60);
+    expect(wp.lostWhy).toBe('laser-off');
+    // Restoring the laser must not reacquire guidance or erase the first failure.
+    world.laser('me', true);
+    flyOut(world, r);
+    expect(wp.result).toMatchObject({ kind: 'miss', reason: 'laser-off' });
+    expect(wp.guided).toBe(false);
+    expect(tank.alive).toBe(true);
+    expect(tank.hp).toBe(hp);
+    expect(events.some(e => e.type === 'ground-kill')).toBe(false);
+    expect(events.some(e => e.type === 'ag-miss' && e.reason === 'laser-off')).toBe(true);
   });
 
   it('fires a pair from alternate stations', () => {
@@ -143,6 +169,26 @@ describe('ПР (launch authorised) per weapon', () => {
     flyOut(world, r, 120);
     expect(r[0].result?.kind).toBe('hit');
     expect(site.alive).toBe(false);
+  });
+
+  it('Kh-58 rechecks the locked emitter zone and emission at release', () => {
+    const { world, ac, ag } = setup({ loadout: 'sead' });
+    world.spawnSam({ id: 'S', side: 'red', type: 'sa11', pos: { x: 0, z: -40000 }, holdFire: true });
+    world.setAgMaster('me', 'ag');
+    world.selectAgWeapon('me', 'kh58');
+    world.armDetect('me', true);
+    expect(world.armLock('me', 'S').ok).toBe(true);
+    expect(world.canAgLaunch('me')).toMatchObject({ ok: true, pr: true });
+    ac.heading = ac.cmd.heading = Math.PI;
+    expect(world.canAgLaunch('me')).toMatchObject({ ok: false, pr: false, reason: expect.stringMatching(/±30°/) });
+    const rounds = ag.stores.kh58;
+    expect(isCheck(world.agLaunch('me'))).toBe(true);
+    expect(ag.stores.kh58).toBe(rounds);
+    ac.heading = ac.cmd.heading = 0;
+    world.setSamActive('S', false);
+    expect(world.canAgLaunch('me')).toMatchObject({ ok: false, pr: false, reason: 'Emitter silent' });
+    world.setSamActive('S', true);
+    expect(world.canAgLaunch('me')).toMatchObject({ ok: true, pr: true });
   });
 
   it('Kh-58 without the pod is refused', () => {
