@@ -156,6 +156,18 @@ throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,
 WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on with Show on-screen controls.
 
+### Shkval & Vikhr (Su-25T)
+Only for the Su-25T (pick it in the top bar; fighters see a panel that sends them back). The IT-23M shows the
+black-and-white Shkval TV picture with its symbology: azimuth and elevation scales, КС / АС, zoom, target size in
+metres, ЛД, slant range in km, time of flight and ПР. Beside it the HUD shows ОПТ-ЗЕМЛЯ / ЗЕМЛЯ, the store label
+(9А4172, С8, ВПУ), the launch range scale, the laser cursor, the CCIP pipper and the station boxes.
+Four lessons: **Shkval** (7, O, slew with ; , . /, Enter to stabilise and lock, = / - to zoom, RCtrl+] / RCtrl+[
+for target size; a 10 m frame will not lock the 60 m bunker), **Laser** (RShift+O, read the range, let the laser
+cool), **Vikhr drill** (a tank platoon at 12–15 km: lock, lase, fire with Space at ПР and hold lock and laser to
+impact; scored on kills, misses with their reason, and laser time) and **CCIP pass** (S-8 rockets or the cannon on a
+truck column in a dive; Left / Right steer). Tap the TV picture to point the sight; on a phone a slew pad, zoom and
+size buttons and Fire / Lock / ЛД buttons appear. Launch ranges are community values and marked not verified.
+
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and
 drops chaff, scaled by skill (rookie to ace). The brief compares your launch zone with his. You fly a tactical
