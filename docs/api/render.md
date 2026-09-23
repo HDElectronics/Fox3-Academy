@@ -403,7 +403,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos)`; swaps the jet if `state.aircraft` changed.
-  - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck')`: chase = behind the jet on its heading, 9 m
+  - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck' | 'wing' | 'receiver')`: chase = behind the jet on its heading, 9 m
     high and 7 m left, looking between the jet and the aim point while the runway is ahead (so the
     jet sits low right and the runway stays visible on final) and along the heading otherwise;
     side = abeam from the east looking west, framing the jet and the aim point so the glide path reads
@@ -436,6 +436,25 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
     shows the chase view.
   - Tail hook: when `state.hookPos` is defined the scene hangs a simple arm under the jet's tail and swings it
     35° down by `hookPos` (hidden when stowed). Drawn by the scene, not a `JetMesh` part.
+  - Air-to-air refuelling (#28): `setTanker(tankerId | null)` adds a `TankerMesh` to `root` (world metres), hides
+    the runway and the approach overlay; `null` removes it. With `state.aar`, `update(state)` places the jet with
+    its model origin on the sim reference (no ground-clearance offset), draws a probe rod on probe jets (out by
+    `aar.probePos`, tip at the data's `contactPointM`), and drives the tanker; while connected the basket or boom
+    nozzle rides on the drawn tip. Cameras `'wing'` (under the tanker's wing outboard of the hose pod, or beside the
+    rear fuselage on a boom tanker, `WING_EYE`, looking at the receiver) and `'receiver'` (`RECEIVER_EYE`: 14 m
+    behind the receiver's tail, 4.5 m up, in line with the probe tip, looking at the basket or boom nozzle); both
+    ride with the tanker without smoothing and fall back to `'chase'` without a tanker. Chase looks between the jet
+    and the tanker while the tanker is ahead. Display choices.
+- `TankerMesh(shared, palette, tankerId)` (`flightOps/tanker.ts`, #28): low-poly IL-78M (high wing, T-tail, UPAZ
+  pods under the outer wings and one on the rear fuselage), KC-135 (swept low wing, boom with ruddevators under the
+  tail), KC-135 MPRS (hose pods, boom stowed) and KC-130 (straight high wing, props), local x right, y up, z aft.
+  `airframe` banks with `aar.tankerBank`; `rig` (hose, basket, boom) stays in the sim's level tanker frame. The hose
+  runs from the pod to the basket (`basketRest`, or the drawn tip when connected) as screen-space lines; on the
+  IL-78M it carries the UPAZ colour bands painted by distance from the cone (caution / ok / warning tokens), so the
+  band at the pod exit is the band the pilot reads. The boom follows `aar.boom` (elevation, azimuth, extension).
+  `update(aar, tip?)`, `toWorld(v)`, `toFrame(p)`, `dispose()`. Pure helpers: `TANKER_LAYOUT`, `tankerLocal(v)`,
+  `rollPoint(v, bankRad)`, `hosePoints(pod, basket, n, sagM)`, `hoseMarkAt(bands, fromConeM)`, `bandStripes(band)`.
+  Drawing values; no hose or boom mechanics.
 - `CarrierMesh(palette, shipId, targetWire = 3)`: low-poly ship in ship-local metres (origin at the ramp at
   sea level, x starboard, −z forward) from `SHIPS` / `SHIP_HULL`: hull extruded from `deckOutline(id)`, deck,
   island and mast, landing-area paint (caution edge lines, dashed centreline, ramp line, wires with the target
