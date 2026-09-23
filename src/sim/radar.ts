@@ -17,6 +17,7 @@ import type { GuidanceSupport, World } from './world';
 import type { Aircraft, EntityId, RadarState, TrackFile } from './types';
 import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
+import { fighterSpec, fighterType, isFighterAc } from './jet';
 import { MISSILES } from '../data/missiles';
 import {
   D2R, M_PER_NM, MPS_PER_KT, R2D, aspectAngle, clamp, closureRate, dirFrom, elevationTo, inDopplerNotch,
@@ -174,7 +175,7 @@ function inner(st: RadarState): Internal {
   return s;
 }
 
-const specOf = (ac: Aircraft): AircraftSpec => AIRCRAFT[ac.type];
+const specOf = (ac: Aircraft): AircraftSpec => fighterSpec(ac);
 
 // ───────────────────────────────────────────────────────────── scan geometry
 
@@ -578,7 +579,7 @@ function stepStt(world: World, ac: Aircraft, spec: AircraftSpec, dt: number): vo
     const ge = geoOf(ac, trk.pos);
     st.beamAz = clamp(ge.az, -gimAz, gimAz);
     st.beamEl = clamp(ge.el, -gimEl, gimEl);
-    if (st.stt.lostFor > radarRules(ac.type).sttMemoryS) breakLock(world, ac, why);
+    if (st.stt.lostFor > radarRules(fighterType(ac)).sttMemoryS) breakLock(world, ac, why);
     return;
   }
   st.stt.lostFor = 0;
@@ -626,7 +627,7 @@ function stepAcm(world: World, ac: Aircraft, spec: AircraftSpec, dt: number): vo
 
 /** Hornet auto L&S / F-14 WCS priorities, scan auto-centring on the primary, FC3 auto-STT. */
 function twsExtras(world: World, ac: Aircraft, spec: AircraftSpec): void {
-  const st = ac.radar, ist = inner(st), r = spec.radar, rules = radarRules(ac.type);
+  const st = ac.radar, ist = inner(st), r = spec.radar, rules = radarRules(fighterType(ac));
   if (rules.autoDesignate !== 'none') {
     const want = rules.autoDesignate === 'closest' ? (st.designated.length ? 0 : 1) : rules.designationCap - st.designated.length;
     if (want > 0) {
@@ -666,6 +667,7 @@ function twsExtras(world: World, ac: Aircraft, spec: AircraftSpec): void {
 }
 
 export function stepRadar(world: World, ac: Aircraft, dt: number): void {
+  if (!isFighterAc(ac)) return; // attack jets have no air-to-air radar
   const spec = specOf(ac), st = ac.radar;
   switch (st.mode) {
     case 'off': return;
@@ -800,7 +802,7 @@ export function setRadarMode(world: World, ac: Aircraft, mode: RadarModeId, targ
   const lockedId = from === 'stt' ? st.stt.targetId : null;
   if (lockedId) emitLock(world, ac, lockedId, 'unlocked');
   if (mode === 'tws' && from === 'stt') {
-    returnToSearch(world, ac, 'tws', lockedId, radarRules(ac.type).unlockKeepsDesignation);
+    returnToSearch(world, ac, 'tws', lockedId, radarRules(fighterType(ac)).unlockKeepsDesignation);
   } else {
     st.stt = { targetId: null, lostFor: 0 };
     st.bricks.length = 0;
@@ -838,7 +840,7 @@ export function designate(world: World, ac: Aircraft, targetId: EntityId): void 
   if (st.mode === 'rws' || st.mode === 'vs') { lockTarget(world, ac, targetId); return; }
   if (st.mode !== 'tws') return;
   if (!trackOf(st, targetId)) return;
-  const rules = radarRules(ac.type);
+  const rules = radarRules(fighterType(ac));
   const i = st.designated.indexOf(targetId);
   if (i === 0) { lockTarget(world, ac, targetId); return; }
   if (i > 0) {
@@ -940,7 +942,7 @@ export function lockTarget(world: World, ac: Aircraft, targetId: EntityId): bool
  * - ACM: leave ACM for the last BVR search mode.
  */
 export function unlock(world: World, ac: Aircraft): void {
-  const st = ac.radar, ist = inner(st), rules = radarRules(ac.type);
+  const st = ac.radar, ist = inner(st), rules = radarRules(fighterType(ac));
   if (st.mode === 'stt') {
     const id = st.stt.targetId;
     if (id) emitLock(world, ac, id, 'unlocked');
@@ -1088,7 +1090,7 @@ export function supportedTargets(world: World, ac: Aircraft): Set<EntityId> {
   const set = new Set<EntityId>();
   const st = ac.radar, tws = specOf(ac).radar.tws;
   if (st.mode !== 'tws' || !tws || (!tws.launchFromTws && !snp2Eligibility(world, ac, true).ok)) return set;
-  const rules = radarRules(ac.type);
+  const rules = radarRules(fighterType(ac));
   const ids: EntityId[] = [];
   for (const m of world.missiles.values()) {
     if (!m.alive || m.shooterId !== ac.id || !m.targetId || m.guidance === 'active') continue;
@@ -1130,7 +1132,7 @@ export function guidanceSupport(world: World, shooter: Aircraft, targetId: Entit
     const tws = specOf(shooter).radar.tws;
     if (!tws || (!tws.launchFromTws && !snp2Eligibility(world, shooter, true).ok)) return none;
     const set = supportedTargets(world, shooter);
-    const ok = set.has(targetId) || (set.size < tws.maxSimultaneousTargets && isSupportable(st, targetId, radarRules(shooter.type)));
+    const ok = set.has(targetId) || (set.size < tws.maxSimultaneousTargets && isSupportable(st, targetId, radarRules(fighterType(shooter))));
     return ok ? { datalink: true, illuminating: false, estimate: est() } : none;
   }
   return none;

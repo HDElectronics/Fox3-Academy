@@ -9,7 +9,7 @@ import {
   Color, ConeGeometry, DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial,
   NotEqualStencilFunc, Quaternion, ReplaceStencilOp, ShaderMaterial, Vector2, Vector3,
 } from 'three';
-import type { FighterId, MissileId } from '../data/types';
+import type { AircraftId, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import type { EntityId, Missile, MissileGuidance, Side } from '../sim/types';
@@ -33,7 +33,7 @@ import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared'
 export interface AircraftLike {
   id: EntityId;
   side: Side;
-  type: FighterId;
+  type: AircraftId;
   callsign: string;
   pos: Vector3;
   vel: Vector3;
@@ -170,7 +170,7 @@ export interface EntitySource {
 
 interface JetVis {
   id: EntityId;
-  type: FighterId;
+  type: AircraftId;
   side: Side;
   data: AircraftLike;
   mesh: JetMesh;

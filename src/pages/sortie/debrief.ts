@@ -44,7 +44,8 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   const R = (m: number) => fmtRange(m, units, m < (units === 'metric' ? 10000 : 18520) ? 1 : 0);
   const modeLabel = (shooter: EntityId, m: RadarModeId) => {
     const t = world.get(shooter)?.type;
-    const lbl = t ? AIRCRAFT[t].radar.modeLabels[m] : undefined;
+    const jet = t ? AIRCRAFT[t] : undefined;
+    const lbl = jet?.role === 'fighter' ? jet.radar.modeLabels[m] : undefined;
     return lbl && lbl !== m.toUpperCase() ? `${m.toUpperCase()} (${lbl})` : m.toUpperCase();
   };
 

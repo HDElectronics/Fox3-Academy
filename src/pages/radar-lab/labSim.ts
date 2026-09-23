@@ -8,6 +8,7 @@ import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { radarLab } from '../../sim/scenarios';
 import { explainDetection, revisitTime, scanElevationLimits } from '../../sim/radar';
+import { fighterSpec, fighterType } from '../../sim/jet';
 import { D2R, R2D, groundRange } from '../../sim/math';
 import type { Units } from '../../app/format';
 import type { Scene, ScanPreset, Snap, TargetSnap } from './exercises';
@@ -115,7 +116,7 @@ export function snapTarget(world: World, me: Aircraft, id: EntityId, role: strin
 /** Coverage (m, absolute) at the cursor range. */
 export function coverageNow(me: Aircraft): { top: number; bottom: number; range: number } {
   const st = me.radar;
-  const lim = scanElevationLimits(AIRCRAFT[me.type], st);
+  const lim = scanElevationLimits(fighterSpec(me), st);
   const c = coverageAt(me.pos.y, st.cursor.range, lim.top * R2D, lim.bottom * R2D);
   return { ...c, range: st.cursor.range };
 }
@@ -127,7 +128,7 @@ export function buildSnap(
   const st = me.radar;
   const cov = coverageNow(me);
   return {
-    t: world.t, ac: me.type, units, mode: st.mode, ownAlt: me.pos.y, frame: st.frameTime, revisit: revisitTime(st), bars: st.bars,
+    t: world.t, ac: fighterType(me), units, mode: st.mode, ownAlt: me.pos.y, frame: st.frameTime, revisit: revisitTime(st), bars: st.bars,
     azHalfDeg: Math.round(st.azHalf * R2D), azCenterDeg: st.azCenter * R2D, elCenterDeg: st.elCenter * R2D,
     cursorRange: st.cursor.range, covTop: cov.top, covBottom: cov.bottom, selectedId: selected,
     targets: ids.map((id, i) => snapTarget(world, me, id, scene.targets[i]?.role ?? '', paint.get(id), inspected.has(id)))

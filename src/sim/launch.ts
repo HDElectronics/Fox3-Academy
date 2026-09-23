@@ -19,6 +19,7 @@
  */
 import type { World } from './world';
 import type { Aircraft, Dlz, EntityId, LaunchCheck, Missile } from './types';
+import { fighterSpec, fighterType, isFighterAc } from './jet';
 import type { MissileId, MissileSpec } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
@@ -77,7 +78,7 @@ export function launchTarget(world: World, ac: Aircraft, missile: MissileId | nu
   if (st.mode === 'stt' && st.stt.targetId) return st.stt.targetId;
   const live = st.designated.filter(id => world.get(id)?.alive);
   if (st.mode === 'tws' && live.length) {
-    if (radarRules(ac.type).launchOrder === 'primary') return live[0];
+    if (radarRules(fighterType(ac)).launchOrder === 'primary') return live[0];
     // Ripple: the designated target with the fewest missiles in the air, in designation order (PDT, SDTs, PDT…).
     let best = live[0], bestN = Infinity;
     for (const id of live) { const n = liveMissilesAt(world, ac, id); if (n < bestN) { bestN = n; best = id; } }
@@ -99,7 +100,7 @@ export function launchTarget(world: World, ac: Aircraft, missile: MissileId | nu
 }
 
 function noTargetReason(ac: Aircraft, ms: MissileSpec): string {
-  const st = ac.radar, spec = AIRCRAFT[ac.type];
+  const st = ac.radar, spec = fighterSpec(ac);
   if (ms.seeker === 'ir') return `No target in the ${ms.name} seeker`;
   if (st.mode === 'off') return 'Radar is off';
   if (st.mode === 'tws') return ms.seeker === 'sarh' ? `${ms.name} needs a lock (STT)` : 'Designate a track first';
@@ -122,6 +123,7 @@ export function canLaunch(world: World, ac: Aircraft, targetId?: EntityId, missi
 }
 
 function canLaunchSingle(world: World, ac: Aircraft, targetId?: EntityId, missile?: MissileId, snp2 = false): LaunchCheck {
+  if (!isFighterAc(ac)) return { ok: false, reason: `The ${AIRCRAFT[ac.type].short} has no air-to-air radar`, targetId: null, missile: null, range: null, dlz: null };
   const spec = AIRCRAFT[ac.type], units = spec.units, st = ac.radar;
   const mid = missile ?? ac.selectedWeapon;
   let tid: EntityId | null = null, range: number | null = null, dlz: Dlz | null = null;

@@ -14,6 +14,7 @@
 import { Vector3 } from 'three';
 import type { World } from './world';
 import type { Aircraft, AiMemory, AiSkill, Dlz, EntityId, Missile, MissReason, SimEvent } from './types';
+import { fighterSpec, isFighterAc } from './jet';
 import type { AircraftSpec, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
@@ -305,7 +306,7 @@ export function aiStatus(ac: Aircraft): AiStatus | null {
 
 /** Called by World every tick for controller 'ai'. Decides at 5–10 Hz depending on skill. */
 export function thinkAi(world: World, ac: Aircraft, dt: number): void {
-  if (!ac.ai || !ac.alive) return;
+  if (!ac.ai || !ac.alive || !isFighterAc(ac)) return; // attack jets have no AI yet
   const b = brainOf(world, ac, ac.ai);
   b.mem.acc += dt;
   if (b.mem.acc < b.mem.period) return;
@@ -349,7 +350,7 @@ function initScript(ac: Aircraft, b: Brain): void {
 
 // ───────────────────────────────────────────────────────────── helpers
 
-const spec = (ac: Aircraft): AircraftSpec => AIRCRAFT[ac.type];
+const spec = (ac: Aircraft): AircraftSpec => fighterSpec(ac);
 const skillName = (ac: Aircraft): AiSkill => ac.ai?.skill ?? 'regular';
 const skillOf = (ac: Aircraft) => AI_SKILLS[skillName(ac)];
 const stateOf = (ac: Aircraft): AiState => ac.ai?.state ?? 'patrol';

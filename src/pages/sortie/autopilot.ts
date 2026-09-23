@@ -9,6 +9,7 @@ import { MISSILES } from '../../data/missiles';
 import type { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import { D2R, bearingTo, relBearing, wrap2Pi } from '../../sim/math';
+import { fighterSpec } from '../../sim/jet';
 
 export class ScriptedPilot {
   private nextThink = 0;
@@ -23,7 +24,7 @@ export class ScriptedPilot {
     const me = w.get(this.meId);
     if (!me || !me.alive || w.t < this.nextThink) return;
     this.nextThink = w.t + 0.25;
-    const spec = AIRCRAFT[me.type];
+    const spec = fighterSpec(me);
     const r = me.radar;
     const enemies = this.enemyIds.map(id => w.get(id)).filter((a): a is Aircraft => !!a && a.alive);
     if (!enemies.length) return;

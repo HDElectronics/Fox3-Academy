@@ -3,14 +3,15 @@
  * single API pages use to drive the simulation. Module behaviour lives in:
  *   flight.ts (aircraft motion), missile.ts (missiles), countermeasures.ts (chaff/flares),
  *   radar.ts (scan, detection, tracks, modes), rwr.ts (warnings), ai.ts (AI pilots),
- *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites).
+ *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites),
+ *   ground.ts (terrain hook, ground units), shkval.ts (Su-25T sight), agWeapons.ts (air-to-ground weapons).
  */
 import { Vector3 } from 'three';
 import type { MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  Aircraft, Countermeasure, EntityId, LaunchCheck, Missile, RecordFrame, SamMissile, SamSite, SamSpawnOptions,
-  SimEvent, SpawnOptions,
+  AgWeapon, Aircraft, Countermeasure, EntityId, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, Missile,
+  RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
 
@@ -29,6 +30,16 @@ import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
+import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
+
+/** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
+function radarOff(): RadarState {
+  return {
+    mode: 'off', snp2: false, expectedRange: null, azCenter: 0, azHalf: 0, elCenter: 0, bars: 1, rangeScale: 0,
+    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], tracks: [], designated: [],
+    stt: { targetId: null, lostFor: 0 }, cursor: { az: 0, range: 0 },
+  };
+}
 
 export const SIM_HZ = 60;
 const RECORD_EVERY = 0.25;
@@ -42,6 +53,11 @@ export class World {
   /** SAM sites (sam.ts) and SAMs in flight. Separate from air-to-air missiles: SAMs have no MissileId. */
   readonly samSites = new Map<EntityId, SamSite>();
   readonly samMissiles = new Map<EntityId, SamMissile>();
+  /** Ground targets (ground.ts) and air-to-ground weapons in flight (agWeapons.ts). */
+  readonly groundUnits = new Map<EntityId, GroundUnit>();
+  readonly agWeapons = new Map<EntityId, AgWeapon>();
+  /** Height-map terrain. null = flat ground at `groundAlt` (see groundHeight / lineOfSight). */
+  terrain: TerrainHook | null = null;
   countermeasures: Countermeasure[] = [];
   readonly events: SimEvent[] = [];
   readonly recording: RecordFrame[] = [];
@@ -89,7 +105,7 @@ export class World {
     const spec = AIRCRAFT[o.type];
     const id = o.id ?? this.uid(o.side === 'blue' ? 'B' : 'R');
     const stores: Partial<Record<MissileId, number>> = {};
-    for (const w of spec.loadout) stores[w.missile] = (stores[w.missile] ?? 0) + w.count;
+    if (spec.role === 'fighter') for (const w of spec.loadout) stores[w.missile] = (stores[w.missile] ?? 0) + w.count;
     const ac: Aircraft = {
       kind: 'aircraft', id, side: o.side, type: o.type, callsign: o.callsign ?? id, controller: o.controller,
       pos: new Vector3(o.pos.x, o.pos.y, o.pos.z),
@@ -97,7 +113,7 @@ export class World {
       heading: o.heading, pitch: 0, roll: 0, g: 1, jamming: o.jamming ?? false,
       alive: true, diedAt: null, killedBy: null,
       cmd: { heading: o.heading, altitude: o.pos.y, speed: o.speed, maxG: Math.min(spec.perf.maxG, 7), afterburner: false },
-      radar: createRadarState(spec),
+      radar: spec.role === 'fighter' ? createRadarState(spec) : radarOff(),
       rwr: [],
       stores: o.stores ?? stores,
       selectedWeapon: null,
@@ -106,7 +122,7 @@ export class World {
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
     this.aircraft.set(id, ac);
-    if (o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
+    if (spec.role === 'fighter' && o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
     this.emit({ t: this.t, type: 'spawn', id });
     return ac;
   }
@@ -123,6 +139,19 @@ export class World {
   setSamActive(id: EntityId, active: boolean): void {
     const s = this.samSites.get(id); if (s) s.active = active;
   }
+
+  /** Place a ground unit (target). y defaults to the terrain height. */
+  spawnGroundUnit(o: GroundUnitSpawnOptions): GroundUnit {
+    const u = createGroundUnit(this, o);
+    this.groundUnits.set(u.id, u);
+    this.emit({ t: this.t, type: 'spawn', id: u.id });
+    return u;
+  }
+
+  /** Ground height (m) at x, z: the terrain hook, or flat groundAlt. */
+  groundHeight(x: number, z: number): number { return groundHeight(this, x, z); }
+  /** Line of sight a→b over the terrain (flat ground: both ends above it). */
+  lineOfSight(a: XYZ, b: XYZ): boolean { return lineOfSight(this, a, b); }
 
   get(id: EntityId | null | undefined): Aircraft | undefined {
     return id ? this.aircraft.get(id) : undefined;
@@ -148,6 +177,7 @@ export class World {
     this.t += h;
     for (const ac of this.aircraft.values()) if (ac.alive && ac.controller === 'ai') thinkAi(this, ac, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
+    if (this.groundUnits.size) stepGroundUnits(this, h);
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
@@ -280,6 +310,11 @@ export class World {
     if (this.samMissiles.size) {
       f.samMissiles = [...this.samMissiles.values()].map(m => ({
         id: m.id, type: m.type, side: m.side, siteId: m.siteId, targetId: m.targetId, pos: [m.pos.x, m.pos.y, m.pos.z], guided: m.guided, alive: m.alive,
+      }));
+    }
+    if (this.groundUnits.size) {
+      f.groundUnits = [...this.groundUnits.values()].map(u => ({
+        id: u.id, kind: u.kind, side: u.side, pos: [u.pos.x, u.pos.y, u.pos.z], heading: u.heading, alive: u.alive,
       }));
     }
     this.recording.push(f);

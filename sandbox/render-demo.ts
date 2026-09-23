@@ -17,6 +17,7 @@ import { AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER } from '../src/data/aircraft';
 import { MISSILES } from '../src/data/missiles';
 import type { AircraftId, FighterId, MissileId } from '../src/data/types';
 import { World } from '../src/sim/world';
+import { fighterSpec } from '../src/sim/jet';
 import type { Aircraft, Missile, RecordFrame, TrackFile } from '../src/sim/types';
 import { dirFrom, D2R, wrap2Pi } from '../src/sim/math';
 
@@ -155,7 +156,7 @@ function buildDemo(): Demo {
       if (me.alive) fly(me, dt, t < 14 ? 0.0 : 0.035, 0);
       if (b1.alive) fly(b1, dt, t > 16 ? -0.06 : 0.004, t > 16 ? -40 : 0);
       if (b2.alive) fly(b2, dt, 0.012, 0);
-      stepSyntheticScan(me.radar, AIRCRAFT[me.type].radar, dt);
+      stepSyntheticScan(me.radar, fighterSpec(me).radar, dt);
       // Track estimates drift away from truth and snap back on each "hit".
       for (const tr of me.radar.tracks) {
         const tgt = world.aircraft.get(tr.targetId);
@@ -302,7 +303,7 @@ function stressView(): void {
       dirFrom(j.heading, 0, j.vel).multiplyScalar(250);
       j.pos.addScaledVector(j.vel, dt);
     }
-    stepSyntheticScan(me.radar, AIRCRAFT[me.type].radar, dt);
+    stepSyntheticScan(me.radar, fighterSpec(me).radar, dt);
     for (const m of missiles) {
       const tg = world.aircraft.get(m.targetId ?? '');
       if (!tg) continue;
