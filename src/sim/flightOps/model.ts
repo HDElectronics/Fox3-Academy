@@ -11,14 +11,16 @@
  * - Ground contact at wheel height y = 0: gear up, vs < −4.5 m/s or off the runway is a crash; else rollout.
  * - Takeoff (#24): 'ready' holds the brakes, 'roll' accelerates; the nose rises with back stick above 0.8·Vr,
  *   liftoff comes at Vr + 5 kt once the pitch is in the band (late fallback Vr + 25 kt at 3°). Arcade rules.
+ * - AAR (#28): the tanker flies its racetrack; near the tanker the arcade station mode (aar.ts) flies the jet.
  * Fixed step 1/60 s recommended. Deterministic: no randomness.
  */
 import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp, wrap2Pi, wrapPi } from '../math';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import {
   RUNWAY, type FlightOpsAction, type FlightOpsInput, type FlightOpsJetData, type FlightOpsJetId,
-  type FlightOpsState, type LaunchOptions,
+  type FlightOpsState, type LaunchOptions, type AarOptions,
 } from './types';
+import { applyAarAction, placeAarStart, stepAarStation, updateAar } from './aar';
 import { applyLaunchAction, placeLaunchStart, stepLaunchAir, stepLaunchDeck } from './launch';
 import { cycleNavMode, cycleNavPoint, initNav, navRoute, updateNav } from './nav';
 import { HOOK_TIME_S, carrierContact, landingFrame, moveShip, placeCarrierStart, stepCarrierDeck } from './carrier';
@@ -68,10 +70,11 @@ export const TAKEOFF_START_M = 100;
 
 /**
  * 'caseI' and 'carrierGroove' (#26) need `FlightOpsJetData.carrier` (fa18c, f14b, su33). 'catapult' (fa18c, f14b)
- * and 'skiJump' (su33) (#27) need `FlightOpsJetData.launch` of that kind.
+ * and 'skiJump' (su33) (#27) need `FlightOpsJetData.launch` of that kind. 'aarRejoin' and 'aarPrecontact' (#28)
+ * need `FlightOpsJetData.aar` (every jet but the su27, j11a and mig29s).
  */
 export type FlightOpsStart = 'initial' | 'downwind' | 'final' | 'runway' | 'rtb' | 'takeoff' | 'caseI' | 'carrierGroove'
-  | 'catapult' | 'skiJump';
+  | 'catapult' | 'skiJump' | 'aarRejoin' | 'aarPrecontact';
 
 /** 'rtb' start: off-axis south-west of the field, runway frame metres, and speed in knots (gameplay values). */
 export const RTB_START = { x: -12000, z: 38000, altM: 3500, kt: 300 } as const;
@@ -163,7 +166,7 @@ function trim(s: FlightOpsState, d: FlightOpsJetData) {
 
 /** Start the lesson at a pattern position. */
 export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, data: FlightOpsJetData = FLIGHT_OPS[id],
-  launch?: LaunchOptions): FlightOpsState {
+  launch?: LaunchOptions & AarOptions): FlightOpsState {
   const d = data;
   const s = blank(id);
   const va = approachSpeedMs(d);
@@ -215,6 +218,12 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
       if (d.launch?.kind !== start) throw new Error(`No ${start} launch for ${id}`);
       placeLaunchStart(s, d, launch);
       return s;
+    case 'aarRejoin':
+    case 'aarPrecontact':
+      if (!d.aar) throw new Error(`No refuelling for ${id}`);
+      placeAarStart(s, d, start, launch);
+      trim(s, d);
+      return s;
     case 'takeoff':
       s.gearDown = true; s.gearPos = 1;
       s.flapIndex = takeoffFlapIndex(d); s.flapPos = s.flapIndex / Math.max(1, d.flapLabels.length - 1);
@@ -228,9 +237,13 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
   return s;
 }
 
-/** Drag deceleration, m/s², at load factor n. */
-function drag(s: FlightOpsState, d: FlightOpsJetData, n: number) {
-  const v = s.speed;
+/** Throttle that holds `speedMs` in level 1 g flight in the current configuration (AAR station mode trim). */
+export function levelThrottle(s: FlightOpsState, d: FlightOpsJetData, speedMs: number): number {
+  return clamp((drag(s, d, 1, speedMs) - IDLE_ACC) / (MIL_ACC - IDLE_ACC), 0, 1);
+}
+
+/** Drag deceleration, m/s², at load factor n (at speed v, default the current speed). */
+function drag(s: FlightOpsState, d: FlightOpsJetData, n: number, v = s.speed) {
   const va = approachSpeedMs(d);
   // Configuration drag is scaled to the jet's approach speed, so every jet needs about the same power on final.
   const cfg = (K_GEAR * s.gearPos + K_FLAP * flapEffect(s, d) + K_SPEEDBRAKE * s.speedbrakePos) * (REF_VA / va) ** 2;
@@ -251,6 +264,7 @@ export function applyAction(s: FlightOpsState, action: FlightOpsAction, data: Fl
   if (s.phase === 'crashed') return;
   const d = data;
   if (applyLaunchAction(s, action, d)) return;
+  if (applyAarAction(s, action, d)) return;
   switch (action) {
     case 'gearToggle':
       if (s.phase !== 'air') return;
@@ -307,6 +321,7 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   if (s.ship && s.phase !== 'air') { stepCarrierDeck(s, dt); updateLso(s, d, dt); return; }
   if (s.phase !== 'air') { stepGround(s, input, dt, d, thrust); updateNav(s, d); return; }
   const prevU = s.ship ? landingFrame(s).u : 0;
+  if (s.aar && stepAarStation(s, input, dt, d, levelThrottle)) { s.aoa = aoaForLoad(s, d, 1); s.pitch = s.gamma + bodyAoaRad(s, d); updateAar(s, d, dt); return; }
 
   // Stick: AoA rate and roll rate.
   const on = d.aoa.onSpeed.value;
@@ -328,6 +343,11 @@ export function stepFlightOps(s: FlightOpsState, input: FlightOpsInput, dt: numb
   s.vs = v * Math.sin(s.gamma);
   s.pos.y += s.vs * dt;
 
+  if (s.aar) {
+    updateAar(s, d, dt);
+    if (s.pos.y <= 0) { s.phase = 'crashed'; s.crashReason = 'In the water'; s.speed = 0; }
+    return;
+  }
   if (s.ship) {
     moveShip(s, dt);
     carrierContact(s, prevU);

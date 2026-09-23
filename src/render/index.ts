@@ -23,10 +23,12 @@ export {
 export type { JetModel, JetConfig, JetPart, JetParts, JetPartDrive } from './jets';
 export {
   FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint, CarrierMesh, deckOutline, landingLocal, landingPaint,
-  lensCell, shipLocal, shipToLanding, LSO_EYE, CARRIER_CORRIDOR_M,
+  lensCell, shipLocal, shipToLanding, LSO_EYE, CARRIER_CORRIDOR_M, DECK_EYE, WING_EYE, RECEIVER_EYE,
+  LaunchDeck, TankerMesh, TANKER_LAYOUT, bandStripes, hoseMarkAt, hosePoints, rollPoint, tankerLocal,
 } from './flightOps';
 export type {
   FlightOpsCamera, FlightOpsSceneOptions, RunwayOptions, ApproachGate, ApproachGeometryOptions, ErrLevel, GateState, DeckStrip,
+  TankerLayout,
 } from './flightOps';
 export { LineBatch } from './lines';
 export type { LineStyle, LineBatchOptions } from './lines';

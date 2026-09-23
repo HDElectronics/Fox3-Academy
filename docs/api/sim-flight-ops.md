@@ -277,3 +277,83 @@ settle; cleanUp (gear up and flaps at `after.flapLabel` below the takeoff gear l
 10° toward the published side within 30 s; the wrong way or no turn fails); climb (1000 ft above the sea,
 climbing, gear up) ends the grade. Total = 100 × passed / expected gates; a crash scores 0 ("Crashed: cold cat,
 in the water.").
+
+## Air-to-air refuelling (#28): `aar.ts`
+
+Contract additions (`types.ts`): `FlightOpsJetData.aar?: FlightOpsAarData` (kind `'probe' | 'boom'`, default
+`tanker` and allowed `tankers`, `keys { probe?, door?, lights?, call }` (`probe` absent on a probe jet = fixed
+probe), `callText`, Su-33 `window` (metric IAS and altitude), F-16C `doorLimit`, `closureKt`, Su-33
+`closeFromM` and `holdBelowPodM`, `contactPointM` (probe tip or receptacle from the jet reference), `cue`);
+`TankerId` (`il78m`, `kc135`, `kc135mprs`, `kc130`), `TankerData` (`src/data/tankers.ts`: speed, altitude,
+racetrack, `drogue` pod / trail / droop / hose bands / envelope / bounce limit or `boom` pivot / nominal / limits,
+fuel unit and rate), `AarKind`, `HoseBand` (`'yellow' | 'yellowGreen' | 'green' | 'greenRed' | 'red'`),
+`TankerFrameVec { aft, right, up }`, `AarOptions { tanker? }`, `AarCall`, `AarDisconnect`, `AarState` on
+`FlightOpsState.aar`, `FlightOpsInput.stationKeep?`, actions `probeToggle`, `doorToggle`, `refuelLights`,
+`callTanker`, gates `rejoin`, `precontact`, `contact`, `envelope`, `disconnect` and `AarScore`.
+
+Starts (`createFlightOpsState(id, 'aarRejoin' | 'aarPrecontact', data, { tanker })`; throws for the su27,
+j11a and mig29s, which have no `aar`, and for a tanker the jet does not use). World frame: x east, y altitude
+above the sea, z south. The tanker starts at the origin heading north at the start of its first leg and flies a
+left-hand racetrack (`tankerPose(tanker, t)`: 30 nm legs, 20° bank turns). `aarRejoin`: the jet 2 nm behind
+the tanker and 100 m below the pre-contact height, at the tanker's speed, probe in / door closed, no call yet.
+`aarPrecontact`: the probe tip or receptacle at the pre-contact point, station mode on, probe out / door open,
+call made ("Cleared pre-contact"), not yet cleared contact. Gear up, clean, trimmed.
+
+```ts
+placeAarStart(s, data, start, opts), applyAarAction(s, action, data)   // via createFlightOpsState / applyAction
+stepAarStation(s, input, dt, data, levelThrottle), updateAar(s, data, dt)   // called by stepFlightOps
+tankerPose(tanker, t), toTanker(aar, p), fromTanker(aar, v), contactPointWorld(s, data)
+basketRest(tanker), boomPoint(tanker, elevDeg?, extM?, azDeg?), contactTarget(tanker), precontactPoint(tanker, data)
+greenHoldPoint(tanker), hoseBandAt(tanker, coneToPodM), boomAngles(tanker, p), hasAarStart(data), aarData(data)
+tankerData(id), levelThrottle(s, data, speedMs)   // model.ts: throttle that holds a speed level at 1 g
+AAR_HOLD_S = 30, PROBE_TIME_S = 3, STATION_ENGAGE_M = 250, STATION_RELEASE_M = 350, STATION_ENGAGE_MS = 15,
+STATION_MS_PER_THROTTLE = 20, STATION_MAX_MS = 10, STATION_TAU_S = 1.5, STATION_STICK_MS = 3,
+PRECONTACT_ZONE_M = 30, PRECONTACT_TOL_M = 3, PRECONTACT_STABLE_S = 3, DROGUE_PRECONTACT { aft 10, up −1 },
+BOOM_PRECONTACT { aft 15, up −3 }, BASKET_CAPTURE_M = 0.6, BASKET_MISS_M = 3, BOOM_CAPTURE_M = 1,
+RED_GRACE_S = 3, POD_MIN_M = 3, CLEAN_OPEN_KT = 3
+```
+
+Arcade rules (AGENTS.md rule 1; no hose, boom, hydraulic or fuel-system engineering):
+- Tanker frame: aft of the tanker reference (+), right (+), up (+); level, turns with the tanker. `aar.rel` is the
+  jet, `aar.tip` its probe tip or receptacle, `aar.relTarget` the tip from the basket at rest (drogue) or the
+  nominal boom contact point (aft + = short of it), `aar.closureMs` the closure on it (+ closing).
+- Station mode (`aar.station`): engages within 250 m of the pre-contact point below 15 m/s closure (releases
+  beyond 350 m; `input.stationKeep = false` keeps it off). The throttle sets closure: the level-flight throttle
+  at the tanker's speed holds position, each 0.05 away gives 1 m/s (about 2 kt), lag 1.5 s, limit 10 m/s.
+  Stick pitch and roll set the up and right rates (3 m/s at full stick, lag 0.8 s). The jet turns with the
+  tanker. Outside it the normal arcade flight model flies the jet.
+- Radio: `callTanker` ("Tanker, intent to refuel") → "Cleared pre-contact"; 3 s within 3 m of the pre-contact
+  point below 0.5 m/s closure → "Cleared contact" (`aar.cleared`). Every disconnect clears `cleared`.
+- Drogue contact: the tip crosses the basket plane within 0.6 m of the basket centre with the probe out, cleared
+  and closure at or below the tanker's bounce limit (5 kt) → contact. Faster → bounce ("Bounce: … Back to
+  pre-contact"). Probe in, not cleared, or 0.6–3 m off centre → miss. Contact re-arms once the tip is 2 m
+  behind the basket again. Connected, the basket rides on the probe: `coneToPodM` = tip to pod, `hoseBand`
+  from the bands (UPAZ: yellow 3–13, yellow+green 13–16, green 16–22, green+red 22–24, red 24–26 m),
+  `belowPodM` = pod height − tip height. Fuel flows in the green band. Disconnects: out past the full trail
+  (clean when opening at 3 kt or less: "Backed out", else "Pulled out too fast"), red band over 3 s, closer than
+  3 m to the pod, more than 3 m laterally or outside 1.5–7.5 m below the pod, probe retracted.
+- Boom contact: receptacle within 1 m of the nominal point (30° elevation, 12 m extension), door open, cleared,
+  closure at or below 3 kt → the boom operator makes contact. Too fast on entering that sphere = bounce; door
+  closed or not cleared = miss. `aar.boom` gives elevation, azimuth, extension, `inLimits` (20–40°, ±15°,
+  9–15 m) and simplified `cueUpDown` / `cueForeAft` toward the nominal point (the KC-135 director lights are
+  not modelled). Fuel flows inside the limits; outside them ("Boom limit") or door closed = fault disconnect.
+  At the fuel target the operator disconnects (clean).
+- Fuel counter: `fuel` rises at the tanker's rate while fuel flows; `fuelTarget` = rate × 30 s;
+  `refuelComplete` → "Refuelling complete" ("… Back out" on a drogue).
+- F-16C door: `doorToggle` above 400 kt is refused (`errors`); open above 400 kt logs an error once. Mach limits
+  are data for display only (the arcade model has no Mach).
+- Below the sea surface = crash ("In the water").
+
+Demo pilot (`demoPilot`, legs `rejoin` → `precontact` → `contact` → `refuel` → `disconnect` → `done`): call and
+probe out / door open on the rejoin; closure profile (up to 25 m/s, 0.3 m/s² deceleration) to the pre-contact
+point in the flight model; in station mode stabilise until cleared, align within 0.3 m, then close at the middle
+of the jet's closure band (2.5 kt drogue, 1.25 kt boom); hold the basket at the green-band centre (19 m) or the
+boom at the nominal point until the fuel target; drogue: back out at 1 m/s; boom: wait for the operator's
+disconnect; then return to pre-contact. Clean refuelling: su33 (IL-78M), f16c (KC-135), fa18c (KC-135 MPRS).
+
+Grading (`new AarEvaluator(data)`, `update(s)`, `score(s): AarScore`): rejoin (entering the pre-contact zone at
+15 kt or less; only when the lesson started outside it), precontact (cleared contact; a contact without it
+fails), contact (first contact's closure within the jet's band −0.5 / +1 kt, no bounce or miss before it),
+envelope (at the fuel target, no fault disconnects; notes the time, fuel and, for the Su-33, the height held
+below the pod), disconnect (first disconnect after the fuel target is clean) ends the grade. Total = 100 ×
+passed / expected gates; a crash scores 0.

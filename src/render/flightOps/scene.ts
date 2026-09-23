@@ -9,12 +9,14 @@
  * The Stage camera near plane is lowered to 0.5 m for the cockpit view and restored on dispose; the far
  * plane (2000 km) and the Environment haze (130 km) already cover an RTB start 40 km out at 4000 m.
  */
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3 } from 'three';
+import { FLIGHT_OPS } from '../../data/flightOps';
+import { basketRest, boomPoint } from '../../sim/flightOps/aar';
 import { SHIPS } from '../../data/ships';
 import { aimPointU, landingHeading, shipFrame } from '../../sim/flightOps/carrier';
 import { LineBatch } from '../lines';
 import { Note } from '../tags';
-import type { FlightOpsJetId, FlightOpsState, ShipId } from '../../sim/flightOps/types';
+import type { FlightOpsJetId, FlightOpsState, ShipId, TankerFrameVec, TankerId } from '../../sim/flightOps/types';
 import { JetMesh, NOMINAL_JET_M } from '../jets';
 import type { VisualSide } from '../palette';
 import { FramePriority, type Stage } from '../stage';
@@ -23,13 +25,25 @@ import { ApproachOverlay, type ApproachGeometryOptions } from './approach';
 import { CarrierMesh } from './carrier';
 import { LaunchDeck } from './launchDeck';
 import { RunwayMesh } from './runway';
+import { TankerMesh } from './tanker';
 
 /**
  * 'lso' is the LSO platform view on a carrier start; without a ship it falls back to 'tower' (and 'tower' to 'lso'
  * with one). 'deck' is the shooter's view on a launch start (beside the jet on the deck); without a launch it falls
- * back to 'chase'.
+ * back to 'chase'. 'wing' and 'receiver' are the refuelling views (#28): beside the tanker looking at the receiver,
+ * and behind the receiver looking at the basket or the boom; without a tanker they fall back to 'chase'.
  */
-export type FlightOpsCamera = 'chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck';
+export type FlightOpsCamera = 'chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck' | 'wing' | 'receiver';
+
+/**
+ * Refuelling camera eye points, tanker frame metres (display choices). Wing: under the wing, outboard of and behind the
+ * hose pod (drogue, offsets from the pod) or beside the rear fuselage (boom), looking aft at the receiver. Receiver: `aft` behind the receiver's tail and `up` above its
+ * reference, in line with the probe tip or receptacle, looking at the basket or the boom nozzle.
+ */
+export const WING_EYE = { drogue: { aft: 3, right: -5, up: -1.5 }, boom: { aft: 6, right: -9, up: 2.5 } } as const;
+export const RECEIVER_EYE = { aft: 14, up: 4.5 } as const;
+/** Probe rod drawn on the receiver (model metres): length and radius. Drawing values. */
+const PROBE_LEN_M = 2.4;
 
 /** LSO platform eye point, landing frame (u from the ramp, v right of the axis, h above the deck), metres. Display choice. */
 export const LSO_EYE = { u: 18, v: -24, h: 3 } as const;
@@ -96,6 +110,11 @@ export class FlightOpsScene {
   private hook: Mesh | null = null;
   private hookMat: MeshStandardMaterial | null = null;
   private readonly runwayApproach: ApproachGeometryOptions;
+  /** The tanker on a refuelling start (null otherwise). */
+  tanker: TankerMesh | null = null;
+  private probe: Mesh | null = null;
+  private probeMat: MeshStandardMaterial | null = null;
+  private readonly tipMark = new Object3D();
 
   constructor(stage: Stage, aircraft: FlightOpsJetId, opts: FlightOpsSceneOptions = {}) {
     this.stage = stage;
@@ -160,6 +179,24 @@ export class FlightOpsScene {
       this.stage.env?.setSurface('land');
     }
     this.runway.visible = !id;
+    this.snap = true;
+    this.stage.requestRender();
+  }
+
+  /**
+   * Refuelling start (#28): add the tanker to `root` (world metres), hide the runway and the approach overlay.
+   * `update(state)` then places it from `state.aar` and draws the receiver's probe. `null` removes it.
+   */
+  setTanker(id: TankerId | null): void {
+    if ((this.tanker?.tankerId ?? null) === id) return;
+    this.tanker?.dispose();
+    this.tanker = null;
+    if (id) {
+      this.tanker = new TankerMesh(this.stage.shared, this.stage.palette, id);
+      this.root.add(this.tanker);
+    }
+    this.runway.visible = !id && !this.carrier;
+    this.landing.visible = !id;
     this.snap = true;
     this.stage.requestRender();
   }
@@ -246,7 +283,48 @@ export class FlightOpsScene {
     }
     this.updateHook(state.hookPos);
     this.placeJet(this.jet.scale.x || UNIT_PER_M);
+    this.updateAar(state);
     this.stage.requestRender();
+  }
+
+  /**
+   * Refuelling: a probe rod on probe jets (out by `aar.probePos`), the probe tip or receptacle marker at the data's
+   * contact point, and the tanker driven from the state with the basket or boom on the drawn tip while connected.
+   */
+  private updateAar(state: FlightOpsState): void {
+    const a = state.aar, T = this.tanker;
+    const r = FLIGHT_OPS[state.aircraft].aar;
+    if (!a || !T || !r) { if (this.probe) this.probe.visible = false; return; }
+    const c = r.contactPointM.value;
+    if (this.tipMark.parent !== this.jet) this.jet.add(this.tipMark);
+    this.tipMark.position.set(c.right, c.up, -c.fwd);
+    if (r.kind === 'probe') {
+      if (!this.probe || this.probe.parent !== this.jet) {
+        this.probe?.geometry.dispose();
+        this.probeMat ??= new MeshStandardMaterial({ color: this.stage.palette.dark.clone().lerp(this.stage.palette.smoke, 0.4), roughness: 0.6, metalness: 0.3 });
+        const g = new CylinderGeometry(0.06, 0.08, 1, 8).rotateX(Math.PI / 2).translate(0, 0, -0.5);
+        this.probe = new Mesh(g, this.probeMat);
+        this.probe.name = 'flightOps:probe';
+        this.jet.add(this.probe);
+      }
+      const k = Math.max(0, Math.min(1, a.probePos));
+      this.probe.visible = k > 0.02;
+      // Base aft of the tip, slightly low; the rod grows toward the tip as the probe comes out.
+      this.probe.position.set(c.right, c.up - 0.2, -c.fwd + PROBE_LEN_M);
+      this.probe.quaternion.setFromUnitVectors(_a.set(0, 0, -1), _b.set(0, 0.2, -PROBE_LEN_M).normalize());
+      this.probe.scale.set(1, 1, Math.max(0.01, k * Math.hypot(0.2, PROBE_LEN_M)));
+    } else if (this.probe) this.probe.visible = false;
+    this.jet.updateMatrixWorld(true);
+    const w = this.tipMark.getWorldPosition(_f).divideScalar(UNIT_PER_M);
+    T.update(a, a.connected ? T.toFrame(w) : undefined);
+  }
+
+  /** Tanker-frame target the receiver closes on: the basket at rest (or on the tip) or the boom nozzle. */
+  private aarTarget(): TankerFrameVec | null {
+    const a = this.state?.aar, T = this.tanker;
+    if (!a || !T) return null;
+    if (a.connected) return a.tip;
+    return T.tanker.drogue ? basketRest(T.tanker) : boomPoint(T.tanker);
   }
 
   /**
@@ -273,6 +351,10 @@ export class FlightOpsScene {
   /** Approach reference: the aim point (units) and the landing heading. Airfield: aim point north of the threshold. */
   private aimRef(out: Vector3): number {
     const s = this.state;
+    if (s?.aar && this.tanker) {
+      out.copy(this.tanker.position).multiplyScalar(UNIT_PER_M);
+      return s.aar.tankerHeading;
+    }
     if (s?.ship && this.carrier && s.launch && this.hold) {
       // Launch: the spot the jet was held on, along the ship's heading.
       const h = s.ship.heading, a = this.hold.a, c = this.hold.c;
@@ -292,7 +374,8 @@ export class FlightOpsScene {
     const s = this.state;
     if (!s) return;
     this.jet.scale.setScalar(scale);
-    _v.set(0, this.jet.groundClearanceM * scale, 0).applyQuaternion(this.jet.quaternion);
+    // In the air behind a tanker the model origin is the sim reference (the probe and receptacle key on it).
+    _v.set(0, s.aar ? 0 : this.jet.groundClearanceM * scale, 0).applyQuaternion(this.jet.quaternion);
     this.jet.position.set(s.pos.x * UNIT_PER_M, s.pos.y * UNIT_PER_M, s.pos.z * UNIT_PER_M).add(_v);
   }
 
@@ -310,7 +393,9 @@ export class FlightOpsScene {
     const hl = this.aimRef(aimP);
     const carrier = !!(s?.ship && this.carrier);
     const launch = carrier && !!s?.launch && !!this.hold;
+    const aar = !!(s?.aar && this.tanker);
     const view = this.mode === 'deck' && !launch ? 'chase'
+      : (this.mode === 'wing' || this.mode === 'receiver') && !aar ? 'chase'
       : carrier && this.mode === 'tower' ? 'lso' : !carrier && this.mode === 'lso' ? 'tower' : this.mode;
     const jet = this.jetPoint(_t);
     const m = UNIT_PER_M;
@@ -397,6 +482,22 @@ export class FlightOpsScene {
         }
         break;
       }
+      case 'wing':
+      case 'receiver': {
+        const a = s!.aar!, T = this.tanker!;
+        const tgt = this.aarTarget()!;
+        if (view === 'wing') {
+          const e = T.tanker.drogue ? { ...WING_EYE.drogue, right: T.tanker.drogue.pod.right + WING_EYE.drogue.right, aft: T.tanker.drogue.pod.aft + WING_EYE.drogue.aft }
+            : WING_EYE.boom;
+          T.toWorld(e, want).multiplyScalar(m);
+          look.copy(jet);
+        } else {
+          T.toWorld({ aft: a.rel.aft + this.jet.lengthM / 2 + RECEIVER_EYE.aft, right: a.tip.right, up: a.rel.up + RECEIVER_EYE.up }, want).multiplyScalar(m);
+          T.toWorld(tgt, look).multiplyScalar(m);
+        }
+        this.snap = true;   // rides with the tanker: no smoothing lag
+        break;
+      }
       case 'tower': {
         const aim = this.overlay.aimPointM;
         want.set(0.25, 0.035, (-aim - 150) * m);
@@ -404,6 +505,7 @@ export class FlightOpsScene {
         break;
       }
     }
+    if (aar) this.snap = true;   // 150 m/s behind the tanker: a smoothed camera would lag tens of metres
     if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
     const k = this.snap || dt <= 0 ? 1 : 1 - Math.exp(-dt * 5);
     if (this.snap) { this.camPos.copy(want); this.camLook.copy(look); this.snap = false; }
@@ -427,6 +529,9 @@ export class FlightOpsScene {
     this.carrier?.dispose();
     this.hook?.geometry.dispose();
     this.hookMat?.dispose();
+    this.tanker?.dispose();
+    this.probe?.geometry.dispose();
+    this.probeMat?.dispose();
     this.overlay.dispose();
     this.nav.dispose();
     this.navNote.dispose();

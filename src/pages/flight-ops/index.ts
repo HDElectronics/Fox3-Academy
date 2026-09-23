@@ -13,11 +13,17 @@
  * station picker and a Heavy toggle, the launch sequence strip (keys, not-verified tags, the step to do now), the
  * Hornet trim-by-weight readout, the power the launch needs, the deck warnings and the graded launch debrief.
  *
+ * Air-to-air refuelling (#28): Tanker rejoin and Pre-contact for the jets with refuelling data (Su-33 on the IL-78M,
+ * F-15C and F-16C on the KC-135 boom, F/A-18C, F-14B, JF-17, M-2000C on a hose tanker); the other jets see a note.
+ * Probe / door / lights / radio-call keys, station keeping (throttle sets closure, stick moves the jet), the contact
+ * position box, the UPAZ hose-band gauge (Su-33), simplified boom cues, closure, fuel, the radio log and the debrief.
+ *
  * URL params: ?ac=<id> (select a jet once), ?mode=watch|fly,
- * ?start=initial|downwind|final|rtb|takeoff|caseI|carrierGroove|catapult|skiJump, ?station=<n>, ?heavy=1,
+ * ?start=initial|downwind|final|rtb|takeoff|caseI|carrierGroove|catapult|skiJump|aarRejoin|aarPrecontact, ?station=<n>, ?heavy=1,
+ * ?tanker=<id> (refuelling: a tanker the jet uses),
  * ?shot=final|downwind|debrief|rtb|ils|takeoff-ready|takeoff-rotate|takeoff-climb|takeoff-debrief|case1-break|groove|trap
- * |launch-hold|launch-stroke|launch-climb|launch-debrief (pre-roll the demo for screenshots; mode=fly hands over after
- * the pre-roll; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck,
+ * |launch-hold|launch-stroke|launch-climb|launch-debrief|aar-rejoin|aar-precontact|aar-contact|aar-debrief (pre-roll the demo for screenshots; mode=fly hands over after
+ * the pre-roll; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck|wing|receiver,
  * ?touch=1 (show the on-screen controls on a fine pointer).
  */
 import './style.css';
@@ -31,7 +37,14 @@ import {
   type FlightOpsState, type GateResult, type Sourced,
   CarrierEvaluator, carrierGeometry, landingToWorld, type CarrierScore,
   LaunchEvaluator, launchPowerNeed, launchStrip, type FlightOpsAction, type LaunchScore,
+  AarEvaluator, type AarScore, type TankerId,
 } from '../../sim/flightOps';
+import { TANKERS } from '../../data/tankers';
+import {
+  BAND_LABEL, aarCaption, aarCard, aarCurrent, aarKeys, aarLessonSteps, aarProgressKey, aarStarts, aarStepsDone, aarTanker, bandRows,
+  closureText, closureTone, fuelFraction, noAarNote, positionBox, type AarStart,
+} from './aarLesson';
+import { AarGaugeDisplay, PositionDisplay } from './aarDisplays';
 import { SHIPS } from '../../data/ships';
 import { FlightOpsScene, Stage, isWebGLAvailable, type FlightOpsCamera } from '../../render';
 import {
@@ -54,10 +67,11 @@ import {
 } from './launchLesson';
 
 type Mode = 'watch' | 'fly';
-type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart | LaunchStart;
-const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit', 'deck'];
+type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart | LaunchStart | AarStart;
+const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit', 'deck', 'wing', 'receiver'];
 const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils', 'takeoff-ready', 'takeoff-rotate', 'takeoff-climb', 'takeoff-debrief',
-  'case1-break', 'groove', 'trap', 'launch-hold', 'launch-stroke', 'launch-climb', 'launch-debrief'] as const;
+  'case1-break', 'groove', 'trap', 'launch-hold', 'launch-stroke', 'launch-climb', 'launch-debrief',
+  'aar-rejoin', 'aar-precontact', 'aar-contact', 'aar-debrief'] as const;
 const LSO_LOG_MAX = 40;
 type Shot = typeof SHOTS[number];
 const TRAIL_EVERY = 6;          // steps between trail points (0.1 s)
@@ -117,13 +131,19 @@ const factory: PageFactory = (): Page => {
     const shipLights = cd ? SHIPS[cd.ship].lights : 'iflols';
     const lStarts = launchStarts(d);
     const ld = d.launch;
+    const aStarts = aarStarts(d);
+    const ad = d.aar;
+    let tankerId: TankerId | null = aarTanker(d, ctx.params.get('tanker'));
     let start: Start = startParam === 'downwind' || startParam === 'final' || startParam === 'takeoff' || (startParam === 'rtb' && navOk)
-      || (cStarts as string[]).includes(startParam ?? '') || (lStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
+      || (cStarts as string[]).includes(startParam ?? '') || (lStarts as string[]).includes(startParam ?? '')
+      || (aStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
     const stParam = Number(ctx.params.get('station'));
     let station = ld && ld.stations.includes(stParam) ? stParam : ld?.stations[0] ?? 1;
     let heavy = ctx.params.get('heavy') === '1';
     const camParam = ctx.params.get('cam') as FlightOpsCamera | null;
     let cam: FlightOpsCamera = camParam && CAMS.includes(camParam) ? camParam : 'chase';
+    /** The pilot's camera choice; each start shows it or its nearest equivalent. */
+    let camPref: FlightOpsCamera = cam;
     let showTouch = ctx.params.get('touch') === '1';
 
     let s!: FlightOpsState;
@@ -147,11 +167,16 @@ const factory: PageFactory = (): Page => {
     let lev: LaunchEvaluator | null = null;
     let lScore: LaunchScore | null = null;
     let lStripKey = '';
+    let aev: AarEvaluator | null = null;
+    let aScore: AarScore | null = null;
+    let callsSeen = -1, errSeen = 0, errAt = -1e9, errText = '';
     const input: FlightOpsInput = { pitch: 0, roll: 0, throttle: 0.6 };
     const held = { up: false, down: false, left: false, right: false, thrUp: false, thrDn: false, brakes: false };
     const rtb = () => start === 'rtb';
     const atSea = () => start === 'caseI' || start === 'carrierGroove';
     const atLaunch = () => start === 'catapult' || start === 'skiJump';
+    const atAar = () => start === 'aarRejoin' || start === 'aarPrecontact';
+    const tankerData = () => (tankerId ? TANKERS[tankerId] : null);
     const kind = (): LessonKind => (start === 'takeoff' ? 'takeoff' : start === 'caseI' ? 'carrier' : start === 'carrierGroove' ? 'groove'
       : atLaunch() ? 'launch'
       : rtb() && navOk ? 'rtb' : 'pattern');
@@ -233,6 +258,12 @@ const factory: PageFactory = (): Page => {
     const headNv = h('span', { class: 'fo-nv' }, 'not verified');
     const headMeta = h('span', null, headMetaText, headNv);
     function syncHead(): void {
+      const T = tankerData();
+      if (atAar() && ad && T) {
+        setText(headMetaText, `${spec.short} · ${T.name} · ${ad.kind === 'boom' ? 'boom' : 'probe and drogue'}`);
+        headNv.hidden = true;
+        return;
+      }
       if (atLaunch() && ld) {
         setText(headMetaText, `${spec.short} · ${stationLabel(ld, station)} · ${SHIPS[ld.ship].name}`);
         headNv.hidden = true;
@@ -258,10 +289,39 @@ const factory: PageFactory = (): Page => {
       children: [h('div', { class: 'fo-lso' }, lsoLatest, lsoList)],
     }).el;
 
+    // Refuelling (#28): position box, hose-band gauge or boom cues, lamps, closure, fuel, the radio log.
+    const posCanvas = h('canvas', { class: 'fo-canvas' });
+    const gaugeCanvas = h('canvas', { class: 'fo-canvas' });
+    const posBezel = screenBezel({ id: 'fo-aarpos', label: 'Position', aspect: '1', content: posCanvas, status: 'trainer', class: 'fo-aarpos' });
+    const gaugeBezel = screenBezel({
+      id: 'fo-aargauge', label: ad?.kind === 'boom' ? 'Boom' : 'Hose', aspect: '3 / 4', content: gaugeCanvas,
+      status: ad?.kind === 'boom' ? undefined : 'UPAZ', class: 'fo-aargauge',
+    });
+    const aarRO = readouts({ id: 'fo-aar-ro', rows: [
+      { id: 'clos', label: 'Closure', title: 'Closure on the basket or boom: + closing, − opening' }, { id: 'hose', label: 'Cone–pod' }, { id: 'below', label: 'Below pod' }, { id: 'boom', label: 'Boom' }] });
+    const lampProbe = lamp({ label: ad?.kind === 'boom' ? 'DOOR' : 'PROBE', tone: 'ok', title: ad?.kind === 'boom' ? 'Refuelling door open' : 'Probe out' });
+    const lampLights = lamp({ label: 'LIGHTS', tone: 'ok', title: 'Refuelling lights on' });
+    lampLights.el.hidden = !ad?.keys.lights;
+    const lampCleared = lamp({ label: 'CLEARED', tone: 'ok', title: 'Cleared contact' });
+    const lampContact = lamp({ label: 'CONTACT', tone: 'ok', title: 'Connected (flashes without fuel flow)' });
+    const fuelFill = h('span', { class: 'fo-fuel__fill' });
+    const fuelText = h('span', { class: 'fo-fuel__text' }, '—');
+    const aarBlock = h('div', { class: 'ui-strip-block fo-aar', id: 'fo-aar' },
+      placard('Refuelling'),
+      h('div', { class: 'fo-lamps' }, lampProbe.el, lampLights.el, lampCleared.el, lampContact.el),
+      aarRO.el,
+      h('div', { class: 'fo-fuel', role: 'meter', 'aria-label': 'Fuel transferred' }, h('span', { class: 'fo-fuel__bar' }, fuelFill), fuelText));
+    aarBlock.hidden = true;
+    const radioLatest = h('p', { class: 'fo-lso__latest', 'aria-live': 'polite' }, '—');
+    const radioList = h('ol', { class: 'fo-lso__list' });
+    const radioBlock = consolePanel({ id: 'fo-radio', title: 'Radio', children: [h('div', { class: 'fo-lso' }, radioLatest, radioList)] }).el;
+    radioBlock.hidden = true;
+
     // ---------------------------------------------------------------- console: lesson
     const coach = coachBox({ id: 'fo-coach' });
     const stepDefs = (): { id: string; text: string; keys?: string; note?: string }[] =>
-      (atLaunch() ? launchLessonSteps(d, units(), station, heavy) : lessonSteps(d, units(), kind()));
+      (atAar() && tankerId ? aarLessonSteps(d, units(), start as AarStart, tankerId)
+        : atLaunch() ? launchLessonSteps(d, units(), station, heavy) : lessonSteps(d, units(), kind()));
     let stepsDef = stepDefs();
     let steps_: ChecklistHandle = checklist({ id: 'fo-steps', steps: stepsDef });
     const stepsBox = h('div', { class: 'fo-steps' }, steps_.el);
@@ -289,6 +349,10 @@ const factory: PageFactory = (): Page => {
         ? { value: 'catapult', label: 'Catapult', title: `Catapult launch from the ${SHIPS[ld.ship].name}: ${ld.cue}` }
         : { value: 'skiJump', label: 'Ski-jump', title: `Ski-jump launch from the ${SHIPS[ld.ship].name}: ${ld.cue}` });
     }
+    if (ad) {
+      startOpts.push({ value: 'aarRejoin', label: 'Tanker rejoin', title: `2 nm behind the tanker: call, join, pre-contact, contact, refuel. ${ad.cue}` },
+        { value: 'aarPrecontact', label: 'Pre-contact', title: 'Stabilised behind the basket or boom, cleared pre-contact' });
+    }
     const startSeg = segmented<Start>({
       id: 'fo-start', label: 'Start', value: start, fill: true, options: startOpts,
       onChange: v => { start = v; rebuildSteps(); reset(false); },
@@ -305,6 +369,15 @@ const factory: PageFactory = (): Page => {
     });
     const launchOpts = h('div', { class: 'fo-launch-opts' }, stationSeg.el, heavyToggle.el);
     launchOpts.hidden = true;
+    // Refuelling: the tanker, where the jet uses more than one.
+    const tankerSeg = segmented<string>({
+      id: 'fo-tanker', label: 'Tanker', value: tankerId ?? '', size: 's',
+      options: (ad?.tankers ?? []).map(t => ({ value: t, label: TANKERS[t].name })),
+      onChange: v => { tankerId = v as TankerId; rebuildSteps(); renderNumbers(); reset(false); },
+    });
+    const aarOpts = h('div', { class: 'fo-launch-opts' }, tankerSeg.el);
+    aarOpts.hidden = true;
+    const noAar = ad ? null : h('p', { class: 'fo-noaar', title: FLIGHT_OPS_CAVEATS.find(c => /no AAR lesson/.test(c)) }, noAarNote(spec.short, ac));
     const startBtn = button({ id: 'fo-go', label: 'Start', variant: 'primary', keys: 'Space', block: true, onClick: () => go() });
     const touchToggle = toggle({
       id: 'fo-touch-toggle', label: 'Show on-screen controls', style: 'switch', size: 's', value: showTouch,
@@ -312,7 +385,7 @@ const factory: PageFactory = (): Page => {
     });
     const lessonPanel = consolePanel({
       id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`,
-      children: [coach.el, modeSeg.el, startSeg.el, launchOpts, startBtn.el, touchToggle.el, stepsBox],
+      children: [coach.el, modeSeg.el, startSeg.el, launchOpts, aarOpts, noAar, startBtn.el, touchToggle.el, stepsBox],
     });
 
     // ---------------------------------------------------------------- console: debrief
@@ -368,6 +441,18 @@ const factory: PageFactory = (): Page => {
         if (ld.shortRunMaxWeight) rows.push(['Short run limit', `${ld.shortRunMaxWeight.value} ${ld.weights.unit}`, ld.shortRunMaxWeight]);
         if (ld.clearingTurn) rows.push(['Clearing turn', Object.entries(ld.clearingTurn.value).map(([k, v]) => `cat ${k} ${v}`).join(', '), ld.clearingTurn]);
       }
+      const T = tankerData();
+      if (ad && T) {
+        rows.push(['Tanker', `${T.name}, ${ktText(T.speedKt.value, u)} at ${altFtText(T.altFt.value, u)}`, T.speedKt.verified ? T.altFt : T.speedKt]);
+        if (ad.window) rows.push(['Refuelling window', `${ad.window.alt.value[0]}–${ad.window.alt.value[1]} m, ${ad.window.ias.value[0]}–${ad.window.ias.value[1]} km/h IAS`, ad.window.alt]);
+        rows.push(['Closure on contact', `${ad.closureKt.value[0]}–${ad.closureKt.value[1]} kt`, ad.closureKt]);
+        if (ad.closeFromM) rows.push(['Close from', `${ad.closeFromM.value} m`, ad.closeFromM]);
+        if (ad.holdBelowPodM) rows.push(['Hold below the pod', `${ad.holdBelowPodM.value[0]}–${ad.holdBelowPodM.value[1]} m`, ad.holdBelowPodM]);
+        if (ad.doorLimit) rows.push(['Door', `operate below ${ktText(ad.doorLimit.operateKt.value, u)} / M${ad.doorLimit.operateMach.value}, open below ${ktText(ad.doorLimit.openKt.value, u)} / M${ad.doorLimit.openMach.value}`, ad.doorLimit.operateKt]);
+        if (T.drogue?.gauge) rows.push(['Hose bands', bandRows(T).map(b => `${b.label.toLowerCase()} ${b.range}`).join(', '), T.drogue.bands]);
+        if (T.boom) rows.push(['Boom limits', `${T.boom.limits.value.elevDeg[0]}–${T.boom.limits.value.elevDeg[1]}° elevation, ±${T.boom.limits.value.azDeg}°, ${T.boom.limits.value.extM[0]}–${T.boom.limits.value.extM[1]} m`, T.boom.limits]);
+        rows.push(['Fuel rate', `${T.fuel.ratePerS.value} ${T.fuel.unit}/s`, T.fuel.ratePerS]);
+      }
       numbersBox.replaceChildren(...rows.flatMap(([k, v, src]) => [h('dt', null, k), h('dd', { title: src.note ?? src.source }, v, nvTag(src))]));
     }
     renderNumbers();
@@ -389,6 +474,8 @@ const factory: PageFactory = (): Page => {
       cd ? keyHint({ label: 'Call the ball', keys: cd.ballCallKey.value, note: 'trainer key: DCS uses the radio menu' }) : null,
       ...launchKeys(d).map(k => keyHint({ label: `Launch: ${k.label}`, keys: k.key, note: k.tag ?? undefined })),
       ...(avoidKey(d) ? [keyHint({ label: avoidKey(d)!.label, keys: avoidKey(d)!.key })] : []),
+      ...aarKeys(d).map(k => keyHint({ label: `Refuelling: ${k.label}`, keys: k.key, note: k.tag ?? undefined })),
+      ad ? keyHint({ label: 'Station keeping behind the tanker', keys: 'Num+ / Num-, arrows', note: 'throttle sets closure, stick moves the jet' }) : null,
       keyHint({ label: 'Pause / restart / camera', keys: 'P / R / C' }));
     const notes = h('div', { class: 'fo-notes' },
       callout({ kind: 'simplified', body: 'Arcade flight model tuned to the manual numbers. The HUD and the nav display are simplified: no wind, no sideslip, one AoA cue per jet. Stick and throttle keys and the on-screen controls are trainer controls, not DCS defaults.' }),
@@ -401,16 +488,24 @@ const factory: PageFactory = (): Page => {
     const camSeg = segmented<FlightOpsCamera>({
       id: 'fo-cam', ariaLabel: 'Camera', value: cam, size: 's',
       options: camOptions(),
-      onChange: v => setCam(v),
+      onChange: v => { camPref = v; setCam(v); },
     });
     /** Camera choices: the tower on the airfield, the LSO platform at sea. */
     function camOptions(): { value: FlightOpsCamera; label: string; title?: string }[] {
+      if (atAar()) {
+        return [{ value: 'chase', label: 'Chase' },
+          { value: 'wing', label: 'Wing', title: 'Beside the tanker, looking at your jet' },
+          { value: 'receiver', label: 'Receiver', title: ad?.kind === 'boom' ? 'Behind your jet, looking at the boom' : 'Behind your jet, looking at the basket' },
+          { value: 'cockpit', label: 'Cockpit' }];
+      }
       return [{ value: 'chase', label: 'Chase' }, { value: 'side', label: 'Side' },
         atLaunch() ? { value: 'deck', label: 'Deck', title: 'Shooter\'s view from the deck beside the jet' }
           : atSea() ? { value: 'lso', label: 'LSO', title: 'LSO platform, port side aft' } : { value: 'tower', label: 'Tower' },
         { value: 'cockpit', label: 'Cockpit' }];
     }
-    const seaCam = (c: FlightOpsCamera): FlightOpsCamera => (atLaunch() ? (c === 'tower' || c === 'lso' ? 'deck' : c)
+    const seaCam = (c: FlightOpsCamera): FlightOpsCamera => (atAar() ? (c === 'chase' || c === 'wing' || c === 'receiver' || c === 'cockpit' ? c : 'receiver')
+      : c === 'wing' || c === 'receiver' ? 'chase'
+      : atLaunch() ? (c === 'tower' || c === 'lso' ? 'deck' : c)
       : c === 'deck' ? (atSea() ? 'lso' : 'tower') : atSea() && c === 'tower' ? 'lso' : !atSea() && c === 'lso' ? 'tower' : c);
     const pauseBtn = button({ id: 'fo-pause', label: 'Pause', size: 's', keys: 'P', onClick: () => togglePause() });
     const restartBtn = button({ id: 'fo-restart', label: 'Restart', size: 's', keys: 'R', onClick: () => reset(true) });
@@ -419,11 +514,11 @@ const factory: PageFactory = (): Page => {
       id: 'fo-lab', class: 'fo-lab',
       header: {
         title: 'Pattern & landing', meta: headMeta,
-        lede: `Take off, ${navOk ? 'nav home, ' : ''}break, configure, fly the AoA, land in the zone.${cd ? ` Or fly Case I to the ${SHIPS[cd.ship].name} and catch a wire.` : ''}${ld ? ` Or launch off the ${ld.kind === 'catapult' ? 'catapult' : 'ski-jump'}.` : ''}`,
+        lede: `Take off, ${navOk ? 'nav home, ' : ''}break, configure, fly the AoA, land in the zone.${cd ? ` Or fly Case I to the ${SHIPS[cd.ship].name} and catch a wire.` : ''}${ld ? ` Or launch off the ${ld.kind === 'catapult' ? 'catapult' : 'ski-jump'}.` : ''}${ad ? ' Or join the tanker and refuel.' : ''}`,
       },
       viewport,
-      strip: [hudBezel.el, toBlock, launchBlock, navBezel.el, ballBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
-      console: [debriefPanel.el, lsoBlock, lessonPanel.el,
+      strip: [hudBezel.el, toBlock, launchBlock, aarBlock, posBezel.el, gaugeBezel.el, navBezel.el, ballBezel.el, idxBezel.el, traceBezel.el, cfgBlock],
+      console: [debriefPanel.el, lsoBlock, radioBlock, lessonPanel.el,
         consolePanel({ id: 'fo-numbers-panel', title: `${spec.short} numbers`, children: [numbersBox] }).el,
         disclosure({ title: 'Keys', content: keyList, open: mode === 'fly' }),
         disclosure({ title: 'Accuracy notes', content: notes })],
@@ -440,7 +535,9 @@ const factory: PageFactory = (): Page => {
     const trace = new TraceDisplay(traceCanvas);
     const navDisp = new NavDisplay(navCanvas, units);
     const ballDisp = new BallDisplay(ballCanvas);
-    bag.add(() => { hud.dispose(); indexer.dispose(); trace.dispose(); navDisp.dispose(); ballDisp.dispose(); });
+    const posDisp = new PositionDisplay(posCanvas);
+    const gaugeDisp = new AarGaugeDisplay(gaugeCanvas);
+    bag.add(() => { hud.dispose(); indexer.dispose(); trace.dispose(); navDisp.dispose(); ballDisp.dispose(); posDisp.dispose(); gaugeDisp.dispose(); });
 
     // ---------------------------------------------------------------- touch controls (Fly mode)
     const touch = touchControls({
@@ -454,6 +551,8 @@ const factory: PageFactory = (): Page => {
         { id: 'ab', label: 'AB', title: 'Afterburner on or off' },
       ] : undefined,
       onLaunch: id => act(() => launchAct(id as FlightOpsAction | 'ab'))(),
+      aar: ad ? aarKeys(d).map(k => ({ id: k.action, label: k.touch, title: `${k.label} (${k.key})` })) : undefined,
+      onAar: id => act(() => { if (s.aar) applyAction(s, id as FlightOpsAction, d); })(),
       onAction: (a: TouchAction) => act(() => {
         if (a === 'hook' || a === 'ball') carrierAct(a);
         else if (a === 'gear') gearAct();
@@ -500,7 +599,7 @@ const factory: PageFactory = (): Page => {
 
     // ---------------------------------------------------------------- sim
     function reset(autostart: boolean): void {
-      s = createFlightOpsState(ac, start, d, atLaunch() ? { station, heavy } : undefined);
+      s = createFlightOpsState(ac, start, d, atLaunch() ? { station, heavy } : atAar() && tankerId ? { tanker: tankerId } : undefined);
       // Fly the return from МРШ so the lesson starts with selecting ВЗВ (jets with a return mode).
       if (rtb() && mode === 'fly' && d.nav?.modes.some(m => m.id === 'return')) initNav(s, d, 'route');
       ev = new ApproachEvaluator(d);
@@ -508,19 +607,27 @@ const factory: PageFactory = (): Page => {
       cev = atSea() ? new CarrierEvaluator(d) : null;
       cScore = null; flownL = []; lsoSeen = -1;
       lev = atLaunch() ? new LaunchEvaluator(d) : null; lScore = null; lStripKey = '';
+      aev = atAar() ? new AarEvaluator(d) : null; aScore = null; callsSeen = -1; errSeen = 0; errAt = -1e9; errText = '';
       sc?.setCarrier(atSea() && cd ? cd.ship : atLaunch() && ld ? ld.ship : null);
+      sc?.setTanker(atAar() ? tankerId : null);
+      const T = tankerData();
+      aarBlock.hidden = posBezel.el.hidden = radioBlock.hidden = !atAar();
+      gaugeBezel.el.hidden = !atAar() || !(T?.boom || T?.drogue?.gauge);
+      aarOpts.hidden = !atAar() || (ad?.tankers.length ?? 0) < 2;
+      touch.setAar(atAar());
       launchBlock.hidden = launchOpts.hidden = !atLaunch();
       touch.setLaunch(atLaunch());
       ballBezel.el.hidden = lsoBlock.hidden = !atSea();
       syncHead();
       layout.el.classList.toggle('fo-lab--sea', atSea());
       touch.setCarrier(atSea());
-      camSeg.setOptions(camOptions(), seaCam(cam));
-      if (seaCam(cam) !== cam) setCam(seaCam(cam));
+      const camWant = seaCam(camPref);
+      camSeg.setOptions(camOptions(), camWant);
+      if (camWant !== cam) setCam(camWant);
       toScore = null; toDone = new Set();
       input.afterburner = false; input.brakes = false;
       toBlock.hidden = start !== 'takeoff';
-      idxBezel.el.hidden = start === 'takeoff' || atLaunch();   // the checklist strip takes the indexer's place on the runway
+      idxBezel.el.hidden = start === 'takeoff' || atLaunch() || atAar();   // the checklist strip takes the indexer's place on the runway
       track = []; flown = []; score = null; finished = false; configured = false; onSpeedRun = 0; acc = 0; steps = 0; gatesSeen = -1;
       navMs = { steering: false, intercept: false, onGlideRunS: 0 };
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
@@ -531,7 +638,7 @@ const factory: PageFactory = (): Page => {
       debriefPanel.el.hidden = true;
       // Return to base: the nav display replaces the pattern trace (the rings stay in the 3D view).
       navBezel.el.hidden = !s.nav;
-      traceBezel.el.hidden = !!s.nav || atLaunch();
+      traceBezel.el.hidden = !!s.nav || atLaunch() || atAar();
       syncLaunchStrip(true);
       hudStatus = '';
       pauseBtn.setLabel('Pause');
@@ -589,7 +696,7 @@ const factory: PageFactory = (): Page => {
         brakesNow = !!inp.brakes;
         stepFlightOps(s, inp, FLIGHT_OPS_DT, d);
       }
-      if (lev) lev.update(s); else if (cev) cev.update(s); else ev.update(s);
+      if (aev) aev.update(s); else if (lev) lev.update(s); else if (cev) cev.update(s); else ev.update(s);
       if (tev) { tev.update(s); for (const i of takeoffItemsNow(d, s, brakesNow)) toDone.add(i); }
       steps++;
       const cue = aoaCue(s, d);
@@ -602,7 +709,7 @@ const factory: PageFactory = (): Page => {
         if (s.nav.call && s.nav.call !== lastCall) { lastCall = s.nav.call; callAt = s.t; }
         else if (!s.nav.call) lastCall = null;
       }
-      if (steps % TRAIL_EVERY === 0 && (s.phase === 'air' || s.phase === 'rollout' || s.phase === 'roll')) {
+      if (!aev && steps % TRAIL_EVERY === 0 && (s.phase === 'air' || s.phase === 'rollout' || s.phase === 'roll')) {
         let lvl: 0 | 1 | 2;
         if (cev || lev) {
           // At sea the 3D trail and gates ride with the ship (landing frame); the trace stays in the world frame.
@@ -621,7 +728,10 @@ const factory: PageFactory = (): Page => {
           flown.push({ t: s.t, x: s.pos.x, y: s.pos.y, z: s.pos.z, heading: s.heading });
         }
       }
-      if (!finished && lev) {
+      if (!finished && aev) {
+        const sco = aev.score(s);
+        if (sco.total !== null) finishAar(sco);
+      } else if (!finished && lev) {
         const sco = lev.score(s);
         if (sco.total !== null) finishLaunch(sco);
       } else if (!finished && cev) {
@@ -639,11 +749,11 @@ const factory: PageFactory = (): Page => {
     const planCarrier = carrierPlannedGates(d);
     const planGroove = carrierPlannedGates(d, true);
     function liveGates(): readonly GateResult[] {
-      return lev ? (lScore?.gates ?? lev.score(s).gates) : cev ? (cScore?.gates ?? cev.score().gates) : tev ? (toScore?.gates ?? tev.score().gates) : (score?.gates ?? ev.score().gates);
+      return aev ? (aScore?.gates ?? aev.score(s).gates) : lev ? (lScore?.gates ?? lev.score(s).gates) : cev ? (cScore?.gates ?? cev.score().gates) : tev ? (toScore?.gates ?? tev.score().gates) : (score?.gates ?? ev.score().gates);
     }
     /** Gates for the 3D overlay (at sea: the landing frame, moving with the ship). */
     function placed() {
-      if (lev) return [];
+      if (lev || aev) return [];
       if (cev) return placeGates(start === 'carrierGroove' ? planGroove : planCarrier, liveGates(), flownL);
       return placeGates(gatesForStart(planAll, kind()), score?.gates ?? ev.score().gates, flown);
     }
@@ -687,7 +797,7 @@ const factory: PageFactory = (): Page => {
     // ---------------------------------------------------------------- UI refresh (10 Hz)
     function refresh(force: boolean): void {
       // Takeoff: no glide corridor, approach guides or aim ring until the takeoff is graded.
-      const guides = !(tev && !finished) && !lev;
+      const guides = !(tev && !finished) && !lev && !aev;
       if (guides !== guidesOn) { guidesOn = guides; sc?.overlay.setGuidesVisible(guides); st?.requestRender(); }
       if (force) { hud.draw(s); indexer.draw(s); }
       syncGates();
@@ -720,7 +830,12 @@ const factory: PageFactory = (): Page => {
           l.el.classList.toggle('is-current', c.state === 'current');
         }
       }
-      if (lev) {
+      if (aev) {
+        const ids = stepsDef.map(x => x.id), dn: Set<string> = aarStepsDone(s, gates);
+        for (const id of ids) if (dn.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
+        steps_.setCurrent(aarCurrent(ids, dn));
+        syncAar();
+      } else if (lev) {
         const ids = stepsDef.map(x => x.id), dn = launchStepsDone(s, gates);
         for (const id of ids) if (dn.has(id) && !steps_.isDone(id)) steps_.setDone(id, true);
         steps_.setCurrent(launchCurrent(ids, dn));
@@ -733,10 +848,13 @@ const factory: PageFactory = (): Page => {
       const lsoLast = s.lso?.calls[s.lso.calls.length - 1];
       const showLso = !!lsoLast && s.t - lsoLast.t < CALL_SHOW_S;
       const showCall = !showLso && !!s.nav && lastCall !== null && s.t - callAt < CALL_SHOW_S;
-      callLine.hidden = !showCall && !showLso;
-      if (showLso) setText(callLine, `LSO: ${lsoLast!.text}`);
+      const aarLast = s.aar?.calls[s.aar.calls.length - 1];
+      const showAar = !!aarLast && s.t - aarLast.t < CALL_SHOW_S;
+      callLine.hidden = !showCall && !showLso && !showAar;
+      if (showAar) setText(callLine, `${aarLast!.from === 'tanker' ? 'Tanker' : 'You'}: ${aarLast!.text}`);
+      else if (showLso) setText(callLine, `LSO: ${lsoLast!.text}`);
       else if (showCall) setText(callLine, `Tower: ${lastCall}`);
-      callLine.classList.toggle('is-waveoff', showLso && (lsoLast!.kind === 'waveoff' || lsoLast!.kind === 'bolter'));
+      callLine.classList.toggle('is-waveoff', !showAar && showLso && (lsoLast!.kind === 'waveoff' || lsoLast!.kind === 'bolter'));
 
       setText(pill, !started ? (mode === 'watch' ? 'Demo ready' : 'Ready') : paused ? 'Paused'
         : s.phase === 'crashed' ? 'Crashed' : s.phase === 'stopped' ? 'Stopped'
@@ -758,8 +876,65 @@ const factory: PageFactory = (): Page => {
         h('li', { class: `fo-lso__item is-${c.kind}` }, h('span', { class: 'fo-lso__t' }, `${c.t.toFixed(0)} s`), c.text)));
     }
 
+    /** Refuelling strip, displays and the radio log (10 Hz). */
+    function syncAar(): void {
+      const a = s.aar, T = tankerData();
+      if (!a || !ad || !T) return;
+      const u = units();
+      posDisp.draw(positionBox(a, d));
+      gaugeDisp.draw(a, T);
+      aarRO.set('clos', closureText(a.closureMs, u, true));
+      aarRO.setTone('clos', a.stage === 'rejoin' ? null : closureTone(a, d));
+      aarRO.set('hose', a.coneToPodM === null || !a.connected ? '—' : `${a.coneToPodM.toFixed(1)} m${a.hoseBand ? `, ${BAND_LABEL[a.hoseBand].toLowerCase()}` : ''}`);
+      aarRO.set('below', a.belowPodM === null || !a.connected ? '—' : `${a.belowPodM.toFixed(1)} m`);
+      aarRO.set('boom', a.boom && a.connected ? `${a.boom.elevDeg.toFixed(0)}°, ${a.boom.extM.toFixed(1)} m` : '—');
+      const hoseRow = aarRO.row('hose'), belowRow = aarRO.row('below'), boomRow = aarRO.row('boom');
+      if (hoseRow) hoseRow.hidden = !T.drogue;
+      if (belowRow) belowRow.hidden = !T.drogue;
+      if (boomRow) boomRow.hidden = !T.boom;
+      lampProbe.set(ad.kind === 'boom' ? (a.doorOpen ? (a.doorPos > 0.99 ? 'on' : 'flash') : a.doorPos > 0.01 ? 'flash' : 'off')
+        : a.probeOut ? (a.probePos > 0.99 ? 'on' : 'flash') : a.probePos > 0.01 ? 'flash' : 'off');
+      lampLights.set(a.lights);
+      lampCleared.set(a.cleared || a.connected);
+      const flowing = a.connected && (T.boom ? !!a.boom?.inLimits : a.hoseBand === 'green');
+      lampContact.set(a.connected ? (flowing || a.refuelComplete ? 'on' : 'flash') : 'off');
+      fuelFill.style.width = `${Math.round(fuelFraction(a) * 100)}%`;
+      setText(fuelText, `${Math.round(a.fuel)} / ${a.fuelTarget} ${a.fuelUnit}`);
+      if (a.errors.length > errSeen) { errSeen = a.errors.length; errText = a.errors[a.errors.length - 1]!; errAt = s.t; }
+      if (a.calls.length === callsSeen) return;
+      callsSeen = a.calls.length;
+      const log = a.calls.map(c => ({ t: c.t, text: `${c.from === 'tanker' ? 'Tanker' : 'You'}: ${c.text}`, bad: /bounce|too fast|limit|pulled|miss/i.test(c.text) }));
+      const last = log[log.length - 1];
+      setText(radioLatest, last ? last.text : `Call the tanker: ${ad.keys.call.value}`);
+      radioLatest.className = `fo-lso__latest${last?.bad ? ' is-waveoff' : ''}`;
+      radioList.replaceChildren(...log.slice(-LSO_LOG_MAX).reverse().map(c =>
+        h('li', { class: `fo-lso__item${c.bad ? ' is-waveoff' : ''}` }, h('span', { class: 'fo-lso__t' }, `${c.t.toFixed(0)} s`), c.text)));
+    }
+
+    /** Coach line on a refuelling start. */
+    function aarCoach(): void {
+      const T = tankerData();
+      if (!ad || !T) return;
+      if (finished && aScore) {
+        const c = aarCard(aScore, s.phase === 'crashed');
+        coach.set(`${c.title}. ${aScore.total} / 100.`, aScore.verdict ?? c.meaning, lessonPassed(aScore.total) ? 'ok' : 'caution');
+        return;
+      }
+      if (!started) {
+        const what = start === 'aarRejoin' ? 'tanker rejoin' : 'pre-contact';
+        coach.set(mode === 'watch' ? `Watch the demo refuel from the ${T.name}.` : `Fly it: ${what} on the ${T.name}.`,
+          mode === 'watch' ? 'The position box, the gauge and the radio log follow each step.'
+            : `${ad.cue}. Behind the tanker the throttle sets closure and the stick moves the jet.`);
+        return;
+      }
+      if (errText && s.t - errAt < 4) { coach.set(errText + '.', 'Fix it and carry on.', 'warning'); return; }
+      const c = aarCaption(s, d, units());
+      coach.set(c.text, c.why, c.tone);
+    }
+
     function coachLine(over: 'gear' | 'flaps' | null): void {
       const u = units();
+      if (aev) { aarCoach(); return; }
       if (lev) { launchCoach(); return; }
       if (cev) { carrierCoach(over); return; }
       const fin = toScore ?? score;
@@ -894,6 +1069,38 @@ const factory: PageFactory = (): Page => {
       refresh(true);
     }
 
+    /** Refuelling debrief (#28): outcome, gates, contacts and disconnects, fuel, total and verdict. */
+    function finishAar(sco: AarScore): void {
+      finished = true; aScore = sco;
+      startBtn.setLabel(mode === 'watch' ? 'Watch again' : 'Fly again');
+      startBtn.setDisabled(false);
+      const card = aarCard(sco, s.phase === 'crashed'), a = s.aar;
+      const rows: HTMLElement[] = [
+        h('dt', null, 'Tanker'), h('dd', null, tankerData()?.name ?? ''),
+        h('dt', null, 'Contacts'), h('dd', null, String(sco.contacts)),
+        h('dt', null, 'Bounces, misses'), h('dd', { class: sco.bounces + sco.misses ? 'fo-bad' : undefined }, `${sco.bounces}, ${sco.misses}`),
+        h('dt', null, 'Fault disconnects'), h('dd', { class: sco.faultDisconnects ? 'fo-bad' : undefined }, String(sco.faultDisconnects)),
+        h('dt', null, 'In the envelope'), h('dd', null, `${Math.round(sco.timeInEnvelopeS)} s`),
+        h('dt', null, 'Fuel transferred'), h('dd', null, `${Math.round(sco.fuel)} ${a?.fuelUnit ?? ''}`),
+      ];
+      if (a?.contacts[0]) rows.push(h('dt', null, 'Closure at contact'), h('dd', null, `${a.contacts[0].closureKt.toFixed(1)} kt, want ${ad?.closureKt.value[0]}–${ad?.closureKt.value[1]}`));
+      debriefBody.replaceChildren(
+        h('div', { class: `fo-outcome is-${card.tone}` },
+          h('span', { class: 'fo-outcome__title' }, card.title), h('p', { class: 'fo-outcome__meaning' }, card.meaning)),
+        h('div', { class: 'fo-score' },
+          h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
+          h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
+        gateList(sco.gates),
+        h('dl', { class: 'fo-numbers' }, rows),
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+          ? (lessonPassed(sco.total) ? `Refuelling lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the refuelling lesson.`)
+          : 'Demo refuelling. Switch to Fly to be graded.'),
+      );
+      debriefPanel.el.hidden = false;
+      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(aarProgressKey(ac), true);
+      refresh(true);
+    }
+
     // ---------------------------------------------------------------- debrief
     /** Carrier debrief (#26): the LSO grade, comments in plain words, the wire, the gates, total and verdict. */
     function finishCarrier(sco: CarrierScore): void {
@@ -1014,7 +1221,7 @@ const factory: PageFactory = (): Page => {
       'Space': () => { if (!started || finished) go(); else togglePause(); },
       'P': () => togglePause(),
       'R': () => reset(true),
-      'C': () => { const opts = camOptions().map(o => o.value); setCam(opts[(opts.indexOf(cam) + 1) % opts.length]!); },
+      'C': () => { const opts = camOptions().map(o => o.value); camPref = opts[(opts.indexOf(cam) + 1) % opts.length]!; setCam(camPref); },
     };
     if (fc === 'selector' && /^[A-Z]$/.test(d.keys.flaps)) keymap[d.keys.flaps] = act(cycleFlaps);
     // Wheel brakes (held): takeoff and landing rollout. Throttle max: MIL, or full afterburner where the takeoff uses it.
@@ -1037,6 +1244,9 @@ const factory: PageFactory = (): Page => {
       const mk = d.nav.keys.modeCycle.value, pk = d.nav.keys.pointCycle?.value;
       if (parseChord(mk)) keymap[mk] = act(() => applyAction(s, 'navModeCycle', d));
       if (pk && parseChord(pk)) keymap[pk] = act(() => applyAction(s, 'navPointCycle', d));
+    }
+    for (const k of aarKeys(d)) {
+      if (parseChord(k.key) && !(k.key in keymap)) keymap[k.key] = act(() => { if (s.aar) applyAction(s, k.action, d); });
     }
     if (cd) {
       const hk = cd.hookKey.value, bk = cd.ballCallKey.value;
@@ -1062,14 +1272,23 @@ const factory: PageFactory = (): Page => {
       const navShot = (which === 'rtb' || which === 'ils') && navOk;
       const toShot = which.startsWith('takeoff-');
       const launchShot = which.startsWith('launch-') && lStarts.length > 0;
-      const seaShot = !launchShot && !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
+      const aarShot = which.startsWith('aar-') && aStarts.length > 0;
+      const seaShot = !launchShot && !aarShot && !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
       mode = 'watch'; modeSeg.set('watch');
-      start = toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
+      start = aarShot ? (which === 'aar-rejoin' ? 'aarRejoin' : 'aarPrecontact') : toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
       rebuildSteps();
       reset(true);
       const t0 = s.t;
       let trapT: number | null = null;
       const doneAt = (): boolean => {
+        if (aarShot) {
+          const a = s.aar;
+          if (!a) return true;
+          if (which === 'aar-rejoin') return s.t - t0 > 8;
+          if (which === 'aar-precontact') return s.t - t0 > 1.5;
+          if (which === 'aar-contact') return a.connected && a.fuel >= a.fuelTarget * 0.4;
+          return finished;
+        }
         if (launchShot) {
           const L = s.launch;
           if (!L || !ld) return true;

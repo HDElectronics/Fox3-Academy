@@ -7,15 +7,16 @@
  * not an autopilot model. Per-state leg memory lives in a WeakMap, so the pilot stays deterministic.
  */
 import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, clamp } from '../math';
-import { aimPointM, aoaForLoad, approachSpeedMs, hasFlapSelector, headingErr, loadFactor, rotateAtKt } from './model';
+import { aimPointM, aoaForLoad, approachSpeedMs, hasFlapSelector, headingErr, levelThrottle, loadFactor, rotateAtKt } from './model';
+import { STATION_MS_PER_THROTTLE, contactTarget, greenHoldPoint, tankerData } from './aar';
 import { NAV_AUTO_SWITCH_M } from './nav';
 import { aimPointU, carrierData, carrierGeometry, crabHeading, shipData, shipFrame } from './carrier';
 import { ballInRange } from './lso';
 import { launchPowerNeed, powerMet } from './launch';
-import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
+import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState, TankerFrameVec } from './types';
 
 export type DemoLeg = 'launch' | 'takeoff' | 'climbout' | 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout'
-  | 'bolter';
+  | 'bolter' | 'rejoin' | 'precontact' | 'contact' | 'refuel' | 'disconnect' | 'done';
 interface Memory { leg: DemoLeg; nextActT?: number; powerT?: number }
 const memory = new WeakMap<FlightOpsState, Memory>();
 
@@ -36,6 +37,7 @@ export function demoLeg(s: FlightOpsState): DemoLeg | null {
 }
 
 function initialLeg(s: FlightOpsState): DemoLeg {
+  if (s.aar) return s.aar.station ? 'precontact' : 'rejoin';
   if (s.launch) return s.launch.stage === 'free' ? 'climbout' : 'launch';
   if (s.phase === 'ready' || s.phase === 'roll') return 'takeoff';
   if (s.phase !== 'air') return 'rollout';
@@ -71,6 +73,7 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
     if (m.leg === 'launch' && s.launch.stage === 'free') m.leg = 'climbout';
     return launchPilot(s, d, m, actions);
   }
+  if (s.aar) return aarPilot(s, d, m, actions);
   if (m.leg === 'takeoff' && s.phase === 'air') m.leg = 'climbout';
   if ((m.leg === 'takeoff' && (s.phase === 'ready' || s.phase === 'roll')) || (m.leg === 'climbout' && s.phase === 'air')) {
     return takeoffPilot(s, d, m.leg, actions);
@@ -458,5 +461,88 @@ function launchPilot(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions:
   const limitKt = Math.min(d.pattern.gearMaxKt.value, d.takeoff.gearUpMaxKt.value) - 15;
   const targetMs = (clean ? CLIMB_KT : limitKt) * MPS_PER_KT;
   const throttle = clamp(0.45 + (targetMs - s.speed) * 0.15, 0, 1);
+  return { pitch, roll, throttle, afterburner: false, actions };
+}
+
+/** AAR demo: rejoin closure profile (m/s² of deceleration, cap m/s) and the station-mode gains. */
+const REJOIN_DECEL = 0.3;
+const REJOIN_CLOSE_MS = 25;
+const STATION_POS_GAIN = 0.25;
+const STATION_STICK_GAIN = 0.5;
+/** Contact leg: aim this far through the basket (boom: past the nominal) so the closure holds at the target; align within ALIGN_M first. */
+const CONTACT_THROUGH_M = 6;
+const BOOM_THROUGH_M = 2;
+const ALIGN_M = 0.3;
+/** Back out at this opening rate, m/s (about 2 kt). */
+const BACK_OUT_MS = 1;
+
+/**
+ * Air-to-air refuelling (#28): call the tanker and open the probe or door on the rejoin, fly the closure profile
+ * to pre-contact, stabilise until cleared contact, close at the jet's closure target (aligned first), hold the
+ * basket in the green band (or the boom at the nominal point) until the fuel target, then back out slowly
+ * (drogue) or wait for the boom operator's disconnect and return to pre-contact.
+ */
+function aarPilot(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions: FlightOpsAction[]): FlightOpsInput & { actions: FlightOpsAction[] } {
+  const a = s.aar!;
+  const r = d.aar!;
+  const T = tankerData(a.tanker);
+  if (!a.called && s.t > 1) actions.push('callTanker');
+  if (r.kind === 'probe' && r.keys.probe && !a.probeOut) actions.push('probeToggle');
+  if (r.kind === 'boom' && !a.doorOpen && (!r.doorLimit || s.speed / MPS_PER_KT < r.doorLimit.operateKt.value)) actions.push('doorToggle');
+
+  if (!a.station) return rejoinFlight(s, d, m, actions);
+  const target = contactTarget(T);
+  const through = T.kind === 'drogue' ? CONTACT_THROUGH_M : BOOM_THROUGH_M;
+  const closeMs = ((r.closureKt.value[0] + r.closureKt.value[1]) / 2) * MPS_PER_KT;
+  if (m.leg === 'rejoin') m.leg = 'precontact';
+  if (m.leg === 'precontact' && a.cleared) m.leg = 'contact';
+  if (m.leg === 'contact') {
+    if (a.connected) m.leg = 'refuel';
+    else if (a.relTarget.aft < -through - 1 || !a.cleared) m.leg = 'precontact';
+  }
+  if (m.leg === 'refuel' && !a.connected) m.leg = a.refuelComplete ? 'disconnect' : 'precontact';
+  if (m.leg === 'refuel' && a.refuelComplete && T.kind === 'drogue') m.leg = 'disconnect';
+  if (m.leg === 'disconnect' && !a.connected && Math.hypot(a.tip.aft - a.precontact.aft, a.tip.up - a.precontact.up) < 2) m.leg = 'done';
+
+  let P: TankerFrameVec = a.precontact;
+  let maxClose = 8, maxOpen = 2;
+  if (m.leg === 'contact') {
+    const aligned = Math.abs(a.relTarget.right) < ALIGN_M && Math.abs(a.relTarget.up) < ALIGN_M;
+    P = { aft: target.aft - through, right: target.right, up: target.up };
+    maxClose = aligned ? closeMs : 0.1;
+  } else if (m.leg === 'refuel') {
+    P = T.kind === 'drogue' ? greenHoldPoint(T) : target;
+    maxClose = maxOpen = 0.5;
+  } else if (m.leg === 'disconnect') {
+    P = a.connected ? { ...a.precontact, right: a.tip.right, up: a.tip.up } : a.precontact;
+    maxOpen = BACK_OUT_MS;
+  }
+  const e = { aft: P.aft - a.tip.aft, right: P.right - a.tip.right, up: P.up - a.tip.up };
+  // Linear near the point, a constant-deceleration profile further out (arrive in pre-contact slowly).
+  const cWant = clamp(-Math.sign(e.aft) * Math.min(Math.abs(e.aft) * STATION_POS_GAIN, Math.sqrt(2 * REJOIN_DECEL * Math.abs(e.aft))), -maxOpen, maxClose);
+  const trim = levelThrottle(s, d, a.tankerSpeedMs);
+  const throttle = clamp(trim + (cWant + 0.8 * (cWant - a.closureMs)) / STATION_MS_PER_THROTTLE, 0, 1);
+  const pitch = clamp((e.up * STATION_STICK_GAIN) / 3, -1, 1);
+  const roll = clamp((e.right * STATION_STICK_GAIN) / 3, -1, 1);
+  return { pitch, roll, throttle, afterburner: false, actions };
+}
+
+/** Rejoin in the flight model: closure profile to the pre-contact point, heading and altitude onto the tanker. */
+function rejoinFlight(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions: FlightOpsAction[]): FlightOpsInput & { actions: FlightOpsAction[] } {
+  const a = s.aar!;
+  m.leg = 'rejoin';
+  const off = { aft: a.tip.aft - a.rel.aft, right: a.tip.right - a.rel.right, up: a.tip.up - a.rel.up };
+  const want = { aft: a.precontact.aft - off.aft, right: a.precontact.right - off.right, up: a.precontact.up - off.up };
+  const D = a.rel.aft - want.aft;
+  const close = D > 0 ? Math.min(REJOIN_CLOSE_MS, Math.sqrt(2 * REJOIN_DECEL * Math.max(0, D - 20))) : -Math.min(5, -D * 0.1);
+  const vWant = a.tankerSpeedMs + close;
+  const hdg = a.tankerHeading + clamp(Math.atan2(want.right - a.rel.right, Math.max(D, 500)), -0.5, 0.5);
+  const roll = clamp((clamp(headingErr(hdg, s.heading) * 1.5, -0.5, 0.5) - s.bank) * 3, -1, 1);
+  const targetY = a.tankerPos.y + want.up;
+  const gammaCmd = clamp((targetY - s.pos.y) * 0.01, -5 * D2R, 5 * D2R);
+  const n = Math.cos(s.gamma) / Math.max(0.5, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * 0.5) / G0;
+  const aoaT = aoaForLoad(s, d, clamp(n, 0, 3));
+  const pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);
+  const throttle = clamp(levelThrottle(s, d, s.speed) + (vWant - s.speed) * 0.1, 0, 1);
   return { pitch, roll, throttle, afterburner: false, actions };
 }

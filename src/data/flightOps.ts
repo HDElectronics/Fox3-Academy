@@ -6,12 +6,15 @@
  * docs/api/data.md ("Uncertain values", "Flight ops").
  */
 import type {
-  FlightOpsCarrierData, FlightOpsJetData, FlightOpsJetId, FlightOpsLaunchData, FlightOpsNavData, FlightOpsTakeoffData,
+  FlightOpsAarData, FlightOpsCarrierData, FlightOpsJetData, FlightOpsJetId, FlightOpsLaunchData, FlightOpsNavData, FlightOpsTakeoffData,
   Sourced,
 } from '../sim/flightOps/types';
 import { HORNET_CASE1, SHIP_CAVEATS, SUPERCARRIER, SU33_MANUAL } from './ships';
 
+import { SU33_AAR, TANKER_CAVEATS } from './tankers';
+
 export { SHIPS, SHIP_HULL, SHIP_CAVEATS } from './ships';
+export { TANKERS, TANKER_CAVEATS, UPAZ_BANDS } from './tankers';
 
 const HORNET = 'ED F/A-18C Early Access Guide, Airfield VFR Landing';
 const VIPER = "Chuck's Guides, DCS F-16C Viper, Landing";
@@ -173,6 +176,76 @@ const SU33_LAUNCH: FlightOpsLaunchData = {
   cue: 'Full afterburner, special afterburner, hold on the stoppers, run, ramp',
 };
 
+// Air-to-air refuelling (#28). Keys, windows and closure as the sources give them; everything else is a gameplay value.
+const VIPER_AAR = "Chuck's Guides, DCS F-16C Viper, Air-to-air refuelling";
+const THUNDER_AAR = "Chuck's Guides, DCS JF-17 Thunder, Air-to-air refuelling";
+const MIRAGE_AAR = "Chuck's Guides, DCS M-2000C, Air-to-air refuelling";
+const AAR_KEY_NV = 'The DCS default key is not verified; trainer key.';
+const CALL_KEY = nv('\\', 'DCS radio menu', 'Radio menu: tanker, Intent to refuel. The trainer maps the call to one key.');
+const CALL_TEXT_WEST = nv('Intent to refuel', SU33_AAR, 'Su-33 manual wording; used for every jet.');
+const DRAWING = 'Drawing value, not verified.';
+const WEST_DROGUES = ['kc135mprs', 'kc130'] as const;
+const CLOSURE_NV = nv<[number, number]>([2, 3], MIRAGE_AAR, 'M-2000C and JF-17 guides give 2–3 kt on the basket; used for this jet.');
+
+const SU33_AAR_DATA: FlightOpsAarData = {
+  kind: 'probe',
+  tanker: 'il78m',
+  tankers: ['il78m'],
+  keys: {
+    probe: ok('LCtrl+R', SU33_AAR, 'Probe out and in. The manual also lists RCtrl+R for the refuelling mode and probe retract: not verified.'),
+    lights: ok('LAlt+R', SU33_AAR, 'Refuelling lights.'),
+    call: CALL_KEY,
+  },
+  callText: ok('Intent to refuel', SU33_AAR, 'Radio call "Tanker – Intent to refuel".'),
+  window: { unit: 'metric', ias: ok([500, 570], SU33_AAR, 'km/h IAS.'), alt: ok([2000, 9000], SU33_AAR, 'Metres.') },
+  closureKt: nv([2, 3], SU33_AAR, 'The manual gives no closure; M-2000C / JF-17 value used.'),
+  closeFromM: ok(10, SU33_AAR, 'Close on the basket from 10 m.'),
+  holdBelowPodM: ok([3, 6], SU33_AAR, 'Hold 3–6 m below the pod in contact.'),
+  contactPointM: nv({ fwd: 8, right: -0.8, up: 1 }, SU33_AAR, 'Probe on the left of the nose. ' + DRAWING),
+  cue: 'Intent to refuel, probe out. Close from 10 m, hold 3–6 m below the pod, hose band green',
+};
+
+function probeAar(source: string, probeKey: Sourced<string> | undefined, closure: Sourced<[number, number]>,
+  contact: { fwd: number; right: number; up: number }): FlightOpsAarData {
+  return {
+    kind: 'probe',
+    tanker: 'kc135mprs',
+    tankers: WEST_DROGUES,
+    keys: { ...(probeKey ? { probe: probeKey } : {}), call: CALL_KEY },
+    callText: CALL_TEXT_WEST,
+    closureKt: closure,
+    contactPointM: nv(contact, source, DRAWING),
+    cue: probeKey ? 'Probe out, stabilise in pre-contact, 2–3 kt closure on the basket, back out slowly'
+      : 'Fixed probe: stabilise in pre-contact, 2–3 kt closure on the basket, back out slowly',
+  };
+}
+
+const boomAar = (source: string, door: Sourced<string>, contact: { fwd: number; right: number; up: number }): FlightOpsAarData => ({
+  kind: 'boom',
+  tanker: 'kc135',
+  tankers: ['kc135'],
+  keys: { door, call: CALL_KEY },
+  callText: CALL_TEXT_WEST,
+  closureKt: nv([0.5, 2], source, 'Not given; gameplay value: a slow, stable approach to the boom.'),
+  contactPointM: nv(contact, source, 'Receptacle. ' + DRAWING),
+  cue: 'Door open, stabilise in pre-contact, move slowly to contact and hold still: the boom operator plugs you',
+});
+
+const F16_AAR: FlightOpsAarData = {
+  ...boomAar(VIPER_AAR, nv('LCtrl+R', VIPER_AAR, 'AIR REFUEL switch on the fuel panel, OPEN. ' + AAR_KEY_NV), { fwd: 2, right: 0, up: 1.3 }),
+  doorLimit: {
+    operateKt: ok(400, VIPER_AAR, 'Open or close the door below 400 kt / M0.85.'),
+    operateMach: ok(0.85, VIPER_AAR),
+    openKt: ok(400, VIPER_AAR, 'Stay below 400 kt / M0.95 with the door open.'),
+    openMach: ok(0.95, VIPER_AAR),
+  },
+};
+const F15_AAR = boomAar(EAGLE, nv('LCtrl+R', EAGLE, 'Refuelling door. ' + AAR_KEY_NV), { fwd: 0, right: -1.5, up: 1.2 });
+const HORNET_AAR = probeAar(HORNET, nv('LCtrl+R', HORNET, 'PROBE switch, EXTEND. ' + AAR_KEY_NV), CLOSURE_NV, { fwd: 7, right: 0.8, up: 0.9 });
+const TOMCAT_AAR = probeAar(TOMCAT, nv('LCtrl+R', TOMCAT, 'Refuel probe switch. ' + AAR_KEY_NV), CLOSURE_NV, { fwd: 7, right: 0.8, up: 0.9 });
+const JF17_AAR_DATA = probeAar(THUNDER_AAR, undefined, ok([2, 3], THUNDER_AAR, '2–3 kt of closure on the basket.'), { fwd: 6, right: 0.7, up: 0.8 });
+const MIRAGE_AAR_DATA = probeAar(MIRAGE_AAR, undefined, ok([2, 3], MIRAGE_AAR, '2–3 kt of closure on the basket.'), { fwd: 6, right: 0.6, up: 1.2 });
+
 const WHEEL_BRAKE_KEY = 'DCS common default wheel-brake key; not in the source for this module.';
 const NO_TAILSTRIKE = 'Not published; gameplay value above the rotation band.';
 
@@ -286,6 +359,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(3, HORNET),
     aimPointFt: ok(500, HORNET, 'Past the threshold.'),
     hudCue: 'E-bracket on the flight path marker',
+    aar: HORNET_AAR,
     carrier: HORNET_CARRIER,
     launch: HORNET_LAUNCH,
     takeoff: {
@@ -324,6 +398,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(2.5, VIPER, 'Final on the 2.5° line.'),
     aimPointFt: nv(500, VIPER, 'Not given; Hornet value used.'),
     hudCue: 'Flight path marker on the 2.5° line, AoA bracket',
+    aar: F16_AAR,
     takeoff: {
       vrKt: ok(vrAtWeight(F16_VR, F16_TAKEOFF_WEIGHT_LB), VIPER_TO, `Interpolated from the guide's Vr table at ${F16_TAKEOFF_WEIGHT_LB} lb (the trainer's standard weight).`),
       vrByWeightLb: ok(F16_VR, VIPER_TO, 'Rotation speed from 128 kt at 20000 lb to 198 kt at 44000 lb.'),
@@ -361,6 +436,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: ok(3, EAGLE, 'ILS glide slope.'),
     aimPointFt: nv(500, EAGLE, 'Not given; Hornet value used.'),
     hudCue: 'ILSN: GSUP / GSDN glide-slope cues',
+    aar: F15_AAR,
     nav: EAGLE_NAV,
     takeoff: {
       vrKt: nv(150, EAGLE_TO, 'Quick start rotates at 150 kt; the detailed takeoff section instead pulls the stick half back at 100 kt and holds 10° after nosewheel lift-off.'),
@@ -400,6 +476,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, TOMCAT, 'Not given; 3° used.'),
     aimPointFt: nv(500, TOMCAT, 'Not given; Hornet value used.'),
     hudCue: 'On speed at 15 units AoA',
+    aar: TOMCAT_AAR,
     carrier: TOMCAT_CARRIER,
     launch: TOMCAT_LAUNCH,
     takeoff: {
@@ -430,6 +507,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, THUNDER, 'Not given; 3° used.'),
     aimPointFt: nv(500, THUNDER, 'Not given; Hornet value used.'),
     hudCue: 'Flight path marker in the E-bracket',
+    aar: JF17_AAR_DATA,
     takeoff: {
       vrKt: ok(140, THUNDER_TO, 'About 140 kt. Takeoff trim is set automatically above 41 kt.'),
       pullEarlyKt: ok(20, THUNDER_TO, 'Start pulling at 120 kt.'),
@@ -460,6 +538,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     glideDeg: nv(3, MIRAGE, 'Not given; 3° used.'),
     aimPointFt: nv(500, MIRAGE, 'Not given; Hornet value used.'),
     hudCue: 'Trim to about 14° AoA, velocity vector on the aim point',
+    aar: MIRAGE_AAR_DATA,
     takeoff: {
       vrKt: nv(150, MIRAGE_TO, 'Rotation speed not given; gameplay value.'),
       pitchDeg: nv([10, 12.5], MIRAGE_TO, 'Band not given; kept below the 13° tail-strike attitude.'),
@@ -479,7 +558,8 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     ruTakeoff(SU27, 140, 260, ' Su-27 value used.')),
   su33: { ...ruJet('su33', SU33, nv(130, SU33, 'Manual history quotes 240 km/h for the Su-33 approach; background only.'),
     { slow: 'red', on: 'green', fast: 'yellow' }, 'ISM-1 indexer: yellow fast, green optimal, red slow; the manual gives no on-speed number, gameplay value.',
-    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the ski-jump is the launch lesson.')), carrier: SU33_CARRIER, launch: SU33_LAUNCH },
+    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the ski-jump is the launch lesson.')), carrier: SU33_CARRIER, launch: SU33_LAUNCH,
+    aar: SU33_AAR_DATA },
   mig29s: ruJet('mig29s', MIG29, nv(140, MIG29, 'Not given; gameplay value.'),
     { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
     ruTakeoff(MIG29, 135, 250)),
@@ -504,5 +584,8 @@ export const FLIGHT_OPS_CAVEATS: string[] = [
   'Carrier: LSO calls, ball cells, the grade and the wire rule are arcade rules built on the Supercarrier guide thresholds; the grade comment bands and pass penalties are trainer choices.',
   'Launch: Hornet NWS HI S, hook up U, T/O trim 16° / 17° / 19° by weight, MIL (afterburner from 49000 lb), wipe out, salute and hands off; Tomcat hook up U and salute LShift+U (Heatblur lesson text); clearing turn right from catapults 1–2 and left from 3–4; Su-33 runs of 90 m (positions 1–2) and 180 m (position 3, heavy), full then special afterburner LShift+E (10-minute limit), no FOD screens LAlt+I (−12 % thrust) are sourced. Not verified: the Hornet salute key (LCtrl+LShift+LAlt+S or the radio menu against LShift+U), the launch bar and wipe-out trainer keys, Tomcat MIL and hands off, the stopper release, the 29000 kg short-run limit and the trainer launch weights.',
   'Launch: the catapult stroke (2.5 s to the approach speed + 15 kt), the shooter delay, the ski-jump run acceleration, the 12° ramp, the minimum ramp speed (0.85 of the approach speed) and the settle after a cold cat or a short run are arcade rules, not catapult or ski-jump performance.',
+  'Refuelling: Su-33 probe LCtrl+R, lights LAlt+R, the "Intent to refuel" call, 2000–9000 m, 500–570 km/h IAS, close from 10 m and hold 3–6 m below the pod; F-16C door below 400 kt / M0.85, below 400 kt / M0.95 while open; M-2000C and JF-17 2–3 kt closure are sourced. Not verified: the Su-33 RCtrl+R listing, the F-16C and F-15C door keys, the Hornet and Tomcat probe keys (trainer key LCtrl+R), the radio-menu call key, fixed probes on the JF-17 and M-2000C, contact-point positions, closure targets for the other jets.',
+  'Refuelling: the Su-27, J-11A and MiG-29S have no AAR lesson. The J-11A probe is only a Deka plan; MiG-29S refuelling is not verified.',
+  ...TANKER_CAVEATS,
   ...SHIP_CAVEATS,
 ];

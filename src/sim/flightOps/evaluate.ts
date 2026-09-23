@@ -16,11 +16,12 @@
  * TakeoffEvaluator (#24) grades brakeRelease, rotate, liftoff, gearUp and climb; see its class comment.
  * CarrierEvaluator (#26) grades the Case I pass and gives the DCS-format LSO grade; see its class comment.
  * LaunchEvaluator (#27) grades the deck launch sequence and the climb-out; see its class comment.
+ * AarEvaluator (#28) grades the refuelling: rejoin, pre-contact, contact, envelope, disconnect.
  */
 import { M_PER_FT, M_PER_NM, MPS_PER_KT, R2D, D2R, clamp } from '../math';
 import { aimPointM, aoaCue, configWarnings, headingErr, loadFactor, noFlapControl, rotateAtKt } from './model';
 import {
-  RUNWAY, type ApproachGeometry, type ApproachScore, type CarrierGradeMark, type CarrierScore, type FlightOpsJetData,
+  RUNWAY, type AarScore, type ApproachGeometry, type ApproachScore, type CarrierGradeMark, type CarrierScore, type FlightOpsJetData,
   type FlightOpsState, type GateId, type GateResult, type LaunchScore, type LsoCall, type TakeoffScore,
 } from './types';
 import { LAUNCH_CLIMB_M, launchPowerNeed } from './launch';
@@ -53,7 +54,8 @@ const LABELS: Record<GateId, string> = {
   sequence: 'Sequence', shot: 'Shot', handsOff: 'Hands off', cleanUp: 'Clean up', clearingTurn: 'Clearing turn',
   initial: 'Initial', break: 'Break', downwind: 'Downwind', abeam: 'Abeam', ninety: 'Ninety', groove: 'Groove',
   touchdown: 'Touchdown', brakeRelease: 'Brake release', rotate: 'Rotate', liftoff: 'Liftoff', gearUp: 'Gear up',
-  climb: 'Climb',
+  climb: 'Climb', rejoin: 'Rejoin', precontact: 'Pre-contact', contact: 'Contact', envelope: 'Envelope',
+  disconnect: 'Disconnect',
 };
 
 export class ApproachEvaluator {
@@ -709,6 +711,102 @@ export class LaunchEvaluator {
     const faults = gates.filter(g => !g.ok).map(g => g.label.toLowerCase());
     const head = total >= 100 ? 'Good launch' : total >= 80 ? 'Fair launch' : 'Poor launch';
     const verdict = faults.length ? `${head}: ${faults.join(', ')} out of limits.` : `${head}. Sequence in order, clean up, climb.`;
+    return { ...base, total, verdict };
+  }
+}
+
+/** Rejoin: closure at the pre-contact zone at or below this, knots. */
+export const REJOIN_MAX_CLOSURE_KT = 15;
+/** Contact closure tolerance around the jet's target band, knots (below, above). */
+export const CONTACT_TOL_KT = [0.5, 1] as const;
+
+/**
+ * Refuelling grading (#28). Gates appear as they are flown (a lesson started in pre-contact has no rejoin gate):
+ * - rejoin: entering the pre-contact zone at or below 15 kt of closure.
+ * - precontact: cleared contact after a stable pre-contact (a contact without it fails the gate).
+ * - contact: first contact; closure inside the jet's target band (−0.5 / +1 kt) with no bounce or miss before it.
+ * - envelope: at the fuel target; no fault disconnects on the way.
+ * - disconnect: the first disconnect after the fuel target; clean (backed out slowly, or the boom operator's).
+ * Total = 100 × passed gates / expected gates; a crash scores 0.
+ */
+export class AarEvaluator {
+  private readonly gates = new Map<GateId, GateResult>();
+  private sawRejoin = false;
+  private done = false;
+  private crash: string | null = null;
+  private completeT: number | null = null;
+  private below: [number, number] | null = null;
+
+  constructor(private readonly d: FlightOpsJetData) {}
+
+  private pass(id: GateId, t: number, ok: boolean, notes: string[]) {
+    if (!this.gates.has(id)) this.gates.set(id, { id, label: LABELS[id], passedAt: t, ok, notes });
+  }
+
+  private expected(): GateId[] {
+    return [...(this.sawRejoin ? ['rejoin' as const] : []), 'precontact', 'contact', 'envelope', 'disconnect'];
+  }
+
+  update(s: FlightOpsState): void {
+    const a = s.aar;
+    const r = this.d.aar;
+    if (this.done || !a || !r) return;
+    if (s.phase === 'crashed') { this.done = true; this.crash = s.crashReason ?? 'Crashed'; return; }
+    const kt = a.closureMs / MPS_PER_KT;
+    if (a.stage === 'rejoin' && this.gates.size === 0) this.sawRejoin = true;
+    if (this.sawRejoin && a.stage !== 'rejoin' && !this.gates.has('rejoin')) {
+      const ok = kt <= REJOIN_MAX_CLOSURE_KT;
+      this.pass('rejoin', s.t, ok, [`${kt.toFixed(1)} kt closure into pre-contact, want ${REJOIN_MAX_CLOSURE_KT} or less`]);
+    }
+    if (a.cleared && !this.gates.has('precontact')) this.pass('precontact', s.t, true, ['Stable in pre-contact: cleared contact']);
+    const first = a.contacts[0];
+    if (first && !this.gates.has('contact')) {
+      const [lo, hi] = r.closureKt.value;
+      const inBand = first.closureKt >= lo - CONTACT_TOL_KT[0] && first.closureKt <= hi + CONTACT_TOL_KT[1];
+      const clean = a.bounces === 0 && a.misses === 0;
+      const notes = [`${first.closureKt.toFixed(1)} kt closure at contact, want ${lo}–${hi}`];
+      if (!clean) notes.push(`${a.bounces} bounce(s), ${a.misses} miss(es) before contact`);
+      this.pass('precontact', first.t, false, ['Not stabilised in pre-contact']);
+      this.pass('contact', first.t, inBand && clean, notes);
+    }
+    if (a.connected && a.belowPodM !== null && a.hoseBand === 'green') {
+      const b = a.belowPodM;
+      this.below = this.below ? [Math.min(this.below[0], b), Math.max(this.below[1], b)] : [b, b];
+    }
+    if (a.refuelComplete && this.completeT === null) {
+      this.completeT = s.t;
+      const faults = a.disconnects.filter(x => !x.clean);
+      const notes = [`${Math.round(a.timeInEnvelopeS)} s in the envelope, ${Math.round(a.fuel)} ${a.fuelUnit} transferred`];
+      if (faults.length) notes.push(`Disconnects: ${faults.map(x => x.reason.toLowerCase()).join(', ')}`);
+      const hold = r.holdBelowPodM?.value;
+      if (hold && this.below) notes.push(`Held ${this.below[0].toFixed(1)}–${this.below[1].toFixed(1)} m below the pod, want ${hold[0]}–${hold[1]}`);
+      this.pass('envelope', s.t, faults.length === 0, notes);
+    }
+    const doneT = this.completeT;
+    if (doneT !== null) {
+      const last = a.disconnects.find(x => x.t >= doneT);
+      if (last) {
+        this.pass('disconnect', last.t, last.clean, [last.clean ? `${last.reason}: clean disconnect` : `${last.reason}: not clean`]);
+        this.done = true;
+      }
+    }
+  }
+
+  score(s?: FlightOpsState): AarScore {
+    const order = this.expected();
+    const gates = order.map(id => this.gates.get(id)).filter((g): g is GateResult => !!g);
+    const a = s?.aar;
+    const base: AarScore = {
+      gates, contacts: a?.contacts.length ?? 0, bounces: a?.bounces ?? 0, misses: a?.misses ?? 0,
+      faultDisconnects: a?.disconnects.filter(x => !x.clean).length ?? 0, timeInEnvelopeS: a?.timeInEnvelopeS ?? 0,
+      fuel: a?.fuel ?? 0, total: null, verdict: null,
+    };
+    if (!this.done) return base;
+    if (this.crash) return { ...base, total: 0, verdict: `Crashed: ${this.crash.toLowerCase()}.` };
+    const total = Math.round((100 * gates.filter(g => g.ok).length) / Math.max(1, order.length));
+    const faults = gates.filter(g => !g.ok).map(g => g.label.toLowerCase());
+    const head = total >= 100 ? 'Good refuelling' : total >= 80 ? 'Fair refuelling' : 'Poor refuelling';
+    const verdict = faults.length ? `${head}: ${faults.join(', ')} out of limits.` : `${head}. Stable pre-contact, smooth contact, clean disconnect.`;
     return { ...base, total, verdict };
   }
 }

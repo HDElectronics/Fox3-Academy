@@ -23,6 +23,8 @@ Values the data file marks `verified: false` are listed in `docs/api/data.md` ("
 9. ED, *DCS: F/A-18C Hornet Early Access Guide*, carrier takeoff; ED, *DCS Supercarrier Operations Guide*,
    catapult launch and Kuznetsov ski-jump; Heatblur DCS F-14 training lesson, carrier takeoff; ED, *DCS: Su-33
    FC3 Flight Manual*, intake FOD screens.
+10. ED, *DCS: Su-33 FC3 Flight Manual*, air-to-air refuelling (IL-78M, UPAZ); Chuck's Guides: *DCS F-16C
+    Viper*, *DCS JF-17 Thunder*, *DCS Mirage 2000C*, air-to-air refuelling; issue #28 research summary.
 
 ## Pattern and approach by jet
 
@@ -110,3 +112,26 @@ in MIL without afterburner; how the Kuznetsov stoppers release; the weight above
 the gaps in the Hornet trim table (44000–45000 lb and 48000–49000 lb). The catapult stroke, the shooter delay,
 the ski-jump run and ramp, the cold-cat and short-run settle are arcade rules that reproduce the outcome the
 player sees, not catapult, ramp or engine data (AGENTS.md rule 1).
+
+## Air-to-air refuelling (#28)
+
+| Item | What the source gives | Source |
+|---|---|---|
+| Su-33 window | Refuel at 2000–9000 m and 500–570 km/h IAS | 10 |
+| Su-33 call | Radio call "Tanker – Intent to refuel" | 10 |
+| Su-33 keys | Probe out `LCtrl+R`, refuelling lights `LAlt+R`. The manual also lists `RCtrl+R` for the refuelling mode and for probe retract: double listing, not verified | 10 |
+| Su-33 contact | Close on the basket from 10 m; in contact hold 3–6 m below the pod | 10 |
+| IL-78M UPAZ hose bands | Cone-to-pod distance: yellow 3–13 m, yellow+green 13–16 m, green 16–22 m, green+red 22–24 m, red 24–26 m | 10 |
+| F-16C boom | AIR REFUEL switch opens the receptacle door; open or close below 400 kt / M0.85, stay below 400 kt / M0.95 with it open | 10 |
+| M-2000C, JF-17 | 2–3 kt of closure on the basket | 10 |
+
+Not found or not verified: the default keys for the F-16C AIR REFUEL switch, the F-15C refuelling door, the
+F/A-18C and F-14B probe switches (the trainer uses `LCtrl+R` and says so); KC-135 director lights; whether the
+JF-17 and M-2000C probes are fixed in DCS (the trainer treats them as fixed); MiG-29S refuelling (not verified;
+no lesson); J-11A (a probe is only a Deka plan; no lesson); Su-27 (no probe). Tanker speeds, altitudes and
+racetracks are mission settings in DCS; the trainer values are gameplay choices.
+
+What the trainer builds on this (AGENTS.md rule 1): a tanker on a racetrack, the rejoin, a pre-contact point,
+a closure-limited contact, the hose bands or a boom envelope as position cues, disconnects and the radio calls.
+The hose, basket, boom and fuel transfer are arcade rules that reproduce what the player sees, not hose
+dynamics, boom control or fuel-system data.

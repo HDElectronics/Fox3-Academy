@@ -22,6 +22,9 @@ export interface TouchControlsOptions {
   /** Deck-launch sequence buttons (launch bar, hook-up, trim, salute, AB...): shown on launch starts (setLaunch). */
   launch?: { id: string; label: string; key?: string; title?: string }[];
   onLaunch?: (id: string) => void;
+  /** Refuelling buttons (PROBE or DOOR, LIGHTS, CALL): shown on refuelling starts (setAar). */
+  aar?: { id: string; label: string; key?: string; title?: string }[];
+  onAar?: (id: string) => void;
   onAction: (a: TouchAction) => void;
   onThrottle: (v: number) => void;
 }
@@ -38,6 +41,8 @@ export interface TouchControlsHandle {
   setCarrier(on: boolean): void;
   /** Show the launch sequence buttons (launch starts only). */
   setLaunch(on: boolean): void;
+  /** Show the refuelling buttons (refuelling starts only). */
+  setAar(on: boolean): void;
   dispose(): void;
 }
 
@@ -123,9 +128,12 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
   const launchBtns = (o.launch ?? []).map(x => button({ id: `fo-touch-l-${x.id}`, label: x.label, keys: x.key, title: x.title, onClick: () => o.onLaunch?.(x.id) }));
   const launchRow = h('div', { class: 'fo-touch__launch' }, launchBtns.map(b => b.el));
   launchRow.hidden = true;
+  const aarBtns = (o.aar ?? []).map(x => button({ id: `fo-touch-a-${x.id}`, label: x.label, keys: x.key, title: x.title, onClick: () => o.onAar?.(x.id) }));
+  const aarRow = h('div', { class: 'fo-touch__launch' }, aarBtns.map(b => b.el));
+  aarRow.hidden = true;
   const el = h('div', { class: 'fo-touch', id: 'fo-touch' },
     pad,
-    h('div', { class: 'fo-touch__side' }, thr.el, h('div', { class: 'fo-touch__btns' }, btns.map(b => b.el)), launchRow));
+    h('div', { class: 'fo-touch__side' }, thr.el, h('div', { class: 'fo-touch__btns' }, btns.map(b => b.el)), launchRow, aarRow));
 
   return {
     el,
@@ -135,6 +143,7 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
     setThrottle(v) { if (document.activeElement !== thr.input) thr.set(Math.round(v * 100), false); },
     setCarrier(on) { for (const b of carrierBtns) b.el.hidden = !on; },
     setLaunch(on) { launchRow.hidden = !on || !launchBtns.length; },
+    setAar(on) { aarRow.hidden = !on || !aarBtns.length; },
     dispose() {
       pad.removeEventListener('pointerdown', down);
       pad.removeEventListener('pointermove', move);

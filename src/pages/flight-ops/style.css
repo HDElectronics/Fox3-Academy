@@ -154,9 +154,23 @@
 .fo-outcome { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-left: 3px solid var(--ok); background: var(--screen); }
 .fo-outcome.is-caution { border-left-color: var(--caution); }
 .fo-outcome.is-warning { border-left-color: var(--warning); }
-.fo-outcome__title { font-family: var(--font-mono); font-size: var(--fs-m, 1rem); color: var(--s-ink); text-transform: uppercase; letter-spacing: 0.05em; }
-.fo-outcome__meaning { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); }
+.fo-outcome__title { font-family: var(--font-mono); font-size: var(--fs-m, 1rem); color: var(--sym-hi); text-transform: uppercase; letter-spacing: 0.05em; }
+.fo-outcome__meaning { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); color: var(--sym); }
 .fo-faults { margin: 0; padding-left: 18px; font-family: var(--font-body); font-size: var(--fs-s); color: var(--caution); }
+
+/* ---- air-to-air refuelling (#28) ---- */
+.ui-lab__strip > .fo-aar { flex: 1 1 220px; min-width: 170px; max-width: 320px; display: flex; flex-direction: column; gap: 6px; }
+.fo-aar .fo-lamps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.fo-aar .fo-lamps > .ui-lamp { min-width: 0; justify-content: center; white-space: nowrap; }
+.fo-aar .ui-readout { padding: 2px 0; gap: 6px; }
+.fo-aar .ui-readout__value { margin-left: auto; font-size: var(--fs-xs); }
+.fo-fuel { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--panel-ink); }
+.fo-fuel__bar { flex: 1 1 auto; height: 8px; border-radius: var(--r-1); background: var(--screen); border: 1px solid var(--panel-line); overflow: hidden; }
+.fo-fuel__fill { display: block; height: 100%; width: 0; background: var(--ok); }
+.fo-fuel__text { white-space: nowrap; }
+.fo-lab .ui-lab__strip > .ui-bezel.fo-aarpos { flex: 0 1 190px; min-width: 150px; }
+.fo-lab .ui-lab__strip > .ui-bezel.fo-aargauge { flex: 0 1 150px; min-width: 120px; }
+.fo-noaar { margin: 0; font-size: var(--fs-s); color: var(--panel-muted); }
 
 /* ---- phones ---- */
 @media (max-width: 900px) {
@@ -170,6 +184,10 @@
   .fo-lab .ui-lab__strip > .ui-bezel.fo-ball { flex: 0 1 120px; }
   .fo-to__row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ui-lab__strip > .fo-launch { flex-basis: 100%; }
+  .ui-lab__strip > .fo-aar { max-width: none; flex-basis: 100%; }
+  .fo-aar .fo-lamps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-aarpos { flex: 1 1 150px; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-aargauge { flex: 1 1 120px; }
 }
 
 @media (max-width: 600px) {
