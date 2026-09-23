@@ -64,6 +64,56 @@ export interface FlightOpsJetData {
   nav?: FlightOpsNavData;
   /** Runway takeoff (#24). */
   takeoff: FlightOpsTakeoffData;
+  /** Carrier Case I recovery (#26). Absent = the jet does not go to the boat. */
+  carrier?: FlightOpsCarrierData;
+}
+
+/** Ships in the trainer. CVN = Supercarrier (Hornet, Tomcat); Kuznetsov (Su-33). */
+export type ShipId = 'cvn' | 'kuznetsov';
+
+/** Ship facts as the player meets them (Supercarrier guide, Su-33 manual). Gameplay values where not published. */
+export interface ShipData {
+  id: ShipId;
+  name: string;
+  /** Speed on the base recovery course (BRC); wind over the deck in the trainer is this speed (calm day). */
+  speedKt: Sourced<number>;
+  /** Landing area axis, degrees left of the ship's heading. */
+  angledDeckDeg: Sourced<number>;
+  glideDeg: Sourced<number>;
+  wires: Sourced<number>;
+  wireSpacingM: Sourced<number>;
+  /** First wire distance from the ramp (stern edge of the landing area), metres. */
+  firstWireFromRampM: Sourced<number>;
+  landingAreaLengthM: number;
+  landingAreaWidthM: number;
+  deckHeightM: number;
+  /** Optical landing aid the player sees. */
+  lights: 'iflols' | 'luna3';
+  /** Whether the game gives LSO calls and grades for this ship. */
+  lso: Sourced<boolean>;
+}
+
+/** Per-jet Case I numbers (Supercarrier guide, Hornet guide, Heatblur manual). */
+export interface FlightOpsCarrierData {
+  ship: ShipId;
+  hookKey: Sourced<string>;
+  /** "Call the ball" in DCS is a radio-menu call; the trainer maps it to a key. */
+  ballCallKey: Sourced<string>;
+  pattern: {
+    initialKt: Sourced<number>;
+    initialAltFt: Sourced<number>;
+    breakIntervalS: Sourced<[number, number]>;
+    downwindAltFt: Sourced<number>;
+    abeamNm: Sourced<[number, number]>;
+    ninetyAltFt: Sourced<[number, number]>;
+    /** Ball call range and groove time. */
+    ballNm: Sourced<number>;
+    grooveS: Sourced<[number, number]>;
+    /** Gear and landing flaps below this speed in the carrier pattern. */
+    gearFlapsMaxKt: Sourced<number>;
+  };
+  /** Power at touchdown: 'MIL' (Tomcat: afterburner waveoffs prohibited) or 'max'. */
+  touchdownPower: Sourced<'MIL' | 'max'>;
 }
 
 /** Runway takeoff facts, per jet. Speeds in knots, pitch in degrees, as the manuals give them. */
@@ -142,7 +192,8 @@ export interface FlightOpsInput {
 }
 
 /** Discrete cockpit actions (the keys the lesson teaches). */
-export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle';
+export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle'
+  | 'hookToggle' | 'callBall';
 
 /**
  * 'ready' = on the runway for takeoff, holding brakes; 'roll' = takeoff ground roll before liftoff;
@@ -192,6 +243,49 @@ export interface FlightOpsState {
   };
   /** Nav picture when the jet has nav data and a nav start was chosen. */
   nav?: NavState;
+  /**
+   * Carrier starts (#26): the ship moves on its BRC. For carrier starts `pos` is in a fixed world frame
+   * (x east, y up above the sea, z south) and the ship's stern (ramp) centre is at `ship.x/z`; landing
+   * geometry is computed in the moving landing-area frame.
+   */
+  ship?: { id: ShipId; x: number; z: number; heading: number; speedMs: number };
+  hookDown?: boolean;
+  hookPos?: number;
+  /** Set when the hook touches the deck: the wire caught (1-based) or a bolter. */
+  trap?: { t: number; wire: number | null; bolter: boolean; powerAtTouchdown: number };
+  lso?: { calls: LsoCall[]; ball: BallState | null; ballCalled: boolean; waveoff: boolean };
+}
+
+/** What the optical landing aid shows the pilot. */
+export interface BallState {
+  /** Glide-slope and lineup error in degrees (+ = high / right). */
+  glideDevDeg: number;
+  lineupDevDeg: number;
+  /** Ball position in cells from centre (IFLOLS: −5..+5; Luna-3 maps to red/green/yellow). */
+  cell: number;
+  /** Luna-3 colour for the Su-33, else null. */
+  luna: 'red' | 'green' | 'yellow' | null;
+  waveoffLights: boolean;
+  cutLights: boolean;
+}
+
+export interface LsoCall { t: number; text: string; kind: 'info' | 'correction' | 'waveoff' | 'bolter' }
+
+/** DCS LSO grade marks, best to worst. */
+export type CarrierGradeMark = '_OK_' | 'OK' | '(OK)' | '---' | 'C' | 'B' | 'WO' | 'OWO';
+
+export interface CarrierScore {
+  gates: GateResult[];
+  grade: CarrierGradeMark | null;
+  /** LSO comment codes with position marks, DCS style, e.g. "(LO)IC", "LULX". */
+  comments: string[];
+  wire: number | null;
+  bolter: boolean;
+  waveoff: boolean;
+  calls: LsoCall[];
+  /** 0..100 for the trainer's progress, null until the pass ends. */
+  total: number | null;
+  verdict: string | null;
 }
 
 /** Pattern gates in flight order. */
