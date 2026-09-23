@@ -68,6 +68,8 @@ export interface FlightOpsJetData {
   carrier?: FlightOpsCarrierData;
   /** Deck launch (#27): catapult (fa18c, f14b) or ski-jump (su33). Absent = no deck launch. */
   launch?: FlightOpsLaunchData;
+  /** Air-to-air refuelling (#28): probe or boom receptacle. Absent = no AAR lesson (Su-27, J-11A, MiG-29S). */
+  aar?: FlightOpsAarData;
 }
 
 /** Deck launch kind: CVN catapult or Kuznetsov ski-jump. */
@@ -289,13 +291,20 @@ export interface FlightOpsInput {
   afterburner?: boolean;
   /** Wheel brakes held (ground only). */
   brakes?: boolean;
+  /**
+   * AAR station keeping (#28). Undefined = automatic: inside the station zone behind the tanker the arcade
+   * station mode takes over (throttle sets closure, stick moves the jet up/down and left/right). false = never.
+   */
+  stationKeep?: boolean;
 }
 
 /** Discrete cockpit actions (the keys the lesson teaches). */
 export type FlightOpsAction = 'gearToggle' | 'flapsDown' | 'flapsUp' | 'speedbrakeToggle' | 'navModeCycle' | 'navPointCycle'
   | 'hookToggle' | 'callBall'
   /** Deck launch (#27): sequence steps and the trainer's trim keys. */
-  | 'nwsHi' | 'launchBar' | 'hookUp' | 'trimUp' | 'trimDown' | 'wipeOut' | 'salute' | 'specialAB' | 'fodScreens';
+  | 'nwsHi' | 'launchBar' | 'hookUp' | 'trimUp' | 'trimDown' | 'wipeOut' | 'salute' | 'specialAB' | 'fodScreens'
+  /** Air-to-air refuelling (#28): probe, receptacle door, refuelling lights, radio call to the tanker. */
+  | 'probeToggle' | 'doorToggle' | 'refuelLights' | 'callTanker';
 
 /**
  * 'ready' = on the runway for takeoff, holding brakes; 'roll' = takeoff ground roll before liftoff;
@@ -358,6 +367,11 @@ export interface FlightOpsState {
   lso?: { calls: LsoCall[]; ball: BallState | null; ballCalled: boolean; waveoff: boolean };
   /** Deck launch (#27), with `ship`: the jet held on the catapult or the stoppers, the stroke, the settle. */
   launch?: LaunchState;
+  /**
+   * Air-to-air refuelling (#28). For AAR starts `pos` is in a fixed world frame (x east, y up = altitude above
+   * the sea, z south); the tanker flies a racetrack from the origin.
+   */
+  aar?: AarState;
 }
 
 /** What the optical landing aid shows the pilot. */
@@ -395,7 +409,8 @@ export interface CarrierScore {
 /** Pattern gates in flight order. */
 export type GateId = 'initial' | 'break' | 'downwind' | 'abeam' | 'ninety' | 'groove' | 'touchdown'
   | 'brakeRelease' | 'rotate' | 'liftoff' | 'gearUp' | 'climb'
-  | 'sequence' | 'shot' | 'handsOff' | 'cleanUp' | 'clearingTurn';
+  | 'sequence' | 'shot' | 'handsOff' | 'cleanUp' | 'clearingTurn'
+  | 'rejoin' | 'precontact' | 'contact' | 'envelope' | 'disconnect';
 
 export interface GateResult {
   id: GateId;
@@ -446,6 +461,165 @@ export interface LaunchScore {
   outcome: LaunchOutcome | null;
   errors: string[];
   /** 0..100, null until the climb gate or a crash. */
+  total: number | null;
+  verdict: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Air-to-air refuelling (#28). Arcade abstractions of what the player does and sees: rejoin, pre-contact,
+// closure, contact position, hose-band / boom cues, disconnect, radio calls. No hose, boom or fuel engineering.
+
+/** Tankers in the trainer. IL-78M (UPAZ hose pods), KC-135 (boom), KC-135 MPRS and KC-130 (hose pods). */
+export type TankerId = 'il78m' | 'kc135' | 'kc135mprs' | 'kc130';
+/** Receiver side: refuelling probe (drogue tankers) or boom receptacle. */
+export type AarKind = 'probe' | 'boom';
+/** UPAZ hose-band colours on the hose as the Su-33 manual names them, from the pod outward. */
+export type HoseBand = 'yellow' | 'yellowGreen' | 'green' | 'greenRed' | 'red';
+
+/** A point or offset in the tanker frame, metres: aft of the tanker reference (+), right (+), up (+). */
+export interface TankerFrameVec { aft: number; right: number; up: number }
+
+/** Tanker facts and trainer geometry (src/data/tankers.ts). Gameplay values unless a source is given. */
+export interface TankerData {
+  id: TankerId;
+  name: string;
+  kind: 'drogue' | 'boom';
+  /** Racetrack speed (treated as indicated) and altitude. */
+  speedKt: Sourced<number>;
+  altFt: Sourced<number>;
+  racetrack: { legNm: Sourced<number>; bankDeg: Sourced<number> };
+  /** Hose pod the trainer uses, the hose, the colour bands (cone-to-pod distance, metres) and the envelope. */
+  drogue?: {
+    pod: TankerFrameVec;
+    podName: string;
+    /** Cone-to-pod distance with the hose fully trailed. */
+    trailM: Sourced<number>;
+    /** Basket height below the pod at full trail. */
+    droopM: Sourced<number>;
+    bands: Sourced<readonly { from: number; to: number; band: HoseBand }[]>;
+    /** Whether the player sees coloured hose bands (UPAZ) or a plain hose. */
+    gauge: boolean;
+    /** Connected envelope: lateral offset from the pod line, height below the pod. */
+    envelope: Sourced<{ lateralM: number; belowPodM: [number, number] }>;
+    /** Closure above this bounces off the basket. */
+    maxClosureKt: Sourced<number>;
+  };
+  /** Boom pivot, nominal contact (elevation, extension) and the limits that disconnect. */
+  boom?: {
+    pivot: TankerFrameVec;
+    nominal: { elevDeg: number; extM: number };
+    limits: Sourced<{ elevDeg: [number, number]; azDeg: number; extM: [number, number] }>;
+    maxClosureKt: Sourced<number>;
+  };
+  /** Fuel counter: unit and transfer rate per second while fuel flows (gameplay value). */
+  fuel: { unit: 'kg' | 'lb'; ratePerS: Sourced<number> };
+}
+
+/** Per-jet refuelling data (Su-33 manual, Chuck's Guides). */
+export interface FlightOpsAarData {
+  kind: AarKind;
+  /** Default tanker for the lesson, and every tanker the jet can use in the trainer. */
+  tanker: TankerId;
+  tankers: readonly TankerId[];
+  /**
+   * Keys. `probe` absent on a probe jet = fixed probe (always out). `door` for boom jets. `call` is the radio
+   * call to the tanker (a DCS radio-menu call; the trainer maps it to one key).
+   */
+  keys: { probe?: Sourced<string>; door?: Sourced<string>; lights?: Sourced<string>; call: Sourced<string> };
+  /** Radio call wording, e.g. "Intent to refuel". */
+  callText: Sourced<string>;
+  /** Refuelling window from the manual: indicated speed and altitude, in the manual's units. */
+  window?: { unit: 'metric' | 'imperial'; ias: Sourced<[number, number]>; alt: Sourced<[number, number]> };
+  /** F-16C: door open/close below `operateKt` / `operateMach`; stay below `openKt` / `openMach` while open. */
+  doorLimit?: { operateKt: Sourced<number>; operateMach: Sourced<number>; openKt: Sourced<number>; openMach: Sourced<number> };
+  /** Closure target on the basket or boom, knots. */
+  closureKt: Sourced<[number, number]>;
+  /** Su-33: close from 10 m and hold 3–6 m below the pod. */
+  closeFromM?: Sourced<number>;
+  holdBelowPodM?: Sourced<[number, number]>;
+  /** Probe tip or receptacle from the jet reference, metres: forward, right, up (drawing values). */
+  contactPointM: Sourced<{ fwd: number; right: number; up: number }>;
+  /** Short lesson line. */
+  cue: string;
+}
+
+/** Options for the 'aarRejoin' and 'aarPrecontact' starts. */
+export interface AarOptions { tanker?: TankerId }
+
+export interface AarCall { t: number; from: 'player' | 'tanker'; text: string }
+export interface AarDisconnect { t: number; reason: string; clean: boolean }
+
+/** Live refuelling state. */
+export interface AarState {
+  tanker: TankerId;
+  kind: 'drogue' | 'boom';
+  /** Tanker pose in the world frame; heading radians clockwise from north, bank right +. */
+  tankerPos: { x: number; y: number; z: number };
+  tankerHeading: number;
+  tankerBank: number;
+  tankerSpeedMs: number;
+  /** Receiver reference and contact point (probe tip or receptacle) in the tanker frame. */
+  rel: TankerFrameVec;
+  tip: TankerFrameVec;
+  /** Contact point relative to the basket (drogue, basket moves with the probe when connected) or the nominal
+   * boom contact point. aft + = short of it. */
+  relTarget: TankerFrameVec;
+  /** Pre-contact point for the contact point, tanker frame. */
+  precontact: TankerFrameVec;
+  /** Closure on the target along the tanker axis, m/s (+ closing). */
+  closureMs: number;
+  /** 'rejoin' outside the pre-contact zone, 'precontact' inside it, 'contact' connected. */
+  stage: 'rejoin' | 'precontact' | 'contact';
+  /** Arcade station mode active (throttle = closure, stick = up/down, left/right). */
+  station: boolean;
+  /** Relative velocity in the tanker frame while in station mode, m/s. */
+  relVel: TankerFrameVec;
+  probeOut: boolean;
+  probePos: number;
+  doorOpen: boolean;
+  doorPos: number;
+  lights: boolean;
+  /** Intent-to-refuel call made; cleared to contact after a stable pre-contact. */
+  called: boolean;
+  cleared: boolean;
+  precontactStableS: number;
+  connected: boolean;
+  contacts: { t: number; closureKt: number }[];
+  disconnects: AarDisconnect[];
+  /** Contacts refused for closure above the limit. */
+  bounces: number;
+  /** Probe reached the basket plane off centre, or without the probe out / door open / clearance. */
+  misses: number;
+  timeInContactS: number;
+  /** Connected with fuel flowing (drogue: green band; boom: inside the limits). */
+  timeInEnvelopeS: number;
+  fuel: number;
+  fuelTarget: number;
+  fuelUnit: 'kg' | 'lb';
+  refuelComplete: boolean;
+  /** Drogue: cone-to-pod distance, band, height of the contact point below the pod. */
+  coneToPodM: number | null;
+  hoseBand: HoseBand | null;
+  belowPodM: number | null;
+  redS: number;
+  /** Boom: angles and extension (connected: actual; else the nominal), and simplified cues toward the nominal. */
+  boom: { elevDeg: number; azDeg: number; extM: number; inLimits: boolean; cueUpDown: 'up' | 'down' | null; cueForeAft: 'fwd' | 'aft' | null } | null;
+  calls: AarCall[];
+  /** Refused actions and faults in pilot words. */
+  errors: string[];
+}
+
+/** Refuelling grade (#28): gates rejoin, precontact, contact, envelope, disconnect. */
+export interface AarScore {
+  gates: GateResult[];
+  contacts: number;
+  bounces: number;
+  misses: number;
+  /** Disconnects that were faults (not clean). */
+  faultDisconnects: number;
+  timeInEnvelopeS: number;
+  fuel: number;
+  /** 0..100, null until the final disconnect or a crash. */
   total: number | null;
   verdict: string | null;
 }
