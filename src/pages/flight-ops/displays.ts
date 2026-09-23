@@ -4,9 +4,12 @@
  */
 import { Surface } from '../../ui/displays/surface';
 import { alpha } from '../../ui/theme';
-import { RUNWAY, approachGeometry, aoaCue, type FlightOpsJetData, type FlightOpsState, type GateResult } from '../../sim/flightOps';
-import { R2D } from '../../sim/math';
-import { aoaText, ftOf, gateState, indexerLamps, kt, lampToken, type PlannedGate } from './logic';
+import { INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, type FlightOpsJetData, type FlightOpsState } from '../../sim/flightOps';
+import { R2D, clamp } from '../../sim/math';
+import type { Units } from '../../app/format';
+import {
+  altUnit, altVal, aoaText, flapControl, indexerLamps, lampToken, navPicture, spdUnit, spdVal, type NavPicture, type PlacedGate,
+} from './logic';
 
 function tokenColor(s: Surface, t: 'ok' | 'caution' | 'warning' | 'neutral'): string {
   const th = s.theme;
@@ -23,7 +26,7 @@ function tokenColor(s: Surface, t: 'ok' | 'caution' | 'warning' | 'neutral'): st
 export class HudDisplay {
   private readonly s: Surface;
   private last: FlightOpsState | null = null;
-  constructor(canvas: HTMLCanvasElement, private readonly d: FlightOpsJetData) {
+  constructor(canvas: HTMLCanvasElement, private readonly d: FlightOpsJetData, private readonly units: () => Units = () => 'imperial') {
     this.s = new Surface(canvas);
     this.s.onResize = () => { if (this.last) this.draw(this.last); };
   }
@@ -91,13 +94,39 @@ export class HudDisplay {
     ctx.moveTo(fx - r, fy); ctx.lineTo(fx - r * 2.4, fy); ctx.moveTo(fx + r, fy); ctx.lineTo(fx + r * 2.4, fy);
     ctx.moveTo(fx, fy - r); ctx.lineTo(fx, fy - r * 1.9); ctx.stroke();
 
+    // Nav steering (return to base): heading-error caret on a short scale at the top, and in landing mode
+    // a director ring offset by the localizer and glide-path deviation (simplified).
+    const nav = st.nav && st.phase === 'air' ? navPicture(st.nav, st.heading, this.units()) : null;
+    if (nav) {
+      const sy = fs * 1.2, sw = Math.min(w * 0.3, fs * 9);
+      ctx.strokeStyle = th.sym; ctx.fillStyle = th.sym; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(cx - sw, sy); ctx.lineTo(cx + sw, sy);
+      for (const f of [-1, -0.5, 0, 0.5, 1]) { ctx.moveTo(cx + f * sw, sy); ctx.lineTo(cx + f * sw, sy + (f === 0 ? 8 : 4)); }
+      ctx.stroke();
+      const ex = cx + clamp(nav.steerErrDeg / 30, -1, 1) * sw;
+      ctx.fillStyle = th.symHi;
+      ctx.beginPath(); ctx.moveTo(ex, sy - 1); ctx.lineTo(ex - 6, sy - 10); ctx.lineTo(ex + 6, sy - 10); ctx.closePath(); ctx.fill();
+      ctx.textAlign = 'right'; ctx.fillText(nav.mode, cx - sw - 8, sy);
+      ctx.textAlign = 'left'; ctx.fillText(nav.dist, cx + sw + 8, sy);
+      if (nav.landing && d.id !== 'f15c' && nav.glideBar !== null && nav.locBar !== null) {
+        const rx = fx + nav.locBar * r * 6, ry = fy - nav.glideBar * r * 6;
+        ctx.strokeStyle = th.symHi; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(rx, ry, r * 1.6, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
     // AoA cue beside the marker.
     const gear = st.gearDown && st.phase === 'air';
     if (d.id === 'f15c') {
-      const g = approachGeometry(st, d);
-      const near = g.rangeM > 0 && g.rangeM < 4 * 1852 && Math.cos(st.heading) > 0.8;
-      if (near && st.phase === 'air') {
-        const cue = g.glideErrDeg > 0.35 ? 'GSDN' : g.glideErrDeg < -0.35 ? 'GSUP' : '';
+      // ILSN: the glide-slope cue from the nav picture in landing mode, else from the approach geometry.
+      let err: number | null = null;
+      if (st.nav) { if (st.nav.mode === 'landing') err = st.nav.glideDevDeg; }
+      else {
+        const g = approachGeometry(st, d);
+        if (g.rangeM > 0 && g.rangeM < 4 * 1852 && Math.cos(st.heading) > 0.8) err = g.glideErrDeg;
+      }
+      if (err !== null && st.phase === 'air') {
+        const cue = err > 0.35 ? 'GSDN' : err < -0.35 ? 'GSUP' : '';
         if (cue) { ctx.fillStyle = th.symHi; ctx.textAlign = 'center'; ctx.fillText(cue, cx, h * 0.72); }
       }
     } else if (gear) {
@@ -116,17 +145,19 @@ export class HudDisplay {
     ctx.fillStyle = th.sym; ctx.strokeStyle = th.sym; ctx.lineWidth = 1;
     ctx.strokeRect(8, by0, bw, bh); ctx.strokeRect(w - 8 - bw, by0, bw, bh);
     ctx.textAlign = 'center';
-    ctx.fillText(String(kt(st.speed)), 8 + bw / 2, by0 + bh / 2);
-    ctx.fillText(String(Math.max(0, ftOf(st.pos.y))), w - 8 - bw / 2, by0 + bh / 2);
+    const u = this.units();
+    ctx.fillText(String(spdVal(st.speed, u)), 8 + bw / 2, by0 + bh / 2);
+    ctx.fillText(String(Math.max(0, altVal(st.pos.y, u))), w - 8 - bw / 2, by0 + bh / 2);
     ctx.font = `${Math.round(fs * 0.8)}px ${th.fontMono}`;
-    ctx.fillText('KT', 8 + bw / 2, by0 + bh + fs * 0.7);
-    ctx.fillText('FT AGL', w - 8 - bw / 2, by0 + bh + fs * 0.7);
+    ctx.fillText(spdUnit(u), 8 + bw / 2, by0 + bh + fs * 0.7);
+    ctx.fillText(`${altUnit(u)} AGL`, w - 8 - bw / 2, by0 + bh + fs * 0.7);
     ctx.textAlign = 'left';
     ctx.fillText(`α ${aoaText(d, st.aoa)}`, 8, h - fs * 1.9);
-    const flap = d.flapLabels[st.flapIndex] ?? '';
-    ctx.fillText(`${st.gearDown ? (st.gearPos > 0.99 ? 'GEAR DN' : 'GEAR ↓') : st.gearPos > 0.01 ? 'GEAR ↑' : 'GEAR UP'}  FLAP ${d.flapsWithGear ? (st.flapPos > 0.5 ? 'DN' : 'UP') : flap}${st.speedbrakePos > 0.05 ? '  SPD BRK' : ''}`, 8, h - fs * 0.8);
+    const fc = flapControl(d);
+    const flap = fc === 'none' ? '' : `  FLAP ${fc === 'with-gear' ? (st.flapPos > 0.5 ? 'DN' : 'UP') : d.flapLabels[st.flapIndex] ?? ''}`;
+    ctx.fillText(`${st.gearDown ? (st.gearPos > 0.99 ? 'GEAR DN' : 'GEAR ↓') : st.gearPos > 0.01 ? 'GEAR ↑' : 'GEAR UP'}${flap}${st.speedbrakePos > 0.05 ? '  SPD BRK' : ''}`, 8, h - fs * 0.8);
     ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(st.vs * 196.85)} FPM`, w - 8, h - fs * 1.9);
+    ctx.fillText(u === 'metric' ? `${st.vs.toFixed(1)} M/S` : `${Math.round(st.vs * 196.85)} FPM`, w - 8, h - fs * 1.9);
     ctx.fillText(`THR ${Math.round(st.throttle * 100)}${st.afterburner ? ' AB' : ''}`, w - 8, h - fs * 0.8);
     ctx.shadowBlur = 0;
   }
@@ -187,14 +218,14 @@ export interface TracePoint { x: number; z: number; level: 0 | 1 | 2 }
 /** Top-down pattern: runway, planned gates (coloured by result) and the flown track. North up. */
 export class TraceDisplay {
   private readonly s: Surface;
-  private args: { st: FlightOpsState | null; track: readonly TracePoint[]; results: readonly GateResult[] } = { st: null, track: [], results: [] };
-  constructor(canvas: HTMLCanvasElement, private readonly gates: readonly PlannedGate[]) {
+  private args: { st: FlightOpsState | null; track: readonly TracePoint[]; gates: readonly PlacedGate[] } = { st: null, track: [], gates: [] };
+  constructor(canvas: HTMLCanvasElement) {
     this.s = new Surface(canvas);
-    this.s.onResize = () => this.draw(this.args.st, this.args.track, this.args.results);
+    this.s.onResize = () => this.draw(this.args.st, this.args.track, this.args.gates);
   }
 
-  draw(st: FlightOpsState | null, track: readonly TracePoint[], results: readonly GateResult[]): void {
-    this.args = { st, track, results };
+  draw(st: FlightOpsState | null, track: readonly TracePoint[], gates: readonly PlacedGate[]): void {
+    this.args = { st, track, gates };
     const s = this.s;
     if (!s.begin()) return;
     const { ctx, w, h, theme: th } = s;
@@ -202,7 +233,7 @@ export class TraceDisplay {
     // Bounds: runway, gates, jet, track; fixed aspect.
     let x0 = -600, x1 = 600, z0 = -RUNWAY.lengthM - 200, z1 = 600;
     const grow = (x: number, z: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
-    for (const g of this.gates) grow(g.pos.x, g.pos.z);
+    for (const g of gates) grow(g.pos.x, g.pos.z);
     if (st) grow(st.pos.x, st.pos.z);
     for (let i = 0; i < track.length; i += 8) grow(track[i]!.x, track[i]!.z);
     const pad = 16;
@@ -230,8 +261,8 @@ export class TraceDisplay {
     // Gates.
     const fs = Math.max(9, Math.round(Math.min(w, h) / 26));
     ctx.font = `${fs}px ${th.fontMono}`; ctx.textBaseline = 'middle';
-    for (const g of this.gates) {
-      const state = gateState(g.id, results);
+    for (const g of gates) {
+      const state = g.state;
       const col = state === 'ok' ? th.ok : state === 'miss' ? th.warning : th.symHi;
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(X(g.pos.x), Z(g.pos.z), 5, 0, Math.PI * 2);
@@ -252,6 +283,95 @@ export class TraceDisplay {
     }
     ctx.fillStyle = th.symDim; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText('N ↑', 6, 6);
+  }
+
+  dispose(): void { this.s.dispose(); }
+}
+
+// ------------------------------------------------------------------ Nav display (HSI, simplified)
+
+/**
+ * Simplified horizontal situation display for the return to base: heading-up compass card, bearing pointer
+ * to the steer point, steering caret, mode label, steer-point name, distance and command altitude; in
+ * landing mode the glide-slope (right) and localizer (bottom) deviation bars. Not a copy of any one cockpit.
+ */
+export class NavDisplay {
+  private readonly s: Surface;
+  private last: FlightOpsState | null = null;
+  constructor(canvas: HTMLCanvasElement, private readonly units: () => Units) {
+    this.s = new Surface(canvas);
+    this.s.onResize = () => this.draw(this.last);
+  }
+
+  draw(st: FlightOpsState | null): void {
+    this.last = st;
+    const s = this.s;
+    if (!s.begin()) return;
+    const { ctx, w, h, theme: th } = s;
+    ctx.fillStyle = th.screen; ctx.fillRect(0, 0, w, h);
+    const fs = Math.max(9, Math.round(Math.min(w, h) / 17));
+    ctx.font = `${fs}px ${th.fontMono}`;
+    ctx.textBaseline = 'middle';
+    if (!st?.nav) {
+      ctx.fillStyle = th.symDim; ctx.textAlign = 'center';
+      ctx.fillText('NAV OFF', w / 2, h / 2);
+      return;
+    }
+    const pic: NavPicture = navPicture(st.nav, st.heading, this.units());
+    const cx = w / 2 - (pic.landing ? fs * 0.8 : 0), cy = h / 2 - (pic.landing ? fs * 0.4 : 0);
+    const R = Math.min(w, h) * 0.32;
+    // Compass card, heading up.
+    ctx.strokeStyle = th.sym; ctx.fillStyle = th.sym; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.font = `${Math.round(fs * 0.8)}px ${th.fontMono}`;
+    for (let deg = 0; deg < 360; deg += 10) {
+      const a = deg * Math.PI / 180 - st.heading;
+      const sx = Math.sin(a), sy = -Math.cos(a);
+      const len = deg % 30 === 0 ? 7 : 4;
+      ctx.beginPath(); ctx.moveTo(cx + sx * R, cy + sy * R); ctx.lineTo(cx + sx * (R - len), cy + sy * (R - len)); ctx.stroke();
+      if (deg % 90 === 0) ctx.fillText(String(deg / 10), cx + sx * (R - fs * 1.1), cy + sy * (R - fs * 1.1));
+    }
+    // Lubber line and own jet.
+    ctx.fillStyle = th.symHi;
+    ctx.beginPath(); ctx.moveTo(cx, cy - R - 2); ctx.lineTo(cx - 5, cy - R - 10); ctx.lineTo(cx + 5, cy - R - 10); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = th.sym; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy - 7); ctx.lineTo(cx, cy + 7); ctx.moveTo(cx - 7, cy); ctx.lineTo(cx + 7, cy); ctx.stroke();
+    // Steering caret on the rim (commanded heading).
+    ctx.fillStyle = th.sym;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(pic.steerErrDeg * Math.PI / 180);
+    ctx.fillRect(-4, -R + 2, 8, 9);
+    ctx.restore();
+    // Bearing pointer to the steer point.
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(pic.relBearing);
+    ctx.strokeStyle = th.symHi; ctx.fillStyle = th.symHi; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, R * 0.85); ctx.lineTo(0, -R * 0.72); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -R * 0.92); ctx.lineTo(-7, -R * 0.7); ctx.lineTo(7, -R * 0.7); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Deviation bars in landing mode: dots at half and full scale.
+    if (pic.landing) {
+      ctx.strokeStyle = th.sym; ctx.lineWidth = 1;
+      const gx = w - fs * 1.1, gh = R;
+      for (const f of [-1, -0.5, 0.5, 1]) { ctx.beginPath(); ctx.arc(gx, cy - f * gh, 2.5, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(gx - 6, cy); ctx.lineTo(gx + 6, cy); ctx.stroke();
+      const ly = cy + R + fs * 0.9, lw = R;
+      for (const f of [-1, -0.5, 0.5, 1]) { ctx.beginPath(); ctx.arc(cx + f * lw, ly, 2.5, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.fillStyle = th.symHi;
+      if (pic.glideBar !== null) {
+        const y = cy - pic.glideBar * gh;
+        ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx - 8, y - 5); ctx.lineTo(gx - 8, y + 5); ctx.closePath(); ctx.fill();
+      }
+      if (pic.locBar !== null) ctx.fillRect(cx + pic.locBar * lw - 2, ly - 7, 4, 14);
+    }
+    // Text corners.
+    ctx.font = `${fs}px ${th.fontMono}`;
+    ctx.fillStyle = th.symHi; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(pic.mode, 6, 5);
+    ctx.fillStyle = th.sym; ctx.textAlign = 'right';
+    ctx.fillText(pic.point === INTERCEPT_NAME ? 'G/S ICPT' : pic.point.toUpperCase(), w - 6, 5);
+    ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
+    ctx.fillText(pic.dist, 6, h - 4);
+    if (pic.cmdAlt) { ctx.textAlign = 'right'; ctx.fillText(pic.cmdAlt, w - 6, h - 4); }
   }
 
   dispose(): void { this.s.dispose(); }

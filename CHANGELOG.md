@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pattern & landing covers all ten jets and adds a return-to-base start for the FC3 nav jets (МРШ / ВЗВ / ПОС,
+  NAV / ILSN): nav display, HUD steering cue, tower calls, nav lesson steps, gate rings where the jet passed them,
+  on-screen stick, throttle and buttons for touch screens, and units from the km / nm switch.
 - Add the Pattern & landing page (#/flight-ops) for the F/A-18C, F-16C and F-15C: demo and keyboard modes,
   HUD, AoA indexer, pattern trace, configuration lamps and a graded gate debrief; other jets get a jet picker.
 - B15: Keep hyphenated jet names ("Su-27", "MiG-29S", "F/A-18C") on one line in prose: DOM helpers wrap
