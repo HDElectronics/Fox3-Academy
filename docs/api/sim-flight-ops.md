@@ -10,17 +10,21 @@ direction is −z; left-hand pattern with the downwind at x < 0.
 ## Model (`model.ts`)
 
 ```ts
-createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway', data?): FlightOpsState
+createFlightOpsState(id, start: 'initial' | 'downwind' | 'final' | 'runway' | 'rtb', data?): FlightOpsState
 stepFlightOps(s, input: FlightOpsInput, dt, data?): void   // mutates s; use FLIGHT_OPS_DT = 1/60
-applyAction(s, action: FlightOpsAction, data?): void        // gear, flaps, speed brake
+applyAction(s, action: FlightOpsAction, data?): void        // gear, flaps, speed brake, navModeCycle, navPointCycle
 configWarnings(s, data): { overspeed: 'gear' | 'flaps' | null }
 aoaCue(s, data): 'slow' | 'on' | 'fast'                     // above band = slow
 loadFactor(s, data), aoaForLoad(s, data, n), approachSpeedMs(data), aimPointM(data), flapsFollowGear(data)
+hasNavStart(data), RTB_START                                 // 'rtb' needs data.nav
 ```
 
 - Starts: `initial` 2 nm south on the centreline at the initial altitude and speed, clean; `downwind` abeam
   midfield, configured, 1.1 × approach speed; `final` 1.5 nm on the glide path, on speed; `runway` stopped
-  at the threshold with takeoff flaps. Air starts are trimmed for 1 g.
+  at the threshold with takeoff flaps; `rtb` (jets with `nav` only, else it throws) 12 km west and 38 km
+  south of the threshold at 3500 m and 300 kt, clean, heading for the steer point, in return mode (ВЗВ) or,
+  without a return mode (F-15C), in route mode (NAV) on the IAF. Air starts are trimmed for 1 g. Only `rtb`
+  sets `s.nav`; `stepFlightOps` then calls `updateNav` every step.
 - Stick pitch commands AoA rate; neutral stick holds AoA (throttle then moves the glide path). Stick roll
   commands roll rate to ±75° bank; neutral holds bank. On the ground, roll input is nosewheel steering.
 - Lift rule: n = (aoa / onSpeed) · (v / vApproach)² · (0.8 + 0.2 · landing-flap fraction), G limit 7.5.
@@ -34,11 +38,32 @@ loadFactor(s, data), aoaForLoad(s, data, n), approachSpeedMs(data), aimPointM(da
 - F-16C: no flap selector; flaps follow the gear and the flap actions do nothing.
 - Overspeed never damages the jet; `configWarnings` reports gear (or landing flaps) above the gear limit.
 
+## Nav (`nav.ts`)
+
+```ts
+updateNav(s, data): void                       // recompute s.nav (no-op without nav); called by stepFlightOps
+initNav(s, data, mode, point?), cycleNavMode(s, data), cycleNavPoint(s, data)   // applyAction uses the last two
+navRoute(navData): NavPoint[]                  // WP1 (−18 km, 30 km, 3000 m), IAF = glide-slope intercept point
+NAV_AUTO_SWITCH_M = 3000, NAV_CALL_MIN_S = 4, NAV_CALL_OFF_DEG = 0.5, NAV_CALL_ON_DEG = 0.25,
+NAV_CALL_MIN_RANGE_M = 500, NAV_CALLS, INTERCEPT_NAME
+```
+
+- Modes cycle in `nav.modes` order and wrap: МРШ → ВЗВ → ПОС (Russian FC3), NAV → ILSN (F-15C).
+- route: steers to the selected waypoint at its altitude; `navPointCycle` steps WP1 → IAF (no-op in the
+  other modes: one airfield). return: steers to the intercept point (x 0, z `interceptPointM`) at
+  `interceptAltM`; with `autoLandingSwitch` it becomes landing mode inside 3 km (call "Landing mode").
+- landing: target is the aim point; `glideDevDeg` / `locDevDeg` equal `approachGeometry`'s glide and lineup
+  errors (+ high / right); `steerHeading` intercepts the centreline (up to about 29°); `commandAltM` is the
+  glide-path height. Deviations are null outside landing mode and on the ground.
+- Tower calls (`nav.call`): "Above glide path" beyond +0.5°, "Below glide path" beyond −0.5°, "On glide
+  path" back inside ±0.25°; between the thresholds the last band holds. At most one call per 4 s, none inside
+  500 m of the aim point. Call timing lives in a WeakMap; the selected waypoint is read from `target.name`.
+
 ## Demo pilot (`pilot.ts`)
 
 ```ts
 demoPilot(s, data): FlightOpsInput & { actions: FlightOpsAction[] }
-demoLeg(s): 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout' | null
+demoLeg(s): 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout' | null
 onSpeedTargetMs(data), finalTurnGeometry(data)
 ```
 
@@ -46,7 +71,11 @@ Flies the left-hand overhead from `initial` (or joins at `downwind` / `final`) t
 the threshold at the break g (F-16 speed brake out), lowers gear and landing flaps below the gear limit,
 tracks the abeam distance, flies a descending semicircle to a straight final (at least 0.75 nm) and holds
 the glide path with the stick and the AoA band with the throttle. Leg memory is a `WeakMap` per state;
-apply `actions` with `applyAction` before `stepFlightOps`. The F-15C's faster approach widens the final turn
+apply `actions` with `applyAction` before `stepFlightOps`.
+From `rtb`: `nav` leg follows `steerHeading` and `commandAltM` at the gear limit − 30 kt (speed brake when
+fast), selects the next mode itself within 3 km of the IAF where the cockpit does not switch; `approach`
+leg (landing mode) levels below the glide path and rides it down, configures inside 9 km, and hands over to
+the `final` leg inside 3.5 km when configured and lined up. The F-15C's faster approach widens the final turn
 so it never needs more than 45° of bank (about 1.37 nm abeam).
 
 ## Grading (`evaluate.ts`)

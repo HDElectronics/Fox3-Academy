@@ -1,19 +1,24 @@
 /**
- * [OWNER: sim] Demo pilot: flies a clean left-hand overhead pattern from the initial to touchdown and rollout.
+ * [OWNER: sim] Demo pilot: flies a clean left-hand overhead pattern from the initial to touchdown and rollout,
+ * or (from the rtb start) follows the nav steering home and flies a straight-in on the glide path.
  * Used by the page's demo and the `?shot` pre-roll. Simple gameplay controllers (track, altitude, speed, AoA),
  * not an autopilot model. Per-state leg memory lives in a WeakMap, so the pilot stays deterministic.
  */
 import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, clamp } from '../math';
 import { aimPointM, aoaForLoad, approachSpeedMs, headingErr, loadFactor } from './model';
+import { NAV_AUTO_SWITCH_M } from './nav';
 import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
 
-export type DemoLeg = 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
+export type DemoLeg = 'nav' | 'approach' | 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
 interface Memory { leg: DemoLeg }
 const memory = new WeakMap<FlightOpsState, Memory>();
 
 /** Seconds past the threshold at which the demo breaks (the guides give 5–10 s). */
 const BREAK_DELAY_S = 7;
 const MIN_FINAL_M = 0.75 * M_PER_NM;
+/** Straight-in (rtb): configure inside this range, hand over to the final leg inside FINAL_HANDOVER_M. */
+const CONFIGURE_M = 9000;
+const FINAL_HANDOVER_M = 3500;
 
 /** Current demo leg for a state (for lesson captions). */
 export function demoLeg(s: FlightOpsState): DemoLeg | null {
@@ -22,6 +27,7 @@ export function demoLeg(s: FlightOpsState): DemoLeg | null {
 
 function initialLeg(s: FlightOpsState): DemoLeg {
   if (s.phase !== 'air') return 'rollout';
+  if (s.nav) return s.nav.mode === 'landing' ? 'approach' : 'nav';
   const north = Math.abs(headingErr(0, s.heading)) < Math.PI / 2;
   if (!north) return 'downwind';
   return s.gearDown ? 'final' : 'initial';
@@ -55,17 +61,30 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   const gearKt = d.pattern.gearMaxKt.value;
 
   // Leg transitions.
+  const range = s.pos.z + aimPointM(d);
   if (s.phase !== 'air') m.leg = 'rollout';
+  else if (m.leg === 'nav' && s.nav?.mode === 'landing') m.leg = 'approach';
+  else if (m.leg === 'approach' && range < FINAL_HANDOVER_M && s.gearPos > 0.99 && Math.abs(s.pos.x) < 60
+    && Math.abs(headingErr(0, s.heading)) < 10 * D2R) m.leg = 'final';
   else if (m.leg === 'initial' && s.pos.z < -s.speed * BREAK_DELAY_S) m.leg = 'break';
   else if (m.leg === 'break' && Math.abs(headingErr(Math.PI, s.heading)) < 25 * D2R) m.leg = 'downwind';
   else if (m.leg === 'downwind' && s.pos.z >= geo.cz && s.gearPos > 0.99) m.leg = 'turn';
   else if (m.leg === 'turn' && Math.abs(headingErr(0, s.heading)) < 20 * D2R && s.pos.x > geo.cx) m.leg = 'final';
 
-  // Configuration: speed brake for the F-16 break, gear and landing flaps below the limit.
-  const wantBrake = m.leg === 'break' && d.id === 'f16c' && kt > gearKt - 60 && kt > 230;
+  // Nav: select landing mode at the intercept point where the cockpit does not switch by itself.
+  const nav = s.nav;
+  if (m.leg === 'nav' && nav && nav.distM < NAV_AUTO_SWITCH_M
+    && (nav.mode === 'route' || !d.nav?.autoLandingSwitch.value)) actions.push('navModeCycle');
+
+  // Configuration: speed brake for the F-16 break and the rtb descent, gear and landing flaps below the limit.
+  const straightIn = m.leg === 'nav' || m.leg === 'approach';
+  const cruiseMs = (gearKt - 30) * MPS_PER_KT;
+  const wantBrake = (m.leg === 'break' && d.id === 'f16c' && kt > gearKt - 60 && kt > 230)
+    || (straightIn && s.speed > cruiseMs + (s.speedbrakeOut ? 3 : 12) * MPS_PER_KT);
   if (wantBrake !== s.speedbrakeOut && m.leg !== 'rollout') actions.push('speedbrakeToggle');
-  if (m.leg === 'downwind' && !s.gearDown && kt < gearKt - 15) actions.push('gearToggle');
-  if ((m.leg === 'downwind' || m.leg === 'turn') && s.flapIndex < d.landingFlap && kt < gearKt - 15) actions.push('flapsDown');
+  const configure = m.leg === 'downwind' || (m.leg === 'approach' && range < CONFIGURE_M);
+  if (configure && !s.gearDown && kt < gearKt - 15) actions.push('gearToggle');
+  if ((configure || m.leg === 'turn') && s.flapIndex < d.landingFlap && kt < gearKt - 15) actions.push('flapsDown');
 
   let heading = 0;
   let bankFF = 0;
@@ -76,6 +95,19 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
   let breakG: number | null = null;
 
   switch (m.leg) {
+    case 'nav':
+      heading = nav?.steerHeading ?? s.heading;
+      targetY = nav?.commandAltM ?? s.pos.y;
+      speedTarget = cruiseMs;
+      break;
+    case 'approach': {
+      heading = nav?.steerHeading ?? clamp(-s.pos.x * 0.0015, -0.5, 0.5);
+      const glide = d.glideDeg.value * D2R;
+      // Level below the glide path, then ride it down (capture from below).
+      gammaCmd = clamp(-glide + (Math.max(0, range) * Math.tan(glide) - s.pos.y) * 0.004, -glide - 0.05, 0.02);
+      speedTarget = s.gearDown && s.flapIndex >= d.landingFlap ? va : cruiseMs;
+      break;
+    }
     case 'initial':
       heading = clamp(-s.pos.x * 0.004, -0.3, 0.3);
       targetY = d.pattern.initialAltFt.value * M_PER_FT;
@@ -114,7 +146,6 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
     case 'final': {
       heading = clamp(-s.pos.x * 0.006, -0.15, 0.15);
       bankGain = 2.5;
-      const range = s.pos.z + aimPointM(d);
       const glide = d.glideDeg.value * D2R;
       const hT = Math.max(0, range) * Math.tan(glide);
       gammaCmd = -glide + clamp((hT - s.pos.y) * 0.006, -0.05, 0.05);
@@ -138,7 +169,7 @@ export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInpu
 
   // Vertical: flight path command → load factor → AoA.
   if (gammaCmd === null) gammaCmd = clamp((targetY - s.pos.y) * 0.004, -6 * D2R, 6 * D2R);
-  let n = Math.cos(s.gamma) / Math.max(0.2, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * (m.leg === 'final' ? 1.2 : 0.5)) / G0;
+  let n = Math.cos(s.gamma) / Math.max(0.2, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * (m.leg === 'final' ? 1.2 : m.leg === 'approach' ? 0.8 : 0.5)) / G0;
   if (breakG !== null) n = Math.max(n, breakG);
   const aoaT = aoaForLoad(s, d, clamp(n, -1, 7));
   const pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);

@@ -6,7 +6,7 @@ import {
   demoPilot, stepFlightOps, touchdownZone, type FlightOpsJetId, type FlightOpsState,
 } from './index';
 
-const JETS: FlightOpsJetId[] = ['fa18c', 'f16c', 'f15c'];
+const JETS = Object.keys(FLIGHT_OPS) as FlightOpsJetId[];
 
 function flyDemo(id: FlightOpsJetId, start: 'initial' | 'final' = 'initial', setup?: (s: FlightOpsState) => void) {
   const d = FLIGHT_OPS[id];
