@@ -82,40 +82,47 @@ export function gunSolution(shooter: Aircraft, target: Aircraft): GunSolution {
   };
 }
 
-interface Priv { acc: number; tracer: number }
+interface Priv { acc: number; tracer: number; burstActive: boolean }
 const priv = new WeakMap<Aircraft, Priv>();
 
 /** Fire every gun whose trigger is held; score hits. World calls this each tick after flight. */
 export function stepGuns(world: World, dt: number): void {
+  if (dt <= 0) return;
   for (const ac of world.aircraft.values()) {
     const gun = ac.gun;
-    if (!ac.alive || !ac.cmd.trigger) {
-      if (gun.burst > 0) world.emit({ t: world.t, type: 'gun', shooterId: ac.id, what: 'cease' });
-      gun.burst = 0; gun.firing = false;
-      continue;
-    }
+    gun.firing = false;
     const spec = gunOf(ac);
     if (!spec) continue;
-    if (gun.rounds <= 0) {
-      if (gun.firing) world.emit({ t: world.t, type: 'gun', shooterId: ac.id, what: 'empty' });
-      gun.firing = false;
+    let p = priv.get(ac);
+    if (!p) { p = { acc: 1, tracer: 0, burstActive: false }; priv.set(ac, p); }
+    p.acc += spec.rateRpm.value / 60 * dt;
+    if (!ac.alive || !ac.cmd.trigger) {
+      if (p.burstActive) world.emit({ t: world.t, type: 'gun', shooterId: ac.id, what: 'cease' });
+      p.burstActive = false;
+      p.acc = Math.min(1, p.acc);              // cooldown elapses while released; no stockpile of shots
+      gun.burst = 0;
       continue;
     }
-    let p = priv.get(ac);
-    if (!p) { p = { acc: 0, tracer: 0 }; priv.set(ac, p); }
-    if (gun.burst === 0) {
+    if (gun.rounds <= 0) {
+      if (p.burstActive) world.emit({ t: world.t, type: 'gun', shooterId: ac.id, what: 'empty' });
+      p.burstActive = false;
+      p.acc = Math.min(1, p.acc);
+      continue;
+    }
+    if (!p.burstActive) {
       world.emit({ t: world.t, type: 'gun', shooterId: ac.id, what: 'burst' });
-      p.acc = 1; p.tracer = 0;                  // the first round leaves at once
+      p.burstActive = true;
+      gun.burst = 0;
+      p.tracer = 0;
     }
     gun.burst += dt;
-    p.acc += spec.rateRpm.value / 60 * dt;
+    p.tracer -= dt;                            // elapsed firing time includes ticks between rounds
     const n = Math.min(gun.rounds, Math.floor(p.acc));
     p.acc -= n;
     gun.rounds -= n;
-    gun.firing = n > 0 || gun.rounds > 0;
+    gun.firing = n > 0;
     if (n === 0) continue;
 
-    p.tracer -= dt;
     if (p.tracer <= 0) {
       p.tracer += GUN_TRACER_S;
       const u = _u.copy(ac.vel).normalize();
@@ -137,7 +144,9 @@ export function stepGuns(world: World, dt: number): void {
       if (!hits) continue;
       const dmg = hits * hitDamage(spec.calibreMm);
       gun.hits += hits;
-      tgt.damage += dmg;
+      const damage = tgt.damage + dmg;
+      // Decimal hit increments can sum just below 1 (e.g. ten 20 mm hits).
+      tgt.damage = damage >= 1 - 1e-12 ? 1 : damage;
       world.emit({ t: world.t, type: 'gun-hit', shooterId: ac.id, targetId: tgt.id, hits, damage: tgt.damage });
       if (tgt.damage >= 1) world.kill(tgt.id, ac.id);
     }

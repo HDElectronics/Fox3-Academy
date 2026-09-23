@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { Aircraft } from './types';
 import type { AircraftId } from '../data/types';
-import { stepAircraft, sustainedGAt } from './flight';
+import { MIN_ALT_AGL, stepAircraft, sustainedGAt } from './flight';
 import { GUNS, GUN_JET_IDS, TURN_PERF, sustainedG } from '../data/wvr';
 import { AIRCRAFT } from '../data/aircraft';
 import { soundSpeed } from './atmosphere';
@@ -23,6 +23,66 @@ function fly(w: World, ac: Aircraft, seconds: number, each?: () => void): void {
 }
 
 describe('BFM mode', () => {
+  it.each([NaN, Infinity, -Infinity])('ignores non-finite bank and g commands (%s) and can return to autopilot', value => {
+    const w = new World(30);
+    const ac = jet(w, 'f15c', 0, 5000, 0, 0, 200);
+    ac.roll = 30 * D2R;
+    ac.cmd.bfm = { bank: value, g: value, throttle: 'mil' };
+    stepAircraft(w, ac, DT);
+    expect(ac.roll).toBeCloseTo(30 * D2R, 8);
+    expect(ac.g).toBe(1);
+    ac.cmd.bfm = null;
+    fly(w, ac, 1);
+    for (const value of [...ac.pos.toArray(), ...ac.vel.toArray(), ac.heading, ac.pitch, ac.roll, ac.g]) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it.each([0, 1e-10, 30])('restores the speed floor independently of direction at %s m/s', speed => {
+    const w = new World(31);
+    const heading = Math.PI / 3;
+    const ac = jet(w, 'f15c', 0, 5000, 0, heading, speed);
+    ac.cmd.bfm = { bank: 0, g: 1, throttle: 'idle' };
+    stepAircraft(w, ac, DT);
+    expect(ac.vel.length()).toBeCloseTo(60, 8);
+    expect(ac.heading).toBeCloseTo(heading, 8);
+    expect(ac.pitch).toBeCloseTo(0, 8);
+    expect(ac.pos.x).toBeGreaterThan(0);
+    expect(ac.pos.z).toBeLessThan(0);
+  });
+
+  it.each(['floor', 'ceiling'] as const)('restores forward motion after a vertical %s clamp', boundary => {
+    const w = new World(32);
+    const floor = w.groundAlt + MIN_ALT_AGL;
+    const altitude = boundary === 'floor' ? floor : AIRCRAFT.f15c.perf.ceilingFt * 0.3048 + 201;
+    const ac = jet(w, 'f15c', 0, altitude, 0, Math.PI / 2, 200);
+    ac.vel.set(0, boundary === 'floor' ? -200 : 200, 0);
+    ac.cmd.bfm = { bank: 0, g: 0, throttle: 'idle' };
+    stepAircraft(w, ac, DT);
+    expect(ac.vel.length()).toBeGreaterThanOrEqual(60);
+    expect(ac.vel.y).toBe(0);
+    expect(ac.heading).toBeCloseTo(Math.PI / 2, 8);
+    expect(ac.pitch).toBe(0);
+    const x = ac.pos.x;
+    fly(w, ac, 1);
+    expect(ac.pos.x).toBeGreaterThan(x + 50);
+    expect(ac.pos.y).toBeGreaterThanOrEqual(floor);
+  });
+
+  it('uses the same flight direction below and at the speed floor in a climb', () => {
+    const w = new World(33);
+    const slow = jet(w, 'f15c', 0, 5000, 0, 0, 30);
+    const floor = jet(w, 'f15c', 0, 5000, 0, 0, 60);
+    for (const ac of [slow, floor]) {
+      const speed = ac.vel.length();
+      ac.vel.set(0, speed / Math.sqrt(2), -speed / Math.sqrt(2));
+      ac.cmd.bfm = { bank: 0, g: 1, throttle: 'idle' };
+      stepAircraft(w, ac, DT);
+    }
+    expect(slow.vel.distanceTo(floor.vel)).toBeLessThan(1e-9);
+    expect(slow.pos.distanceTo(floor.pos)).toBeLessThan(1e-9);
+  });
+
   it('flies a full loop: through the vertical, inverted on top, back to the entry heading', () => {
     const w = new World(1);
     const ac = jet(w, 'f16c', 0, 3000, 0, 0, 230);

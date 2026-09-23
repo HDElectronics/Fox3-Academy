@@ -203,6 +203,12 @@ function horizonFrame(u: Vector3, l0: Vector3, r0: Vector3): boolean {
   return true;
 }
 
+/** Keep direction independent of the speed floor; a stopped jet resumes along its heading. */
+function normalizeFlightDirection(u: Vector3, heading: number): Vector3 {
+  if (u.lengthSq() < 1e-12) return u.set(Math.sin(heading), 0, -Math.cos(heading));
+  return u.normalize();
+}
+
 /**
  * The jet's lift direction (unit vector, "top of the canopy") right now, for HUD and gun-sight geometry.
  * BFM mode: the flown lift vector. Autopilot: from the flight path and the visual bank.
@@ -223,7 +229,7 @@ export function sustainedGAt(ac: Aircraft, mach: number, altM: number): number {
 function stepBfm(world: World, ac: Aircraft, c: FlightConst, dt: number): void {
   const b = ac.cmd.bfm!;
   let v = Math.max(MIN_SPEED, ac.vel.length());
-  const u = _u.copy(ac.vel).divideScalar(v);
+  const u = normalizeFlightDirection(_u.copy(ac.vel), ac.heading);
   const alt = Math.max(0, ac.pos.y);
   const s = sigma(alt);
   const a = soundSpeed(alt);
@@ -243,7 +249,8 @@ function stepBfm(world: World, ac: Aircraft, c: FlightConst, dt: number): void {
   // roll toward the commanded bank (not near the vertical, where the bank is undefined)
   if (horizonFrame(u, _l0, _r0)) {
     const cur = Math.atan2(lift.dot(_r0), lift.dot(_l0));
-    const d = clamp(wrapPi(b.bank - cur), -ROLL_RATE * dt, ROLL_RATE * dt);
+    const bank = Number.isFinite(b.bank) ? b.bank : cur;
+    const d = clamp(wrapPi(bank - cur), -ROLL_RATE * dt, ROLL_RATE * dt);
     lift.applyAxisAngle(u, d);    // about u, l0 turns toward r0 = u × l0: + bank = right
     ac.roll = wrapPi(cur + d);
   }
@@ -273,9 +280,11 @@ function stepBfm(world: World, ac: Aircraft, c: FlightConst, dt: number): void {
   const floor = world.groundAlt + FLOOR_AGL;
   if (ac.pos.y < floor) {
     ac.pos.y = floor;
-    if (ac.vel.y < 0) { ac.vel.y = 0; ac.vel.setLength(v); }
+    if (ac.vel.y < 0) { ac.vel.y = 0; normalizeFlightDirection(ac.vel, ac.heading).multiplyScalar(v); }
   }
-  if (ac.pos.y > c.ceiling + 200 && ac.vel.y > 0) { ac.vel.y = 0; ac.vel.setLength(v); }
+  if (ac.pos.y > c.ceiling + 200 && ac.vel.y > 0) {
+    ac.vel.y = 0; normalizeFlightDirection(ac.vel, ac.heading).multiplyScalar(v);
+  }
   const hs = Math.hypot(ac.vel.x, ac.vel.z);
   if (hs > 1e-3) ac.heading = wrap2Pi(Math.atan2(ac.vel.x, -ac.vel.z));
   ac.pitch = Math.asin(clamp(ac.vel.y / v, -1, 1));
