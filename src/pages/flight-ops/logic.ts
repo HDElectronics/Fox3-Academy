@@ -173,12 +173,13 @@ export const NAV_STEP_ORDER: readonly StepId[] = ['navmode', 'steer', 'glidepath
 /** Runway takeoff lesson (#24). 'flapsup' is dropped for jets without flap control. */
 export const TAKEOFF_STEP_ORDER: readonly StepId[] = ['brakes', 'power', 'release', 'rotate', 'pitch', 'gearup', 'flapsup'];
 /** Which lesson a start teaches. `true` / `false` are the older rtb flag. */
-export type LessonKind = 'pattern' | 'rtb' | 'takeoff' | 'carrier' | 'groove';
+export type LessonKind = 'pattern' | 'rtb' | 'takeoff' | 'carrier' | 'groove' | 'launch';
 export const isCarrierKind = (k: LessonKind | boolean) => k === 'carrier' || k === 'groove';
 export function stepOrder(kind: LessonKind | boolean, d?: FlightOpsJetData): readonly StepId[] {
   const k: LessonKind = kind === true ? 'rtb' : kind === false ? 'pattern' : kind;
   if (k === 'carrier') return CARRIER_STEP_ORDER;
   if (k === 'groove') return GROOVE_STEP_ORDER;
+  if (k === 'launch') return [];   // the launch lesson has its own steps (launchLesson.ts)
   if (k === 'takeoff') return d && flapControl(d) === 'none' ? TAKEOFF_STEP_ORDER.filter(id => id !== 'flapsup') : TAKEOFF_STEP_ORDER;
   return k === 'rtb' ? NAV_STEP_ORDER : STEP_ORDER;
 }
@@ -310,6 +311,7 @@ export function currentStep(done: ReadonlySet<StepId>, order: readonly StepId[] 
 
 /** Progress key for a passed lesson: the pattern / landing key is unchanged, takeoff has its own. */
 export const progressKey = (ac: FlightOpsJetId, kind: LessonKind) => (kind === 'takeoff' ? `flight-ops:${ac}:takeoff`
+  : kind === 'launch' ? `flight-ops:${ac}:launch`
   : isCarrierKind(kind) ? `flight-ops:${ac}:carrier` : `flight-ops:${ac}:done`);
 
 /** Progress threshold: a scored landing at or above this marks the lesson done. */
