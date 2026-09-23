@@ -157,14 +157,22 @@ afterburner, HOOK and BALL on the carrier starts, and the launch sequence button
 WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on with Show on-screen controls.
 
 ### Merge & guns
-Close-combat basics for all ten jets against a scripted bandit (no fighting AI yet). You fly an arcade BFM mode:
+Close-combat basics for all ten jets. You fly an arcade BFM mode:
 the arrow keys roll the lift vector (← →) and pull or unload (↓ ↑, as in DCS), Space holds the trigger, 1 / 2 / 3
 set idle, military or afterburner, B the speedbrake. Hands off the pitch keys, the jet holds a level turn at its
 bank (a trainer aid). On a phone the view shows a touch pad (roll, pull, unload, gun, throttle).
 Lessons: Corner speed (hold your jet's corner speed in a turn of 3 g or more), Pursuit (lead, pure, then lag
-pursuit for 10 s each against a turning bandit), Guns tracking (get in his plane, frame the wingspan, short
-bursts), Guns defence (he is behind you with guns: break, unload and roll out of his plane), and a Free fight from a
-head-on merge (also under Practice). The bandit can fly straight and level, a level turn, or turn and reverse.
+pursuit for 10 s each against a turning bandit), The merge (lead turn toward his side as he nears your wing line,
+pass close, then go nose high or nose low; scored on angles gained by the second pass), One vs two circle (turn
+toward him for a rate fight or away for a radius fight, with the trainer's advice for your jet against his;
+scored on angle off his tail and range 30 s after the pass), High yo-yo (you start fast inside his hard turn: go
+out of plane before you overshoot; scored on no overshoot and range held), Guns tracking (get in his plane, frame
+the wingspan, short bursts), Guns defence (he is behind you with guns: break, unload and roll out of his plane),
+and a Free fight from a head-on merge (also under Practice). The drill bandits are scripted. The free fight is
+against a rule-based fighting AI at three trainer levels, Rookie, Regular and Veteran: it lead turns, picks one or
+two circle for its jet, flies lag then lead pursuit, yo-yos when it overshoots, guns you, and jinks when your sight
+comes on. The debrief lists the moves it flew. A gun kill needs about 2 s of fire in the solution at 600 m, less
+closer (an arcade rule). The page counts as done for a jet once every drill scores 50 or more.
 The HUD panel shows your jet's own gun sight: the FC3 Russian funnel and LCOS with the 1200 m range scale, the
 F-15C LCOS and locked reticle, the Hornet funnel and director with SHOOT, the F-16C EEGS Level II and V, the F-14
 RTGS pipper and diamond, the JF-17 SS / SSLC / LCOS and the M-2000C CCLT tracer line. The Cockpit camera (F1) draws
