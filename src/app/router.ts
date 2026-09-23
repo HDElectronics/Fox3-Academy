@@ -3,6 +3,7 @@ import { routeFor, type RouteDef } from './routes';
 import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
 import { queryIdentity } from './navigation';
+import { jetAllowed, roleGatePanel } from './roleGate';
 import type { Page, PageFactory } from './page';
 import type { AppStore } from './store';
 import { h } from '../ui/dom';
@@ -44,6 +45,13 @@ export class Router {
     if (this.current) {
       try { this.current.page.unmount(); } catch (e) { console.error(e); }
       this.current = null;
+    }
+    // The selected jet's role does not fit this route (the Su-25T on a BVR page): offer the jets that do.
+    if (!jetAllowed(route, this.app.jet)) {
+      this.outlet.dataset.page = route.path;
+      this.outlet.replaceChildren(roleGatePanel(route, this.app));
+      this.onChange(route, params);
+      return;
     }
     this.outlet.replaceChildren(h('div', { class: 'page-loading', role: 'status' }, 'Loading ' + route.label + '…'));
     this.onChange(route, params);

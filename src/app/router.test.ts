@@ -84,6 +84,21 @@ describe('router deep links and remounts', () => {
     expect(staleMount).not.toHaveBeenCalled();
     expect(mounted).toHaveLength(1);
   });
+  it('shows the role gate instead of a BVR page for the Su-25T, then mounts once a fighter is picked', async () => {
+    location.hash = '#/tws?ac=su25t';
+    await router.resolve();
+    await Promise.resolve();
+    expect(app.jet).toBe('su25t');
+    expect(app.aircraft).toBe('su27');
+    expect(mounted).toHaveLength(0);
+    type Fake = { args: [string, Record<string, unknown> | null, ...unknown[]] };
+    const shown = vi.mocked(outlet.replaceChildren).mock.calls.at(-1)?.[0] as unknown as Fake;
+    expect(shown.args[1]?.class).toBe('role-gate');
+    app.setAircraft('f15c');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(1);
+    expect(app.aircraft).toBe('f15c');
+  });
   it('shows a retryable error when a page chunk fails to load', async () => {
     const tws = ROUTES.find(route => route.path === 'tws')!;
     vi.mocked(tws.load).mockRejectedValueOnce(new TypeError('Failed to fetch dynamically imported module'));

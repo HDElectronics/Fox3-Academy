@@ -135,6 +135,10 @@ Headless gotchas:
 - `RwrContact.emitterType` accepts SAM, AWACS and unknown emitters for trainer pages; the sim only produces
   aircraft and missiles.
 - The `[hidden]` attribute is forced to `display: none` globally; use `el.hidden`.
+- Jet roles: `ctx.app.aircraft` is always a fighter (`FighterId`); `ctx.app.jet` is the picker selection and may be
+  the Su-25T. Routes declare `roles` (default `['fighter']`); the picker lists only jets the route accepts, and the
+  router shows a pick-a-fighter panel (`src/app/roleGate.ts`) instead of mounting a page that does not accept the
+  selected jet. An air-to-ground page sets `roles: ['attack']` and reads `ctx.app.jet`.
 
 ## Git branches and commits
 
