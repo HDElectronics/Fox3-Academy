@@ -1,0 +1,151 @@
+/**
+ * [OWNER: sim] Demo pilot: flies a clean left-hand overhead pattern from the initial to touchdown and rollout.
+ * Used by the page's demo and the `?shot` pre-roll. Simple gameplay controllers (track, altitude, speed, AoA),
+ * not an autopilot model. Per-state leg memory lives in a WeakMap, so the pilot stays deterministic.
+ */
+import { D2R, G0, M_PER_FT, M_PER_NM, MPS_PER_KT, clamp } from '../math';
+import { aimPointM, aoaForLoad, approachSpeedMs, headingErr, loadFactor } from './model';
+import type { FlightOpsAction, FlightOpsInput, FlightOpsJetData, FlightOpsState } from './types';
+
+export type DemoLeg = 'initial' | 'break' | 'downwind' | 'turn' | 'final' | 'rollout';
+interface Memory { leg: DemoLeg }
+const memory = new WeakMap<FlightOpsState, Memory>();
+
+/** Seconds past the threshold at which the demo breaks (the guides give 5–10 s). */
+const BREAK_DELAY_S = 7;
+const MIN_FINAL_M = 0.75 * M_PER_NM;
+
+/** Current demo leg for a state (for lesson captions). */
+export function demoLeg(s: FlightOpsState): DemoLeg | null {
+  return memory.get(s)?.leg ?? null;
+}
+
+function initialLeg(s: FlightOpsState): DemoLeg {
+  if (s.phase !== 'air') return 'rollout';
+  const north = Math.abs(headingErr(0, s.heading)) < Math.PI / 2;
+  if (!north) return 'downwind';
+  return s.gearDown ? 'final' : 'initial';
+}
+
+/** Target speed that puts the AoA in the middle of the band at 1 g with landing flaps. */
+export function onSpeedTargetMs(d: FlightOpsJetData): number {
+  const [lo, hi] = d.aoa.band.value;
+  return approachSpeedMs(d) * Math.sqrt(d.aoa.onSpeed.value / ((lo + hi) / 2));
+}
+
+/**
+ * Final-turn geometry: a semicircle from downwind (x = −2R) onto the centreline (x = 0). R is half the abeam
+ * distance, widened when the on-speed turn would need more than 45° of bank (the F-15C's faster approach).
+ */
+export function finalTurnGeometry(d: FlightOpsJetData) {
+  const va = onSpeedTargetMs(d);
+  const r = Math.max((d.pattern.abeamNm.value * M_PER_NM) / 2, (va * va) / (G0 * Math.sin(Math.PI / 4)));
+  const altM = d.pattern.downwindAltFt.value * M_PER_FT;
+  const finalLen = clamp(altM / Math.tan(d.glideDeg.value * 1.6 * D2R) - Math.PI * r, MIN_FINAL_M, 3 * M_PER_NM);
+  return { r, cx: -r, cz: finalLen - aimPointM(d), finalLen };
+}
+
+export function demoPilot(s: FlightOpsState, d: FlightOpsJetData): FlightOpsInput & { actions: FlightOpsAction[] } {
+  let m = memory.get(s);
+  if (!m) { m = { leg: initialLeg(s) }; memory.set(s, m); }
+  const actions: FlightOpsAction[] = [];
+  const kt = s.speed / MPS_PER_KT;
+  const va = onSpeedTargetMs(d);
+  const geo = finalTurnGeometry(d);
+  const gearKt = d.pattern.gearMaxKt.value;
+
+  // Leg transitions.
+  if (s.phase !== 'air') m.leg = 'rollout';
+  else if (m.leg === 'initial' && s.pos.z < -s.speed * BREAK_DELAY_S) m.leg = 'break';
+  else if (m.leg === 'break' && Math.abs(headingErr(Math.PI, s.heading)) < 25 * D2R) m.leg = 'downwind';
+  else if (m.leg === 'downwind' && s.pos.z >= geo.cz && s.gearPos > 0.99) m.leg = 'turn';
+  else if (m.leg === 'turn' && Math.abs(headingErr(0, s.heading)) < 20 * D2R && s.pos.x > geo.cx) m.leg = 'final';
+
+  // Configuration: speed brake for the F-16 break, gear and landing flaps below the limit.
+  const wantBrake = m.leg === 'break' && d.id === 'f16c' && kt > gearKt - 60 && kt > 230;
+  if (wantBrake !== s.speedbrakeOut && m.leg !== 'rollout') actions.push('speedbrakeToggle');
+  if (m.leg === 'downwind' && !s.gearDown && kt < gearKt - 15) actions.push('gearToggle');
+  if ((m.leg === 'downwind' || m.leg === 'turn') && s.flapIndex < d.landingFlap && kt < gearKt - 15) actions.push('flapsDown');
+
+  let heading = 0;
+  let bankFF = 0;
+  let bankGain = 1.5;
+  let targetY = s.pos.y;
+  let gammaCmd: number | null = null;
+  let speedTarget = va;
+  let breakG: number | null = null;
+
+  switch (m.leg) {
+    case 'initial':
+      heading = clamp(-s.pos.x * 0.004, -0.3, 0.3);
+      targetY = d.pattern.initialAltFt.value * M_PER_FT;
+      speedTarget = d.pattern.initialKt.value * MPS_PER_KT;
+      break;
+    case 'break':
+      breakG = d.pattern.breakG.value;
+      targetY = d.pattern.downwindAltFt.value * M_PER_FT;
+      speedTarget = 0;
+      break;
+    case 'downwind': {
+      const xT = 2 * geo.cx;
+      heading = Math.PI + clamp((s.pos.x - xT) * 0.003, -0.8, 0.8);
+      targetY = d.pattern.downwindAltFt.value * M_PER_FT;
+      speedTarget = s.gearDown ? va : (gearKt - 30) * MPS_PER_KT;
+      break;
+    }
+    case 'turn': {
+      const dx = s.pos.x - geo.cx;
+      const dz = s.pos.z - geo.cz;
+      const dist = Math.hypot(dx, dz);
+      heading = Math.atan2(dz, dx) - clamp((dist - geo.r) * 0.004, -0.5, 0.5);
+      bankFF = -Math.atan(s.speed * s.speed / (G0 * geo.r));
+      // Planned bank for an on-speed turn of radius R: sin φ = va² / (g R).
+      const planned = Math.asin(clamp((va * va) / (G0 * geo.r), 0, 0.9));
+      // Angle about the centre: π abeam on downwind, π/2 at the ninety, 0 at rollout.
+      const arcLeft = geo.r * clamp(Math.atan2(dz, dx), 0, Math.PI);
+      // Steady descent through the turn: downwind altitude at the roll-in, on the glide path at the rollout.
+      const hRoll = geo.finalLen * Math.tan(d.glideDeg.value * D2R);
+      const alt = d.pattern.downwindAltFt.value * M_PER_FT;
+      targetY = hRoll + (alt - hRoll) * clamp(arcLeft / (Math.PI * geo.r), 0, 1);
+      // Hold on-speed AoA in the bank: a little more speed for the extra g.
+      speedTarget = va * Math.sqrt(1 / Math.cos(planned * clamp(Math.atan2(dz, dx) / 0.6, 0, 1)));
+      break;
+    }
+    case 'final': {
+      heading = clamp(-s.pos.x * 0.006, -0.15, 0.15);
+      bankGain = 2.5;
+      const range = s.pos.z + aimPointM(d);
+      const glide = d.glideDeg.value * D2R;
+      const hT = Math.max(0, range) * Math.tan(glide);
+      gammaCmd = -glide + clamp((hT - s.pos.y) * 0.006, -0.05, 0.05);
+      if (s.pos.y < 6) gammaCmd = Math.max(gammaCmd, Math.asin(-1.3 / Math.max(s.speed, 1)));
+      break;
+    }
+    case 'rollout':
+      // Nosewheel steering back to the centreline.
+      return { pitch: 0, roll: clamp(headingErr(clamp(-s.pos.x * 0.02, -0.1, 0.1), s.heading) * 10, -1, 1), throttle: 0, actions };
+  }
+
+  // Lateral: bank toward the heading error.
+  let bank: number;
+  if (breakG !== null) {
+    const nv = clamp(1 + (targetY - s.pos.y) * 0.004 + (0 - s.vs) * 0.05, 0.5, 1.5);
+    bank = -Math.acos(clamp(nv / breakG, 0, 1));
+  } else {
+    bank = clamp(bankFF + headingErr(heading, s.heading) * bankGain, -60 * D2R, 60 * D2R);
+  }
+  const roll = clamp((bank - s.bank) * 3, -1, 1);
+
+  // Vertical: flight path command → load factor → AoA.
+  if (gammaCmd === null) gammaCmd = clamp((targetY - s.pos.y) * 0.004, -6 * D2R, 6 * D2R);
+  let n = Math.cos(s.gamma) / Math.max(0.2, Math.cos(s.bank)) + (s.speed * (gammaCmd - s.gamma) * (m.leg === 'final' ? 1.2 : 0.5)) / G0;
+  if (breakG !== null) n = Math.max(n, breakG);
+  const aoaT = aoaForLoad(s, d, clamp(n, -1, 7));
+  const pitch = clamp((aoaT - s.aoa) / (0.6 * d.aoa.onSpeed.value * 0.15), -1, 1);
+
+  // Throttle on speed (the final holds the AoA via speed).
+  let throttle = clamp(0.45 + (speedTarget - s.speed) * 0.15 + (loadFactor(s, d) - 1) * 0.1, 0, 1);
+  if (m.leg === 'break') throttle = 0;
+  if (m.leg === 'final' && s.pos.y < 4) throttle = 0;
+  return { pitch, roll, throttle, actions };
+}
