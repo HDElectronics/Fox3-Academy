@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the Cockpit explorer page and its F-16C catalogue; it becomes a community contribution (#46). Old
+  `#/cockpit` links open the hangar.
 - Merge & guns, part 3 (#11): close-range lock modes and IR missiles for all ten fighters. A Close combat panel
   selects the jet's ACM modes (FC3 VS / BORE / HELMET / Fi0, F-15C VS / BORE / Auto Guns, Hornet BST / VACQ / WACQ /
   GACQ, F-16C 30×20 / 10×60 / BORE, F-14 PLM / VSL HI / LO / PAL, JF-17 VT / BS / HA, M-2000C boresight / vertical /

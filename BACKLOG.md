@@ -44,14 +44,17 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P4 — Ideas
 
-- A within-visual-range module: guns, IR missiles, flares, basic BFM, the merge (#11; plan in progress).
-- The Su-25T with air-to-ground: Shkval, Vikhr, rockets and bombs (plan in progress).
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
 - A progress view across jets and Tacview ACMI export from Sortie.
 
 ## Community contributions — deferred from active implementation
 
+- **B25. Cockpit explorer** ([#46](https://github.com/HDElectronics/Fox3-Academy/issues/46)). Removed from the app
+  to be rebuilt by the community: an interactive, sourced map of an aircraft's cockpit controls. The previous
+  F-16C catalogue is in the repository history; research in [f16-cockpit.md](docs/research/f16-cockpit.md). Done
+  when a `cockpit` route returns with one aircraft fully mapped and sourced, phone layout checked and image rights
+  clear.
 - **B20. Higher-fidelity aircraft exteriors.** Keep the current procedural models in `src/render/jets.ts`.
   Asset sourcing, generation, cleanup and integration are deferred; training development does not depend
   on them. Existing external previews are research records, not approved replacements. Start with one

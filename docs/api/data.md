@@ -179,14 +179,6 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
 
 ## Uncertain values (all of them)
 
-### Cockpit explorer
-
-`COCKPIT_CAVEATS` exports the global limits and each `uncertain` catalogue entry. Current F-16 uncertainties:
-ENG FIRE press behavior, MISSILE LAUNCH press behavior, current IFF DED implementation, manual canopy handcrank,
-anti-G test, throttle cutoff release, and utility-light interaction. The guide's ejection shortcut does not
-specify its repetition sequence. Keyboard defaults beyond explicitly sourced entries are not asserted.
-KY-58 internal selectors, exhaustive HOTAS context tables and software page trees are outside mapped coverage.
-
 ### Aircraft
 - **Su-25T** (`AIRCRAFT_CAVEATS.su25t`): perf and RCS are rough gameplay numbers; chaff load not in the manual
   (shown as 0); the manual documents separate laser limits of about 1 min continuous with cooling (printed
@@ -438,20 +430,3 @@ tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomc
 
 The web-verification evidence and remaining current-game checks are in
 [verification-status.md](../research/verification-status.md). No current DCS build was run for that review.
-
-## Cockpit explorer contracts
-
-`src/data/cockpit/types.ts` defines a separate, read-only teaching catalogue. `CockpitPanel` identifies a
-cockpit region and its individually addressable controls. `CockpitControl` contains a stable ID, label,
-kind, purpose, operation, observable effect, optional positions, binding evidence and source references.
-A source page is a one-based page in the official aircraft guide.
-
-`dcsStatus` describes the cited manual: `documented`, `not-implemented` or `uncertain`. It is not a live-build
-verification or a simulated system state. Omit unverified keyboard defaults. A control can have a documented
-warning meaning and an uncertain press action; keep that distinction in its notes. Panel diagrams are
-original schematics and do not establish exact physical geometry.
-
-`cockpitFor(aircraft)` returns the mapped `CockpitDefinition`, or `null` for an unsupported aircraft. Never
-silently show another aircraft's cockpit. `F16_COCKPIT` composes the independently sourced front, left, right
-and pedal inventories. `COCKPIT_CAVEATS` is the corresponding uncertainty export. Selecting controls is an
-informational action; these records do not mutate `World` or implement aircraft systems.
