@@ -6,7 +6,7 @@
  * Game level only (AGENTS.md rule 1): no seeker, fuze or warhead data. The arcade flight constants live in
  * src/sim/agWeapons.ts.
  */
-import type { AgLoadout, AgWeaponId, AgWeaponSpec } from './types';
+import type { AgLoadout, AgWeaponId, AgWeaponSpec, SamId } from './types';
 
 const LOCK_AND_LASE = 'Lock with the Shkval, laser on, launch at ПР, keep the lock and the laser until impact.';
 
@@ -147,6 +147,15 @@ export const SU25T_LOADOUTS: AgLoadout[] = [
   },
 ];
 
+/**
+ * Kh-58 HUD type code under an emitter diamond, per SAM radar the missile can attack. S1 says the HUD marks
+ * emitters inside ±30° with diamonds; the codes here are trainer labels (the site's NATO number), not verified.
+ */
+export const KH58_TARGET_CODES: Partial<Record<SamId, string>> = { sa10: '10', sa11: '11', sa15: '15' };
+
+/** Can the Kh-58 attack this radar (a code shows under its diamond)? Trainer list, not verified. */
+export const kh58CanAttack = (sam: SamId): boolean => KH58_TARGET_CODES[sam] != null;
+
 export const AG_CAVEATS: string[] = [
   'S1 gives no launch ranges for guided air-to-ground weapons ("observe the maximum launch range scale in the HUD"): every range band is a community value, not verified.',
   'Laser limits: S1 documents about 1 minute of continuous operation with cooling (p. 57) and 20 minutes total per flight (p. 32). The trainer uses a simplified recoverable 20-minute heat threshold and recovery while off, not verified; it does not enforce the separate manual limits.',
@@ -154,5 +163,7 @@ export const AG_CAVEATS: string[] = [
   'Station numbers other than the L-081 on station 6 are trainer layouts, not verified against the Mission Editor.',
   'Weapon flight (speed over time, dispersion, kill radius) is an arcade model tuned for teaching, not DCS weapon data.',
   'Shkval slew stops use the IT-23M scales; releasing ground stabilisation at a stop or when the sight leaves the ground is a simplified trainer rule, not verified.',
+  'Kh-58 HUD: diamonds inside ±30° follow S1; the type code under each diamond is a trainer label (the SAM NATO number), and the diamond placement across the HUD is scaled to fit the ±30° zone. Not verified.',
+  'CCRP: the director circle tolerance (±2° of track) and the automatic release rule are trainer values; S1 gives the procedure (hold release, keel into the circle, 10 s cue), not the tolerances.',
   'Shkval field of view below 23x is scaled from the S1 23x figure (0.73 × 0.97°); the wide and 8x fields are not verified.',
 ];

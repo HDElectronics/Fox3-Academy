@@ -6,6 +6,8 @@
  *  - Kh-29T, KAB-500Kr: Shkval lock to launch, then fire and forget.
  *  - Rockets, bombs, cannon: ballistic (gravity only), fixed dispersion drawn from world.rand().
  *  - Kh-58: L-081 pod, an emitting radar locked through passive detection; guides while the radar emits.
+ *  - CCRP (free-fall bombs): Shkval designation with the laser on, the pilot holds release, flies the aircraft
+ *    symbol's keel into the director circle; the bomb releases itself when the time to release reaches 0.
  * Flight is a speed-over-time curve and a turn-rate cap; hits are a proximity check plus a trainer kill radius.
  * None of these constants is DCS weapon data.
  */
@@ -17,6 +19,8 @@ import type { AgMissReason, AgWeapon, Aircraft, AttackState, EntityId } from './
 import { D2R, G0, clamp, dirFrom, relBearing } from './math';
 import { cycleAgWeapon, stationsWith } from './attack';
 import { damageGround, groundHeight, groundUnitVel } from './ground';
+import { shkvalAimPoint } from './shkval';
+import { kh58CanAttack } from '../data/agWeapons';
 
 /** Arcade flight constants (trainer values, not DCS data). Speeds are m/s at seconds after launch. */
 interface AgModel {
@@ -104,8 +108,9 @@ export function armLock(world: World, ac: Aircraft, siteId?: EntityId): { ok: bo
   if (!ag) return { ok: false, reason: 'No air-to-ground system' };
   if (!ag.pod) return { ok: false, reason: 'No L-081 Fantasmagoria pod on station 6' };
   if (!ag.arm.detecting) return { ok: false, reason: 'Passive detection is off [I]' };
-  const list = armEmitters(world, ac);
+  const list = armEmitters(world, ac).filter(id => kh58CanAttack(world.samSites.get(id)!.type));
   const id = siteId ?? list[0];
+  if (id && !list.includes(id) && armEmitters(world, ac).includes(id)) return { ok: false, reason: 'The Kh-58 cannot attack this radar' };
   if (!id || !list.includes(id)) return { ok: false, reason: 'No emitter inside ±30°' };
   ag.arm.emitterId = id;
   return { ok: true, reason: '' };
@@ -241,7 +246,7 @@ function spawnWeapon(world: World, ac: Aircraft, w: AgWeaponId, targetId: Entity
  * Release the selected store if allowed. Guided weapons need ПР; pairs fire two where S1 allows it (Vikhr);
  * the cannon fires a short burst. Returns the weapons released, or the failed check.
  */
-export function agLaunch(world: World, ac: Aircraft): AgWeapon[] | AgLaunchCheck {
+export function agLaunch(world: World, ac: Aircraft, opts: { ccrp?: boolean } = {}): AgWeapon[] | AgLaunchCheck {
   const check = canAgLaunch(world, ac);
   if (!check.ok || !check.weapon) return check;
   const ag = ac.ag!, w = check.weapon, spec = AG_WEAPONS[w];
@@ -264,10 +269,104 @@ export function agLaunch(world: World, ac: Aircraft): AgWeapon[] | AgLaunchCheck
     }
   }
   for (const wp of out) {
-    world.emit({ t: world.t, type: 'ag-launch', weaponId: wp.id, shooterId: ac.id, targetId: wp.targetId, weapon: w, range: check.range });
+    world.emit({ t: world.t, type: 'ag-launch', weaponId: wp.id, shooterId: ac.id, targetId: wp.targetId, weapon: w, range: check.range, ...(opts.ccrp ? { ccrp: true } : {}) });
   }
   if ((ag.stores[w] ?? 0) <= 0 && w !== 'gun25t') cycleAgWeapon(ag);
   return out;
+}
+
+// ─────────────────────────────────────────────────────────── CCRP (bombs on a Shkval designation)
+
+/** CCRP director tolerance: the keel counts as inside the circle within this track error (deg). Trainer value. */
+export const CCRP_TOL_DEG = 2;
+/** S1: the time-to-release cue starts 10 s before release. */
+export const CCRP_CUE_S = 10;
+/** A release point passed by more than this (s) is missed: no release, go around. Trainer value. */
+const CCRP_LATE_S = 0.5;
+
+export interface CcrpSolution {
+  /** A free-fall bomb is selected and the Shkval designates a ground point with the laser on. */
+  active: boolean;
+  /** Why CCRP is not available, in pilot words. Empty when active. */
+  reason: string;
+  /** Designated point (Shkval stabilised point or locked unit). */
+  target: Vector3 | null;
+  /** Seconds to the release point (negative once passed). */
+  ttrS: number | null;
+  /** Ground-track error to the designated point (deg, + target right). */
+  errDeg: number | null;
+  /** The keel is inside the director circle (|errDeg| within CCRP_TOL_DEG). */
+  inCircle: boolean;
+  /** The release point is behind the jet: go around. */
+  passed: boolean;
+}
+
+/**
+ * CCRP solution for the selected free-fall bomb: the time until the no-dispersion impact point reaches the
+ * designated point along the ground track, and the track error the director circle shows. Gameplay rule.
+ */
+export function ccrpSolution(world: World, ac: Aircraft): CcrpSolution {
+  const out: CcrpSolution = { active: false, reason: '', target: null, ttrS: null, errDeg: null, inCircle: false, passed: false };
+  const ag = ac.ag;
+  const fail = (reason: string) => ({ ...out, reason });
+  if (!ag || !ac.alive) return fail('No air-to-ground system');
+  const w = ag.selected;
+  if (ag.master !== 'ag') return fail('Select air-to-ground mode [7]');
+  if (!w || AG_WEAPONS[w].kind !== 'bomb' || AG_WEAPONS[w].guidance !== 'ballistic') return fail('Select a free-fall bomb (АБ)');
+  if ((ag.stores[w] ?? 0) <= 0) return fail('No bombs left');
+  const sh = ag.shkval;
+  if (!sh.on) return fail('Shkval is off [O]');
+  if (!sh.groundStab && !sh.lockedUnitId) return fail('Designate: ground-stabilise the Shkval [Enter]');
+  if (!sh.laserOn) return fail('Laser off: switch on ЛД [RShift-O]');
+  const T = shkvalAimPoint(world, ac);
+  if (!T) return fail('No designated point');
+  const P = predictImpact(world, ac, w);
+  if (!P) return fail('No impact point');
+  const gs = Math.hypot(ac.vel.x, ac.vel.z);
+  if (gs < 1) return fail('No ground speed');
+  const ux = ac.vel.x / gs, uz = ac.vel.z / gs;
+  const tx = T.x - ac.pos.x, tz = T.z - ac.pos.z;
+  const alongT = tx * ux + tz * uz, alongP = (P.x - ac.pos.x) * ux + (P.z - ac.pos.z) * uz;
+  const cross = ux * tz - uz * tx; // x east, z south: + = target right of the track
+  const errDeg = Math.atan2(cross, alongT) / D2R;
+  const ttrS = (alongT - alongP) / gs;
+  return {
+    active: true, reason: '', target: T, ttrS, errDeg, inCircle: Math.abs(errDeg) <= CCRP_TOL_DEG,
+    passed: ttrS < -CCRP_LATE_S,
+  };
+}
+
+/** Space held / let go in CCRP. Holding needs an active solution; letting go always works. */
+export function setCcrpHold(world: World, ac: Aircraft, on: boolean): { ok: boolean; reason: string } {
+  const ag = ac.ag;
+  if (!ag) return { ok: false, reason: 'No air-to-ground system' };
+  if (!on) { ag.ccrpHeld = false; return { ok: true, reason: '' }; }
+  const s = ccrpSolution(world, ac);
+  if (!s.active) return { ok: false, reason: s.reason };
+  if (s.ttrS! > CCRP_LATE_S) ag.ccrpReleased = false;
+  if (ag.ccrpReleased) return { ok: false, reason: 'Bomb already released on this pass: go around' };
+  if (s.passed) return { ok: false, reason: 'Release point passed: go around' };
+  ag.ccrpHeld = true;
+  return { ok: true, reason: '' };
+}
+
+/**
+ * Update the pass latch every tick. At time to release 0 with release held and the keel in the circle,
+ * release one bomb and consume the pass. A solution more than 0.5 s ahead establishes a new pass.
+ * Outside the circle nothing releases; once the point is passed the pass is lost.
+ */
+export function stepCcrp(world: World, ac: Aircraft): void {
+  const ag = ac.ag;
+  if (!ag || (!ag.ccrpHeld && !ag.ccrpReleased)) return;
+  const s = ccrpSolution(world, ac);
+  if (s.active && s.ttrS! > CCRP_LATE_S) ag.ccrpReleased = false;
+  if (!ag.ccrpHeld) return;
+  if (ag.ccrpReleased) { ag.ccrpHeld = false; return; }
+  if (!s.active || s.passed) { ag.ccrpHeld = false; return; }
+  if (s.ttrS! > 0 || !s.inCircle) return;
+  ag.ccrpHeld = false;
+  const released = agLaunch(world, ac, { ccrp: true });
+  if (Array.isArray(released) && released.length > 0) ag.ccrpReleased = true;
 }
 
 // ─────────────────────────────────────────────────────────── flight
