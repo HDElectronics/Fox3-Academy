@@ -12,7 +12,7 @@ import type { Aircraft, SamLostReason, SamMissile, SamSite, SimEvent } from '../
 import { samDrill, cruiseFor, type SamDrill } from '../../sim/scenarios';
 import { TRACK_FACTOR, samNotchDepth } from '../../sim/sam';
 import { D2R, M_PER_FT } from '../../sim/math';
-import { fmtAlt, fmtRange, type Units } from '../../app/format';
+import { fmtAlt, fmtAltFine, fmtRange, type Units } from '../../app/format';
 import {
   MANEUVER_LABEL, applyPilot, newPilot, pressManeuver, stepThrottle, trimAltitude, trimHeading, type Maneuver, type Pilot, type Throttle,
 } from './pilot';
@@ -68,7 +68,7 @@ export function samBrief(sam: SamId, ac: AircraftId, units: Units): SamBrief {
   return {
     title: `${s.nato} (${s.name})`,
     ring: fmtRange(s.threatRingKm * 1000, units),
-    band: `${fmtAlt(s.minAltM, units)} to ${fmtAlt(s.maxAltM, units)}`,
+    band: `${fmtAltFine(s.minAltM, units)} to ${fmtAlt(s.maxAltM, units)}`,
     minRange: fmtRange(s.minRangeKm * 1000, units, 1),
     rwr: sym ? `Your RWR shows it as "${sym}": search first, then lock, then launch.` : 'Your RWR shows its class: search first, then lock, then launch.',
     rule: s.guidanceRule,

@@ -11,6 +11,9 @@ export const rangeUnit = (u: Units) => (u === 'metric' ? 'km' : 'nm');
 
 export const fmtAlt = (m: number, u: Units) =>
   u === 'metric' ? Math.round(m / 10) * 10 + ' m' : Math.round(m / M_PER_FT / 100) * 100 + ' ft';
+/** Like fmtAlt, but low altitudes keep their precision (15 m, 50 ft): SAM floors, terrain. */
+export const fmtAltFine = (m: number, u: Units) =>
+  Math.abs(m) >= 1000 ? fmtAlt(m, u) : u === 'metric' ? Math.round(m) + ' m' : Math.round(m / M_PER_FT / 10) * 10 + ' ft';
 export const fmtAltShort = (m: number, u: Units) =>
   u === 'metric' ? (m / 1000).toFixed(1) + 'k' : Math.round(m / M_PER_FT / 1000) + 'k';
 
