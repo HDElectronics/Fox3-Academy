@@ -13,3 +13,5 @@ export { GunSightDisplay, type GunSightOptions } from './gunSight';
 export {
   buildGunSight, sightStyleFor, noLockOptions, hudAngles as gunHudAngles, SIGHT_NAME, type GunSightPicture, type GunSightInput, type SightStyle, type HudPoint,
 } from './gunSightModel';
+export { IrToneAudio, type IrToneOptions } from './irToneAudio';
+export { buildAcmPicture, drawAcm, type AcmPicture, type HudProj } from './acmCues';

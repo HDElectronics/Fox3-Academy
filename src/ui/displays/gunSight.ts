@@ -15,6 +15,7 @@ import { Gfx, Surface, blinkOn } from './surface';
 import { diamond as diamondGlyph } from './glyphs';
 import type { GunSightPicture } from './gunSightModel';
 import type { SightPoint } from '../../sim/guns';
+import { drawAcm, type AcmPicture } from './acmCues';
 
 const FT = 0.3048;
 
@@ -34,6 +35,7 @@ export class GunSightDisplay {
   private g: Gfx;
   private o: Required<GunSightOptions>;
   private last: GunSightPicture | null = null;
+  private acm: AcmPicture | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: GunSightOptions = {}) {
     this.canvas = canvas;
@@ -52,11 +54,12 @@ export class GunSightDisplay {
 
   refreshTheme(): void { this.surf.refreshTheme(); this.render(); }
 
-  draw(pic: GunSightPicture | null): void { this.last = pic; this.render(); }
+  /** Draw the gun sight, plus the close-combat (ACM / IR seeker) cues when given. */
+  draw(pic: GunSightPicture | null, acm: AcmPicture | null = null): void { this.last = pic; this.acm = acm; this.render(); }
 
   redraw(): void { this.render(); }
 
-  dispose(): void { this.surf.dispose(); this.last = null; }
+  dispose(): void { this.surf.dispose(); this.last = null; this.acm = null; }
 
   private render(): void {
     const s = this.surf;
@@ -196,5 +199,10 @@ export class GunSightDisplay {
     if (p.firing && blinkOn(4)) { g.ink(th.symHi, 1, 0.3); g.font(fs, 700); g.text('GUN', cx, box.b, 'center', 'bottom'); }
     else { g.ink(dim, 0, 0.3); g.font(fs * 0.8); g.text('SIMPLIFIED', cx, box.b, 'center', 'bottom'); }
     g.reset();
+    if (this.acm) {
+      const D = Math.PI / 180;
+      drawAcm(g, th, { X: az => cx + Math.tan(Math.max(-80, Math.min(80, az)) * D) * f, Y: el => cy - Math.tan(Math.max(-80, Math.min(80, el)) * D) * f,
+        cx, cy, u, box, fs, lineH: g.font(fs) * 1.25 }, this.acm);
+    }
   }
 }
