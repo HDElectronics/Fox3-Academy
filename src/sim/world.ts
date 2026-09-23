@@ -7,10 +7,10 @@
  *   ground.ts (terrain hook, ground units), shkval.ts (Su-25T sight), agWeapons.ts (air-to-ground weapons).
  */
 import { Vector3 } from 'three';
-import type { MissileId, RadarModeId } from '../data/types';
+import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  AgWeapon, Aircraft, Countermeasure, EntityId, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, Missile,
+  AgMasterMode, AgWeapon, Aircraft, Countermeasure, EntityId, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, Missile,
   RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
@@ -31,6 +31,11 @@ import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
+import {
+  pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalLock, shkvalUnlock, stepShkval,
+  stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
+} from './shkval';
+import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
 
 /** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
 function radarOff(): RadarState {
@@ -121,6 +126,7 @@ export class World {
       ai: o.controller === 'ai' ? { skill: o.skill ?? 'regular', state: 'patrol', stateSince: this.t, data: {} } : null,
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
+    if (spec.role === 'attack') ac.ag = createAttackState(o.agLoadout);
     this.aircraft.set(id, ac);
     if (spec.role === 'fighter' && o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
     this.emit({ t: this.t, type: 'spawn', id });
@@ -178,6 +184,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive && ac.controller === 'ai') thinkAi(this, ac, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     if (this.groundUnits.size) stepGroundUnits(this, h);
+    for (const ac of this.aircraft.values()) if (ac.ag) stepShkval(this, ac, h);
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
@@ -222,6 +229,56 @@ export class World {
     return (ac.selectedWeapon = avail[(i + 1) % avail.length]);
   }
 
+  // ── Air-to-ground (attack jets). Thin delegations to shkval.ts / agWeapons.ts; no-ops on fighters.
+  private attackJet(id: EntityId): Aircraft | undefined {
+    const ac = this.aircraft.get(id); return ac?.ag ? ac : undefined;
+  }
+  /** Master mode: [1] nav, [7] air-to-ground, [8] fixed reticle. */
+  setAgMaster(id: EntityId, mode: AgMasterMode): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.master = mode;
+  }
+  /** [D]: next A-G store. */
+  cycleAgWeapon(id: EntityId): AgWeaponId | null {
+    const ac = this.attackJet(id); return ac ? cycleAgWeapon(ac.ag!) : null;
+  }
+  /** Select a store directly ([C] = 'gun25t'). */
+  selectAgWeapon(id: EntityId, w: AgWeaponId | null): AgWeaponId | null {
+    const ac = this.attackJet(id); return ac ? selectAgWeapon(ac.ag!, w) : null;
+  }
+  setAgPair(id: EntityId, on: boolean): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.pair = on;
+  }
+  shkvalPower(id: EntityId, on: boolean): void {
+    const ac = this.attackJet(id); if (ac) setShkvalPower(this, ac, on);
+  }
+  /** Held slew input, −1..1 per axis (x right, y up); applied every step at the zoom's rate. */
+  shkvalSlew(id: EntityId, x: number, y: number): void {
+    const ac = this.attackJet(id); if (ac) ac.ag!.shkval.slew = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) };
+  }
+  shkvalStabilise(id: EntityId, on: boolean): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? setShkvalStab(this, ac, on) : { ok: false, reason: 'No Shkval' };
+  }
+  /** Point the sight at a world position (lessons, demos). */
+  shkvalPointAt(id: EntityId, p: XYZ): void {
+    const ac = this.attackJet(id); if (ac) pointShkval(this, ac, p);
+  }
+  shkvalZoom(id: EntityId, dir: 1 | -1): void {
+    const ac = this.attackJet(id); if (ac) stepShkvalZoom(ac, dir);
+  }
+  /** Target size: a step (+1 / −1) or an exact value in metres. */
+  shkvalTargetSize(id: EntityId, change: { step: 1 | -1 } | { m: number }): void {
+    const ac = this.attackJet(id);
+    if (ac) { if ('step' in change) stepShkvalTargetSize(ac, change.step); else setShkvalTargetSize(ac, change.m); }
+  }
+  shkvalLock(id: EntityId): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? shkvalLock(this, ac) : { ok: false, reason: 'No Shkval' };
+  }
+  shkvalUnlock(id: EntityId): void {
+    const ac = this.attackJet(id); if (ac) shkvalUnlock(this, ac);
+  }
+  laser(id: EntityId, on: boolean): ShkvalResult {
+    const ac = this.attackJet(id); return ac ? setLaser(this, ac, on) : { ok: false, reason: 'No laser' };
+  }
   // Thin delegations so pages only ever talk to World.
   setRadarMode(id: EntityId, mode: RadarModeId, targetId?: EntityId): boolean {
     const ac = this.aircraft.get(id); return !!ac && setRadarMode(this, ac, mode, targetId);
@@ -316,6 +373,14 @@ export class World {
       f.groundUnits = [...this.groundUnits.values()].map(u => ({
         id: u.id, kind: u.kind, side: u.side, pos: [u.pos.x, u.pos.y, u.pos.z], heading: u.heading, alive: u.alive,
       }));
+    }
+    const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);
+    if (sk.length) {
+      f.shkval = sk.map(a => {
+        const sh = a.ag!.shkval, u = sh.lockedUnitId ? this.groundUnits.get(sh.lockedUnitId) : undefined;
+        const p = u?.pos ?? sh.stabPoint;
+        return { ownerId: a.id, point: p ? [p.x, p.y, p.z] : null, locked: sh.lockedUnitId, laser: sh.laserOn };
+      });
     }
     this.recording.push(f);
   }
