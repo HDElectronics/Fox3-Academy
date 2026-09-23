@@ -48,6 +48,7 @@ const ft = (m: number) => Math.round(m / M_PER_FT);
 const kts = (ms: number) => Math.round(ms / MPS_PER_KT);
 
 const LABELS: Record<GateId, string> = {
+  sequence: 'Sequence', shot: 'Shot', handsOff: 'Hands off', cleanUp: 'Clean up', clearingTurn: 'Clearing turn',
   initial: 'Initial', break: 'Break', downwind: 'Downwind', abeam: 'Abeam', ninety: 'Ninety', groove: 'Groove',
   touchdown: 'Touchdown', brakeRelease: 'Brake release', rotate: 'Rotate', liftoff: 'Liftoff', gearUp: 'Gear up',
   climb: 'Climb',

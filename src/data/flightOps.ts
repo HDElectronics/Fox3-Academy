@@ -6,7 +6,8 @@
  * docs/api/data.md ("Uncertain values", "Flight ops").
  */
 import type {
-  FlightOpsCarrierData, FlightOpsJetData, FlightOpsJetId, FlightOpsNavData, FlightOpsTakeoffData, Sourced,
+  FlightOpsCarrierData, FlightOpsJetData, FlightOpsJetId, FlightOpsLaunchData, FlightOpsNavData, FlightOpsTakeoffData,
+  Sourced,
 } from '../sim/flightOps/types';
 import { HORNET_CASE1, SHIP_CAVEATS, SUPERCARRIER, SU33_MANUAL } from './ships';
 
@@ -103,6 +104,73 @@ const SU33_CARRIER: FlightOpsCarrierData = {
     gearFlapsMaxKt: nv(250, SU33_MANUAL, 'Gear limit not given; gameplay value.'),
   },
   touchdownPower: nv('max', SUPERCARRIER, 'Not given for the Su-33; Supercarrier rule used.'),
+};
+
+const HORNET_CAT = 'ED F/A-18C Early Access Guide, Carrier takeoff';
+const TOMCAT_CAT = 'Heatblur DCS F-14 training lesson, carrier takeoff';
+const SALUTE_CONFLICT = 'The Supercarrier guide gives LCtrl+LShift+LAlt+S or the radio menu; the Heatblur Tomcat lesson gives LShift+U. Conflict, not verified in game.';
+const TRAINER_KEY = 'Default key not verified; trainer key.';
+
+/** Hornet catapult (#27): NWS HI, launch bar, hook up, T/O trim by weight, MIL, wipe out, salute, hands off. */
+const HORNET_LAUNCH: FlightOpsLaunchData = {
+  kind: 'catapult',
+  ship: 'cvn',
+  steps: [
+    { id: 'nwsHi', label: 'NWS HI', key: ok('S', HORNET_CAT), note: 'Wings spread before taxi onto the catapult; the trainer starts spread.' },
+    { id: 'launchBar', label: 'Launch bar down', key: nv('L', HORNET_CAT, TRAINER_KEY), note: 'Behind the shuttle.' },
+    { id: 'hookUp', label: 'Hook up', key: ok('U', SUPERCARRIER) },
+    { id: 'trim', label: 'T/O trim', key: null, note: 'Trim for the gross weight.' },
+    { id: 'power', label: 'MIL', key: null, note: 'Afterburner at 49000 lb and above.' },
+    { id: 'wipeOut', label: 'Wipe out controls', key: nv('K', HORNET_CAT, TRAINER_KEY), note: 'Full stick and rudder travel.' },
+    { id: 'salute', label: 'Salute', key: nv('LCtrl+LShift+LAlt+S', SUPERCARRIER, SALUTE_CONFLICT) },
+    { id: 'handsOff', label: 'Hands off', key: null, note: 'The flight controls rotate the jet.' },
+  ],
+  power: ok('MIL', HORNET_CAT),
+  abFromLb: ok(49000, HORNET_CAT),
+  trimByWeightLb: ok([[44000, 16], [49000, 17], [Number.POSITIVE_INFINITY, 19]], HORNET_CAT,
+    '16° below 44000 lb, 17° at 45000–48000 lb, 19° at 49000 lb and above. The trainer puts the gaps in the 17° band.'),
+  weights: { unit: 'lb', normal: 42000, heavy: 50000 },
+  stations: [1, 2],
+  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER),
+  after: { flapLabel: 'AUTO', cue: 'Gear up, flaps AUTO, clearing turn' },
+  cue: 'NWS HI, launch bar, hook up, trim, MIL, wipe out, salute, hands off',
+};
+
+/** Tomcat catapult (#27), Heatblur lesson: hook up, MIL, salute, hands off. */
+const TOMCAT_LAUNCH: FlightOpsLaunchData = {
+  kind: 'catapult',
+  ship: 'cvn',
+  steps: [
+    { id: 'hookUp', label: 'Hook up', key: ok('U', TOMCAT_CAT) },
+    { id: 'power', label: 'MIL', key: null, note: 'MIL for the shot; not verified in the lesson text.' },
+    { id: 'salute', label: 'Salute', key: ok('LShift+U', TOMCAT_CAT, `Verified for the Heatblur lesson text only. ${SALUTE_CONFLICT}`) },
+    { id: 'handsOff', label: 'Hands off', key: null, note: 'Not verified for the Tomcat; the trainer grades it as for the Hornet.' },
+  ],
+  power: nv('MIL', TOMCAT_CAT, 'MIL, no afterburner: not verified.'),
+  weights: { unit: 'lb', normal: 60000, heavy: 70000 },
+  stations: [1, 2],
+  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER),
+  after: { flapLabel: 'UP', cue: 'Gear up, flaps up, clearing turn' },
+  cue: 'Hook up, MIL, salute, hands off',
+};
+
+/** Su-33 ski-jump (#27): full afterburner against the stoppers, special afterburner, run, ramp. */
+const SU33_LAUNCH: FlightOpsLaunchData = {
+  kind: 'skiJump',
+  ship: 'kuznetsov',
+  steps: [
+    { id: 'power', label: 'Full afterburner', key: null, note: 'The deck stoppers hold the jet during the run-up.' },
+    { id: 'specialAB', label: 'Special afterburner', key: ok('LShift+E', SUPERCARRIER, '10-minute limit.') },
+    { id: 'release', label: 'Stoppers release', key: null, note: 'How the stoppers release is not verified; the trainer releases them 3 s after full afterburner.' },
+  ],
+  power: ok('AB', SUPERCARRIER, 'Full afterburner, then special afterburner.'),
+  weights: { unit: 'kg', normal: 26000, heavy: 32000 },
+  stations: [1, 3],
+  runM: ok({ 1: 90, 2: 90, 3: 180 }, SUPERCARRIER, 'Positions 1 and 2 give a 90 m run, position 3 gives 180 m: use it heavy.'),
+  shortRunMaxWeight: nv(29000, SU33_MANUAL, 'The guide says to use position 3 heavy; the weight limit is a gameplay value.'),
+  avoid: { fodScreens: ok('LAlt+I', SU33_MANUAL, 'Intake FOD screens cost 12 % thrust: do not use them for the launch.') },
+  after: { flapLabel: 'UP', cue: 'Gear up, flaps up, climb' },
+  cue: 'Full afterburner, special afterburner, hold on the stoppers, run, ramp',
 };
 
 const WHEEL_BRAKE_KEY = 'DCS common default wheel-brake key; not in the source for this module.';
@@ -219,6 +287,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     aimPointFt: ok(500, HORNET, 'Past the threshold.'),
     hudCue: 'E-bracket on the flight path marker',
     carrier: HORNET_CARRIER,
+    launch: HORNET_LAUNCH,
     takeoff: {
       vrKt: nv(145, HORNET_TO, 'The guide gives no rotation speed; gameplay value.'),
       pitchDeg: ok([6, 8], HORNET_TO, 'Rotate to 6–8° nose-high.'),
@@ -332,6 +401,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     aimPointFt: nv(500, TOMCAT, 'Not given; Hornet value used.'),
     hudCue: 'On speed at 15 units AoA',
     carrier: TOMCAT_CARRIER,
+    launch: TOMCAT_LAUNCH,
     takeoff: {
       vrKt: nv(145, TOMCAT_TO, 'Heatblur takeoff page is a work in progress; gameplay value.'),
       pitchDeg: nv([8, 12], TOMCAT_TO, 'Not published; gameplay band.'),
@@ -409,7 +479,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
     ruTakeoff(SU27, 140, 260, ' Su-27 value used.')),
   su33: { ...ruJet('su33', SU33, nv(130, SU33, 'Manual history quotes 240 km/h for the Su-33 approach; background only.'),
     { slow: 'red', on: 'green', fast: 'yellow' }, 'ISM-1 indexer: yellow fast, green optimal, red slow; the manual gives no on-speed number, gameplay value.',
-    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the carrier ski-jump is not in the trainer.')), carrier: SU33_CARRIER },
+    ruTakeoff(SU33, 135, 250, ' Runway takeoff; the ski-jump is the launch lesson.')), carrier: SU33_CARRIER, launch: SU33_LAUNCH },
   mig29s: ruJet('mig29s', MIG29, nv(140, MIG29, 'Not given; gameplay value.'),
     { slow: null, on: null, fast: null }, 'The manual gives no approach AoA; gameplay value.',
     ruTakeoff(MIG29, 135, 250)),
@@ -432,5 +502,7 @@ export const FLIGHT_OPS_CAVEATS: string[] = [
   'Touchdown zone is a trainer choice: 350 ft short to 1000 ft past the aim point, never short of the threshold.',
   'Carrier: Hornet hook H, 350 KIAS / 800 ft initial, 600 ft downwind 1¼–1½ nm abeam, ball at ¾ nm, gear and FULL flaps below 150 KIAS, and the Tomcat 800 ft 300–350 KIAS break, 15–17 s interval, 90 at 450–500 ft, ball at 0.6 nm, 15–18 s groove and MIL at touchdown are sourced. The Tomcat hook key, the ball-call key Y (DCS uses the radio menu), the Hornet groove time and 90 altitude and the whole Su-33 Case I pattern are not.',
   'Carrier: LSO calls, ball cells, the grade and the wire rule are arcade rules built on the Supercarrier guide thresholds; the grade comment bands and pass penalties are trainer choices.',
+  'Launch: Hornet NWS HI S, hook up U, T/O trim 16° / 17° / 19° by weight, MIL (afterburner from 49000 lb), wipe out, salute and hands off; Tomcat hook up U and salute LShift+U (Heatblur lesson text); clearing turn right from catapults 1–2 and left from 3–4; Su-33 runs of 90 m (positions 1–2) and 180 m (position 3, heavy), full then special afterburner LShift+E (10-minute limit), no FOD screens LAlt+I (−12 % thrust) are sourced. Not verified: the Hornet salute key (LCtrl+LShift+LAlt+S or the radio menu against LShift+U), the launch bar and wipe-out trainer keys, Tomcat MIL and hands off, the stopper release, the 29000 kg short-run limit and the trainer launch weights.',
+  'Launch: the catapult stroke (2.5 s to the approach speed + 15 kt), the shooter delay, the ski-jump run acceleration, the 12° ramp, the minimum ramp speed (0.85 of the approach speed) and the settle after a cold cat or a short run are arcade rules, not catapult or ski-jump performance.',
   ...SHIP_CAVEATS,
 ];
