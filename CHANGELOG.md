@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Merge & guns (#11): a new close-combat page for all ten jets. Fly an arcade BFM mode from the keyboard or a
+  touch pad against a scripted bandit (straight, level turn, turning and reversing, gun attack) through Corner
+  speed, Pursuit, Guns tracking and Guns defence lessons plus a Free fight, each with a score and a debrief. The HUD
+  panel (and a cockpit-camera overlay) draws each jet's own gun sight: FC3 funnel / LCOS, F-15C LCOS / reticle,
+  Hornet funnel / director with SHOOT, F-16C EEGS Level II / V, F-14 RTGS, JF-17 SS / SSLC / LCOS, M-2000C CCLT,
+  labelled simplified. The 3D view adds tracers, the lift vector, turn circles, the bandit's plane of motion,
+  pursuit-coloured lines and hit sparks.
+
 - Pattern & landing adds air-to-air refuelling (#28): Tanker rejoin and Pre-contact starts for the Su-33 (IL-78M
   with UPAZ pods), F-15C and F-16C (KC-135 boom) and the F/A-18C, F-14B, JF-17 and M-2000C (KC-135 MPRS or KC-130
   hose), low-poly tankers with hose, basket and boom, Wing and Receiver cameras, probe / door / lights / radio-call

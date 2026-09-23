@@ -14,6 +14,7 @@ export const LESSON_LINKS: readonly NavLink[] = [
   { path: 'radar?ex=low', label: 'Radar' }, { path: 'tws', label: 'TWS' },
   { path: 'missiles', label: 'Missiles' }, { path: 'defense', label: 'Defense' },
   { path: 'rwr', label: 'RWR' }, { path: 'flight-ops', label: 'Pattern & landing' },
+  { path: 'merge', label: 'Merge & guns' },
 ];
 
 export const PRACTICE_LINKS: readonly NavLink[] = [
@@ -21,6 +22,7 @@ export const PRACTICE_LINKS: readonly NavLink[] = [
   { path: 'radar?lab=free&ex=free', label: 'Radar experiment', description: 'Explore scan volume, elevation and target detection with the radar lab controls.' },
   { path: 'missiles?lab=free', label: 'Missile experiment', description: 'Change the launch setup and compare the simulated shot outcome.' },
   { path: 'defense?lab=free&drill=free', label: 'Defense practice', description: 'Choose a defensive setup and practise timing your response to an incoming missile.' },
+  { path: 'merge?lab=free', label: 'Free fight', description: 'Merge head-on with a scripted bandit and fight with the gun. Pick how he flies.' },
   { path: 'flight-ops?lab=free&mode=fly', label: 'Fly the pattern', description: 'Fly the overhead break and the approach yourself, then read the graded debrief.' },
 ];
 

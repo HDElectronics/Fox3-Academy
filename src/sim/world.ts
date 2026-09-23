@@ -3,7 +3,8 @@
  * single API pages use to drive the simulation. Module behaviour lives in:
  *   flight.ts (aircraft motion), missile.ts (missiles), countermeasures.ts (chaff/flares),
  *   radar.ts (scan, detection, tracks, modes), rwr.ts (warnings), ai.ts (AI pilots),
- *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites).
+ *   launch.ts (launch rules), dlz.ts (launch zones), picture.ts (radar display model), sam.ts (SAM sites),
+ *   guns.ts (gun trigger, arcade hits, sight geometry).
  */
 import { Vector3 } from 'three';
 import type { MissileId, RadarModeId } from '../data/types';
@@ -29,6 +30,7 @@ import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
+import { createGunState, stepGuns } from './guns';
 
 export const SIM_HZ = 60;
 const RECORD_EVERY = 0.25;
@@ -102,6 +104,7 @@ export class World {
       stores: o.stores ?? stores,
       selectedWeapon: null,
       chaff: spec.cms.chaff, flares: spec.cms.flares,
+      gun: createGunState(o.type), damage: 0,
       ai: o.controller === 'ai' ? { skill: o.skill ?? 'regular', state: 'patrol', stateSince: this.t, data: {} } : null,
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
@@ -148,6 +151,7 @@ export class World {
     this.t += h;
     for (const ac of this.aircraft.values()) if (ac.alive && ac.controller === 'ai') thinkAi(this, ac, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
+    stepGuns(this, h);
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
@@ -257,6 +261,7 @@ export class World {
         alive: a.alive, radarMode: r.mode, sttTarget: r.stt.targetId,
         radar: { azCenter: r.azCenter, azHalf: r.azHalf, elCenter: r.elCenter, bars: r.bars, beamAz: r.beamAz, beamEl: r.beamEl },
         designated: r.designated.slice(),
+        firing: a.gun.firing,
         radarContacts: {
           bricks: r.bricks.map(b => ({ targetId: b.targetId, t: b.t, pos: [b.pos.x, b.pos.y, b.pos.z] })),
           tracks: r.tracks.map(tr => ({
