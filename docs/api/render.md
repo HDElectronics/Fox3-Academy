@@ -403,7 +403,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos)`; swaps the jet if `state.aircraft` changed.
-  - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit')`: chase = behind the jet on its heading, 9 m
+  - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck')`: chase = behind the jet on its heading, 9 m
     high and 7 m left, looking between the jet and the aim point while the runway is ahead (so the
     jet sits low right and the runway stays visible on final) and along the heading otherwise;
     side = abeam from the east looking west, framing the jet and the aim point so the glide path reads
@@ -428,6 +428,12 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
     display choice) looking at the jet up the groove, no smoothing (the platform moves with the ship), jet
     screen-size floor 24 px. The field of view narrows with range to frame about 90 m around the jet (down to
     6°); other views restore the Stage FOV, and so does `dispose()`. `'tower'` at sea shows the LSO view and `'lso'` on the airfield shows the tower.
+  - Deck launch (#27): on a ship start with `state.launch` the scene adds a `LaunchDeck` to the `CarrierMesh` and
+    drives it each `update`. It remembers the ship-frame spot the jet was held on: the side view frames that spot
+    and the jet along the ship's heading. Camera `'deck'` is the shooter's view: on the deck `DECK_EYE` ahead of
+    and beside the held jet (ahead 22 m, outboard 17 m, 1.8 m up; display choice), looking at the jet, no
+    smoothing, the field of view narrowing with range to about 45 m around the jet. Without a launch `'deck'`
+    shows the chase view.
   - Tail hook: when `state.hookPos` is defined the scene hangs a simple arm under the jet's tail and swings it
     35° down by `hookPos` (hidden when stowed). Drawn by the scene, not a `JetMesh` part.
 - `CarrierMesh(palette, shipId, targetWire = 3)`: low-poly ship in ship-local metres (origin at the ramp at
@@ -438,7 +444,17 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   the Luna-3 colour light. `place({ x, z, heading })`, `setBall(ball | null)`, `dispose()`. Drawing values,
   not ship plans. Pure helpers: `deckOutline(id)` (ship frame a, c), `landingPaint(ship, targetWire)`
   (`DeckStrip[]` in the landing frame), `landingLocal(u, v, angledDeg)`, `shipLocal(a, c)`,
-  `shipToLanding(a, c, angledDeg)`, `lensCell(ball)`.
+  `shipToLanding(a, c, angledDeg)`, `lensCell(ball)`. The Kuznetsov ski-jump follows the sim: the last `RAMP_M`
+  (25 m) of the bow rise on `skiJumpProfile()` to `RAMP_DEG` (12°) at the lip, wide enough for every launch position.
+- `LaunchDeck(palette, shipId)` (`flightOps/launchDeck.ts`, #27): deck-launch furniture in ship-local metres, a
+  child of `CarrierMesh`. CVN: four catapult tracks at `STATION_C` (cats 1–2 on the bow, 3–4 on the waist), a
+  shuttle under the nose of the jet on the active catapult (it rides the stroke), and a jet-blast deflector per
+  catapult, hinged at its forward edge, raised behind the held jet. Kuznetsov: launch positions 1–3 (a bar across,
+  1–3 tick marks, a dashed lead line to the ramp) and two deck stoppers in front of the main wheels that drop at the
+  release. `update(launch | null, { a, c } | null, jetLengthM, t)`, `dispose()`. Pure helpers:
+  `skiJumpHeight(into)`, `skiJumpProfile(n)`, `catTracks(id)`, `launchPositions(id)` (runs from the launch data),
+  `jbdRaise(launch, t)` (0..1 over `JBD.raiseS` from the start, down after the stroke), `stoppersUp(launch)`.
+  Drawing values; the motion comes from the sim.
 - `ApproachOverlay(stage.shared, palette, opts)`: translucent glide corridor from the aim point back
   `lengthM` (default 4 nm) with rails and 1 nm frames, the dashed glide-path line, the extended
   centreline, the aim-point ring. Corridor half-angles `vTolDeg` / `hTolDeg` (defaults 0.7° / 1.5°)
