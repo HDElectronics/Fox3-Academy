@@ -92,6 +92,7 @@ export interface GunSightPicture {
   missM: number | null;
   rounds: number;
   roundsMax: number;
+  /** Trigger held with rounds left (steady, unlike gun.firing which is true only on ticks that fire). */
   firing: boolean;
 }
 
@@ -193,6 +194,6 @@ export function buildGunSight(me: Aircraft, target: Aircraft | null, o: GunSight
   return {
     style, units, funnel, pipper, diamond, marks, target: target_, locked, range, arcFullM, maxRange,
     inRange: !!sol?.inRange, inSolution: !!sol?.inSolution, shoot, missM,
-    rounds: me.gun.rounds, roundsMax: spec.rounds.value, firing: me.gun.firing,
+    rounds: me.gun.rounds, roundsMax: spec.rounds.value, firing: !!me.cmd.trigger && me.gun.rounds > 0,
   };
 }

@@ -173,26 +173,30 @@ export class GunSightDisplay {
       }
     }
 
-    // ---- text: sight name, rounds, range, cues (B612 Mono, no thousands separators)
+    // ---- text: sight name, rounds, range, cues (B612 Mono, no thousands separators). The overlay keeps its
+    // text in a HUD-sized box around the boresight, clear of the page's viewport controls.
     g.ink(ink, 0.8, 0.3);
     const fs = this.o.overlay ? 2.6 : 3.6;
     g.font(fs);
     const pad = 3 * k;
-    g.text(p.style.name.toUpperCase(), pad, pad, 'left', 'top');
-    g.text(`RDS ${p.rounds}`, W - pad, H - pad, 'right', 'bottom');
+    const box = this.o.overlay
+      ? { l: cx - 0.42 * H, r: cx + 0.42 * H, t: cy - 0.36 * H, b: cy + 0.4 * H }
+      : { l: pad, r: W - pad, t: pad, b: H - pad };
+    g.text(p.style.name.toUpperCase(), box.l, box.t, 'left', 'top');
+    g.text(`RDS ${p.rounds}`, box.r, box.b, 'right', 'bottom');
     if (p.range != null) {
       const txt = p.units === 'metric' ? `${Math.round(p.range / 10) * 10} M` : `${Math.round(p.range / FT / 50) * 50} FT`;
-      g.text(txt, pad, H - pad, 'left', 'bottom');
+      g.text(txt, box.l, box.b, 'left', 'bottom');
     }
     if (p.shoot) {
       g.ink(th.symHi, 1.2, 0.3); g.font(fs * 1.4, 700);
-      g.text('SHOOT', cx, Math.min(H - 8 * k, cy + 22 * k), 'center', 'middle');
+      g.text('SHOOT', cx, Math.min(box.b - 8 * k, cy + 22 * k), 'center', 'middle');
     } else if (p.inRange && p.style.kind !== 'hornet-director') {
       g.ink(dim, 0.6, 0.3); g.font(fs);
-      g.text('IN RNG', W - pad, pad, 'right', 'top');
+      g.text('IN RNG', box.r, box.t, 'right', 'top');
     }
-    if (p.firing && blinkOn(4)) { g.ink(th.symHi, 1, 0.3); g.font(fs, 700); g.text('GUN', cx, H - pad, 'center', 'bottom'); }
-    else { g.ink(dim, 0, 0.3); g.font(fs * 0.8); g.text('SIMPLIFIED', cx, H - pad, 'center', 'bottom'); }
+    if (p.firing && blinkOn(4)) { g.ink(th.symHi, 1, 0.3); g.font(fs, 700); g.text('GUN', cx, box.b, 'center', 'bottom'); }
+    else { g.ink(dim, 0, 0.3); g.font(fs * 0.8); g.text('SIMPLIFIED', cx, box.b, 'center', 'bottom'); }
     g.reset();
   }
 }
