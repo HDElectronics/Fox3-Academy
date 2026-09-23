@@ -212,6 +212,15 @@ kill, a launch from outside the 12 km ring, and time spent inside it. **SAM thre
 SA-15; the SPO-15 shows its search, lock and launch. Kill the SAM with a Kh-58 first, or fire Vikhrs from
 beyond its ring; on a launch notch it (SAM at 3 or 9 o'clock) and descend. Add `?sa11=1` for an SA-11 as well.
 The Kh-58 type codes and the CCRP tolerances are trainer values, marked not verified.
+**Sortie** puts it together. The brief shows the area map (start, IP, the armour column and the bunker, the SA-15
+ring and a ZSU-23-4 gun site) and a loadout picker: Vikhrs and rockets, laser missiles, TV weapons, bombs and
+rockets, or the Kh-58 SEAD fit; switch on the SA-11 for a harder day. Fly low to the IP on the steering cue at the
+top right (the jet follows the terrain at the height you set with Up / Down), pop up past the IP to about 600 m,
+find the column or the bunker with the Shkval and attack, then turn back, descend and fly out past the IP. Delete
+drops flares (binding not verified; they do nothing against the radar SAMs here). The debrief replays the sortie
+in plan view: drag the timeline, zoom to the target area, click an event to jump to it. It lists every weapon's
+result and miss reason, the gimbal margin at each guided launch, laser-on bursts, time inside each SAM ring and the
+gun envelope, a score out of 100 and coaching on each mistake.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

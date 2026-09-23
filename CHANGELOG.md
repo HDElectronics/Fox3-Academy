@@ -9,6 +9,16 @@
   ПР on the FC3 jets) and plays the growl and lock tone with a mute toggle. New lesson Close-range lock and IR shot,
   scored on time to lock, shots in the zone and the result against a bandit who flares; IR shots also in the Free
   fight. Unverified areas, keys and tones say so.
+- Su-25T sortie (#37): a new **Sortie** lesson on the Shkval & Vikhr page. Brief on a plan-view map (start, IP,
+  armour column and bunker, SA-15 ring, ZSU-23-4 gun envelope, optional SA-11) with a loadout picker from the five
+  Su-25T loadouts and the plan each implies. Fly a low-level ingress on a trainer steering cue with terrain
+  following (Up / Down set the height above the ground), pop up past the IP, find and attack with the Shkval,
+  then egress back past the IP; the mission ends on egress, when shot down, or at 10 minutes, and waits for SAMs
+  still in flight. The debrief replays the sortie in plan view (truth: track, weapons, SAMs, Shkval line and laser)
+  over a timeline with event markers and lanes for laser-on intervals, SAM-ring and gun-envelope time; it lists
+  results per weapon with miss reasons, the gimbal margin at each guided launch and its minimum while a laser
+  weapon flew, and coaching per mistake, with a score out of 100. Progress `strike:sortie:su25t`. Pre-rolls:
+  `?lesson=sortie&shot=brief|ingress|attack|egress|debrief`, `&loadout=<id>`.
 
 - Merge & guns, part 2 (#11): three new lessons, The merge (lead turn, pass close, nose high or low, scored on
   angles gained by the second pass), One vs two circle (live turn circles, trainer advice for your jet against the

@@ -6,7 +6,10 @@ import type { AgMissReason, GroundUnitKind } from '../../sim/types';
 import { AG_CAVEATS } from '../../data/agWeapons';
 import { SAM_CAVEATS } from '../../data/sams';
 
-export const STRIKE_CAVEATS = [...AG_CAVEATS, ...SAM_CAVEATS];
+export const STRIKE_CAVEATS = [
+  ...AG_CAVEATS, ...SAM_CAVEATS,
+  'Sortie: the ZSU-23-4 envelope (2.5 km, about 6 s of exposure), terrain following, the steering cue, the score and the Delete flare key are trainer values, not verified.',
+];
 
 /** Keep scoring live until weapons resolve, including ballistic SAMs that can still hit after track loss. */
 export function strikeWeaponsResolved(
@@ -19,8 +22,8 @@ export function strikeWeaponsResolved(
   return true;
 }
 
-export type LessonId = 'shkval' | 'laser' | 'vikhr' | 'ccip' | 'bombs' | 'sead' | 'threat';
-export const LESSON_ORDER: LessonId[] = ['shkval', 'laser', 'vikhr', 'ccip', 'bombs', 'sead', 'threat'];
+export type LessonId = 'shkval' | 'laser' | 'vikhr' | 'ccip' | 'bombs' | 'sead' | 'threat' | 'sortie';
+export const LESSON_ORDER: LessonId[] = ['shkval', 'laser', 'vikhr', 'ccip', 'bombs', 'sead', 'threat', 'sortie'];
 
 /** What the steps look at, sampled each frame by the page. */
 export interface StrikeSnap {
@@ -58,6 +61,10 @@ export interface StrikeSnap {
   /** SAM sites destroyed, tanks destroyed. */
   samsKilled: number;
   tanksKilled: number;
+  /** Sortie: mission phase ('brief' until Fly), IP passed, height above the ground (m), column or bunker locked. */
+  sortiePhase?: 'brief' | 'ingress' | 'attack' | 'egress' | 'done';
+  ipReached?: boolean;
+  aglM?: number;
 }
 
 export interface LessonStep { id: string; text: string; keys?: string; check: (s: StrikeSnap) => boolean }
@@ -151,6 +158,18 @@ export const LESSONS: Record<LessonId, LessonDef> = {
       { id: 'choose', text: 'Choose: Kh-58 on the SA-15 first (58, I, Enter), or Vikhrs (9А4172) fired from outside its ring.', keys: 'D', check: s => s.selected === 'kh58' || s.selected === 'vikhr' },
       { id: 'first', text: 'Kill the SA-15, or put a Vikhr into a tank while you stay outside the ring.', check: s => s.samsKilled > 0 || s.tanksKilled > 0 },
       { id: 'platoon', text: 'Destroy the platoon. On a launch cue: notch, descend, or leave the ring.', check: s => s.tanksKilled >= 4 },
+    ],
+  },
+  sortie: {
+    id: 'sortie', title: 'Su-25T sortie', short: 'Sortie', scored: true,
+    goal: 'Brief, fly low to the IP, pop up, find the armour column and the bunker with the Shkval, attack, and egress past the IP.',
+    steps: [
+      { id: 'brief', text: 'Brief: pick the loadout, read the threats and the IP, then fly.', check: s => s.sortiePhase !== undefined && s.sortiePhase !== 'brief' },
+      { id: 'ingress', text: 'Ingress low (50–100 m) on the steering cue to the IP. Terrain hides you from the SAM radars.', keys: 'Left / Right, Up / Down', check: s => !!s.ipReached },
+      { id: 'popup', text: 'Past the IP, turn onto the target and pop up to about 600 m for the Shkval search.', keys: 'Up', check: s => !!s.ipReached && (s.aglM ?? 0) > 400 },
+      { id: 'search', text: 'Air-to-ground mode, Shkval on, find the column (10 m) or the bunker (60 m) and lock: АС.', keys: '7, O, Enter', check: s => s.locked === 'tank' || s.locked === 'apc' || s.locked === 'bunker' || s.hits > 0 },
+      { id: 'attack', text: 'Attack with your loadout. Laser weapons: hold the lock and ЛД to impact.', keys: 'Space', check: s => s.hits > 0 },
+      { id: 'egress', text: 'Egress: turn back, descend and fly out past the IP.', keys: 'Left / Right, Down', check: s => s.sortiePhase === 'done' },
     ],
   },
 };
