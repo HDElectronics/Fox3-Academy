@@ -4,17 +4,104 @@
  */
 import { Surface } from '../../ui/displays/surface';
 import { alpha } from '../../ui/theme';
-import { INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, type FlightOpsJetData, type FlightOpsState } from '../../sim/flightOps';
+import {
+  IFLOLS_RED_CELL, INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, landingToWorld, shipData, shipToWorld, type FlightOpsJetData, type FlightOpsState,
+} from '../../sim/flightOps';
+import { deckOutline } from '../../render/flightOps/carrier';
+import { SHIPS } from '../../data/ships';
 import { R2D, clamp } from '../../sim/math';
 import type { Units } from '../../app/format';
 import {
   altUnit, altVal, aoaText, flapControl, indexerLamps, lampToken, navPicture, showTakeoffCues, spdUnit, spdVal, takeoffSpeeds, tapeY,
-  type NavPicture, type PlacedGate,
+  type BallPicture, type NavPicture, type PlacedGate,
 } from './logic';
 
 function tokenColor(s: Surface, t: 'ok' | 'caution' | 'warning' | 'neutral'): string {
   const th = s.theme;
   return t === 'ok' ? th.ok : t === 'caution' ? th.caution : t === 'warning' ? th.warning : th.groundInk;
+}
+
+// ------------------------------------------------------------------ landing aid close-up (#26)
+
+/**
+ * The optical landing aid as the pilot sees it, close up. IFLOLS: the vertical lens of 11 cells with the amber
+ * ball (red in the bottom cells), the green datum bars either side, the red waveoff lights and the green cut
+ * lights. Luna-3 (Su-33): one colour light, green on the glide slope, yellow high, red low. "CALL THE BALL"
+ * shows while `prompt` is set.
+ */
+export class BallDisplay {
+  private readonly s: Surface;
+  private last: { pic: BallPicture | null; prompt: boolean } = { pic: null, prompt: false };
+  constructor(canvas: HTMLCanvasElement) {
+    this.s = new Surface(canvas);
+    this.s.onResize = () => this.draw(this.last.pic, this.last.prompt);
+  }
+
+  draw(pic: BallPicture | null, prompt: boolean): void {
+    this.last = { pic, prompt };
+    const s = this.s;
+    if (!s.begin()) return;
+    const { ctx, w, h, theme: th } = s;
+    ctx.fillStyle = th.screen; ctx.fillRect(0, 0, w, h);
+    const fs = Math.max(9, Math.round(Math.min(w, h) / 13));
+    ctx.font = `${fs}px ${th.fontMono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cx = w / 2, cy = h * 0.46;
+    const dim = alpha(th.symDim, 0.35);
+    const lamp = (x: number, y: number, bw: number, bh: number, col: string | null) => {
+      ctx.fillStyle = col ?? dim;
+      if (col) { ctx.shadowColor = col; ctx.shadowBlur = 8; }
+      ctx.fillRect(x - bw / 2, y - bh / 2, bw, bh);
+      ctx.shadowBlur = 0;
+    };
+    if (!pic || pic.lights === 'iflols') {
+      const cellH = Math.min(h * 0.058, w * 0.07), lensW = cellH * 1.8;
+      // Lens frame and cells (+5 at the top).
+      ctx.strokeStyle = alpha(th.sym, 0.5); ctx.lineWidth = 1;
+      ctx.strokeRect(cx - lensW / 2, cy - cellH * 5.5, lensW, cellH * 11);
+      for (let c = -5; c <= 5; c++) {
+        const y = cy - c * cellH;
+        ctx.strokeStyle = alpha(th.sym, 0.18);
+        ctx.beginPath(); ctx.moveTo(cx - lensW / 2, y + cellH / 2); ctx.lineTo(cx + lensW / 2, y + cellH / 2); ctx.stroke();
+        if (c <= IFLOLS_RED_CELL) lamp(cx, y, lensW * 0.3, cellH * 0.3, null);
+      }
+      // Datum bars (always lit when the lens is).
+      const on = !!pic && pic.cell !== null;
+      for (const side of [-1, 1]) lamp(cx + side * (lensW / 2 + lensW * 0.95), cy, lensW * 1.3, cellH * 0.45, on ? th.ok : null);
+      // Waveoff (red, flanking) and cut (green, above) lights.
+      for (const side of [-1, 1]) lamp(cx + side * (lensW / 2 + lensW * 0.35), cy - cellH * 3.2, lensW * 0.28, cellH * 2.6, pic?.waveoff ? th.warning : null);
+      lamp(cx, cy - cellH * 6.6, lensW * 1.6, cellH * 0.45, pic?.cut ? th.ok : null);
+      if (pic && pic.cell !== null) {
+        const col = pic.tone === 'warning' ? th.warning : th.caution;
+        ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(cx, cy - pic.cell * cellH, cellH * 0.42, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    } else {
+      const r = Math.min(w, h) * 0.16;
+      const col = pic.tone === 'warning' ? th.warning : pic.tone === 'caution' ? th.caution : pic.tone === 'ok' ? th.ok : null;
+      ctx.strokeStyle = alpha(th.sym, 0.5); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = col ?? dim;
+      if (col) { ctx.shadowColor = col; ctx.shadowBlur = 14; }
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Captions shrink to fit the bezel width.
+    const fit = (text: string, y: number) => {
+      let f = fs;
+      ctx.font = `${f}px ${th.fontMono}`;
+      while (f > 7 && ctx.measureText(text).width > w - 8) { f -= 1; ctx.font = `${f}px ${th.fontMono}`; }
+      ctx.fillText(text, cx, y);
+    };
+    ctx.fillStyle = pic?.cell !== null || pic?.tone ? th.symHi : th.symDim;
+    fit((pic?.words ?? 'No ball').toUpperCase(), h - fs * 1.9);
+    if (prompt) {
+      ctx.fillStyle = th.caution;
+      fit('CALL THE BALL', h - fs * 0.8);
+    }
+  }
+
+  dispose(): void { this.s.dispose(); }
 }
 
 // ------------------------------------------------------------------ HUD
@@ -77,12 +164,17 @@ export class HudDisplay {
       ctx.textAlign = 'left'; ctx.fillText(String(Math.abs(e)), half + 4, y);
     }
     // Glide line: the depression line the marker sits on in the groove.
-    const gy = yOf(-d.glideDeg.value);
+    const glide = st.ship ? SHIPS[st.ship.id].glideDeg.value : d.glideDeg.value;   // carrier starts: the ship's glide slope
+    const gy = yOf(-glide);
     ctx.strokeStyle = th.symHi; ctx.lineWidth = 1.5; ctx.setLineDash([10, 6]);
-    const glLabel = `−${d.glideDeg.value}°`;
+    const glLabel = `−${glide}°`;
+    // Narrow HUD (carrier strip): shrink the label so "−3.5°" stays inside the clip.
+    const room = w / 2 - colW - 30, lw = ctx.measureText(glLabel).width;
+    if (lw > room && room > 0) ctx.font = `${Math.max(7, Math.floor(fs * room / lw))}px ${th.fontMono}`;
     const gl = Math.max(20, w / 2 - colW - ctx.measureText(glLabel).width - 10);
     ctx.beginPath(); ctx.moveTo(-gl, gy); ctx.lineTo(gl, gy); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = th.symHi; ctx.textAlign = 'left'; ctx.fillText(glLabel, gl + 4, gy);
+    ctx.font = `${fs}px ${th.fontMono}`;
     // Takeoff: pitch bracket for the target band and the tail-strike line (waterline goes inside the bracket).
     if (toCues) {
       const [lo, hi] = d.takeoff.pitchDeg.value;
@@ -285,8 +377,10 @@ export class TraceDisplay {
     if (!s.begin()) return;
     const { ctx, w, h, theme: th } = s;
     ctx.fillStyle = th.screen; ctx.fillRect(0, 0, w, h);
-    // Bounds: runway, gates, jet, track; fixed aspect.
+    // Bounds: runway (or the ship), gates, jet, track; fixed aspect.
+    const ship = st?.ship ? st : null;
     let x0 = -600, x1 = 600, z0 = -RUNWAY.lengthM - 200, z1 = 600;
+    if (ship) { x0 = ship.ship!.x - 800; x1 = ship.ship!.x + 800; z0 = ship.ship!.z - 800; z1 = ship.ship!.z + 800; }
     const grow = (x: number, z: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
     for (const g of gates) grow(g.pos.x, g.pos.z);
     if (st) grow(st.pos.x, st.pos.z);
@@ -296,13 +390,24 @@ export class TraceDisplay {
     const ox = w / 2 - ((x0 + x1) / 2) * sc, oz = h / 2 - ((z0 + z1) / 2) * sc;
     const X = (x: number) => ox + x * sc, Z = (z: number) => oz + z * sc;
 
-    // Runway.
-    ctx.fillStyle = th.symDim;
-    const rw = Math.max(3, RUNWAY.widthM * sc);
-    ctx.fillRect(X(0) - rw / 2, Z(-RUNWAY.lengthM), rw, RUNWAY.lengthM * sc);
-    // Extended centreline.
-    ctx.strokeStyle = alpha(th.sym, 0.25); ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
-    ctx.beginPath(); ctx.moveTo(X(0), Z(0)); ctx.lineTo(X(0), Z(z1 + 200)); ctx.stroke(); ctx.setLineDash([]);
+    if (ship) {
+      // The ship where it is now (it moves on the BRC), and the landing centreline extended astern.
+      ctx.fillStyle = th.symDim;
+      ctx.beginPath();
+      deckOutline(ship.ship!.id).forEach(([a, c], i) => { const p = shipToWorld(ship, a, c); if (i) ctx.lineTo(X(p.x), Z(p.z)); else ctx.moveTo(X(p.x), Z(p.z)); });
+      ctx.closePath(); ctx.fill();
+      const far = landingToWorld(ship, shipData(ship).landingAreaLengthM, 0), aft = landingToWorld(ship, -4000, 0);
+      ctx.strokeStyle = alpha(th.sym, 0.3); ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(X(far.x), Z(far.z)); ctx.lineTo(X(aft.x), Z(aft.z)); ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      // Runway.
+      ctx.fillStyle = th.symDim;
+      const rw = Math.max(3, RUNWAY.widthM * sc);
+      ctx.fillRect(X(0) - rw / 2, Z(-RUNWAY.lengthM), rw, RUNWAY.lengthM * sc);
+      // Extended centreline.
+      ctx.strokeStyle = alpha(th.sym, 0.25); ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(X(0), Z(0)); ctx.lineTo(X(0), Z(z1 + 200)); ctx.stroke(); ctx.setLineDash([]);
+    }
 
     // Track.
     const cols = [th.ok, th.caution, th.warning];
@@ -316,7 +421,9 @@ export class TraceDisplay {
     // Gates.
     const fs = Math.max(9, Math.round(Math.min(w, h) / 26));
     ctx.font = `${fs}px ${th.fontMono}`; ctx.textBaseline = 'middle';
-    for (const g of gates) {
+    // Later gates (groove, touchdown) keep their labels; an earlier label that would overlap one is dropped.
+    const taken: { x: number; y: number; w: number }[] = [];
+    for (const g of [...gates].reverse()) {
       const state = g.state;
       const col = state === 'ok' ? th.ok : state === 'miss' ? th.warning : th.symHi;
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.5;
@@ -324,8 +431,12 @@ export class TraceDisplay {
       if (state === 'pending') ctx.stroke(); else ctx.fill();
       const left = g.pos.x < -50;
       const dy = g.id === 'initial' ? fs * 0.6 : g.id === 'touchdown' ? -fs * 0.6 : 0;
-      ctx.textAlign = left ? 'right' : 'left';
-      ctx.fillText(g.label.toUpperCase(), X(g.pos.x) + (left ? -9 : 9), Z(g.pos.z) + dy);
+      const text = g.label.toUpperCase(), tw = ctx.measureText(text).width;
+      const lx = left ? X(g.pos.x) - 9 - tw : X(g.pos.x) + 9, ly = Z(g.pos.z) + dy;
+      if (taken.some(t => Math.abs(t.y - ly) < fs * 1.1 && lx < t.x + t.w + 4 && t.x < lx + tw + 4)) continue;
+      taken.push({ x: lx, y: ly, w: tw });
+      ctx.textAlign = 'left';
+      ctx.fillText(text, lx, ly);
     }
 
     // Jet.

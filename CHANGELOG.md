@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Pattern & landing adds carrier Case I and In the groove starts for the F/A-18C, F-14B and Su-33 (#26): a moving
+  CVN or Kuznetsov with the angled deck, four wires and the ski-jump, sea instead of land, an LSO platform camera,
+  hook (H / LAlt+G) and ball-call (Y) keys and touch buttons, an IFLOLS or Luna-3 close-up with a call-the-ball
+  prompt, an LSO call log, Case I lesson steps and a DCS-style debrief (grade, comment codes in plain words, wire)
+  with its own progress key.
+
 - Pattern & landing adds a runway Takeoff start for all ten jets (#24): Watch and Fly, wheel brakes on W (also
   on the landing rollout), a HUD speed tape with VR and PULL bugs, a pitch bracket with the tail-strike line, a
   BRAKES · POWER · RELEASE · ROTATE · GEAR UP · FLAPS strip, per-jet lesson steps, a graded takeoff debrief and

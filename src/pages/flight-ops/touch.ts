@@ -6,7 +6,7 @@
 import { button, h, slider } from '../../ui';
 import { clamp } from '../../sim/math';
 
-export type TouchAction = 'gear' | 'flaps' | 'brake' | 'nav' | 'ab';
+export type TouchAction = 'gear' | 'flaps' | 'brake' | 'nav' | 'ab' | 'hook' | 'ball';
 
 export interface TouchControlsOptions {
   /** Show the FLAPS button (jets with a flap selector). */
@@ -17,6 +17,8 @@ export interface TouchControlsOptions {
   brakesKey?: string;
   /** Nav mode button: title (the modes it cycles) and key; omit for jets without nav. */
   nav?: { title: string; key: string };
+  /** HOOK and BALL buttons (jets that go to the boat): their keys. Shown on carrier starts (setCarrier). */
+  carrier?: { hookKey: string; ballKey: string };
   onAction: (a: TouchAction) => void;
   onThrottle: (v: number) => void;
 }
@@ -29,6 +31,8 @@ export interface TouchControlsHandle {
   /** BRAKES button held (wheel brakes). */
   readonly wheelBrakes: boolean;
   setThrottle(v: number): void;
+  /** Show the HOOK and BALL buttons (carrier starts only). */
+  setCarrier(on: boolean): void;
   dispose(): void;
 }
 
@@ -106,6 +110,11 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
     button({ id: 'fo-touch-brake', label: 'SPD BRK', title: 'Speed brake', onClick: () => o.onAction('brake') }),
     o.nav ? button({ id: 'fo-touch-nav', label: 'NAV', keys: o.nav.key, title: o.nav.title, onClick: () => o.onAction('nav') }) : null,
   ].filter(b => b !== null);
+  const carrierBtns = o.carrier ? [
+    button({ id: 'fo-touch-hook', label: 'HOOK', keys: o.carrier.hookKey, title: 'Tail hook up or down', onClick: () => o.onAction('hook') }),
+    button({ id: 'fo-touch-ball', label: 'BALL', keys: o.carrier.ballKey, title: 'Call the ball', onClick: () => o.onAction('ball') }),
+  ] : [];
+  for (const b of carrierBtns) { b.el.hidden = true; btns.push(b); }
   const el = h('div', { class: 'fo-touch', id: 'fo-touch' },
     pad,
     h('div', { class: 'fo-touch__side' }, thr.el, h('div', { class: 'fo-touch__btns' }, btns.map(b => b.el))));
@@ -116,6 +125,7 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
     get active() { return pointer !== null; },
     get wheelBrakes() { return wheel !== null; },
     setThrottle(v) { if (document.activeElement !== thr.input) thr.set(Math.round(v * 100), false); },
+    setCarrier(on) { for (const b of carrierBtns) b.el.hidden = !on; },
     dispose() {
       pad.removeEventListener('pointerdown', down);
       pad.removeEventListener('pointermove', move);
