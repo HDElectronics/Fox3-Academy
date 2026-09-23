@@ -56,9 +56,9 @@ actions and dispose layout observers on unmount. The shell publishes its measure
 | Path | Owner | Notes |
 |---|---|---|
 | `src/app/*`, `src/main.ts`, `index.html`, `src/styles/tokens.css`, `src/styles/base.css`, `src/ui/theme.ts`, `src/sim/types.ts`, `src/sim/world.ts`, `src/sim/math.ts`, `src/sim/atmosphere.ts`, `src/data/types.ts`, configs | architect | Contracts. Do not edit. If you need a change, work around it locally and list it under "Requests" in your final report. |
-| `src/data/aircraft.ts`, `missiles.ts`, `rwr.ts`, `procedures.ts`, `sources.ts` | data | Facts from research. Keep the types. |
+| `src/data/aircraft.ts`, `missiles.ts`, `rwr.ts`, `sams.ts`, `procedures.ts`, `sources.ts` | data | Facts from research. Keep the types. |
 | `src/sim/flight.ts`, `missile.ts`, `missileModel.ts`, `countermeasures.ts`, `dlz.ts`, `dlzTables.ts`, `physics.test.ts`, `scripts/tune-*.mjs|ts` | sim-physics | |
-| `src/sim/radar.ts`, `rwr.ts`, `launch.ts`, `picture.ts`, `sensors.test.ts` | sim-sensors | |
+| `src/sim/radar.ts`, `rwr.ts`, `launch.ts`, `picture.ts`, `sam.ts`, `sensors.test.ts`, `sam.test.ts` | sim-sensors | |
 | `src/sim/ai.ts`, `scenarios.ts`, `ai.test.ts` | sim-ai | AI pilots and ready-made scenario builders |
 | `src/render/**` | render | three.js kit |
 | `src/ui/**` except `theme.ts`, `displays/` (and `dom.ts`: extend only, keep `h()`), `src/styles/components.css` | ui-kit | controls, panels, layout |
