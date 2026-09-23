@@ -4,6 +4,8 @@
 
 - Add the Pattern & landing page (#/flight-ops) for the F/A-18C, F-16C and F-15C: demo and keyboard modes,
   HUD, AoA indexer, pattern trace, configuration lamps and a graded gate debrief; other jets get a jet picker.
+- B15: Keep hyphenated jet names ("Su-27", "MiG-29S", "F/A-18C") on one line in prose: DOM helpers wrap
+  them in a nowrap span instead of relying on a no-break hyphen.
 - B11: Make keyboard defaults, binding groups, radar capabilities and missile uncertainty typed data;
   migrate page consumers and separate FC3 expected range from the radar cursor, including scene restarts.
 - B12: Adopt shared camera, detection explanation, seeker-state and slider-zone APIs across the lessons.
