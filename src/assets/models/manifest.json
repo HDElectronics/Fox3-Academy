@@ -1,0 +1,1119 @@
+[
+  {
+    "id": "fa18c",
+    "category": "aircraft",
+    "name": "F/A-18C Hornet",
+    "source_sha256": "53fb2475b82c03dd9cedecea7a87deccd44f280825bef68144b8a44ae4fe5ce8",
+    "sha256": "f4ae2de7cbf8747bb0212f1b22d8aaa63ccf81b6313709d5065138f4a003f390",
+    "bytes": 516800,
+    "references": [
+      {
+        "url": "https://www.navair.navy.mil/product/FA-18-D-Hornet",
+        "use": "variant identification only; conflicting span units not used as measurement"
+      },
+      {
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/97/US_Navy_050327-N-6694B-001_An_F-A-18C_Hornet_rolls_into_a_turn_while_flying_a_combat_mission_over_Iraq.jpg",
+        "use": "US Navy photograph 050327-N-6694B-001: legacy C visual tail sweep/exposure reference; artist approximations, not traced or used as a texture"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Visual artist approximation; no flight model or engineering data.",
+      "No cockpit interior, gear, animation, UV atlas, baked weathering or LODs.",
+      "Procedural Blender finish variation is not baked into glTF.",
+      "Not production-retopologized; independent editable surfaces remain.",
+      "Browser appearance and performance must be assessed before app adoption."
+    ]
+  },
+  {
+    "id": "f15c",
+    "category": "aircraft",
+    "name": "F-15C Eagle",
+    "source_sha256": "c2dc63a9ee88c93222a8ec9ef7d9eb4d5bb93e2cf808a2348b88f05bac77e9d0",
+    "sha256": "7ea9b08e258a05692b041ccf82011a16f4b67a19b93e1fe7c2cfbcbd6626fbf5",
+    "bytes": 359488,
+    "references": [
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104501/f-15-eagle/",
+        "role": "Primary aircraft-family information source; exact visual variant dimensions not independently verified",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:McDonnell_Douglas_F-15_Eagle_drawing.png",
+        "role": "US Army FM 44-80 visual recognition three-view mirrored by Commons; inspected to refine wing and tail silhouette",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "F-15C family approximation. Single-seat canopy; antenna, nozzle and panel arrangements simplified.",
+      "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
+    ]
+  },
+  {
+    "id": "f16c",
+    "category": "aircraft",
+    "name": "F-16C Fighting Falcon",
+    "source_sha256": "6c6c4d299500ef57485f602be4cce9369bdee3863feea4aec483c90e9da5d2d4",
+    "sha256": "01ffcebe45298150438c3b419542e23bbd0a0a422a35d90dc23dacd2d63be360",
+    "bytes": 346840,
+    "references": [
+      {
+        "url": "https://www.jba.af.mil/About/Fact-Sheets/Display/Article/4282145/f-16c-fighting-falcon/",
+        "role": "Primary family exterior/silhouette reference; no image assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://www.dvidshub.net/image/8311154/comin-hot-aircraft-arrive-tampa-bay-airfest",
+        "role": "USAF photo inspected for belly intake and bubble canopy",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:GENERAL_DYNAMICS_F-16_FIGHTING_FALCON.png",
+        "role": "US Army aircraft recognition three-view mirrored on Commons; inspected to refine fin dorsal extension and rearward upper-fin rake",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Block 50 visual approximation. Enlarged belly intake represented; exact block-specific antenna/nozzle and panel detail not verified.",
+      "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
+    ]
+  },
+  {
+    "id": "su27",
+    "category": "aircraft",
+    "name": "Su-27S Flanker-B",
+    "source_sha256": "c4ccbe0008ccb2b1ff98c061f95de60510093185c39817e2c233e5567f3c8581",
+    "sha256": "ea1d7f283d94efb54ba863f2bc7e653be2d838ce4fc40fe34ef56fd1b28d9fa6",
+    "bytes": 367408,
+    "references": [
+      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
+      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
+      "Neutral review paint, not an authentic service livery.",
+      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation."
+    ]
+  },
+  {
+    "id": "su33",
+    "category": "aircraft",
+    "name": "Su-33 Flanker-D",
+    "source_sha256": "7624b97b84e565f85c94d90aeb9df5089cfd37af77e9d3c803f7991670265567",
+    "sha256": "94430f04f869003e90ad9464fa5cc427a2fe02db08e10ab89c9bc2657d4f2656",
+    "bytes": 369880,
+    "references": [
+      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
+      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
+      "Neutral review paint, not an authentic service livery.",
+      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
+      "Canards, wing-fold seam and retracted hook indicated; exact naval wing and folding mechanisms simplified."
+    ]
+  },
+  {
+    "id": "j11a",
+    "category": "aircraft",
+    "name": "J-11A",
+    "source_sha256": "ab2c48440307b287ca283135768bc34eb1c60c9cd635ed265ab252373527ce56",
+    "sha256": "fe5c8b61f5340068db58bf6abca4c709285be586ec6f3cfca81112ef864daf32",
+    "bytes": 367516,
+    "references": [
+      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
+      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
+      "Neutral review paint, not an authentic service livery.",
+      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
+      "J-11A uses the closely related Su-27 external shell; subtle antenna and production-block differences not verified."
+    ]
+  },
+  {
+    "id": "mig29s",
+    "category": "aircraft",
+    "name": "MiG-29S Fulcrum-C",
+    "source_sha256": "8620749d3cdce591f3803f1a173df90933c548b33b3b8de7b4a99cb0b0fad7fe",
+    "sha256": "ee979499dfc06ec77e460754d661361c340ed95929a646f7f3b0008f85859155",
+    "bytes": 371692,
+    "references": [
+      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
+      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
+      "Neutral review paint, not an authentic service livery.",
+      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
+      "Enlarged 9-13 dorsal spine represented; exact 9-13S panel and antenna fit not verified."
+    ]
+  },
+  {
+    "id": "jf17",
+    "category": "aircraft",
+    "name": "JF-17 Thunder",
+    "source_sha256": "229ad3bd38fff09058e0a895b91db1a1f428cda6b882aa25c81a811323671916",
+    "sha256": "568bcf702f7ded84ce60905f0f35f27e62cfdf43586bdff8087c3f83beaafe35",
+    "bytes": 350504,
+    "references": [
+      {
+        "url": "https://www.pac.org.pk/jf-17",
+        "role": "PAC manufacturer reference identified; direct site access unavailable in this session. Geometry remains a family approximation.",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Single-seat Block 1 visual approximation without refuelling probe. Side intake bumps and fin-tip fairing simplified; exact block-specific panel and antenna placement not verified.",
+      "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
+    ]
+  },
+  {
+    "id": "m2000c",
+    "category": "aircraft",
+    "name": "Mirage 2000C",
+    "source_sha256": "0fcd8ac4ff524c780173f6c96f002647398281a836818036027ac6110287c382",
+    "sha256": "711b52a806df4ff0f8c867bc41d88e94042f129c310550ff544cb1cb9f7e3ca7",
+    "bytes": 349508,
+    "references": [
+      {
+        "url": "https://www.dassault-aviation.com/fr/defense/soutien-militaire/avions-soutenus/mirage-2000/",
+        "role": "Primary aircraft-family information source; exact visual variant dimensions not independently verified",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Single-seat RDI-family exterior approximation. Manufacturer family reference does not verify individual C-series antenna and radome details. Tailless delta, no horizontal stabilators.",
+      "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
+    ]
+  },
+  {
+    "id": "su25t",
+    "category": "aircraft",
+    "name": "Su-25T Frogfoot",
+    "source_sha256": "13d633d6ca537f752ef1fcdc5759e89b44b8bfe05b5d04b38bed3ce32258a986",
+    "sha256": "8a9e722b412b303d31c2c631b8d658eb9e863856b8245163794c63569f5ecfdb",
+    "bytes": 363264,
+    "references": [
+      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
+      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
+      "Neutral review paint, not an authentic service livery.",
+      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
+      "Raised single-seat canopy, dorsal hump and nose optical window indicate T variant; exact fairing outlines simplified."
+    ]
+  },
+  {
+    "id": "r27r",
+    "category": "missile",
+    "name": "R-27R",
+    "source_sha256": "df3ecd860f915c10cdf13f4e5ad2b6ffbfe01607590d492b7f709d711729c4b8",
+    "sha256": "853cd477adacd75510fd4d270fe35dca3e7422c73565c2a003ce49911874520a",
+    "bytes": 66148,
+    "references": [
+      {
+        "url": "https://roe.ru/pdfs/pdf_4714.pdf",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:R-27R_medium-to-long-range_air-to-air_missile_in_Park_Patriot_02.jpg",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "r27er",
+    "category": "missile",
+    "name": "R-27ER",
+    "source_sha256": "cf3a38ce44c504fe0173dc29d92c45a6a0de3397a8e2f9a1d92b37d7143517c8",
+    "sha256": "c234e8a46d30c5796e2a18a30490b963899e1a956d9c6654bc2f80fc1b5846cd",
+    "bytes": 66136,
+    "references": [
+      {
+        "url": "https://roe.ru/pdfs/pdf_4714.pdf",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:R-27R_medium-to-long-range_air-to-air_missile_in_Park_Patriot_02.jpg",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "r27t",
+    "category": "missile",
+    "name": "R-27T",
+    "source_sha256": "faa2d4d5841e62d396ba71538c40a10f62aacbbd4b5426f435155179287e6cf3",
+    "sha256": "bdf3e3ce6057a3bd4823084fcca35ba23b4a93f7bd7fe150479e095d4f9b145b",
+    "bytes": 69848,
+    "references": [
+      {
+        "url": "https://roe.ru/pdfs/pdf_4714.pdf",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:R-27R_medium-to-long-range_air-to-air_missile_in_Park_Patriot_02.jpg",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "r27et",
+    "category": "missile",
+    "name": "R-27ET",
+    "source_sha256": "c700a3d3905e450f2731b80cd302b9c2958e90ee91ed814cf1184a0398d87214",
+    "sha256": "cfc9289eccea16fa21c35784e202292270c72d44887559f47738dbdb9d98e1ab",
+    "bytes": 69844,
+    "references": [
+      {
+        "url": "https://roe.ru/pdfs/pdf_4714.pdf",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:R-27R_medium-to-long-range_air-to-air_missile_in_Park_Patriot_02.jpg",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "r77",
+    "category": "missile",
+    "name": "R-77",
+    "source_sha256": "4e6cfcf7693ff261790d535423748b78dacffc0b8316bed43f7fc6edb35e67d4",
+    "sha256": "bff7580f3a753842b69f0c8c83c07bc08e77f5c36fcdcad635131f304978ccce",
+    "bytes": 92060,
+    "references": [
+      {
+        "url": "https://roe.ru/eng/catalog/aerospace-systems/air-to-air-missile/rvv-ae/",
+        "role": "Manufacturer export-family page identified but no exact domestic-variant survey obtained; silhouette approximation",
+        "accessed": "2026-09-25",
+        "access_status": "Direct page fetch timed out; identified via search. Not treated as a verified visual measurement source."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "R-73E/RVV-AE export-family references stand in for domestic model exterior. Exact domestic variant fidelity is unverified."
+    ]
+  },
+  {
+    "id": "r73",
+    "category": "missile",
+    "name": "R-73",
+    "source_sha256": "4801a570fe1a873ec56e2f64c215bf21e427e43157e3225b021b0319e58a5088",
+    "sha256": "403a393549f2234352835e2b4c9bbcb27f055d9ca6ac8d0ecbf20074730dc86b",
+    "bytes": 69852,
+    "references": [
+      {
+        "url": "https://roe.ru/eng/catalog/aerospace-systems/air-to-air-missile/r-73e/",
+        "role": "Manufacturer export-family page identified but no exact domestic-variant survey obtained; silhouette approximation",
+        "accessed": "2026-09-25",
+        "access_status": "Direct page fetch timed out; identified via search. Not treated as a verified visual measurement source."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "R-73E/RVV-AE export-family references stand in for domestic model exterior. Exact domestic variant fidelity is unverified."
+    ]
+  },
+  {
+    "id": "aim120b",
+    "category": "missile",
+    "name": "AIM-120B AMRAAM",
+    "source_sha256": "5f10494ca76458bfaeb730a43a9f5e2aa5a6e602f551e12919958351f815ca3c",
+    "sha256": "76dd171af690a0b36ec3b2d42bbb891065217c20ced322cc70a19a30478cbfbf",
+    "bytes": 73640,
+    "references": [
+      {
+        "url": "https://www.af.mil/News/Article-Display/Article/104576/aim-120-amraam/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://www.af.mil/News/Art/igcategory/Observances/igsort/Title/igtag/Missiles/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "aim120c",
+    "category": "missile",
+    "name": "AIM-120C AMRAAM",
+    "source_sha256": "93dfc8f9057d51dbab8769a1a9b919a80f031c248d3574d8adb3fd7f360ecb0a",
+    "sha256": "a58c56644fcf450df53e8bfe735843485e4c87d123090aa0d300414a0c492c71",
+    "bytes": 73640,
+    "references": [
+      {
+        "url": "https://www.af.mil/News/Article-Display/Article/104576/aim-120-amraam/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      },
+      {
+        "url": "https://www.af.mil/News/Art/igcategory/Observances/igsort/Title/igtag/Missiles/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "aim7m",
+    "category": "missile",
+    "name": "AIM-7M Sparrow",
+    "source_sha256": "d846b0e350eadbac13f29056b56abc711b8bf7734a9cc5eaf1cbaaaa72174019",
+    "sha256": "5422862c94585c491a391c6abdadb794f6740b07995c5b9acf1905ebd8e12908",
+    "bytes": 72956,
+    "references": [
+      {
+        "url": "https://www.af.mil/News/Art/igcategory/Observances/igsort/Title/igtag/Missiles/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "aim9m",
+    "category": "missile",
+    "name": "AIM-9M Sidewinder",
+    "source_sha256": "d6395135480fda1cf05a5120e96931816b2c309989892502da03a3a2c5cdb524",
+    "sha256": "42122d955cce66b04f5d96f517d88095cc4096e5311682d32eed629c28339c0f",
+    "bytes": 80592,
+    "references": [
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104557/aim-9-sidewinder/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "aim9x",
+    "category": "missile",
+    "name": "AIM-9X Sidewinder",
+    "source_sha256": "fd6763f8aae0ca3fb3218faf809c247c46d6550fe5d6b29f678d9f898534c5c9",
+    "sha256": "83236092045e5c9d9bced75f2ca1ccea1fc6b5025323713ecc8f7a8dcdf4670d",
+    "bytes": 77340,
+    "references": [
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104557/aim-9-sidewinder/",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources."
+    ]
+  },
+  {
+    "id": "aim54a",
+    "category": "missile",
+    "name": "AIM-54A Phoenix",
+    "source_sha256": "172fb51772938a290937ea3d565d1556c482d1ba300f1ee3c68bd271eb115b08",
+    "sha256": "894c1791035a7d69ebac079151c3bf5b697d95d135cf5e5e6a5b48fe799e55a5",
+    "bytes": 73628,
+    "references": [
+      {
+        "url": "https://www.navair.navy.mil/node/12701",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "AIM-54A and C intentionally share the family exterior; palette difference is illustrative and is not a reliable variant identifier."
+    ]
+  },
+  {
+    "id": "aim54c",
+    "category": "missile",
+    "name": "AIM-54C Phoenix",
+    "source_sha256": "8fd75f25fd47f9ea9f964d554a550f137910fe55d7658a90f84bc6a82d93c911",
+    "sha256": "89ca3dd22b5b5531192593983a9b08e1c6b767d08c5cd29f88b670b497c02d04",
+    "bytes": 73632,
+    "references": [
+      {
+        "url": "https://www.navair.navy.mil/node/12701",
+        "role": "Family reference only; no source assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "AIM-54A and C intentionally share the family exterior; palette difference is illustrative and is not a reliable variant identifier."
+    ]
+  },
+  {
+    "id": "sd10",
+    "category": "missile",
+    "name": "SD-10",
+    "source_sha256": "1d632467178b0b31e58de39fedf6e7f430b2b62b4b16c9eb83fa1303a88df0cd",
+    "sha256": "6e39d9a3733cd254d2f14a15c5f587eee870c3b30adc7a533bdd42c7b85f846c",
+    "bytes": 63536,
+    "references": [
+      {
+        "url": "https://www.pac.org.pk/jf-17",
+        "role": "Manufacturer carrier-family context; not a verified store drawing",
+        "accessed": "2026-09-25",
+        "access_status": "Direct page fetch timed out; identified via search. Not treated as a verified visual measurement source."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "Chinese family silhouette study: accessible manufacturer material did not verify exact variant proportions. SD-10/PL-5E identification remains approximate and needs reference refinement."
+    ]
+  },
+  {
+    "id": "pl5e",
+    "category": "missile",
+    "name": "PL-5EII family",
+    "source_sha256": "6a676304ca548f6d46ff3e89433aca7fe949f9bd209bcec18694cccabdaf2859",
+    "sha256": "07fb3b8bf16a9fcd0bc36d6db096442003a86263267699841e1424ac6b359d29",
+    "bytes": 70512,
+    "references": [
+      {
+        "url": "https://www.pac.org.pk/jf-17",
+        "role": "Manufacturer carrier-family context; not a verified store drawing",
+        "accessed": "2026-09-25",
+        "access_status": "Direct page fetch timed out; identified via search. Not treated as a verified visual measurement source."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "Chinese family silhouette study: accessible manufacturer material did not verify exact variant proportions. SD-10/PL-5E identification remains approximate and needs reference refinement.",
+      "Application display name is PL-5EII. This uses a provisional PL-5 family exterior stand-in; exact EII variant shape and markings are not verified."
+    ]
+  },
+  {
+    "id": "s530d",
+    "category": "missile",
+    "name": "Super 530D",
+    "source_sha256": "09059902e6a5062998befa841482e877f14ee7ddd741984e195ecdfacea7825c",
+    "sha256": "1798e10a672f2f8290332d44a38e05cea04cb0b1bce5aad5a9d3910dca571b2c",
+    "bytes": 63536,
+    "references": [
+      {
+        "url": "https://www.mbda-systems.com/our-company/our-history",
+        "role": "Manufacturer family identity/history; does not verify shape measurements",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "French family silhouette study. Manufacturer history confirms family names, not exact variant geometry; detailed Magic 2/Super 530D fidelity is unverified."
+    ]
+  },
+  {
+    "id": "magic2",
+    "category": "missile",
+    "name": "R.550 Magic 2",
+    "source_sha256": "8f30b7c64499da93d029a63e182654a6df9f5cfaa1baec7484977705597905c6",
+    "sha256": "a60b42d3c1e99befdc43c02474362167077f6e11c829ecbf134532a4c9ed0801",
+    "bytes": 69804,
+    "references": [
+      {
+        "url": "https://www.mbda-systems.com/our-company/our-history",
+        "role": "Manufacturer family identity/history; does not verify shape measurements",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original simplified exterior art. Dimensions, surface outlines, panel joints and palette are artist approximations. No serial or operational marking accuracy is claimed.",
+      "Static deployed exterior only; no attachment, folding, fin or launch animation. No textures or meshes copied from DCS or external sources.",
+      "French family silhouette study. Manufacturer history confirms family names, not exact variant geometry; detailed Magic 2/Super 530D fidelity is unverified."
+    ]
+  },
+  {
+    "id": "vikhr",
+    "category": "missile",
+    "name": "Vikhr",
+    "source_sha256": "71db40fc0e379e924b1c4768575e932347a25a30da1af1cd7b6e06e58b5ee3c2",
+    "sha256": "714c13aa64af5611246cdcd60c2b111f6bc404104949e5bfbaaaf6b44dbd0238",
+    "bytes": 49452,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 190,
+        "figure": "7-5",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "A slim exterior study with deployed fin silhouette; proportions approximate.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "kh25ml",
+    "category": "missile",
+    "name": "Kh-25ML",
+    "source_sha256": "1d5d36decf28df77c2c0988aeb165b6f633e29ff2d2bd5200f664394570516f6",
+    "sha256": "5b22102075bbec8183d60a5774b11855929971eb5393d5219698e9b32f287dcd",
+    "bytes": 54468,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 187,
+        "figure": "7-1",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Simplified exterior study; panel layout and visible nose window approximate.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "kh29l",
+    "category": "missile",
+    "name": "Kh-29L",
+    "source_sha256": "51806736b49cabf19d15cf09d66bd47dfd12bdcfa7859a938b08c91c05af9e2b",
+    "sha256": "b3ffadc1d6b8f7d12f5e9cc4c6806f84f3bc7b3cba6e2bd424f4828a10191de5",
+    "bytes": 54252,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 188,
+        "figure": "7-2",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Simplified long-body exterior with narrow dark nose window.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "kh29t",
+    "category": "missile",
+    "name": "Kh-29T",
+    "source_sha256": "8654a5a3368fe792ed7b3e108a944e5a0a315600739fd08be6ffecb5a5e1659c",
+    "sha256": "05e2b9acfaf90b63ac18ae36965a4c3bc2756b8dd8a3be67faf1de14a493d119",
+    "bytes": 54252,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 188,
+        "figure": "7-3",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Shared Kh-29 family shell; rounded broad dark nose window distinguishes this review variant.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "kh58",
+    "category": "missile",
+    "name": "Kh-58",
+    "source_sha256": "bded3055a307c1764f3fcece8df017e508c69f2eb57c1ae10822ab296cb91cb0",
+    "sha256": "25b2725c8f420033a1dbe07b6acdc1c9de45042f8b554d37f3d84b2f81ee9dde",
+    "bytes": 46832,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 193,
+        "figure": "7-8",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Original broad-fin exterior study; subvariant details not verified.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "sa10-missile",
+    "category": "missile",
+    "name": "SA-10 family missile",
+    "source_sha256": "e6a32269f930f9061a5bfe34ea62fa1abf786379590747a2bb08690991ecf776",
+    "sha256": "a482b1b16b967cfffaf43e6182c1e8b25566bf860d66aaf4e56155be3ff2effa",
+    "bytes": 41556,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": null,
+        "figure": null,
+        "use": "Game family/name context only; detailed exterior silhouette unverified"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Generic S-300-family visual stand-in. No exact missile variant or silhouette certification; size follows the existing app display proxy.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "sa11-missile",
+    "category": "missile",
+    "name": "SA-11 family missile",
+    "source_sha256": "b47a397c6689dc11467df4dcebc50f3b88b0fc73dd705ea1014fe0f6f785efab",
+    "sha256": "5f1ee16efe8a176f346d906b1ff92aba1df8064089d14507c82d7b388dddaead",
+    "bytes": 44152,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": null,
+        "figure": null,
+        "use": "Game family/name context only; detailed exterior silhouette unverified"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Generic Buk-family visual stand-in. No exact missile variant or silhouette certification; size follows the existing app display proxy.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "sa15-missile",
+    "category": "missile",
+    "name": "SA-15 family missile",
+    "source_sha256": "6b032dd024edde1eafbe234517c96dd4bbddf825db3a0ffff5d782cb42a55b22",
+    "sha256": "e12f36a33041c2946dc83a0adba71cd15aa009a57cf732ac1dfaf54392ec3ace",
+    "bytes": 44148,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": null,
+        "figure": null,
+        "use": "Game family/name context only; detailed exterior silhouette unverified"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Generic Tor-family visual stand-in. No exact missile variant or silhouette certification; size follows the existing app display proxy.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "r60",
+    "category": "missile",
+    "name": "R-60 family",
+    "source_sha256": "4eed0bc860dcc3b74e639ff18fb54c26b2f979be8b9aa102e08d9451563a39b0",
+    "sha256": "6d26951d4c689d8004d96c292d1adbfac2712236e8e38139d357add392cdff7c",
+    "bytes": 46992,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 171,
+        "figure": "6-11",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Loadout-only exterior. Reference shows R-60M; exact basic R-60 differences not verified.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "s8",
+    "category": "store",
+    "name": "S-8 family rocket",
+    "source_sha256": "170d28f0fcd438146e384b06813e143e63c35f8e1f3e8eef7c7e1ce04ee58da6",
+    "sha256": "46117864c363d588e82e20fad3d1bb96dea62370ab6eed254037e8e1f9d55676",
+    "bytes": 43796,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": null,
+        "figure": null,
+        "use": "Game family/name context only; detailed exterior silhouette unverified"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Individual rocket family stand-in with deployed fins; exact rocket subtype and detailed silhouette not verified. No launch pod.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "s13",
+    "category": "store",
+    "name": "S-13 family rocket",
+    "source_sha256": "99147bee6bc41c8391f7999458ace5fe0d074a9035706492276c30eb9daa7b05",
+    "sha256": "06ed0e16273632314d0a39b23a65ca03aab9f16ab5d64128471e078298594b32",
+    "bytes": 44024,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": null,
+        "figure": null,
+        "use": "Game family/name context only; detailed exterior silhouette unverified"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Individual rocket family stand-in with deployed fins; exact rocket subtype and detailed silhouette not verified. No launch pod.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "kab500kr",
+    "category": "store",
+    "name": "KAB-500Kr",
+    "source_sha256": "07f9ea2cd6176771931923ecca3f87e66fc0531494003838c430816ae03e47b4",
+    "sha256": "bb517653cf1bfe41feaef6db821e125d38a994b62fa06e77181ee5e7921cd9c6",
+    "bytes": 37044,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 202,
+        "figure": "7-19",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Rounded forward window and broad rear fins; simplified original exterior, dimensions approximate.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "fab250",
+    "category": "store",
+    "name": "FAB-250 family bomb",
+    "source_sha256": "c77f66b987fa43c5d936cc52c55f026671b6b87132cbc33111edb515c55beb20",
+    "sha256": "7e828d5848314fcbd5bf99e1b3ed4a5702d44597e5b3241326208b792918b3bf",
+    "bytes": 36952,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS Flaming Cliffs 3 manual",
+        "pdf_page": 199,
+        "figure": "7-12",
+        "use": "Visible exterior silhouette only; no engineering data used"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Rounded body with boxed tail silhouette; exact FAB-250 subvariant not verified.",
+      "All geometry is an artistic approximation. Metre-like normalization is for game display, not a certified dimension.",
+      "No internals, moving fins, textures, stencils, damage states, LODs or deployment animation.",
+      "No weapon performance, guidance, propulsion or fuze information is encoded."
+    ]
+  },
+  {
+    "id": "tank",
+    "category": "ground",
+    "name": "Generic main battle tank",
+    "source_sha256": "57c9975b8cc958d860bb2d7d1a77ee553fac6dd82080e1fae039b5e9acf7ce15",
+    "sha256": "8d156037347bfcb9c7431ea92e6548517325f57c0ff5d9c12dc8d40a8c3d3bbe",
+    "bytes": 657436,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "apc",
+    "category": "ground",
+    "name": "Generic 8-wheel APC",
+    "source_sha256": "0e300a19285931ba99441afea7326eba4a6923eee6cbbd48fdd80e1436403717",
+    "sha256": "bc4bdbc3c33769027e9e7b1c9ee720ed53af3c8c34c39ba63b441a1afa92c58c",
+    "bytes": 675032,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "truck",
+    "category": "ground",
+    "name": "Generic 6-wheel cargo truck",
+    "source_sha256": "a45ae3ff92d781dc46981262ec3ebc94b4bc17bcec435d2e8e28d2e82dc60213",
+    "sha256": "8f5717ae0230473cf0b937e6daa5c617a4c9695bab8343c9c2f9972b4f8281e1",
+    "bytes": 674504,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "bunker",
+    "category": "ground",
+    "name": "Generic concrete bunker",
+    "source_sha256": "ebab185071f9da2f882a21ded1a6d754a131eae80be96d350394c42ad22c75be",
+    "sha256": "39d0b335e86a8fdbd220121777e22ff39c2fd5afe9c7a6bdc134cdc37841fbb0",
+    "bytes": 117608,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "building",
+    "category": "ground",
+    "name": "Generic industrial building",
+    "source_sha256": "ca06782d1e610925d4ab9ace0d911b50ea18faee14ba21a58bb086b2845a9216",
+    "sha256": "d4fe17fc179eb0421ac4b377ac09a414e6ef57ef6202fa9e01bc29fb2090aa62",
+    "bytes": 697676,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "sam-site",
+    "category": "ground",
+    "name": "Generic mobile SAM launcher",
+    "source_sha256": "cfa2050068a3345fd331713abe88d18cff73b7e4067166fe77026f545ece73f5",
+    "sha256": "67bd6d5abd50d67bddb7c3761d1bdf391579a2268994fe6bc0ed1dad917f35e9",
+    "bytes": 685612,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "aaa",
+    "category": "ground",
+    "name": "Generic tracked anti-aircraft vehicle",
+    "source_sha256": "eeddf7a13fa2ca00dc08ca725fae9bdf06b5bf0a7b53c718a3d0a0f8460f309e",
+    "sha256": "b745acbc29f6c6823be383e24561e82e1c54293add88df9dc297612548907a76",
+    "bytes": 636916,
+    "references": [],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Explicitly generic fictional game target; not a named real vehicle or structure.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "sa10",
+    "category": "ground",
+    "name": "SA-10 / S-300PS-family launcher",
+    "source_sha256": "427dad061c694bd908d0e735210f05e223b0e8097acf50f21b13b6056d42db80",
+    "sha256": "70dbdde79a96e3c27467272f6524929bf87b4367d4f78cd40ab6e6d435dbda6b",
+    "bytes": 672256,
+    "references": [
+      {
+        "url": "https://kpopov.ru/travel/avtovaz_pvo_12.htm",
+        "role": "First-party exterior photo or operator identification; no images redistributed; exact variant geometry not certified."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Simplified S-300PS family 8x8 launcher exterior, four raised transport canisters; not a complete battery and not a precise 5P85 subvariant. Cab, chassis, canister proportions and fittings are artist approximations.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "sa11",
+    "category": "ground",
+    "name": "SA-11 / Buk-M1-family TELAR",
+    "source_sha256": "e0abb53166e7902aa50c0a986baf752649f02f27d9e7b24f2ef0dc33b067c15e",
+    "sha256": "a0c2c803d3f97b7e430c80b31c367674d18475382da992761b68b9d4240f94c3",
+    "bytes": 628656,
+    "references": [
+      {
+        "url": "https://www.recomonkey.com/Land-Platforms/Air-defence/Self-Propelled/9K37M1-Buk-M1-SA11-Gadfly/9A310M1-Buk-M1-TELAR",
+        "role": "First-party exterior photo or operator identification; no images redistributed; exact variant geometry not certified."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Buk-M1 family exterior approximation with four visible store shapes and curved front dish silhouette. Museum exterior photo supports broad family recognition; exact dimensions, attachments and variant-specific geometry not verified.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "sa15",
+    "category": "ground",
+    "name": "SA-15 / Tor-family vehicle",
+    "source_sha256": "e043abe41a556ad8339390e364296a7b0bed28ec7646ebbe9618e8944c2652c6",
+    "sha256": "54bec1569438823fdc508d381c4c87212171b5337108b3cacaff9fc0fad45ba3",
+    "bytes": 642264,
+    "references": [
+      {
+        "url": "https://pvo.guns.ru/expo/mvsv2008.htm",
+        "role": "First-party exterior photo or operator identification; no images redistributed; exact variant geometry not certified."
+      },
+      {
+        "url": "https://spb.army.gr/a-a-systima-k-v-tor-m1/",
+        "role": "First-party exterior photo or operator identification; no images redistributed; exact variant geometry not certified."
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "Tor family tracked vehicle approximation. Tor exhibition exterior photo supports broad family recognition; exact DCS Tor/9A331 details, panel curvature and fittings not verified.",
+      "Exterior proportions and details are artist approximations; no internals or weapon/radar engineering.",
+      "No wheels/tracks/turret animation, LODs, destruction state or production integration."
+    ]
+  },
+  {
+    "id": "f14b",
+    "category": "aircraft",
+    "name": "F-14B Tomcat",
+    "source_sha256": "374a93c4f204286105682a65c676cc11ef3c453e10dfe718aab7663e1982a969",
+    "sha256": "bc8b2abde3d813f121a96d73622c2e37c7709bb05a90c69f28a0949bfa4c7b6d",
+    "bytes": 359376,
+    "references": [
+      {
+        "url": "https://www.history.navy.mil/content/history/museums/nnam/explore/collections/aircraft/f/f-14a-tomcat.html",
+        "role": "Primary family exterior/silhouette reference; no image assets redistributed",
+        "accessed": "2026-09-25"
+      }
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "source_caveats": [
+      "F-14B approximation with spread wings and simplified GE-style exhaust. Museum F-14A reference supports family silhouette only, not B-specific details. Wing pivots prepared but not animated.",
+      "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
+    ]
+  }
+]

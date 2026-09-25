@@ -1,0 +1,257 @@
+[
+  {
+    "id": "fa18c",
+    "name": "F/A-18C Hornet",
+    "category": "aircraft"
+  },
+  {
+    "id": "f15c",
+    "name": "F-15C Eagle",
+    "category": "aircraft"
+  },
+  {
+    "id": "f16c",
+    "name": "F-16C Fighting Falcon",
+    "category": "aircraft"
+  },
+  {
+    "id": "f14b",
+    "name": "F-14B Tomcat",
+    "category": "aircraft"
+  },
+  {
+    "id": "su27",
+    "name": "Su-27S Flanker-B",
+    "category": "aircraft"
+  },
+  {
+    "id": "su33",
+    "name": "Su-33 Flanker-D",
+    "category": "aircraft"
+  },
+  {
+    "id": "j11a",
+    "name": "J-11A",
+    "category": "aircraft"
+  },
+  {
+    "id": "mig29s",
+    "name": "MiG-29S Fulcrum-C",
+    "category": "aircraft"
+  },
+  {
+    "id": "jf17",
+    "name": "JF-17 Thunder",
+    "category": "aircraft"
+  },
+  {
+    "id": "m2000c",
+    "name": "Mirage 2000C",
+    "category": "aircraft"
+  },
+  {
+    "id": "su25t",
+    "name": "Su-25T Frogfoot",
+    "category": "aircraft"
+  },
+  {
+    "id": "r27r",
+    "name": "R-27R",
+    "category": "missile"
+  },
+  {
+    "id": "r27er",
+    "name": "R-27ER",
+    "category": "missile"
+  },
+  {
+    "id": "r27t",
+    "name": "R-27T",
+    "category": "missile"
+  },
+  {
+    "id": "r27et",
+    "name": "R-27ET",
+    "category": "missile"
+  },
+  {
+    "id": "r77",
+    "name": "R-77",
+    "category": "missile"
+  },
+  {
+    "id": "r73",
+    "name": "R-73",
+    "category": "missile"
+  },
+  {
+    "id": "aim120b",
+    "name": "AIM-120B AMRAAM",
+    "category": "missile"
+  },
+  {
+    "id": "aim120c",
+    "name": "AIM-120C AMRAAM",
+    "category": "missile"
+  },
+  {
+    "id": "aim7m",
+    "name": "AIM-7M Sparrow",
+    "category": "missile"
+  },
+  {
+    "id": "aim9m",
+    "name": "AIM-9M Sidewinder",
+    "category": "missile"
+  },
+  {
+    "id": "aim9x",
+    "name": "AIM-9X Sidewinder",
+    "category": "missile"
+  },
+  {
+    "id": "aim54a",
+    "name": "AIM-54A Phoenix",
+    "category": "missile"
+  },
+  {
+    "id": "aim54c",
+    "name": "AIM-54C Phoenix",
+    "category": "missile"
+  },
+  {
+    "id": "sd10",
+    "name": "SD-10",
+    "category": "missile"
+  },
+  {
+    "id": "pl5e",
+    "name": "PL-5EII family",
+    "category": "missile"
+  },
+  {
+    "id": "s530d",
+    "name": "Super 530D",
+    "category": "missile"
+  },
+  {
+    "id": "magic2",
+    "name": "R.550 Magic 2",
+    "category": "missile"
+  },
+  {
+    "id": "vikhr",
+    "name": "Vikhr",
+    "category": "missile"
+  },
+  {
+    "id": "kh25ml",
+    "name": "Kh-25ML",
+    "category": "missile"
+  },
+  {
+    "id": "kh29l",
+    "name": "Kh-29L",
+    "category": "missile"
+  },
+  {
+    "id": "kh29t",
+    "name": "Kh-29T",
+    "category": "missile"
+  },
+  {
+    "id": "kh58",
+    "name": "Kh-58",
+    "category": "missile"
+  },
+  {
+    "id": "sa10-missile",
+    "name": "SA-10 family missile",
+    "category": "missile"
+  },
+  {
+    "id": "sa11-missile",
+    "name": "SA-11 family missile",
+    "category": "missile"
+  },
+  {
+    "id": "sa15-missile",
+    "name": "SA-15 family missile",
+    "category": "missile"
+  },
+  {
+    "id": "r60",
+    "name": "R-60 family",
+    "category": "missile"
+  },
+  {
+    "id": "s8",
+    "name": "S-8 family rocket",
+    "category": "store"
+  },
+  {
+    "id": "s13",
+    "name": "S-13 family rocket",
+    "category": "store"
+  },
+  {
+    "id": "kab500kr",
+    "name": "KAB-500Kr",
+    "category": "store"
+  },
+  {
+    "id": "fab250",
+    "name": "FAB-250 family bomb",
+    "category": "store"
+  },
+  {
+    "id": "tank",
+    "name": "Generic main battle tank",
+    "category": "ground"
+  },
+  {
+    "id": "apc",
+    "name": "Generic 8-wheel APC",
+    "category": "ground"
+  },
+  {
+    "id": "truck",
+    "name": "Generic 6-wheel cargo truck",
+    "category": "ground"
+  },
+  {
+    "id": "bunker",
+    "name": "Generic concrete bunker",
+    "category": "ground"
+  },
+  {
+    "id": "building",
+    "name": "Generic industrial building",
+    "category": "ground"
+  },
+  {
+    "id": "sam-site",
+    "name": "Generic mobile SAM launcher",
+    "category": "ground"
+  },
+  {
+    "id": "aaa",
+    "name": "Generic tracked anti-aircraft vehicle",
+    "category": "ground"
+  },
+  {
+    "id": "sa10",
+    "name": "SA-10 / S-300PS-family launcher",
+    "category": "ground"
+  },
+  {
+    "id": "sa11",
+    "name": "SA-11 / Buk-M1-family TELAR",
+    "category": "ground"
+  },
+  {
+    "id": "sa15",
+    "name": "SA-15 / Tor-family vehicle",
+    "category": "ground"
+  }
+]
