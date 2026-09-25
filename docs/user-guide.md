@@ -52,6 +52,15 @@ On FC3 Russian jets, **DCS СНП cursor snap** restores acquisition when slewin
 off, explicit designation is a trainer aid. The aircraft's 85 % Rmax automatic STT transition still applies
 after designation.
 
+### Progress across jets
+
+Open **Learn → Progress** to see saved completions for all eleven aircraft. Your selected jet appears first.
+Each card shows completed goals, available lessons, saved RWR and winning Sortie best scores, and a
+**Continue** link to the next incomplete lesson. That link selects the matching jet automatically.
+Carrier and refuelling lessons appear only where supported; the Su-25T lists its strike lessons.
+Progress is stored in this browser and does not sync across devices. Reference visits and incomplete
+module drills do not count as completed goals.
+
 ### Missiles
 Launch-zone lab. Choose missile, shooter altitude and Mach, target altitude, Mach and aspect, and what the
 target does after launch (nothing, turn cold, beam, crank, notch with chaff). Fire and watch the shot in 3D
@@ -246,3 +255,11 @@ DCS keyboard default; the app then offers a clearly marked stand-in key.
 The app is a tactics trainer, not a flight simulator. You fly an autopilot, missiles are game mechanics tuned
 to DCS's launch-zone numbers, and a few DCS behaviours are not documented anywhere. Labs keep their limitations under **Accuracy notes**; other pages have a
 "Simplified here" note, and `docs/dcs-accuracy.md` lists everything in one place.
+
+### Export a Sortie to Tacview
+
+In the BVR Sortie debrief, select **Download ACMI**, then open the saved `.acmi` file in Tacview.
+The file contains the recorded whole-fight truth, including aircraft, air-to-air missiles, SAM sites and
+SAM missiles, regardless of the replay's Truth / Your radar setting. Export stays on your device.
+The trainer uses a synthetic location and date; it does not reconstruct a DCS theater or include the new
+exterior models. Sampling is every 0.25 seconds. See [export limits](api/tacview-export.md).
