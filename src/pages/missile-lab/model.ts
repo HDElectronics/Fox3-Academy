@@ -10,7 +10,8 @@ import { dlzFor, dlzTargetType, simulateShot, type ShotResult, type ShotSetup, t
 import { sigma, speedFromMach } from '../../sim/atmosphere';
 import { missileModel } from '../../sim/missileModel';
 import { parseKeyList, splitAlternatives } from '../../ui/keys';
-import { M_PER_FT, M_PER_NM } from '../../sim/math';
+import { irAcquisitionRange } from '../../sim/launch';
+import { M_PER_FT, M_PER_NM, aspectAngle } from '../../sim/math';
 import type { Units } from '../../app/format';
 
 export type Aspect = 'hot' | 'flank' | 'beam' | 'cold';
@@ -366,15 +367,36 @@ export function buildPreset(id: PresetId, base: LabSetup, ac: FighterId, u: Unit
   }
 }
 
-/** Default setup for a jet: its main missile, cruise-ish altitude, co-altitude hot target at 80 % Rmax. */
+/** Starting range for a new missile: inside kinematic reach and, for IR, acquisition.
+ * Only initialization/selection uses this suggestion. Manual range and comparison presets stay explicit.
+ * Custom altitude gaps can still make acquisition impossible; the normal launch check remains authoritative.
+ */
+export function startingRange(s: LabSetup, u: Units): number {
+  const r = dlzAt(s).rmax;
+  let suggested = 0.8 * dlzAt({ ...s, range: r }).rmax;
+  if (MISSILES[s.missile].seeker === 'ir') {
+    const g = geometry({ ...s, range: suggested });
+    const aspect = aspectAngle(g.targetPos, g.targetVel, g.shooterPos);
+    suggested = Math.min(suggested, 0.8 * irAcquisitionRange(s.missile, aspect));
+  }
+  return roundRange(suggested, u);
+}
+
+/** Switch weapons without losing flight conditions; choose a carrier and an appropriate starting range. */
+export function setupWithMissile(base: LabSetup, missile: MissileId, ac: FighterId, u: Units): LabSetup {
+  const setup = { ...base, missile, shooterType: shooterTypeFor(ac, missile), loftOff: false };
+  setup.range = startingRange(setup, u);
+  return setup;
+}
+
+/** Default setup: cruise-ish altitude, co-altitude hot target inside reach and IR acquisition. */
 export function defaultSetup(ac: FighterId, u: Units, missile = defaultMissile(ac)): LabSetup {
   const alt = u === 'metric' ? 9000 : altFromUser(30, u);
   const s: LabSetup = {
     missile, shooterType: shooterTypeFor(ac, missile), shooterAlt: alt, shooterMach: 0.9, targetAlt: alt, targetMach: 0.9, aspect: 'hot',
     maneuver: 'none', reactAfter: 3, range: 40000,
   };
-  const r = dlzAt(s).rmax;
-  s.range = roundRange(0.8 * dlzAt({ ...s, range: r }).rmax, u);
+  s.range = startingRange(s, u);
   return s;
 }
 

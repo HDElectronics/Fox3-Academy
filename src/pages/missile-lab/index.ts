@@ -24,7 +24,7 @@ import {
 import type { Units } from '../../app/format';
 import {
   ASPECTS, ASPECT_DEG, LIMITS, MANEUVERS, PRESET_IDS, presetTitle, altFromUser, altToUser, buildPreset, cueNames,
-  defaultMissile, defaultSetup, dlzAt, flyShot, guidanceRuleFor, fmtAltU, fmtDist, fmtR, launchKey, missileChoices, rangeFromUser,
+  defaultMissile, defaultSetup, setupWithMissile, dlzAt, flyShot, guidanceRuleFor, fmtAltU, fmtDist, fmtR, launchKey, missileChoices, rangeFromUser,
   rangeSliderMax, rangeToUser, rangeUnit, seekerWord, shooterTypeFor, targetTypeFor, weaponStepKey, zonePlace,
   type Aspect, type CueNames, type LabSetup, type PresetId,
 } from './model';
@@ -167,7 +167,7 @@ const factory: PageFactory = (): Page => {
           ...own.map(m => ({ value: m, label: optLabel(m), group: `${spec.short} missiles` })),
           ...other.map(m => ({ value: m, label: optLabel(m), group: 'Other jets (comparison)' })),
         ],
-        onChange: m => { setup = { ...setup, missile: m, loftOff: false }; onMissileChanged(); },
+        onChange: m => { setup = setupWithMissile(setup, m, ac, u); onMissileChanged(); },
       });
       const missileInfo = h('p', { class: 'ml-small ml-minfo' });
 
@@ -364,7 +364,7 @@ const factory: PageFactory = (): Page => {
         const next = own[(i + 1) % own.length] ?? own[0];
         if (!next) return;
         missileSel.set(next);
-        setup = { ...setup, missile: next, loftOff: false };
+        setup = setupWithMissile(setup, next, ac, u);
         onMissileChanged();
       }
 
@@ -457,12 +457,8 @@ const factory: PageFactory = (): Page => {
       }
 
       function onMissileChanged() {
-        setup.shooterType = shooterTypeFor(ac, setup.missile);
         cues = cueNames(ac, setup.missile);
         exact = null; setText(exactOut, ''); cancelExact();
-        dlz = dlzAt(setup);
-        // keep the same place in the zone: start new missiles at 80 % of their Rmax
-        setup.range = rangeFromUser(round(rangeToUser(0.8 * dlz.rmax, u), 0.5), u);
         dlz = dlzAt(setup);
         updateRangeMax(true);
         drawZone(); drawDlz(); updateMissileInfo(); updateLoftUi(); buildCues(); buildSimplified(); syncManLabels();

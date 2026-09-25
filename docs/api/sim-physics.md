@@ -227,6 +227,13 @@ shot starts from an acquired track and steps the same radar used in a World. A t
 support through the radar notch, range or gimbal limits. Against a semi-active shot, `beam` and
 `notch-chaff` then beam the shooter; active and IR shots continue to beam the missile.
 
+The Missiles lab's `startingRange` uses 80% of kinematic Rmax, capped at 80% of the existing simplified
+IR acquisition limit before rounding. Opening/reset setups and `setupWithMissile` (dropdown and weapon-cycle
+selection) share this rule. It preserves flight conditions and chooses the comparison missile's carrier.
+Manual range changes and kinematic comparison presets are not clamped; unusual altitude gaps or long-range
+presets can still produce a legitimate no-lock result. This is a lab setup choice, not a change to missile
+capability, launch rules or DLZ tables.
+
 `simulateShot` requires IR acquisition using `irAcquisitionRange` and the actual launch aspect.
 A shot beyond that simplified acquisition limit returns `reason: 'no-ir-lock'`, zero flight time,
 empty paths/trace/events, no pitbull and no missile launch. Radar support unable to acquire at the
