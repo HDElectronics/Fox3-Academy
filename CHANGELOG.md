@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Integrate original Blender exteriors for all 11 aircraft, tactical missiles, A-G stores, ground units and
+  SAM sites. The 51-model library includes a loadout-only R-60. Preserve procedural loading/failure and
+  deployed-configuration fallbacks, F-14 wing sweep, side colors, shadows and wrecks. Ship editable generator
+  sources, optimized GLBs, provenance and rebuild documentation; physical-device performance QA remains open.
+
 - Remove the Cockpit explorer page and its F-16C catalogue; it becomes a community contribution (#46). Old
   `#/cockpit` links open the hangar.
 - Merge & guns, part 3 (#11): close-range lock modes and IR missiles for all ten fighters. A Close combat panel

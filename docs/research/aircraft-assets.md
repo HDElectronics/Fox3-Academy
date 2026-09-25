@@ -1,16 +1,18 @@
 # Aircraft asset sources
 
+The application now ships an [original exterior library](../assets/README.md). The external candidates below
+remain historical research, not the source of the shipped meshes.
+
 Research date: 2026-09-21
 
-**Status: deferred to community contributions.** The application retains its existing procedural aircraft
-models. No further asset search, purchase, generation or cleanup is scheduled. No external review model
-has been integrated. The candidates below are historical research leads, not an active adoption queue;
-contributors should recheck availability, rights and quality before proposing a replacement.
+**External candidate status: deferred to community contributions.** No external candidate listed here
+has been adopted. The shipped original library is documented above; procedural aircraft remain its fallback.
+Contributors should recheck candidate availability, component rights and quality before proposing replacements.
 
-Prefer free, openly redistributable assets. Price alone does not establish redistribution rights. No
-purchase or asset integration has been made. See [B20 in the backlog](../../BACKLOG.md) for acceptance criteria.
-
-This is a bounded source and licence survey for the ten aircraft currently in Fox3 Academy. It covers visual aircraft and cockpit assets only. A follow-up exterior review downloaded and converted the F-16, F-15 and MiG-29 candidates outside this repository. No aircraft assets have been adopted or committed here; exact variant detail, target-render appearance and performance still require review.
+This historical source and licence survey covers visual aircraft and cockpit assets. A follow-up external
+review downloaded and converted F-16, F-15 and MiG-29 candidates outside this repository. Those third-party
+review files are not committed or bundled. Price alone does not establish redistribution rights; any future
+external adoption must satisfy the acceptance rule below and the current asset runtime contract.
 
 ## Acceptance rule
 

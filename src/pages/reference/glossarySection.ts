@@ -74,6 +74,8 @@ export function sourcesSection(rc: RefCtx): HTMLElement {
     },
   });
   return h('div', { class: 'ref-sources' },
+    h('p', null, '3D exteriors are original Fox3 art under the MIT license. Shapes and variant details are simplified. ',
+      h('a', { href: 'https://github.com/HDElectronics/Fox3-Academy/blob/main/docs/assets/README.md', target: '_blank', rel: 'noopener' }, 'Asset credits and limitations')),
     h('p', null, `Everything on this page comes from these ${SOURCES.length} documents: ED manuals and changelogs, the DCS Lua datamine, module manuals and community tests. Those tagged ${rc.spec.short} (${mine.size}) back your jet and its RWR. Links open in a new tab.`),
     h('ol', { class: 'ref-srclist' }, items.map(i => i.li)),
     empty);

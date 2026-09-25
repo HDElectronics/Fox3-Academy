@@ -40,7 +40,8 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B16. Remaining device QA.** The [browser QA pass](docs/browser-qa.md) covers live desktop/phone-width
   interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
   M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
-  routes, and frame rate on low-end GPUs. Hold cancellation and thresholds have automated regression tests.
+  routes, and frame rate on low-end GPUs, including the new exterior assets and the Shkval second viewport.
+  Hold cancellation and thresholds have automated regression tests.
 
 ## P4 — Ideas
 
@@ -55,10 +56,3 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   F-16C catalogue is in the repository history; research in [f16-cockpit.md](docs/research/f16-cockpit.md). Done
   when a `cockpit` route returns with one aircraft fully mapped and sourced, phone layout checked and image rights
   clear.
-- **B20. Higher-fidelity aircraft exteriors.** Keep the current procedural models in `src/render/jets.ts`.
-  Asset sourcing, generation, cleanup and integration are deferred; training development does not depend
-  on them. Existing external previews are research records, not approved replacements. Start with one
-  aircraft and the [asset research and integration checklist](docs/research/aircraft-assets.md).
-  Done when a contribution includes clear mesh/texture redistribution rights, preferred source and
-  conversion steps, correct or explicitly simplified variant details, verified scale/orientation,
-  desktop/phone performance checks, attribution, resource cleanup and a working procedural fallback.
