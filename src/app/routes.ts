@@ -14,6 +14,7 @@ export interface RouteDef {
 
 export const ROUTES: RouteDef[] = [
   { path: 'hangar', aliases: ['learn'], label: 'Learn', title: 'Follow a lesson path for your selected aircraft', load: () => import('../pages/hangar/index') },
+  { path: 'progress', label: 'Progress', title: 'Review completed lessons and continue learning across all aircraft', load: () => import('../pages/progress/index'), roles: ['fighter', 'attack'] },
   { path: 'practice', label: 'Practice', title: 'Explore the labs and practise at your own pace', load: () => import('../pages/practice/index') },
   { path: 'radar', label: 'Radar', title: 'See the scan volume in 3D: azimuth, bars, elevation, and why you miss contacts', load: () => import('../pages/radar-lab/index') },
   { path: 'tws', label: 'TWS', title: 'Track while scan: several missiles, several targets, no lock warning', load: () => import('../pages/tws/index') },

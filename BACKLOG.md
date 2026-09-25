@@ -47,7 +47,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
-- A progress view across jets and Tacview ACMI export from Sortie.
 
 ## Community contributions — deferred from active implementation
 

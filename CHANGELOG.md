@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add Learn → Progress (#14): saved completions across all eleven jets, supported flight-ops and strike goals,
+  best RWR/Sortie scores, and links to continue the next incomplete lesson. Reuse existing local progress.
+- Add Download ACMI to the BVR Sortie debrief (#14). Export sampled aircraft, missiles and SAMs with combat
+  events using the Tacview 2.2 text format. Files identify the trainer's synthetic location/date and include
+  whole-fight truth; no terrain or exterior models are embedded.
+
 - Fix IR missile starting ranges in the Missiles lab (#50). PL-5EII and the other six IR missiles now start
   inside acquisition range instead of defaulting to an unlaunchable fraction of kinematic Rmax. Opening,
   reset, dropdown and weapon-cycle selection share the rule; manual no-lock shots remain rejected.

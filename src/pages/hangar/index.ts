@@ -61,7 +61,7 @@ const factory: PageFactory = (): Page => {
         h('div', null, h('p', { class: 'hg-intro__eyebrow' }, 'Learn · ' + spec.short),
           h('h2', null, 'Build the picture. Make the decision.'),
           h('p', null, 'Follow the lesson path for your selected jet, then practise freely or fly a sortie.')),
-        h('div', { class: 'hg-entry-links' }, h('a', { href: '#/practice' }, 'Open practice labs →'), h('a', { href: '#/sortie' }, 'Fly a sortie →')));
+        h('div', { class: 'hg-entry-links' }, h('a', { href: '#/progress' }, 'Progress across jets →'), h('a', { href: '#/practice' }, 'Open practice labs →'), h('a', { href: '#/sortie' }, 'Fly a sortie →')));
       const root = h('div', { class: 'hg', id: 'hangar' }, intro, hero.el, lessons, band, weapons, notes);
       ctx.root.append(root);
 

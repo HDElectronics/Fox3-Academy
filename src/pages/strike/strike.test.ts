@@ -23,7 +23,7 @@ describe('strike route', () => {
     expect(jetAllowed(r, 'su25t')).toBe(true);
     expect(jetAllowed(r, 'f15c')).toBe(false);
     expect(pickerJets(r, 'su25t')).toEqual(['su25t']);
-    expect(ROUTES.filter(x => x.roles?.includes('attack')).map(x => x.path)).toEqual(['strike']);
+    expect(ROUTES.filter(x => x.roles?.includes('attack') && !x.roles.includes('fighter')).map(x => x.path)).toEqual(['strike']);
     expect(LESSON_LINKS.some(l => l.path === 'strike')).toBe(true);
   });
 });
