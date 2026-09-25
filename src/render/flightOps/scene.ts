@@ -136,7 +136,7 @@ export class FlightOpsScene {
     this.landing.name = 'flightOps:landingFrame';
     this.landing.add(this.overlay);
     this.runwayApproach = { ...opts, glideDeg: this.overlay.glideDeg, aimPointM: this.overlay.aimPointM, lengthM: opts.lengthM ?? 4 * 1852 };
-    this.jet = new JetMesh(aircraft, this.side, stage.palette);
+    this.jet = new JetMesh(aircraft, this.side, stage.palette, { onReady: () => stage.requestRender() });
     stage.scene.add(this.root, this.jet);
     this.nav = new LineBatch(stage.shared, { capacity: 64 });
     this.nav.visible = false;
@@ -211,8 +211,8 @@ export class FlightOpsScene {
   /** Swap the jet type (keeps the camera and overlay). */
   setAircraft(id: FlightOpsJetId): void {
     if (id === this.jet.aircraft) return;
-    this.jet.removeFromParent();
-    this.jet = new JetMesh(id, this.side, this.stage.palette);
+    this.jet.dispose();
+    this.jet = new JetMesh(id, this.side, this.stage.palette, { onReady: () => this.stage.requestRender() });
     this.stage.scene.add(this.jet);
     this.hook?.geometry.dispose();
     this.hook = null;
@@ -536,7 +536,7 @@ export class FlightOpsScene {
     this.nav.dispose();
     this.navNote.dispose();
     this.navAnchor.removeFromParent();
-    this.jet.removeFromParent();
+    this.jet.dispose();
     this.root.removeFromParent();
     this.stage.camera.near = this.oldNear;
     this.stage.camera.fov = this.baseFov;

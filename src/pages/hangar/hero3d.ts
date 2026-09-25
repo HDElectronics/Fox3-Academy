@@ -51,7 +51,7 @@ export function mountHero(host: HTMLElement, spec: AircraftSpec, o: HeroOptions)
     return { ok: false, dispose() {} };
   }
 
-  const jet = new JetMesh(spec.id, 'neutral', stage.palette);
+  const jet = new JetMesh(spec.id, 'neutral', stage.palette, { onReady: () => stage.requestRender() });
   jet.scale.setScalar(0.001);
   jet.position.set(0, ALT_KM, 0);
   if (jet.hasSwingWing) jet.setSweep(f14SweepForMach(spec.perf.cruiseMach));
@@ -105,7 +105,7 @@ export function mountHero(host: HTMLElement, spec: AircraftSpec, o: HeroOptions)
 
   return {
     ok: true,
-    dispose() { stage.dispose(); },
+    dispose() { jet.dispose(); stage.dispose(); },
   };
 }
 

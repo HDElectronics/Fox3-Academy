@@ -52,7 +52,7 @@ function gallery(): void {
   const rot = -Number(q.get('rot') ?? 228) * D2R;
   list.forEach((id, i) => {
     const col = only ? 2 : i % 5, row = only ? 0.5 : Math.floor(i / 5);
-    const j = new JetMesh(id, side, stage.palette);
+    const j = stage.track(new JetMesh(id, side, stage.palette));
     j.scale.setScalar(0.001);
     j.position.set((col - 2) * 0.03, alt, (row - 0.5) * 0.05);
     j.rotation.y = rot;
@@ -229,7 +229,7 @@ function heroView(): void {
   // Hangar-style hero: the jet at true size with a stylised short-range scan volume sweeping ahead.
   const id = fighterParam(q, 'ac', 'su27');
   const spec = AIRCRAFT[id];
-  const jet = new JetMesh(id, 'blue', stage.palette);
+  const jet = stage.track(new JetMesh(id, 'blue', stage.palette));
   jet.scale.setScalar(0.001);
   jet.position.set(0, 9, 0);
   stage.scene.add(jet);

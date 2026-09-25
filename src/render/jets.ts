@@ -1,5 +1,5 @@
 /**
- * Procedural low-poly jets for every AircraftId (fighters and the Su-25T), plus missiles. Geometry is built once per type in
+ * Aircraft exterior assets with procedural fallbacks for every AircraftId, plus missiles. Fallback geometry is built once per type in
  * metres (nose → −z, right wing +x, top +y) and shared; materials are shared per Stage palette and side.
  * Silhouette cues: Flanker twin tails on booms + long stinger (Su-33 canards), Fulcrum canted tails and
  * LERX, Eagle shoulder wing + box intakes, Hornet canted tails + LEX, Viper single tail + bubble canopy +
@@ -7,12 +7,13 @@
  */
 import {
   BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  Vector3,
+  Object3D, PropertyBinding, Quaternion, Vector3,
 } from 'three';
 import type { AircraftId, MissileId } from '../data/types';
 import { MISSILES } from '../data/missiles';
 import { ModelBuilder, S, Slot, SLOT_COUNT, type SlotId } from './modelBuilder';
 import { sideColor, type Palette, type VisualSide } from './palette';
+import { AssetVisual } from './assets';
 
 export interface JetModel {
   id: AircraftId;
@@ -571,17 +572,23 @@ export function jetMaterials(p: Palette, side: VisualSide): Material[] {
   return list;
 }
 
-/** A jet instance: shared geometry + shared materials; the F-14 gets movable outer wings. */
+/** A jet instance with an asynchronously loaded exterior and a procedural fallback.
+ * Clean configurations use the asset; deployed gear/flaps/brakes use the complete procedural model.
+ * F-14 asset wings retain the authored approximate pivots and follow the same visual sweep schedule.
+ */
 export class JetMesh extends Group {
   readonly aircraft: AircraftId;
   readonly model: JetModel;
   readonly body: Mesh;
   private wings: [Mesh, Mesh] | null = null;
+  private readonly asset: AssetVisual;
+  private assetWings: { node: Object3D; base: Quaternion; sign: number }[] = [];
+  private disposed = false;
   private sweep = 20;
   private partMeshes: { part: JetPart; mesh: Mesh; left: boolean }[] = [];
   private cfg: JetConfig = { gear: 0, flaps: 0, speedbrake: 0 };
 
-  constructor(id: AircraftId, side: VisualSide, palette: Palette) {
+  constructor(id: AircraftId, side: VisualSide, palette: Palette, opts: { onReady?: () => void } = {}) {
     super();
     this.aircraft = id;
     this.model = getJetModel(id);
@@ -610,21 +617,53 @@ export class JetMesh extends Group {
       }
     }
     this.name = 'jet:' + id;
+    this.asset = new AssetVisual(id, { onReady: () => {
+      if (this.disposed) return;
+      const length = this.asset.bounds?.getSize(_assetSize).z;
+      if (length && Number.isFinite(length)) this.asset.scale.setScalar(this.lengthM / length);
+      if (this.hasSwingWing) {
+        const content = this.asset.content;
+        const nodes = ['wing.swing.starboard', 'wing.swing.port'].map(name =>
+          content?.getObjectByName(name) ?? content?.getObjectByName(PropertyBinding.sanitizeNodeName(name)));
+        if (nodes[0] && nodes[1]) {
+          this.assetWings = [
+            { node: nodes[0], base: nodes[0].quaternion.clone(), sign: -1 },
+            { node: nodes[1], base: nodes[1].quaternion.clone(), sign: 1 },
+          ];
+          this.applyAssetSweep();
+        }
+      }
+      this.applyConfig();
+      opts.onReady?.();
+    } });
+    this.asset.name = 'exterior:' + id;
+    this.asset.setTint(side === 'neutral' ? null : sideColor(palette, side));
+    this.add(this.asset);
     this.applyConfig();
   }
 
   get lengthM(): number { return this.model.lengthM; }
   get hasSwingWing(): boolean { return this.wings !== null; }
   get sweepDeg(): number { return this.sweep; }
+  /** Whether the loaded exterior is currently drawn (false for loading, failure or deployed parts). */
+  get usingAsset(): boolean { return this.asset.visible && this.asset.ready && !this.disposed; }
 
   /** F-14 wing sweep in degrees (20 = spread, 68 = fully swept). No-op for fixed wings. */
   setSweep(deg: number): void {
-    if (!this.wings || !this.model.swing) return;
+    if (!this.wings || !this.model.swing || !Number.isFinite(deg)) return;
     this.sweep = Math.max(20, Math.min(75, deg));
     const a = ((this.sweep - this.model.swing.refSweepDeg) * Math.PI) / 180;
     this.wings[0].rotation.y = -a;
     this.wings[1].rotation.y = a;
+    this.applyAssetSweep();
     if (this.partMeshes.length) this.applyConfig();
+  }
+
+  private applyAssetSweep(): void {
+    const angle = (this.sweep - 20) * DEG;
+    for (const { node, base, sign } of this.assetWings) {
+      node.quaternion.copy(base).premultiply(_wingRotation.setFromAxisAngle(_up, sign * angle));
+    }
   }
 
   /** Which configurable parts this model has (setConfig is a no-op for the others). */
@@ -651,6 +690,14 @@ export class JetMesh extends Group {
 
   private applyConfig(): void {
     const { gear, flaps, speedbrake } = this.cfg;
+    // Review exteriors contain no matching rigged gear, flaps or brakes. Keep these operations coherent
+    // by changing the entire airframe instead of attaching mismatched procedural parts to the asset.
+    const supported = this.configParts;
+    const deployed = (supported.gear && gear > 0.001) || (supported.flaps && flaps > 0.001) || (supported.speedbrake && speedbrake > 0.001);
+    const useAsset = !this.disposed && this.asset.ready && !deployed && (!this.hasSwingWing || this.assetWings.length === 2);
+    this.asset.visible = useAsset;
+    this.body.visible = !useAsset;
+    for (const wing of this.wings ?? []) wing.visible = !useAsset;
     for (const { part: p, mesh, left } of this.partMeshes) {
       let k: number, visible: boolean;
       switch (p.drive) {
@@ -659,7 +706,7 @@ export class JetMesh extends Group {
         case 'flaps': k = flaps; visible = flaps > 0.001 && !(p.swing && this.sweep > (this.model.swing?.refSweepDeg ?? 20) + 0.5); break;
         case 'brake': k = speedbrake; visible = speedbrake > 0.001; break;
       }
-      mesh.visible = visible;
+      mesh.visible = !useAsset && visible;
       // Left copies are mirrored in x: mirror the hinge axis and reverse the angle.
       _axis.set(left ? -p.axis[0] : p.axis[0], p.axis[1], p.axis[2]);
       mesh.quaternion.setFromAxisAngle(_axis, (left ? -1 : 1) * k * p.maxRad);
@@ -669,15 +716,37 @@ export class JetMesh extends Group {
   /** Swap to another side's shared materials. */
   setSide(side: VisualSide, palette: Palette): void {
     const mats = jetMaterials(palette, side);
-    this.traverse(o => { if ((o as Mesh).isMesh) (o as Mesh).material = mats; });
+    this.proceduralMaterials(mats);
+    this.asset.setMaterial(null);
+    this.asset.setTint(side === 'neutral' ? null : sideColor(palette, side));
   }
 
   /** Apply one material to every part (shadows, ghosts). */
   setMaterial(m: Material): void {
-    this.traverse(o => { if ((o as Mesh).isMesh) (o as Mesh).material = m; });
+    this.proceduralMaterials(m);
+    this.asset.setMaterial(m);
+  }
+
+  private proceduralMaterials(material: Material | Material[]): void {
+    this.body.material = material;
+    for (const wing of this.wings ?? []) wing.material = material;
+    for (const { mesh } of this.partMeshes) mesh.material = material;
+  }
+
+  /** Release the asset instance; procedural geometry and palette materials remain shared. */
+  override dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.asset.dispose();
+    this.asset.removeFromParent();
+    this.assetWings = [];
+    this.removeFromParent();
   }
 }
 
+const _assetSize = new Vector3();
+const _wingRotation = new Quaternion();
+const _up = new Vector3(0, 1, 0);
 const _axis = new Vector3();
 
 /** F-14 wing sweep schedule (simplified CADC): 20° below M0.4 to 68° at M0.9 and above. */
