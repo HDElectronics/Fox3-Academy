@@ -57,7 +57,9 @@ Launch-zone lab. Choose missile, shooter altitude and Mach, target altitude, Mac
 target does after launch (nothing, turn cold, beam, crank, notch with chaff). Fire and watch the shot in 3D
 with plots of missile Mach, altitude and range. The slider shows Rmin, Rne and Rmax live. Presets show the
 big lessons: shoot high and fast, a cold target shrinks your range, what "no escape" really means, loft.
-IR launch requires acquisition. The support selector can use the shooter's radar to demonstrate loss of
+IR launch requires acquisition. Opening, resetting or selecting an IR missile starts inside its simplified
+lock range at the standard geometry. Manual ranges and comparison presets can exceed it: if the lab says
+NO LAUNCH, move inside the displayed IR lock range or reduce the altitude gap. The support selector can use the shooter's radar to demonstrate loss of
 support; perfect support remains available for range comparisons. Phoenix mode controls demonstrate the
 DCS TWS, PD-STT, P-STT and PH ACT guidance differences.
 

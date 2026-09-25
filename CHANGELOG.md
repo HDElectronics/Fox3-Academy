@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix IR missile starting ranges in the Missiles lab (#50). PL-5EII and the other six IR missiles now start
+  inside acquisition range instead of defaulting to an unlaunchable fraction of kinematic Rmax. Opening,
+  reset, dropdown and weapon-cycle selection share the rule; manual no-lock shots remain rejected.
+
 - Integrate original Blender exteriors for all 11 aircraft, tactical missiles, A-G stores, ground units and
   SAM sites. The 51-model library includes a loadout-only R-60. Preserve procedural loading/failure and
   deployed-configuration fallbacks, F-14 wing sweep, side colors, shadows and wrecks. Ship editable generator
