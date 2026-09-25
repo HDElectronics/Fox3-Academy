@@ -17,6 +17,7 @@ import {
 import { coachSortie, describeShot, firstReaction, reasonText, scoreSortie, type CoachInput, type CoachItem, type ShotRecord } from './coach';
 import type { FlyOutcome } from './fly';
 import { enemyCount } from './setup';
+import { AcmiDownload, exportAcmi } from '../../export/acmi';
 
 export interface DebriefOptions {
   ctx: PageContext;
@@ -223,6 +224,28 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   });
   const bigTime = h('div', { class: 'sortie-clock' }, '00:00');
 
+  // Generate only on request; one object URL is retained until a new download or unmount.
+  const download = new AcmiDownload();
+  bag.add(() => download.dispose());
+  const exportNote = h('p', { class: 'sortie-note', 'aria-live': 'polite' }, world.recording.length
+    ? 'Tacview export includes whole-fight truth at 0.25 s samples, using a synthetic location and date.'
+    : 'No replay samples are available to export.');
+  const exportBtn = button({
+    id: 'sortie-export-acmi', label: 'Download ACMI', size: 's', disabled: !world.recording.length,
+    title: 'Download this sortie for Tacview',
+    onClick: () => {
+      try {
+        const content = exportAcmi(world.recording, { events: rec.events, callsigns: inp.names, title: `Fox3 Academy — ${spec.short} ${setup.scenario} sortie` });
+        download.download(content, `fox3-sortie-${ac}.acmi`);
+        setText(exportNote, 'ACMI download started. Open it in Tacview. It contains whole-fight truth at a synthetic location and date.');
+      } catch (error) {
+        download.dispose();
+        setText(exportNote, 'The recording could not be exported. Your replay is still available here.');
+        console.warn('Debrief: ACMI export failed', error);
+      }
+    },
+  });
+
   const n = enemyCount(setup.scenario);
   const lab = labLayout({
     id: 'sortie-debrief', class: 'sortie-lab sortie-lab--debrief',
@@ -231,12 +254,12 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
       meta: `${spec.short} vs ${n > 1 ? '2× ' : ''}${AIRCRAFT[setup.enemy].short} · ${setup.skill} · ${setup.scenario}`,
       actions: h('div', { class: 'sortie-head-actions' },
         button({ label: 'Fly again', size: 's', variant: 'primary', onClick: () => o.onAgain() }).el,
-        button({ label: 'New brief', size: 's', onClick: () => o.onBrief() }).el),
+        button({ label: 'New brief', size: 's', onClick: () => o.onBrief() }).el, exportBtn.el),
     },
     viewport: viewEl,
     strip: timelineEl,
     console: [
-      consolePanel({ title: 'Result', children: [resultEl] }).el,
+      consolePanel({ title: 'Result', children: [resultEl, exportNote] }).el,
       consolePanel({ title: 'Debrief', class: 'sortie-dpanel', children: [tabsH.el] }).el,
       callout({ kind: 'simplified', body: 'Your radar shows your recorded sensor estimates, held between 0.25 s samples. Rings are tracks; dashed rings are coasting tracks; squares are echoes. The timeline, result, coaching and shot cards always use whole-fight truth. F-pole is the shooter–target distance when the missile ended. Launch zones use true launch geometry (simplified).' }),
     ],
