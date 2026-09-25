@@ -1,7 +1,7 @@
 /**
  * SAM sites in the 3D view, drawn the way the DCS F10 map and Mission Editor show them: a site marker, the
  * threat ring on the ground (maximum engagement range), a dashed minimum-range ring, and a faint altitude
- * band up to the site's ceiling. A small low-poly vehicle (launcher plus radar) sits at the site, boosted to a
+ * band up to the site's ceiling. A reviewed vehicle with a procedural fallback sits at the site, boosted to a
  * pixel floor like the jets. The tag reads the site and what its radar is doing (SEARCH, TRACK, LAUNCH).
  * SAMs in flight go through the TacticalScene missile pipeline (samMissileLike) so they get smoke and trails.
  * Game view only: ring sizes are SAMS[type] (not verified in the Mission Editor), no radar internals.
@@ -18,6 +18,8 @@ import { sideColor, type Palette } from './palette';
 import { Tag, LabelPriority, type DeclutterLabel, type LabelRegistration } from './tags';
 import { boostedScale, UNIT_PER_M } from './units';
 import type { MissileLike } from './tactical';
+import { AssetVisual } from './assets';
+import { fitGroundAsset } from './attack/groundUnits';
 
 /** The fields the renderer reads from a SAM site (sim SamSite and recorded frames both fit). */
 export interface SamSiteLike {
@@ -82,7 +84,7 @@ export function samMissileLike(m: Pick<SamMissile, 'id' | 'type' | 'side' | 'sit
 }
 
 export function samMissileDisplay(type: SamId): NonNullable<MissileLike['display']> {
-  return { name: samShortName(type), lengthM: SAM_LEN_M[type], guidedText: 'SITE TRACK', smoke: 1 };
+  return { name: samShortName(type), lengthM: SAM_LEN_M[type], guidedText: 'SITE TRACK', smoke: 1, visualAssetId: `${type}-missile` };
 }
 export function samMissileMesh(type: SamId): MissileId { return SAM_MESH[type]; }
 
@@ -119,6 +121,10 @@ interface SiteVis {
   id: EntityId;
   data: SamSiteLike;
   mesh: Group;
+  fallback: Group;
+  dead: boolean | null;
+  tint: Color;
+  asset: AssetVisual;
   mat: MeshStandardMaterial;
   tag: Tag;
   unregister: () => void;
@@ -168,17 +174,25 @@ export class SamSiteLayer {
     const P = this.stage.palette;
     const mat = new MeshStandardMaterial({ color: P.dark.clone().lerp(sideColor(P, s.side), 0.35), roughness: 0.85, metalness: 0.1, flatShading: true });
     const mesh = new Group();
+    const fallback = new Group();
     for (const p of vehicleParts(s.type)) {
       const m = new Mesh(p.geo, mat);
       m.position.set(p.x, p.y, p.z);
       if (p.rx) m.rotation.x = p.rx;
       if (p.ry) m.rotation.y = p.ry;
-      mesh.add(m);
+      fallback.add(m);
     }
+    const asset = new AssetVisual(s.type, { onReady: visual => {
+      fitGroundAsset(visual, VEHICLE_M);
+      fallback.visible = false;
+      this.stage.requestRender();
+    } });
+    asset.setTint(sideColor(P, s.side));
+    mesh.add(fallback, asset);
     mesh.name = 'sam:' + s.type;
     this.group.add(mesh);
     const tag = new Tag(this.stage.labels, 'site', s.side);
-    const v: SiteVis = { id: s.id, data: s, mesh, mat, tag, unregister: () => {}, seen: 0, pos: new Vector3() };
+    const v: SiteVis = { id: s.id, data: s, mesh, fallback, dead: null, tint: sideColor(P, s.side).clone(), asset, mat, tag, unregister: () => {}, seen: 0, pos: new Vector3() };
     v.unregister = this.register(tag, { priority: LabelPriority.site });
     this.sites.set(s.id, v);
     return v;
@@ -198,7 +212,14 @@ export class SamSiteLayer {
       const ppu = this.stage.pxPerUnit(cam.position.distanceTo(v.pos));
       const sc = boostedScale(ppu, VEHICLE_M, c.minPx);
       v.mesh.position.copy(v.pos);
-      v.mesh.scale.setScalar(sc);
+      v.mesh.scale.set(sc, dead ? sc * 0.55 : sc, sc);
+      if (v.dead !== dead || !v.tint.equals(col)) {
+        v.dead = dead; v.tint.copy(col);
+        v.mat.color.copy(dead ? P.soot : P.dark);
+        if (!dead) v.mat.color.lerp(col, 0.35);
+        v.asset.setMaterial(dead ? v.mat : null);
+        if (!dead) v.asset.setTint(col);
+      }
       c.symbols.put(x, y + 0.0005, z, Shape.diamond, 14, col, dead ? 0.35 : 0.95);
       if (c.rings && !dead) {
         const spec = SAMS[s.type];
@@ -247,7 +268,8 @@ export class SamSiteLayer {
 
   private disposeSite(v: SiteVis): void {
     v.unregister(); v.tag.dispose(); v.mesh.removeFromParent();
-    for (const m of v.mesh.children) (m as Mesh).geometry.dispose();
+    v.asset.dispose();
+    for (const m of v.fallback.children) (m as Mesh).geometry.dispose();
     v.mat.dispose();
   }
 }

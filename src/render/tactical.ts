@@ -20,10 +20,12 @@ import { FramePriority } from './stage';
 import { LineBatch } from './lines';
 import { Shape, SymbolLayer } from './symbols';
 import { createRibbonMaterial, RibbonGeometry, Trail } from './ribbon';
-import { createMissileMesh, f14SweepForMach, JetMesh, NOMINAL_JET_M, NOMINAL_MISSILE_M, smokeDensity } from './jets';
+import { f14SweepForMach, JetMesh, NOMINAL_JET_M, NOMINAL_MISSILE_M, smokeDensity } from './jets';
 import { sideColor, type Palette } from './palette';
 import { Tag, LabelPriority, LabelRegistry, layoutLabels, type DeclutterLabel, type LabelRegistration, type LabelCandidate } from './tags';
 import { boostedScale, orientationQuaternion, UNIT_PER_M } from './units';
+import { MissileVisual } from './missileVisual';
+import type { AssetId } from './assets';
 import { SamSiteLayer, type SamSiteLike } from './samSites';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 
@@ -64,7 +66,7 @@ export interface MissileLike {
    * Missiles outside the MissileId catalogue (SAMs, see samSites.ts): `type` then only picks the body mesh;
    * the tag name, on-screen length, the guided-state text and smoke density come from here.
    */
-  display?: { name: string; lengthM: number; guidedText: string; smoke: number };
+  display?: { name: string; lengthM: number; guidedText: string; smoke: number; visualAssetId?: AssetId };
 }
 
 export interface CountermeasureLike {
@@ -196,7 +198,7 @@ interface MslVis {
   type: MissileId;
   side: Side;
   data: MissileLike;
-  mesh: Mesh;
+  mesh: MissileVisual;
   tag: Tag;
   ribbon: RibbonGeometry;
   trail: Trail;
@@ -503,8 +505,8 @@ export abstract class TacticalScene implements EntitySource {
   }
 
   private createJet(a: AircraftLike): JetVis {
-    const mesh = new JetMesh(a.type, a.side, this.palette);
-    const shadow = new JetMesh(a.type, a.side, this.palette);
+    const mesh = new JetMesh(a.type, a.side, this.palette, { onReady: () => this.stage.requestRender() });
+    const shadow = new JetMesh(a.type, a.side, this.palette, { onReady: () => this.stage.requestRender() });
     shadow.setMaterial(this.shadowMat);
     shadow.matrixAutoUpdate = false;
     shadow.renderOrder = ORDER.shadows;
@@ -570,7 +572,8 @@ export abstract class TacticalScene implements EntitySource {
   }
 
   private createMissile(m: MissileLike): MslVis {
-    const mesh = createMissileMesh(m.type, this.palette);
+    const lengthM = m.display?.lengthM ?? MISSILES[m.type]?.lengthM ?? 3.7;
+    const mesh = new MissileVisual(m.type, m.display?.visualAssetId ?? m.type, this.palette, lengthM, () => this.stage.requestRender());
     mesh.frustumCulled = false;
     this.group.add(mesh);
     const ribbon = new RibbonGeometry(512, 0.1);
@@ -585,7 +588,7 @@ export abstract class TacticalScene implements EntitySource {
     const v: MslVis = {
       id: m.id, type: m.type, side: m.side, data: m, mesh, tag, ribbon, trail,
       pos: new Vector3(), scale: UNIT_PER_M, px: 0, alive: true, deadAt: null, seen: 0, hidden: false, burning: m.motorLeft > 0,
-      lengthM: m.display?.lengthM ?? MISSILES[m.type]?.lengthM ?? 3.7,
+      lengthM,
     };
     this.missiles.set(m.id, v);
     return v;
@@ -619,13 +622,14 @@ export abstract class TacticalScene implements EntitySource {
   }
 
   private disposeJet(j: JetVis): void {
+    j.mesh.dispose(); j.shadow.dispose();
     j.mesh.removeFromParent(); j.shadow.removeFromParent();
     j.tag.dispose(); j.trail.dispose();
     if (j.fadeMat) j.fadeMat.dispose();
   }
 
   private disposeMissile(v: MslVis): void {
-    v.mesh.removeFromParent(); v.tag.dispose(); v.trail.dispose();
+    v.mesh.dispose(); v.mesh.removeFromParent(); v.tag.dispose(); v.trail.dispose();
     const c = this.cones.get(v.id);
     if (c) { c.removeFromParent(); this.cones.delete(v.id); }
   }

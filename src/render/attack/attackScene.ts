@@ -4,7 +4,7 @@
  * jet to the Shkval aim point while lasing, the Shkval field-of-view cone and (optional) the lock gimbal volume.
  * It reads the World and never changes it (except installing the terrain hook in the constructor / setWorld).
  */
-import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
 import type { World } from '../../sim/world';
 import type { AgWeapon, Aircraft, EntityId } from '../../sim/types';
 import type { AgWeaponId } from '../../data/types';
@@ -20,6 +20,7 @@ import { UNIT_PER_M } from '../units';
 import { TerrainMesh, TerrainProps, type HeightField } from '../terrain';
 import { GroundUnitLayer } from './groundUnits';
 import { terrainHook } from './terrainHook';
+import { AssetVisual } from '../assets';
 
 export interface AttackLayers {
   /** Laser line jet → aim point while ЛД is on. */
@@ -47,6 +48,30 @@ interface Puff { x: number; y: number; z: number; t0: number; life: number; s0: 
 const MOTOR_S: Partial<Record<AgWeaponId, number>> = { vikhr: 30, kh25ml: 6, kh29l: 6, kh29t: 6, kh58: 8, s8: 1.2, s13: 1.4 };
 const LOCK_GIMBAL = { az: 35, up: 15, down: -85 };
 
+/** A metre-scale reviewed store with a synchronous procedural fallback. */
+export class AgStoreVisual extends Group {
+  private readonly asset: AssetVisual;
+  private readonly forward = new Vector3(0, 0, -1);
+  private readonly direction = new Vector3();
+
+  constructor(type: Exclude<AgWeaponId, 'gun25t'>, geometry: BufferGeometry, material: Material, onReady?: () => void) {
+    super();
+    const fallback = new Mesh(geometry, material);
+    this.asset = new AssetVisual(type, { onReady: () => { fallback.visible = false; onReady?.(); } });
+    this.add(fallback, this.asset);
+  }
+
+  /** Imported stores point down −Z; keep their nose on the current flight direction. */
+  setVelocity(velocity: Vector3): void {
+    if (velocity.lengthSq() > 1) this.quaternion.setFromUnitVectors(this.forward, this.direction.copy(velocity).normalize());
+  }
+
+  override dispose(): void {
+    this.asset.dispose();
+    this.removeFromParent();
+  }
+}
+
 export class AttackScene {
   readonly root = new Group();
   readonly overlay = new Group();
@@ -57,7 +82,7 @@ export class AttackScene {
   private world: World;
   private shooterId: EntityId | null;
   private readonly weapons = new Group();
-  private readonly wMeshes = new Map<EntityId, { mesh: Mesh; lastPuff: number }>();
+  private readonly wMeshes = new Map<EntityId, { mesh: AgStoreVisual; lastPuff: number }>();
   private readonly geo: Record<'missile' | 'bomb' | 'rocket', CylinderGeometry>;
   private readonly wMat: MeshBasicMaterial;
   private readonly lines: LineBatch;
@@ -68,8 +93,6 @@ export class AttackScene {
   private focusClock = 0;
   private readonly offs: (() => void)[] = [];
   private readonly v = new Vector3();
-  private readonly q = new Quaternion();
-  private readonly zAxis = new Vector3(0, 0, 1);
   private disposed = false;
 
   constructor(private readonly stage: Stage, world: World, private view: WorldView | null, opts: AttackSceneOptions) {
@@ -82,7 +105,7 @@ export class AttackScene {
     this.root.scale.setScalar(UNIT_PER_M);
     this.terrain = new TerrainMesh(opts.field, p, { lodDistancesM: [6000, 16000] });
     this.props = new TerrainProps(opts.field, p, { density: opts.propDensity ?? 0.5, viewDistanceM: 6000 });
-    this.units = new GroundUnitLayer(p);
+    this.units = new GroundUnitLayer(p, () => stage.requestRender());
     this.geo = {
       missile: new CylinderGeometry(0.13, 0.13, 3, 6).rotateX(Math.PI / 2),
       bomb: new CylinderGeometry(0.2, 0.2, 2.2, 8).rotateX(Math.PI / 2),
@@ -110,7 +133,7 @@ export class AttackScene {
     this.world = world;
     this.evCursor = world.events.length;
     this.units.reset();
-    for (const w of this.wMeshes.values()) w.mesh.removeFromParent();
+    for (const w of this.wMeshes.values()) w.mesh.dispose();
     this.wMeshes.clear();
     this.puffs = [];
     this.setFocusNow();
@@ -154,7 +177,7 @@ export class AttackScene {
       seen.add(wp.id);
       this.syncWeapon(wp, t);
     }
-    for (const [id, it] of this.wMeshes) if (!seen.has(id)) { it.mesh.removeFromParent(); this.wMeshes.delete(id); }
+    for (const [id, it] of this.wMeshes) if (!seen.has(id)) { it.mesh.dispose(); this.wMeshes.delete(id); }
 
     // Impacts.
     const ev = w.events;
@@ -247,13 +270,13 @@ export class AttackScene {
     }
     let it = this.wMeshes.get(wp.id);
     if (!it) {
-      it = { mesh: new Mesh(this.geo[kind === 'bomb' ? 'bomb' : kind === 'rocket' ? 'rocket' : 'missile'], this.wMat), lastPuff: -1 };
+      const geometry = this.geo[kind === 'bomb' ? 'bomb' : kind === 'rocket' ? 'rocket' : 'missile'];
+      it = { mesh: new AgStoreVisual(wp.type as Exclude<AgWeaponId, 'gun25t'>, geometry, this.wMat, () => this.stage.requestRender()), lastPuff: -1 };
       this.wMeshes.set(wp.id, it);
       this.weapons.add(it.mesh);
     }
     it.mesh.position.copy(wp.pos);
-    const sp = wp.vel.length();
-    if (sp > 1) it.mesh.quaternion.copy(this.q.setFromUnitVectors(this.zAxis, this.v.copy(wp.vel).divideScalar(sp)));
+    it.mesh.setVelocity(wp.vel);
     const motor = MOTOR_S[wp.type] ?? 0;
     const age = t - wp.launchedAt;
     if (motor > 0 && age < motor && t - it.lastPuff >= 0.05) {
@@ -294,6 +317,8 @@ export class AttackScene {
     if (this.disposed) return;
     this.disposed = true;
     for (const off of this.offs) off();
+    for (const w of this.wMeshes.values()) w.mesh.dispose();
+    this.wMeshes.clear();
     this.units.dispose();
     this.terrain.dispose();
     this.props.dispose();

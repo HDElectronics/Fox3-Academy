@@ -1,12 +1,13 @@
 /**
- * Ground targets for the attack scene: low-poly tank, APC, truck, bunker, building, SAM launcher and AAA, placed
+ * Ground targets for the attack scene: reviewed tank, APC, truck, bunker, building, SAM and AAA assets with procedural fallbacks, placed
  * on the terrain from `world.groundUnits`. Authored in metres: add the layer under a 0.001-scaled root.
  * Drawing choices only (shape, colour): the sim's `sizeM` scales the model so the Shkval size rule matches.
  */
-import { BoxGeometry, BufferGeometry, Color, CylinderGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BoxGeometry, BufferGeometry, Color, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { EntityId, GroundUnit, GroundUnitKind } from '../../sim/types';
 import { GROUND_UNIT_SIZE } from '../../sim/ground';
 import type { Palette } from '../palette';
+import { AssetVisual } from '../assets';
 
 /** Longest dimension (m) each model is authored at; the sim size scales it. */
 const MODEL_SIZE: Record<GroundUnitKind, number> = { tank: 9.5, apc: 7.5, truck: 8, bunker: 14, building: 40, 'sam-site': 9, aaa: 6.5 };
@@ -16,15 +17,25 @@ export function unitModelScale(u: Pick<GroundUnit, 'kind' | 'sizeM'>): number {
   return Math.max(0.5, Math.min(5, (u.sizeM || GROUND_UNIT_SIZE[u.kind]) / MODEL_SIZE[u.kind]));
 }
 
+/** Fit a newly loaded ground model using its intrinsic metre bounds. */
+export function fitGroundAsset(asset: AssetVisual, nominalSize: number): void {
+  // Intrinsic bounds ignore terrain placement, heading, visibility boost and wreck squash.
+  const size = asset.bounds?.getSize(new Vector3());
+  if (!size) return;
+  const longest = Math.max(size.x, size.z);
+  if (longest > 0) asset.scale.setScalar(nominalSize / longest);
+}
+
+type GroundVisual = { obj: Group; fallback: Group; asset: AssetVisual; dead: boolean };
 type Part = [geo: BufferGeometry, mat: 'hull' | 'dark' | 'wall' | 'roof', x: number, y: number, z: number, rx?: number];
 
 export class GroundUnitLayer extends Group {
   private readonly geos: BufferGeometry[] = [];
   private readonly mats: Record<'hull' | 'dark' | 'wall' | 'roof' | 'dead', MeshStandardMaterial>;
-  private readonly items = new Map<EntityId, { obj: Group; dead: boolean }>();
+  private readonly items = new Map<EntityId, GroundVisual>();
   private readonly parts: Record<GroundUnitKind, Part[]>;
 
-  constructor(palette: Palette) {
+  constructor(palette: Palette, private readonly onReady?: () => void) {
     super();
     this.name = 'attack-ground-units';
     const std = (c: Color) => new MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true });
@@ -51,16 +62,23 @@ export class GroundUnitLayer extends Group {
 
   private keep<T extends BufferGeometry>(g: T): T { this.geos.push(g); return g; }
 
-  private build(u: GroundUnit): Group {
+  private build(u: GroundUnit): GroundVisual {
     const g = new Group();
+    const fallback = new Group();
     for (const [geo, mat, x, y, z, rx] of this.parts[u.kind]) {
       const m = new Mesh(geo, this.mats[mat]);
       m.position.set(x, y, z);
       if (rx) m.rotation.x = rx;
-      g.add(m);
+      fallback.add(m);
     }
+    const asset = new AssetVisual(u.kind, { onReady: visual => {
+      fitGroundAsset(visual, MODEL_SIZE[u.kind]);
+      fallback.visible = false;
+      this.onReady?.();
+    } });
+    g.add(fallback, asset);
     g.scale.setScalar(unitModelScale(u));
-    return g;
+    return { obj: g, fallback, asset, dead: false };
   }
 
   /** Follow the sim: create, move, char and drop unit models. */
@@ -69,19 +87,23 @@ export class GroundUnitLayer extends Group {
     for (const u of units) {
       seen.add(u.id);
       let it = this.items.get(u.id);
-      if (!it) { it = { obj: this.build(u), dead: false }; this.items.set(u.id, it); this.add(it.obj); }
+      if (!it) { it = this.build(u); this.items.set(u.id, it); this.add(it.obj); }
       it.obj.position.set(u.pos.x, u.pos.y, u.pos.z);
       it.obj.rotation.y = -u.heading;
       if (!u.alive && !it.dead) {
         it.dead = true;
-        it.obj.traverse(o => { if (o instanceof Mesh) o.material = this.mats.dead; });
+        it.fallback.traverse(o => { if (o instanceof Mesh) o.material = this.mats.dead; });
+        it.asset.setMaterial(this.mats.dead);
         it.obj.scale.y *= 0.55;
       }
     }
-    for (const [id, it] of this.items) if (!seen.has(id)) { it.obj.removeFromParent(); this.items.delete(id); }
+    for (const [id, it] of this.items) if (!seen.has(id)) { it.asset.dispose(); it.obj.removeFromParent(); this.items.delete(id); }
   }
 
-  reset(): void { for (const it of this.items.values()) it.obj.removeFromParent(); this.items.clear(); }
+  reset(): void {
+    for (const it of this.items.values()) { it.asset.dispose(); it.obj.removeFromParent(); }
+    this.items.clear();
+  }
 
   override dispose(): void {
     this.reset();

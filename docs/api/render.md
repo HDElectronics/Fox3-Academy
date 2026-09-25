@@ -1,7 +1,7 @@
 # Render kit (`src/render`): API
 
 The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
-high-altitude `Environment`, procedural jets and missiles for every `AircraftId` (ten fighters and the Su-25T, straight wing,
+high-altitude `Environment`, original exterior assets with procedural fallbacks for every `AircraftId` (ten fighters and the Su-25T, straight wing,
 wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
 
@@ -118,6 +118,29 @@ true | { altitudeM = 2400, coverage = 0.32 }`, `sunAzimuthDeg = 140`, `sunElevat
 `hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`, `sunDirection`.
 
 ---
+
+## Exterior assets (`assetRegistry.ts`, `assets.ts`)
+
+See [asset library](../assets/README.md) for provenance, source, budgets and configuration limits.
+`AssetId` covers current aircraft, missiles, non-gun A-G stores, ground units, SAM sites and SAM missiles,
+plus the loadout-only R-60. `assetUrl(id)` resolves a bundled URL; no external service is required.
+
+`new AssetVisual(id, { onReady? })` extends `Group`. `ready`, `content` and intrinsic metre `bounds`
+become available after loading. Each consumer owns its fallback and fitting transform. `setTint(Color | null)`
+retains glass/dark detail; `setMaterial(Material | null)` borrows a full override for shadows or wrecks.
+Both work before loading. `dispose()` is idempotent and releases shared resources only after the last user;
+late completion after disposal cannot attach a model or call `onReady`. Request a Stage render on readiness
+so paused scenes refresh. Register standalone consumers for cleanup or dispose them explicitly.
+
+`JetMesh(id, side, palette, { onReady? })` retains its existing API and adds `usingAsset` and `dispose()`.
+Clean states use the exterior; gear/flaps/brakes use the complete procedural airframe. F-14 exterior wing
+pivots follow `setSweep`. WorldView/ReplayView, hangar and flight-ops consumers own disposal.
+
+`MissileVisual(fallbackId, assetId, palette, lengthM, onReady?)` fits the asset to display length and keeps
+`createMissileMesh` as fallback. `MissileLike.display.visualAssetId?: AssetId` selects the separate SAM
+exterior while the existing fallback MissileId and gameplay contracts stay intact. Ground/SAM layers fit
+footprints to their prior sizes, retain terrain alignment, and dispose on reset/removal. A-G visuals face −Z
+along velocity; gun rounds remain procedural tracers.
 
 ## WorldView (`worldView.ts`)
 
@@ -551,7 +574,7 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
 - **Replay needs a roster**: `new ReplayView(stage, { frames: world.recording, world })` is the easy way.
 - **Pre-rolling a sim** before the first frame: call `view.syncNow()` after each `world.step()` or
   trails start empty.
-- **Performance** (M4 Max, DPR 2, 10 jets + 20 missiles + chaff, every layer): 120 fps, ~190 draw calls,
+- **Historical procedural-model performance baseline** (not remeasured for exterior assets; M4 Max, DPR 2, 10 jets + 20 missiles + chaff, every layer): 120 fps, ~190 draw calls,
   kit JS ≈ 0.35 ms per frame, no per-frame allocations in the hot paths.
 
 ## Terrain (`terrain/`)
