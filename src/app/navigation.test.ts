@@ -29,6 +29,11 @@ describe('navigation destinations', () => {
       expect(contextualLinks(destination).some(link => link.path.startsWith('cockpit'))).toBe(false);
     }
   });
+  it('makes fleet progress reachable from Learn without a fighter-only gate', () => {
+    expect(routeFor('progress').path).toBe('progress');
+    expect(destinationFor('progress')).toBe('learn');
+    expect(contextualLinks('learn')).toContainEqual({ path: 'progress', label: 'Progress' });
+  });
   it('ignores query ordering but preserves changes of lab, exercise, and repeated values', () => {
     expect(queryIdentity(new URLSearchParams('lab=free&ex=low'))).toBe(queryIdentity(new URLSearchParams('ex=low&lab=free')));
     expect(queryIdentity(new URLSearchParams('lab=free'))).not.toBe(queryIdentity(new URLSearchParams()));

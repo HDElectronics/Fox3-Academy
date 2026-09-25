@@ -38,7 +38,7 @@ export function lessonPath(route: string): string {
 }
 
 export function contextualLinks(destination: Destination): readonly NavLink[] {
-  return destination === 'learn' ? [{ path: 'learn', label: 'Lesson path' }, ...LESSON_LINKS]
+  return destination === 'learn' ? [{ path: 'learn', label: 'Lesson path' }, { path: 'progress', label: 'Progress' }, ...LESSON_LINKS]
     : destination === 'practice' ? [{ path: 'practice', label: 'All practice' }, ...PRACTICE_LINKS]
       : destination === 'reference' ? [{ path: 'reference', label: 'Kneeboard' }] : [];
 }

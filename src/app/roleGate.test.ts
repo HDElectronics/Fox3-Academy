@@ -37,12 +37,18 @@ describe('fighter and attack roles', () => {
 });
 
 describe('route role gate and picker', () => {
-  it('treats every route but the attack lessons as fighter-only', () => {
-    for (const r of ROUTES.filter(x => x.path !== 'strike')) {
+  it('keeps lesson role gates while progress accepts every jet', () => {
+    for (const r of ROUTES.filter(x => !['strike', 'progress'].includes(x.path))) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);
     }
+  });
+
+  it('allows the progress overview for both roles', () => {
+    const progress = ROUTES.find(r => r.path === 'progress')!;
+    expect(routeRoles(progress)).toEqual(['fighter', 'attack']);
+    for (const id of AIRCRAFT_ORDER) expect(jetAllowed(progress, id)).toBe(true);
   });
 
   it('filters the picker by route role and always keeps the selected jet', () => {
