@@ -13,6 +13,7 @@ import {
   SAMS, SAM_ORDER, SAM_CAVEATS, samForClass, samRwrSymbol, // sams.ts
   PROCEDURES, procedureFor,                            // procedures.ts
   SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor,       // sources.ts
+  NINE_LINE_FIELDS, JTAC_CALLS, jtacMenuItems, buildCommsMenu, MARK_OPTIONS, CAS_CAVEATS, // cas.ts
 } from '../../data';
 ```
 
@@ -41,9 +42,19 @@ import {
 | `AG_WEAPONS` / `AG_WEAPON_ORDER` | `Record<AgWeaponId, AgWeaponSpec>` / `AgWeaponId[]` | Su-25T air-to-ground stores: HUD label (9А4172, 25МЛ, 29Л, 29Т, 500Кр, С8, С13, АБ, ВПУ, 58), kind, guidance (`beam-riding`, `laser`, `tv`, `ballistic`, `anti-radiation`), needs lock / laser / emitter, hold-to-impact, pairable, gameplay `rangeKm` band (`rangeVerified: false` on all), pilot rule. |
 | `SU25T_LOADOUTS` / `SU25T_GUN_ROUNDS` | `AgLoadout[]` / `number` | Trainer loadouts by station (`vikhr`, `laser`, `tv`, `unguided`, `sead`); 200 cannon rounds per S1. |
 | `AG_CAVEATS` | `string[]` | Every unverified air-to-ground value (range bands, simplified laser heat/recovery, gun, stations, Shkval FOV and slew stops). |
-| `SOURCES` | `Source[]` | 111 deduplicated research sources, ids 1..n. |
+| `SOURCES` | `Source[]` | 130 deduplicated research sources, ids 1..n. |
 | `SOURCE_ID` | `Record<SourceKey, number>` | Stable key → id (e.g. `SOURCE_ID.edF15cManual`). |
-| `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam'`. |
+| `SOURCE_TOPICS` / `sourcesFor(topic)` | `Record<SourceTopic, number[]>` / `Source[]` | Topic = any `AircraftId`, `MissileId`, `RwrId`, or `'notch' 'chaff' 'rwr-logic' 'datalink' 'kinematics' 'ai' 'tactics' 'binds-fc3' 'fc3-tws' 'sam' 'cas'`. |
+| `NINE_LINE_FIELDS` / `NINE_LINE_REMARKS` | `NineLineFieldSpec[]` `{ line, id, label, hint }` / `NineLineRemarksSpec` | `src/data/cas.ts`. The nine lines in the order the DCS JTAC reads them (IP, heading and offset, distance, elevation MSL, target, UTM grid, mark, friendlies, egress), then remarks (weapon, weather, attack headings). `NineLineId` names each line. |
+| `JTAC_CONTROL_TYPES` | `ControlTypeSpec[]` `{ type: 1\|2\|3, rule }` | Control types as the A-10C II manual explains them. |
+| `JTAC_CALLS` / `jtacCall(id)` / `fillCall(text, vars)` | `JtacCallSpec[]` / `JtacCallSpec` / `string` | Every pilot and JTAC call in flow order, as `{placeholder}` templates (`CALL_PLACEHOLDERS`, type `CallPlaceholder`). `sources` holds `SourceKey` names. `verified` is true only for A-10C II menu items (pilot) and the five JTAC phrases ED quotes. `jtacCall` throws on an unknown id; `fillCall` leaves missing placeholders as written. |
+| `JTAC_ACTIONS` | `JtacAction[]` | Every action id a radio-menu leaf can carry, including `menu-back` and `menu-exit` (handled by the menu itself). |
+| `jtacMenuItems(state, mark?)` | `CommsMenuNode[]` | The JTAC submenu for a `JtacMenuState` (`idle control remarks readback ip inbound mark lasing run-in in cleared post`) and line-7 `JtacMarkType` (`none wp laser ir`, default `wp`). The next call is F1 (Shift is F3, per the manual); then Repeat Brief, What is my target?, Request BDA, Unable to comply, Check Out (positions unverified); then F11 Previous menu, F12 Exit (unverified). |
+| `buildCommsMenu(callsign, state, mark?)` / `COMMS_MENU` | `CommsMenuNode[]` | The full radio menu: F1 Wingman… to F12 Exit as in the A-10C II manual, only F4 JTACs live (others `disabled`); one JTAC entry with `jtacMenuItems`. `COMMS_MENU` is the idle template with the label `'{callsign}'`. |
+| `MARK_OPTIONS` / `SU25T_CAN_SEE` | `MarkOption[]` / `Record<MarkKind, boolean>` | Line-7 marks: sim `kind`, smoke `colour` (built-in JTAC smoke is white), what sees it, what triggers it. Su-25T: smoke yes, laser no (no spot tracker), IR no. |
+| `JTAC_DEFAULT_LASER_CODE` / `SMOKE_MARK_RANGE_NM` | `1688` / `10` | Built-in JTAC laser code; smoke goes down inside 10 nm after IP Inbound (ED manual). |
+| `JTAC_CALLSIGNS` | `string[]` | The 19 JTAC callsigns in the DCS enum (Axeman … Badger). |
+| `CAS_CAVEATS` | `string[]` | Every simplified or unverified CAS item, in pilot words. |
 | `GUNS` / `gunSpecFor(type)` | `Record<GunJetId, GunSpec>` / `GunSpec \| null` | `src/data/wvr.ts`. Per fighter: gun, calibre, rounds, rate (HI/LO), sight kinds `{ noLock, lock, other? }` (`GunSightKind`), max range, funnel near/far, default wingspan (metres), select / fire / span keys, JF-17 burst limiter. `Sourced` values with `verified` flags. |
 | `TURN_PERF` / `turnPerfFor(type)` / `sustainedG(tp, mach, altFt)` | `Record<GunJetId, TurnPerf>` | Sustained g at full afterburner vs Mach at 5000 ft and 20000 ft. Trainer estimate, not verified. Used by the BFM flight mode. |
 | `GunJetId` / `GUN_JET_IDS` | union / list | The ten fighters with gun and turn data. Deliberately not `AircraftId`: a new jet opts in by adding itself. |
@@ -118,7 +129,8 @@ really drag-limited). `chaffSusceptibility` is the Lua `ccm_k0` clamped to 0..1 
 (hangar `guidanceRuleFor`). Jet-specific handling is also in `notes` as its own line ("F-15C only: …",
 "F-14: …"), which is the safer place to read it from.
 
-**Binds.** `group` is explicitly `radar`, `weapons` or `defence`. `keyboard` contains the documented default
+**Binds.** `group` is explicitly `radar`, `weapons` or `defence` for fighters; the Su-25T also uses `targeting`
+(Shkval) and `comms` (radio menu: `\`, F1 … F12, Esc). `keyboard` contains the documented default
 key string, or `null` when absent or unverified. Consumers must not derive either from prose.
 
 FC3 jets: `keys` is the keyboard default (`'RAlt + I'`) and `note` holds the controls-menu name in
@@ -275,6 +287,21 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
 Research: `docs/research/cas-jtac.md`, `docs/research/cas-jets.md`; plan in `docs/cas-plan.md`.
 - Smoke mark lifetime `SMOKE_DURATION_S` = 300 s (`src/sim/marks.ts`): trainer value, **not verified**. No ED source
   gives the built-in JTAC smoke duration; community JTAC scripts refresh smoke every 5 minutes.
+- Mirrored in `CAS_CAVEATS` (`src/data/cas.ts`). JTAC voice wording is **simplified**: only "Standby for data",
+  "mark is on the deck", "continue", "cleared hot" and "abort" are ED phrases (`verified: true`). Check-in, control
+  type, 9-line lines, remarks, talk-on, re-attack, depart, BDA and check-out replies are trainer wording.
+- "ABORT ABORT ABORT. You do not have permission to fire." comes from a forum snippet: **not verified**.
+- Menu labels "Check-in 15 min", "Ready to copy remarks", "9-line readback" are from Chuck's guide
+  (`unverified: true`). F-key positions other than F1 (and F3 Shift), and the F11 Previous menu item, are
+  **not verified**.
+- Abort rules (no clearance, release after abort, heading outside the window, aim point off the target) and the
+  danger-close distance are **trainer rules**. ED does not document the AI's rules.
+- Line 6 is a trainer grid, not a real UTM grid. Where the laser code is spoken (line 7 or remarks) is not verified.
+- Su-25T: laser code 1113 HUD diamond is community-reported, possibly broken since 2025, **not modelled**. Whether
+  its radio menu matches the A-10C II flow, and IR pointer visibility (NVGs), are **not verified**.
+- Browsers cannot reliably capture F5, F11, F12 (sometimes F1): digits are trainer aliases for F-keys.
+- Su-25T comms binds: `\` (radio menu), F1 … F12, Esc come from the A-10C II manual (US keyboard; other layouts
+  vary); the Su-25T manual does not list them.
 
 ### SAM sites
 

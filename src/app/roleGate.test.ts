@@ -21,7 +21,7 @@ describe('fighter and attack roles', () => {
     const p = PROCEDURES.su25t;
     expect(p.binds.map(b => b.keys)).toEqual(expect.arrayContaining(['O', 'RCtrl + O', '; , . /', 'Enter', '= / -', 'RShift + O', '7', '8']));
     for (const b of p.binds) {
-      expect(['weapons', 'defence', 'targeting']).toContain(b.group);
+      expect(['weapons', 'defence', 'targeting', 'comms']).toContain(b.group);
       expect(b.keyboard, b.action).not.toBeNull();
     }
     expect(p.procedures.map(x => x.id)).toEqual(['shkval-lock', 'laser-shot', 'tv-shot', 'sead']);
