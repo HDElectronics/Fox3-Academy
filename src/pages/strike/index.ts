@@ -41,7 +41,8 @@ import { BUNKER_AT, START, TANKS_AT, TRUCKS_AT, buildScenario, centreOf, type Sc
 import {
   IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TIME_S, SortieFlight, SortieTracker, navCue, scoreSortie, steerPoint, terrainFollowAlt, type EndReason,
 } from './sortie';
-import { AREA_VIEW, drawPlan, type MapScene } from './sortieMap';
+import { AREA_VIEW, drawPlan, type MapPlan, type MapScene } from './sortieMap';
+import { PLAN } from './sortie';
 import { mountSortieDebrief } from './sortieDebrief';
 
 const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
@@ -62,6 +63,15 @@ const SORTIE_SHOTS = ['brief', 'ingress', 'attack', 'egress', 'debrief'] as cons
 type SortieShotParam = typeof SORTIE_SHOTS[number];
 /** Sortie terrain following: height above the ground the autopilot holds (m), its limits and the key step. */
 const AGL_DEFAULT = 60, AGL_MIN = 50, AGL_MAX = 3000, AGL_STEP = 50;
+/** Sortie route and labels on the plan map. */
+const SORTIE_PLAN: MapPlan = {
+  start: PLAN.start, ip: PLAN.ip, target: PLAN.target,
+  labels: [
+    { text: 'Column', x: PLAN.target.x, z: PLAN.target.z, dx: 16, dy: 4, view: 'target' },
+    { text: 'Bunker', x: PLAN.bunker.x, z: PLAN.bunker.z, dx: 12, dy: -8, view: 'target' },
+    { text: 'Target', x: PLAN.target.x, z: PLAN.target.z, dx: 10, dy: 16, view: 'area', tone: 'hostile' },
+  ],
+};
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
@@ -443,7 +453,7 @@ const factory: PageFactory = (): Page => {
         sites.push({ id: sc.aaa, unitId: sc.aaa, name: 'ZSU-23-4', x: u.pos.x, z: u.pos.z, ringM: tracker.aaa.ringM, kind: 'aaa' });
       }
       const units = [...w.groundUnits.values()].filter(u => u.kind !== 'sam-site' && u.kind !== 'aaa').map(u => ({ id: u.id, kind: u.kind, x: u.pos.x, z: u.pos.z }));
-      return { sites, units };
+      return { sites, units, plan: SORTIE_PLAN };
     }
     function drawBrief(): void {
       if (briefOverlay.hidden) return;
