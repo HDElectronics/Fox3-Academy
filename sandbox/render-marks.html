@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Target marks harness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:wght@400;500&family=B612+Mono:wght@400;700&display=swap">
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--screen); }
+  #viewport { position: fixed; inset: 0; }
+  .hud { position: fixed; top: 10px; left: 10px; z-index: 5; width: fit-content; max-width: calc(100% - 20px);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 10px;
+    border-radius: var(--r-2); background: color-mix(in srgb, var(--screen) 85%, transparent);
+    font: 11px var(--font-mono); color: var(--sym); }
+  .hud button { font: inherit; color: var(--btn-ink); background: var(--btn); border: 1px solid var(--panel-line);
+    padding: 7px; border-radius: var(--r-1); cursor: pointer; }
+  .hud button[aria-pressed="true"] { color: var(--btn-on-ink); background: var(--btn-on); }
+  .tv { position: fixed; right: 10px; bottom: 10px; z-index: 5; border: 1px solid var(--panel-line);
+    background: var(--screen); font: 11px var(--font-mono); color: var(--sym); }
+  .tv { margin: 0; }
+  .tv p { margin: 0; padding: 4px 6px; }
+  .tv canvas { display: block; width: 400px; height: 300px; }
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+<nav class="hud" aria-label="Marks harness">
+  <span>Target marks · simplified</span>
+  <button id="cam-target" type="button">Target</button>
+  <button id="cam-jet" type="button">Chase</button>
+  <button id="ir" type="button" aria-pressed="false">IR pointer (NVG)</button>
+</nav>
+<figure class="tv" id="tv"><p>Shkval TV</p></figure>
+<script type="module" src="./render-marks.ts"></script>
+</body>
+</html>

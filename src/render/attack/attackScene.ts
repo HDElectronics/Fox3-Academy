@@ -1,7 +1,8 @@
 /**
  * Ground-attack scene for the Su-25T pages: height-map terrain wired as `world.terrain`, ground units on it,
  * air-to-ground weapons in flight (Vikhr and rocket smoke, bombs, gun tracers), impacts, the laser line from the
- * jet to the Shkval aim point while lasing, the Shkval field-of-view cone and (optional) the lock gimbal volume.
+ * jet to the Shkval aim point while lasing, the Shkval field-of-view cone and (optional) the lock gimbal volume,
+ * target marks (MarkLayer: JTAC smoke, laser spot, IR pointer) and the optional attack geometry (IP, target, heading wedge).
  * It reads the World and never changes it (except installing the terrain hook in the constructor / setWorld).
  */
 import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
@@ -21,6 +22,8 @@ import { TerrainMesh, TerrainProps, type HeightField } from '../terrain';
 import { GroundUnitLayer } from './groundUnits';
 import { terrainHook } from './terrainHook';
 import { AssetVisual } from '../assets';
+import { sideColor } from '../palette';
+import { MarkLayer } from './marks';
 
 export interface AttackLayers {
   /** Laser line jet → aim point while ЛД is on. */
@@ -32,6 +35,36 @@ export interface AttackLayers {
   /** Screen-size markers over ground units (visible from far away). */
   markers: boolean;
   smoke: boolean;
+  /** Target marks (MarkLayer): smoke columns, laser spot, IR pointer. */
+  marks: boolean;
+  /** Markers over friendly (blue) ground units. */
+  friendlies: boolean;
+}
+
+/** Attack geometry drawn on the ground in the overlay (hidden in the TV). Headings in degrees true. */
+export interface AttackGeometry {
+  ip?: { x: number; z: number };
+  target?: { x: number; z: number };
+  /** Allowed final attack headings, clockwise from `[0]` to `[1]` (e.g. [350, 20] crosses north). Needs `target`. */
+  attackHeadingDeg?: [number, number];
+}
+
+/** Length of the drawn attack-heading wedge (m). */
+export const WEDGE_LENGTH_M = 8000;
+
+/**
+ * Approach bearings (degrees true, from the target out toward the attacking jet) for the allowed final attack
+ * headings `fromDeg` → `toDeg` clockwise: a jet on heading h comes from bearing h + 180. Sampled every
+ * `stepDeg` or finer; both ends included.
+ */
+export function approachBearingsDeg(fromDeg: number, toDeg: number, stepDeg = 5): number[] {
+  const norm = (d: number) => ((d % 360) + 360) % 360;
+  let span = norm(toDeg - fromDeg);
+  if (span === 0 && norm(toDeg) === norm(fromDeg) && toDeg !== fromDeg) span = 360;
+  const n = Math.max(1, Math.ceil(span / stepDeg));
+  const out: number[] = [];
+  for (let i = 0; i <= n; i++) out.push(norm(fromDeg + (span * i) / n + 180));
+  return out;
 }
 
 export interface AttackSceneOptions {
@@ -88,6 +121,11 @@ export class AttackScene {
   private readonly lines: LineBatch;
   private readonly symbols: SymbolLayer;
   private readonly marks: SymbolLayer;
+  /** Target marks (smoke is a real scene object so the TV shows it; laser and IR are truth-only). */
+  readonly markLayer: MarkLayer;
+  private geometry: AttackGeometry | null = null;
+  private geoSegs = new Float32Array(0);
+  private geoSegN = 0;
   private puffs: Puff[] = [];
   private evCursor = 0;
   private focusClock = 0;
@@ -98,7 +136,7 @@ export class AttackScene {
   constructor(private readonly stage: Stage, world: World, private view: WorldView | null, opts: AttackSceneOptions) {
     this.world = world;
     this.shooterId = opts.shooterId ?? null;
-    this.layers = { laser: true, fov: true, gimbal: false, markers: true, smoke: true, ...opts.layers };
+    this.layers = { laser: true, fov: true, gimbal: false, markers: true, smoke: true, marks: true, friendlies: true, ...opts.layers };
     world.terrain = terrainHook(opts.field);
     const p = stage.palette;
     this.root.name = 'attack-root';
@@ -121,6 +159,8 @@ export class AttackScene {
     this.marks = new SymbolLayer(stage.shared, { capacity: 96, depthTest: false, renderOrder: ORDER.overlay });
     this.overlay.add(this.lines, this.symbols, this.marks);
     stage.scene.add(this.overlay);
+    this.markLayer = new MarkLayer(stage.shared, p);
+    stage.scene.add(this.markLayer);
     this.evCursor = world.events.length;
 
     this.offs.push(stage.onFrame(() => this.sync(), { priority: 110, always: true }));
@@ -136,6 +176,8 @@ export class AttackScene {
     for (const w of this.wMeshes.values()) w.mesh.dispose();
     this.wMeshes.clear();
     this.puffs = [];
+    this.markLayer.reset();
+    this.setGeometry(this.geometry);
     this.setFocusNow();
   }
 
@@ -145,10 +187,52 @@ export class AttackScene {
 
   /** Scene objects the Shkval TV picture must not show (symbology, the tactical layer with the own jet, clouds). */
   tvHidden(): Object3D[] {
-    const out: Object3D[] = [this.overlay];
+    const out: Object3D[] = [this.overlay, this.markLayer.truth];
     if (this.view) out.push(this.view.group);
     if (this.stage.env) out.push(this.stage.env.clouds);
     return out;
+  }
+
+  /**
+   * Draw (or clear with null) the attack geometry on the ground: an IP marker, a target cross and the wedge of
+   * allowed final attack headings (radials and an arc out to WEDGE_LENGTH_M, on the approach side of the target).
+   * Ground heights are sampled once here; call again after setWorld with a different terrain.
+   */
+  setGeometry(g: AttackGeometry | null): void {
+    this.geometry = g;
+    const segs: number[] = [];
+    const U = UNIT_PER_M, lift = 12;
+    const at = (x: number, z: number): [number, number, number] => [x * U, (this.world.groundHeight(x, z) + lift) * U, z * U];
+    const path = (pts: [number, number][], stepM: number, dash = 0) => {
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [ax, az] = pts[i]!, [bx, bz] = pts[i + 1]!;
+        const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / stepM));
+        for (let k = 0; k < n; k++) {
+          const a = at(ax + (bx - ax) * k / n, az + (bz - az) * k / n), b = at(ax + (bx - ax) * (k + 1) / n, az + (bz - az) * (k + 1) / n);
+          segs.push(...a, ...b, dash);
+        }
+      }
+    };
+    const off = (p: { x: number; z: number }, brgDeg: number, r: number): [number, number] =>
+      [p.x + Math.sin(brgDeg * D2R) * r, p.z - Math.cos(brgDeg * D2R) * r];
+    if (g?.ip) {
+      const ring: [number, number][] = [];
+      for (let a = 0; a <= 360; a += 30) ring.push(off(g.ip, a, 300));
+      path(ring, 200);
+    }
+    if (g?.target) {
+      path([off(g.target, 45, 150), off(g.target, 225, 150)], 100);
+      path([off(g.target, 135, 150), off(g.target, 315, 150)], 100);
+      if (g.attackHeadingDeg) {
+        const brg = approachBearingsDeg(g.attackHeadingDeg[0], g.attackHeadingDeg[1], 5);
+        const t = g.target;
+        path([off(t, brg[0]!, 400), off(t, brg[0]!, WEDGE_LENGTH_M)], 400, 12);
+        path([off(t, brg[brg.length - 1]!, 400), off(t, brg[brg.length - 1]!, WEDGE_LENGTH_M)], 400, 12);
+        path(brg.map(b => off(t, b, WEDGE_LENGTH_M)), 400, 12);
+      }
+    }
+    this.geoSegs = new Float32Array(segs);
+    this.geoSegN = segs.length / 7;
   }
 
   private shooter(): Aircraft | null {
@@ -219,6 +303,13 @@ export class AttackScene {
       }
       if (this.layers.gimbal) this.drawGimbal(ac);
     }
+    if (this.geoSegN) {
+      const G = this.geoSegs, c = pal.sym;
+      for (let i = 0; i < this.geoSegN; i++) {
+        const k = i * 7;
+        this.lines.seg(G[k]!, G[k + 1]!, G[k + 2]!, G[k + 3]!, G[k + 4]!, G[k + 5]!, c.r, c.g, c.b, 0.8, c.r, c.g, c.b, 0.8, 1.5, G[k + 6]!);
+      }
+    }
     this.lines.commit();
 
     // Smoke and markers.
@@ -242,8 +333,9 @@ export class AttackScene {
     if (this.layers.markers) {
       const locked = sh?.lockedUnitId ?? null;
       for (const u of w.groundUnits.values()) {
+        if (u.side === 'blue' && !this.layers.friendlies) continue;
         const x = u.pos.x * UNIT_PER_M, y = (u.pos.y + 14) * UNIT_PER_M, z = u.pos.z * UNIT_PER_M;
-        if (u.alive) this.marks.put(x, y, z, Shape.diamond, 8, pal.hostile, 0.85);
+        if (u.alive) this.marks.put(x, y, z, Shape.diamond, 8, sideColor(pal, u.side), 0.85);
         else this.marks.put(x, y, z, Shape.cross, 7, pal.symDim, 0.7);
         if (u.id === locked) this.marks.put(x, y, z, Shape.brackets, 18, pal.symHi, 1);
       }
@@ -252,7 +344,13 @@ export class AttackScene {
         this.marks.put(sp.x * UNIT_PER_M, (sp.y + 5) * UNIT_PER_M, sp.z * UNIT_PER_M, Shape.cross, 12, pal.symHi, 0.9);
       }
     }
+    const g = this.geometry;
+    if (g?.ip) this.marks.put(g.ip.x * UNIT_PER_M, (w.groundHeight(g.ip.x, g.ip.z) + 20) * UNIT_PER_M, g.ip.z * UNIT_PER_M, Shape.triangle, 14, pal.sym, 0.95);
+    if (g?.target) this.marks.put(g.target.x * UNIT_PER_M, (w.groundHeight(g.target.x, g.target.z) + 20) * UNIT_PER_M, g.target.z * UNIT_PER_M, Shape.cross, 14, pal.symHi, 0.95);
     this.marks.commit();
+
+    this.markLayer.visible = this.layers.marks;
+    if (this.layers.marks) this.markLayer.sync(w);
 
     this.focusClock += 1;
     if (this.focusClock % 15 === 0) this.setFocusNow();
@@ -327,6 +425,7 @@ export class AttackScene {
     this.lines.geometry.dispose(); this.lines.material.dispose();
     this.symbols.geometry.dispose(); this.symbols.material.dispose();
     this.marks.geometry.dispose(); this.marks.material.dispose();
+    this.markLayer.dispose();
     this.root.removeFromParent();
     this.overlay.removeFromParent();
   }
