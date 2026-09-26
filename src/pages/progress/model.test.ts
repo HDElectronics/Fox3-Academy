@@ -9,6 +9,7 @@ import { progressKey as flightKey } from '../flight-ops/logic';
 import { aarProgressKey } from '../flight-ops/aarLesson';
 import { LESSON_ORDER, progressKey as strikeKey } from '../strike/lessons';
 import { SORTIE_PROGRESS } from '../strike/sortie';
+import { CAS_LESSON_ORDER } from '../cas/lessons';
 import { fleetProgress, jetProgress, progressHref, progressTotals, previewProgress } from './model';
 
 const read = (values: Record<string, number | boolean | string> = {}): ProgressReader => key => values[key];
@@ -63,13 +64,14 @@ describe('fleet progress', () => {
     expect(jet.goals.find(g => g.id === 'flight-launch')?.href).toContain('start=skiJump');
   });
 
-  it('gives the Su-25T its eight strike lessons and counts its distinct sortie key', () => {
+  it('gives the Su-25T its eight strike lessons, then the CAS lessons, and counts its distinct sortie key', () => {
     expect(strikeKey('sortie')).toBe(SORTIE_PROGRESS);
-    const jet = jetProgress('su25t', read({ [SORTIE_PROGRESS]: true, 'sortie:su25t:done': true, 'tws:su25t:done': true }));
-    expect(jet.goals.map(g => g.id)).toEqual(LESSON_ORDER);
-    expect(jet.completed).toBe(1);
-    expect(jet.total).toBe(8);
-    expect(jet.goals.every(g => g.href.startsWith('#/strike?'))).toBe(true);
+    const jet = jetProgress('su25t', read({ [SORTIE_PROGRESS]: true, 'sortie:su25t:done': true, 'tws:su25t:done': true, 'cas:talk-on:su25t': true }));
+    expect(jet.goals.map(g => g.id)).toEqual([...LESSON_ORDER, ...CAS_LESSON_ORDER.map(l => `cas-${l}`)]);
+    expect(jet.completed).toBe(2);
+    expect(jet.total).toBe(8 + CAS_LESSON_ORDER.length);
+    expect(jet.goals.slice(0, 8).every(g => g.href.startsWith('#/strike?'))).toBe(true);
+    expect(jet.goals.slice(8).every(g => g.href.startsWith('#/cas?'))).toBe(true);
   });
 
   it('links select the matching aircraft and resolve to a supported lesson route', () => {
