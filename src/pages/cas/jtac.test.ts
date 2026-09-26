@@ -41,7 +41,8 @@ describe('JTAC flow', () => {
     const root = j.menu();
     const jtacs = root.find(n => n.fkey === 4)!;
     expect(jtacs.label).toBe('JTACs...');
-    expect(root.find(n => n.fkey === 12)!.action).toBe('menu-exit');
+    // Navigation rows (F11, F12) come from the radio menu widget, not from the data.
+    expect(root.some(n => n.action === 'menu-exit' || n.action === 'menu-back')).toBe(false);
     const entry = jtacs.children!.find(n => n.label === 'Axeman 1-1')!;
     const checkIn = entry.children!.find(n => n.action === 'check-in')!;
     expect(checkIn.disabled).toBeFalsy();

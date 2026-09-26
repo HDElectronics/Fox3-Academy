@@ -108,8 +108,10 @@ export class JtacController {
 
   /** The DCS radio menu for this state (root list, F4 JTACs, this JTAC's submenu). Unsupported items are disabled. */
   menu(): CommsMenuNode[] {
-    const ok = new Set<string>([...this.allowed(), 'menu-back', 'menu-exit']);
-    const walk = (nodes: CommsMenuNode[]): CommsMenuNode[] => nodes.map(n => n.children
+    const ok = new Set<string>(this.allowed());
+    // The radio menu widget draws its own F11 Previous menu and F12 Exit rows: drop the data footer.
+    const nav = (n: CommsMenuNode) => n.action === 'menu-back' || n.action === 'menu-exit';
+    const walk = (nodes: CommsMenuNode[]): CommsMenuNode[] => nodes.filter(n => !nav(n)).map(n => n.children
       ? { ...n, children: walk(n.children) }
       : n.action && !ok.has(n.action) ? { ...n, disabled: true } : n);
     return walk(buildCommsMenu(this.callsign, MENU_STATE[this.state], this.nineLine.mark));
