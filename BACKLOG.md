@@ -34,6 +34,12 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   flight-ops PRs: touch panel on tanker starts, catapults 3–4, deck altitude on the HUD, carrier wake, and others.
 - **B23. SAM follow-ups** ([#34](https://github.com/HDElectronics/Fox3-Academy/issues/34)). AI jets ignore SAMs,
   sites cannot be destroyed, SA-10 drill pacing.
+- **B26. CAS & JTAC module** ([#53](https://github.com/HDElectronics/Fox3-Academy/issues/53)). Teach the in-game JTAC workflow before players fly it: radio menu,
+  9-line into a kneeboard card, white smoke and talk-on, IP Inbound / In / cleared hot, friendlies close, a CAS
+  sortie with debrief. Su-25T first, A-10C II next. Plan and build order in [cas-plan.md](docs/cas-plan.md);
+  research in [cas-jtac.md](docs/research/cas-jtac.md) and [cas-jets.md](docs/research/cas-jets.md). Done when
+  the `cas` route ships lessons 1–5 for the Su-25T with every unverified JTAC phrase labelled, `npm run check`
+  green and visual checks at 1440 and 390.
 
 ## P3 — Quality and infrastructure
 
