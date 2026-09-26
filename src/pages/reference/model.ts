@@ -103,10 +103,11 @@ export const BIND_GROUP_TITLE: Record<BindGroup, string> = {
   weapons: 'Weapons',
   defence: 'Countermeasures and RWR',
   targeting: 'Targeting sight',
+  comms: 'Radio and JTAC',
 };
 
 export function groupBinds(binds: readonly KeyBind[]): Record<BindGroup, KeyBind[]> {
-  const out: Record<BindGroup, KeyBind[]> = { radar: [], weapons: [], defence: [], targeting: [] };
+  const out: Record<BindGroup, KeyBind[]> = { radar: [], weapons: [], defence: [], targeting: [], comms: [] };
   for (const b of binds) out[b.group].push(b);
   return out;
 }
