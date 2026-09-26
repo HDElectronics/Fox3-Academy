@@ -6,11 +6,15 @@
 import type { RecordFrame, EntityId } from '../../sim/types';
 import { alpha, type Theme } from '../../ui/theme';
 import { sampleIndex } from '../../render/replay';
-import { PLAN } from './sortie';
 
 /** A threat site; `unitId` is the ground unit whose recorded state says the site is alive. */
 export interface MapSite { id: EntityId; unitId: EntityId; name: string; x: number; z: number; ringM: number; kind: 'sam' | 'aaa' }
-export interface MapUnit { id: EntityId; kind: string; x: number; z: number }
+/** A ground unit; blue units draw in the friendly colour (default red). */
+export interface MapUnit { id: EntityId; kind: string; x: number; z: number; side?: 'red' | 'blue' }
+/** A text label at a map point, offset in px; `view` limits it to the wide area or the close target view. */
+export interface MapLabel { text: string; x: number; z: number; dx: number; dy: number; view?: 'area' | 'target'; tone?: 'hostile' }
+/** Route start → IP → target with the IP triangle, plus labels. */
+export interface MapPlan { start: { x: number; z: number }; ip: { x: number; z: number }; target: { x: number; z: number }; labels?: MapLabel[] }
 
 export interface MapView { cx: number; cz: number; spanM: number }
 /** Whole area (start to the SA-15 ring) and the target area. */
@@ -20,6 +24,7 @@ export const TARGET_VIEW: MapView = { cx: 0, cz: -200, spanM: 6500 };
 export interface MapScene {
   sites: MapSite[];
   units: MapUnit[];
+  plan?: MapPlan;
 }
 
 /** Replay layer: recorded frames and the time to show. */
@@ -61,15 +66,18 @@ export function drawPlan(ctx: CanvasRenderingContext2D, wPx: number, hPx: number
   }
 
   // route: start → IP → target, IP marker
-  ctx.strokeStyle = alpha(th.sym, 0.55); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
-  ctx.beginPath(); ctx.moveTo(X(PLAN.start.x), Y(PLAN.start.z)); ctx.lineTo(X(PLAN.ip.x), Y(PLAN.ip.z)); ctx.lineTo(X(PLAN.target.x), Y(PLAN.target.z)); ctx.stroke();
-  ctx.setLineDash([]);
-  const tri = (x: number, z: number, r: number) => { ctx.beginPath(); ctx.moveTo(X(x), Y(z) - r); ctx.lineTo(X(x) + r * 0.87, Y(z) + r / 2); ctx.lineTo(X(x) - r * 0.87, Y(z) + r / 2); ctx.closePath(); };
-  ctx.strokeStyle = th.sym; ctx.lineWidth = 2; tri(PLAN.ip.x, PLAN.ip.z, 8); ctx.stroke();
-  ctx.fillStyle = th.sym; ctx.font = mono(12); ctx.textAlign = 'left';
-  ctx.fillText('IP', X(PLAN.ip.x) + 10, Y(PLAN.ip.z) + 4);
-  ctx.beginPath(); ctx.arc(X(PLAN.start.x), Y(PLAN.start.z), 5, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillText('Start', X(PLAN.start.x) + 9, Y(PLAN.start.z) + 4);
+  const plan = scene.plan;
+  if (plan) {
+    ctx.strokeStyle = alpha(th.sym, 0.55); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.moveTo(X(plan.start.x), Y(plan.start.z)); ctx.lineTo(X(plan.ip.x), Y(plan.ip.z)); ctx.lineTo(X(plan.target.x), Y(plan.target.z)); ctx.stroke();
+    ctx.setLineDash([]);
+    const tri = (x: number, z: number, r: number) => { ctx.beginPath(); ctx.moveTo(X(x), Y(z) - r); ctx.lineTo(X(x) + r * 0.87, Y(z) + r / 2); ctx.lineTo(X(x) - r * 0.87, Y(z) + r / 2); ctx.closePath(); };
+    ctx.strokeStyle = th.sym; ctx.lineWidth = 2; tri(plan.ip.x, plan.ip.z, 8); ctx.stroke();
+    ctx.fillStyle = th.sym; ctx.font = mono(12); ctx.textAlign = 'left';
+    ctx.fillText('IP', X(plan.ip.x) + 10, Y(plan.ip.z) + 4);
+    ctx.beginPath(); ctx.arc(X(plan.start.x), Y(plan.start.z), 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillText('Start', X(plan.start.x) + 9, Y(plan.start.z) + 4);
+  }
 
   // units
   const unitState = new Map<EntityId, boolean>();
@@ -78,17 +86,17 @@ export function drawPlan(ctx: CanvasRenderingContext2D, wPx: number, hPx: number
   for (const u of scene.units) {
     const alive = unitState.get(u.id) ?? true;
     const big = u.kind === 'bunker' ? 2 : 1;
-    ctx.strokeStyle = alive ? th.hostile : th.symDim; ctx.lineWidth = 1.5;
-    if (alive) { ctx.fillStyle = alpha(th.hostile, 0.5); ctx.fillRect(X(u.x) - r * big, Y(u.z) - r * big, 2 * r * big, 2 * r * big); ctx.strokeRect(X(u.x) - r * big, Y(u.z) - r * big, 2 * r * big, 2 * r * big); }
+    const col = u.side === 'blue' ? th.friendly : th.hostile;
+    ctx.strokeStyle = alive ? col : th.symDim; ctx.lineWidth = 1.5;
+    if (alive) { ctx.fillStyle = alpha(col, 0.5); ctx.fillRect(X(u.x) - r * big, Y(u.z) - r * big, 2 * r * big, 2 * r * big); ctx.strokeRect(X(u.x) - r * big, Y(u.z) - r * big, 2 * r * big, 2 * r * big); }
     else { ctx.beginPath(); ctx.moveTo(X(u.x) - r, Y(u.z) - r); ctx.lineTo(X(u.x) + r, Y(u.z) + r); ctx.moveTo(X(u.x) + r, Y(u.z) - r); ctx.lineTo(X(u.x) - r, Y(u.z) + r); ctx.stroke(); }
   }
-  if (view.spanM <= 15000) {
-    ctx.fillStyle = th.symDim; ctx.font = mono(11); ctx.textAlign = 'left';
-    ctx.fillText('Column', X(PLAN.target.x) + 16, Y(PLAN.target.z) + 4);
-    ctx.fillText('Bunker', X(PLAN.bunker.x) + 12, Y(PLAN.bunker.z) - 8);
-  } else {
-    ctx.fillStyle = th.hostile; ctx.font = mono(11); ctx.textAlign = 'left';
-    ctx.fillText('Target', X(PLAN.target.x) + 10, Y(PLAN.target.z) + 16);
+  const close = view.spanM <= 15000;
+  ctx.font = mono(11); ctx.textAlign = 'left';
+  for (const l of plan?.labels ?? []) {
+    if (l.view && l.view !== (close ? 'target' : 'area')) continue;
+    ctx.fillStyle = l.tone === 'hostile' ? th.hostile : th.symDim;
+    ctx.fillText(l.text, X(l.x) + l.dx, Y(l.z) + l.dy);
   }
 
   if (replay && f) drawReplay(ctx, th, replay, X, Y);

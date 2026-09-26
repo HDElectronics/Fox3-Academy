@@ -15,33 +15,30 @@
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
-import { AG_WEAPONS, KH58_TARGET_CODES } from '../../data/agWeapons';
-import { PROCEDURES } from '../../data/procedures';
-import type { AgWeaponId } from '../../data/types';
+import { AG_WEAPONS } from '../../data/agWeapons';
 import type { Aircraft, AgMissReason, EntityId } from '../../sim/types';
-import { D2R, R2D, dirFrom, relBearing } from '../../sim/math';
-import { LASER_LIMIT_S, shkvalAimPoint, shkvalDir, shkvalFovDeg } from '../../sim/shkval';
-import { armEmitters, ccrpSolution, predictImpact } from '../../sim/agWeapons';
+import { D2R, R2D } from '../../sim/math';
+import { LASER_LIMIT_S, shkvalAimPoint } from '../../sim/shkval';
+import { ccrpSolution } from '../../sim/agWeapons';
 import { samRingM } from '../../sim/sam';
 import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '../../render';
 import { AttackScene, ShkvalTv } from '../../render/attack';
 import {
-  h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, eventLog, readouts,
-  callout, placard, bindKeys, keyHint, disclosure, modal, mobileAction, select, toggle, type ModalHandle, type Tone,
+  h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts,
+  callout, placard, bindKeys, disclosure, modal, select, toggle, type ModalHandle, type Tone,
 } from '../../ui';
 import { readTheme } from '../../ui/theme';
-import { RwrDisplay, It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
 import {
   LESSONS, LESSON_ORDER, MISS_TEXT, STRIKE_CAVEATS, strikeWeaponsResolved, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr,
   type Debrief, type LessonId, type ShotRecord, type StrikeSnap,
 } from './lessons';
-import { pickArmEmitter } from './targeting';
-import { projectArmHudPoint } from '../../ui/displays/su25tHud';
+import { createSu25tCockpit } from './cockpit';
 import { BUNKER_AT, START, TANKS_AT, TRUCKS_AT, buildScenario, centreOf, type Scenario } from './scenario';
 import {
   IP_DIST_M, SORTIE_LOADOUTS, SORTIE_PROGRESS, SORTIE_TIME_S, SortieFlight, SortieTracker, navCue, scoreSortie, steerPoint, terrainFollowAlt, type EndReason,
 } from './sortie';
-import { AREA_VIEW, drawPlan, type MapScene } from './sortieMap';
+import { AREA_VIEW, drawPlan, type MapPlan, type MapScene } from './sortieMap';
+import { PLAN } from './sortie';
 import { mountSortieDebrief } from './sortieDebrief';
 
 const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
@@ -51,17 +48,19 @@ const SHOT_LESSON: Record<Shot, LessonId> = {
   shkval: 'shkval', locked: 'laser', 'vikhr-flight': 'vikhr', impact: 'vikhr', debrief: 'vikhr',
   ccrp: 'bombs', sead: 'sead', 'sead-lock': 'sead', threat: 'threat', 'threat-debrief': 'threat',
 };
-/** Kh-58 HUD: the ±30° detection zone is drawn across this many HUD degrees each side (simplified). */
-const ARM_HUD_DEG = 11;
-/** HUD degrees per second the Kh-58 square slews (trainer value). */
-const ARM_SLEW_DPS = 6;
-/** Trainer estimate of the Vikhr's mean speed for the pre-launch time of flight (not DCS data). */
-const VIKHR_MEAN_MS = 480;
-const STATION_LABEL: Record<string, string> = { r60: '60', r73: '73', l081: 'L-081' };
 const SORTIE_SHOTS = ['brief', 'ingress', 'attack', 'egress', 'debrief'] as const;
 type SortieShotParam = typeof SORTIE_SHOTS[number];
 /** Sortie terrain following: height above the ground the autopilot holds (m), its limits and the key step. */
 const AGL_DEFAULT = 60, AGL_MIN = 50, AGL_MAX = 3000, AGL_STEP = 50;
+/** Sortie route and labels on the plan map. */
+const SORTIE_PLAN: MapPlan = {
+  start: PLAN.start, ip: PLAN.ip, target: PLAN.target,
+  labels: [
+    { text: 'Column', x: PLAN.target.x, z: PLAN.target.z, dx: 16, dy: 4, view: 'target' },
+    { text: 'Bunker', x: PLAN.bunker.x, z: PLAN.bunker.z, dx: 12, dy: -8, view: 'target' },
+    { text: 'Target', x: PLAN.target.x, z: PLAN.target.z, dx: 10, dy: 16, view: 'area', tone: 'hostile' },
+  ],
+};
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
@@ -73,13 +72,11 @@ const factory: PageFactory = (): Page => {
     const shotParam = sortieShot ? null : SHOTS.find(s => s === params.get('shot')) ?? null;
     let lesson: LessonId = shotParam ? SHOT_LESSON[shotParam] : lessonParam && LESSONS[lessonParam] ? lessonParam : 'shkval';
     let cam: Cam = (['chase', 'target', 'tv'] as const).find(c => c === params.get('cam')) ?? 'chase';
-    const binds = PROCEDURES.su25t.binds;
 
     // ------------------------------------------------------------------ state
     let sc!: Scenario;
     let me!: Aircraft;
     let evCursor = 0;
-    const slew = { up: 0, down: 0, left: 0, right: 0 };
     let bunkerSizeFail = false, laserRunS = 0, lasedLongEnough = false, laserS = 0;
     let shots = new Map<EntityId, ShotRecord>();
     let salvos = 0, bestMissM: number | null = null;
@@ -89,7 +86,6 @@ const factory: PageFactory = (): Page => {
     let uiClock = 0;
     const sa11 = params.get('sa11') === '1';
     // Bombs lesson: CCRP pass then CCIP dive. SEAD / SAM threat: Kh-58 square, exposure, SAM cues.
-    const armCursor = { x: 0, y: -4 };
     let ccrpReleases = 0, ccrpPassesMissed = 0, ccrpMissM: number | null = null, ccipMissM: number | null = null, ccipBombs = 0;
     let bombPhase: 'ccrp' | 'ccip' = 'ccrp', phaseAt: number | null = null;
     let ccrpBombs = new Set<EntityId>();
@@ -106,16 +102,19 @@ const factory: PageFactory = (): Page => {
 
     // ------------------------------------------------------------------ DOM
     const viewport = h('div', { class: 'strk-viewport' });
-    const tvCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'Shkval TV picture on the IT-23M. Tap to point the sight.' });
-    const hudCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'Su-25T HUD' });
-    const tvBezel = screenBezel({ id: 'strk-tv', label: 'ИТ-23М', aspect: '4 / 3', content: tvCanvas, class: 'strk-tv' });
-    const hudBezel = screenBezel({ id: 'strk-hud', label: 'ИЛС', aspect: '1', content: hudCanvas, class: 'strk-hud' });
-    const rwrCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'SPO-15 radar warning display' });
-    const rwrBezel = screenBezel({ id: 'strk-rwr', label: 'СПО-15', aspect: '1', content: rwrCanvas, class: 'strk-rwr' });
-    const tv = new It23mDisplay(tvCanvas);
-    const hud = new Su25tHud(hudCanvas);
-    const rwr = new RwrDisplay(rwrCanvas, { rwr: 'spo15' });
-    bag.add(() => { tv.dispose(); hud.dispose(); rwr.dispose(); });
+    const ck = createSu25tCockpit({
+      bag, world: () => sc.world, me: () => me,
+      log: (text, opts) => log.push(text, opts),
+      canFire: () => !ended,
+      climb: m => climb(m),
+      onRelease: out => { salvos++; if (lesson === 'bombs' && out.some(x => x.type === 'fab250')) ccipBombs++; },
+      onLockFail: reason => {
+        const aim = shkvalAimPoint(sc.world, me);
+        if (/size/i.test(reason) && aim && Math.hypot(aim.x - BUNKER_AT.x, aim.z - BUNKER_AT.z) < 90) bunkerSizeFail = true;
+      },
+    });
+    const { tvBezel, hudBezel, rwrBezel, touchPad, keyList, fireBtn, laserBtn, armCursor } = ck;
+    const { setMaster, toggleArm, enter, fire, armMarks } = ck;
 
     const ro = readouts({
       id: 'strk-ro', variant: 'glass',
@@ -124,27 +123,6 @@ const factory: PageFactory = (): Page => {
         { id: 'store', label: 'Store' }, { id: 'tgt', label: 'Targets' }, { id: 'sam', label: 'SAM' },
       ],
     });
-
-    // Touch pad (coarse pointers, or ?touch=1).
-    const hold = (label: string, aria: string, set: (v: number) => void) => {
-      const b = h('button', { type: 'button', class: 'ui-btn strk-pad__btn', 'aria-label': aria }, label);
-      const on = () => { set(1); applySlew(); }, off = () => { set(0); applySlew(); };
-      bag.on(b, 'pointerdown', (e: Event) => { e.preventDefault(); on(); });
-      for (const t of ['pointerup', 'pointerleave', 'pointercancel']) bag.on(b, t, off);
-      return b;
-    };
-    const cap = (label: string, aria: string, fn: () => void) => button({ label, size: 's', ariaLabel: aria, onClick: fn, keepCase: true }).el;
-    const fireBtn = button({ label: 'Fire', variant: 'primary', lamp: true, keys: 'Space', onClick: () => { if (me.ag!.ccrpHeld) fireUp(); else fire(); } });
-    const lockBtn = button({ label: 'Lock / unlock', keys: 'Enter', onClick: () => enter() });
-    const laserBtn = button({ label: 'Laser ЛД', keys: 'RShift+O', lamp: true, onClick: () => toggleLaser(), keepCase: true });
-    const touchPad = h('div', { class: 'ui-strip-block strk-touch' }, placard('Shkval'),
-      h('div', { class: 'strk-pad' },
-        h('span'), hold('▲', 'Slew up', v => { slew.up = v; }), h('span'),
-        hold('◀', 'Slew left', v => { slew.left = v; }), cap('⏎', 'Stabilise or lock', () => enter()), hold('▶', 'Slew right', v => { slew.right = v; }),
-        h('span'), hold('▼', 'Slew down', v => { slew.down = v; }), h('span')),
-      h('div', { class: 'strk-pad__row' }, cap('Zoom −', 'Zoom out', () => world().shkvalZoom(me.id, -1)), cap('Zoom +', 'Zoom in', () => world().shkvalZoom(me.id, 1))),
-      h('div', { class: 'strk-pad__row' }, cap('Size −', 'Target size smaller', () => world().shkvalTargetSize(me.id, { step: -1 })), cap('Size +', 'Target size larger', () => world().shkvalTargetSize(me.id, { step: 1 }))),
-    );
 
     const lessonSeg = segmented<LessonId>({
       id: 'strk-lesson', label: 'Lesson', fill: true, value: lesson,
@@ -163,22 +141,7 @@ const factory: PageFactory = (): Page => {
     const restartBtn = button({ label: 'Restart', size: 's', onClick: () => restart() });
     const endBtn = button({ label: 'End and debrief', size: 's', onClick: () => finish() });
 
-    const ctlRow = (...els: HTMLElement[]) => h('div', { class: 'strk-row' }, ...els);
-    const controls = consolePanel({
-      title: 'Controls', id: 'strk-controls', children: [
-        ctlRow(cap('7 ОПТ-ЗЕМЛЯ', 'Air-to-ground mode', () => setMaster('ag')), cap('O Shkval', 'Shkval on or off', () => toggleShkval())),
-        ctlRow(cap('D Weapon', 'Next weapon', () => cycle()), cap('C Cannon', 'Select the cannon', () => selectGun())),
-        ctlRow(lockBtn.el, laserBtn.el),
-        ctlRow(cap('I ПРГ', 'Kh-58 passive detection on or off', () => toggleArm())),
-        fireBtn.el,
-      ],
-    });
-    const keyList = disclosure({
-      title: 'Su-25T keys', id: 'strk-keys',
-      content: h('div', { class: 'strk-keys' },
-        binds.filter(b => b.group !== 'defence').map(b => keyHint({ label: b.action, keys: b.keys, note: b.note })),
-        keyHint({ label: 'Trainer steering (not a DCS key)', keys: 'Left / Right, Up / Down' })),
-    });
+    const controls = consolePanel({ title: 'Controls', id: 'strk-controls', children: ck.controlRows });
     const caveats = disclosure({
       title: 'Simplified and not verified', id: 'strk-caveats',
       content: h('div', null,
@@ -192,9 +155,6 @@ const factory: PageFactory = (): Page => {
       onChange: c => setCam(c),
     });
 
-    const mFire = mobileAction(fireBtn.el), mLock = mobileAction(lockBtn.el, 'Lock'), mLaser = mobileAction(laserBtn.el, 'ЛД');
-    bag.add(() => { mFire.destroy(); mLock.destroy(); mLaser.destroy(); });
-
     const lab = labLayout({
       id: 'strk-lab', class: 'strk-lab',
       header: { title: 'Shkval & Vikhr', lede: 'Find, lock and lase with the Shkval. Fire Vikhrs and hold the laser to impact.', meta: 'Su-25T · IT-23M · 9А4172 Vikhr' },
@@ -204,7 +164,7 @@ const factory: PageFactory = (): Page => {
         consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', children: [lessonSeg.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
         controls.el, keyList, caveats,
       ],
-      mobileActions: [mFire.el, mLock.el, mLaser.el],
+      mobileActions: ck.mobileActions,
     });
     if (params.get('touch') === '1') lab.el.classList.add('strk--touch');
     lab.overlay('tl', camSeg.el);
@@ -240,125 +200,14 @@ const factory: PageFactory = (): Page => {
       raf = requestAnimationFrame(loop);
       bag.add(() => cancelAnimationFrame(raf));
     }
-    bag.on(tvCanvas, 'click', (e: Event) => tapTv(e as MouseEvent));
 
     // ------------------------------------------------------------------ keys
-    bag.add(bindKeys({
-      '7': () => setMaster('ag'),
-      '1': () => setMaster('nav'),
-      '8': () => setMaster(me.ag!.master === 'fixed' ? 'ag' : 'fixed'),
-      'D': () => cycle(),
-      'C': () => selectGun(),
-      'O': () => toggleShkval(),
-      'RShift+O': () => toggleLaser(),
-      ';': { down: () => { slew.up = 1; applySlew(); }, up: () => { slew.up = 0; applySlew(); } },
-      '.': { down: () => { slew.down = 1; applySlew(); }, up: () => { slew.down = 0; applySlew(); } },
-      ',': { down: () => { slew.left = 1; applySlew(); }, up: () => { slew.left = 0; applySlew(); } },
-      '/': { down: () => { slew.right = 1; applySlew(); }, up: () => { slew.right = 0; applySlew(); } },
-      'Enter': () => enter(),
-      '=': () => world().shkvalZoom(me.id, 1),
-      '-': () => world().shkvalZoom(me.id, -1),
-      'RCtrl+]': () => world().shkvalTargetSize(me.id, { step: 1 }),
-      'RCtrl+[': () => world().shkvalTargetSize(me.id, { step: -1 }),
-      'Space': { down: () => fire(), up: () => fireUp(), inModal: false },
-      'I': () => toggleArm(),
-      'Delete': () => { if (world().flare(me.id)) log.push(`Flares: ${me.flares} left`, { t: world().t }); },
-      'Left': { down: () => steer(-2), repeat: true },
-      'Right': { down: () => steer(2), repeat: true },
-      'Up': { down: () => climb(60), repeat: true },
-      'Down': { down: () => climb(-60), repeat: true },
-    }));
+    bag.add(bindKeys(ck.keys));
 
     // ------------------------------------------------------------------ actions
-    /** Kh-58 selected with passive detection on: the slew keys move the HUD square, Enter locks an emitter. */
-    function armMode(): boolean { const ag = me.ag!; return ag.selected === 'kh58' && ag.arm.detecting; }
-    function applySlew(): void { world().shkvalSlew(me.id, armMode() ? 0 : slew.right - slew.left, armMode() ? 0 : slew.up - slew.down); }
-    function toggleArm(): void {
-      const on = !me.ag!.arm.detecting;
-      const r = world().armDetect(me.id, on);
-      log.push(r.ok ? (on ? 'ПРГ: passive detection on' : 'Passive detection off') : r.reason, { t: world().t, tone: r.ok ? undefined : 'caution' });
-      applySlew();
-    }
-    /** Emitters inside ±30° as HUD marks: x scaled so the zone fits the HUD (simplified), y from the elevation. */
-    function armMarks(): { id: EntityId; xDeg: number; yDeg: number; code: string | null; locked: boolean }[] {
-      const w = world();
-      return armEmitters(w, me).map(id => {
-        const site = w.samSites.get(id)!;
-        const a = hudAngles(me.pos, me.heading, me.pitch, site.pos);
-        return {
-          id, ...projectArmHudPoint({ xDeg: (relBearing(me.pos, me.heading, site.pos) * R2D) * ARM_HUD_DEG / 30, yDeg: a.yDeg }),
-          code: KH58_TARGET_CODES[site.type] ?? null, locked: me.ag!.arm.emitterId === id,
-        };
-      });
-    }
-    function armEnter(): void {
-      const w = world(), ag = me.ag!;
-      if (ag.arm.emitterId) { ag.arm.emitterId = null; log.push('Emitter unlocked', { t: w.t }); return; }
-      const best = pickArmEmitter(armMarks(), { xDeg: armCursor.x, yDeg: armCursor.y });
-      if (!best) { log.push('Put the square on a diamond first', { t: w.t, tone: 'caution' }); return; }
-      const r = w.armLock(me.id, best.id);
-      log.push(r.ok ? `Emitter locked: ${w.samSites.get(best.id)!.callsign}` : r.reason, { t: w.t, tone: r.ok ? 'ok' : 'caution' });
-    }
-    function setMaster(m: 'nav' | 'ag' | 'fixed'): void {
-      world().setAgMaster(me.id, m);
-      log.push(m === 'ag' ? 'Air-to-ground mode: ОПТ-ЗЕМЛЯ' : m === 'fixed' ? 'Fixed reticle' : 'Navigation mode', { t: world().t });
-    }
-    function toggleShkval(): void { world().shkvalPower(me.id, !me.ag!.shkval.on); log.push(me.ag!.shkval.on ? 'Shkval on' : 'Shkval off', { t: world().t }); }
-    function toggleLaser(): void {
-      const on = !me.ag!.shkval.laserOn;
-      const r = world().laser(me.id, on);
-      if (!r.ok) log.push(r.reason, { t: world().t, tone: 'caution' });
-    }
-    function cycle(): void { const w = world().cycleAgWeapon(me.id); log.push(w ? `Store: ${AG_WEAPONS[w].hudLabel}` : 'No store left', { t: world().t }); }
-    function selectGun(): void { world().selectAgWeapon(me.id, 'gun25t'); log.push('Cannon: ВПУ', { t: world().t }); }
-    function steer(deg: number): void { me.cmd.heading = me.cmd.heading + deg * D2R; }
     function climb(m: number): void {
       if (lesson === 'sortie') { aglSet = Math.max(AGL_MIN, Math.min(AGL_MAX, aglSet + Math.sign(m) * AGL_STEP)); return; }
       me.cmd.altitude = Math.max(sc.groundM + 150, me.cmd.altitude + m);
-    }
-    function enter(): void {
-      if (armMode()) { armEnter(); return; }
-      const w = world(), sh = me.ag!.shkval;
-      if (!sh.on) { log.push('Shkval is off [O]', { t: w.t, tone: 'caution' }); return; }
-      if (sh.lockedUnitId) { w.shkvalUnlock(me.id); log.push('КС: unlocked', { t: w.t }); return; }
-      if (!sh.groundStab) {
-        const r = w.shkvalStabilise(me.id, true);
-        if (!r.ok) { log.push(r.reason, { t: w.t, tone: 'caution' }); return; }
-      }
-      const r = w.shkvalLock(me.id);
-      if (!r.ok) {
-        log.push(r.reason, { t: w.t, tone: 'caution' });
-        const aim = shkvalAimPoint(w, me);
-        if (/size/i.test(r.reason) && aim && Math.hypot(aim.x - BUNKER_AT.x, aim.z - BUNKER_AT.z) < 90) bunkerSizeFail = true;
-      }
-    }
-    function fire(): void {
-      if (ended) return;
-      const w = world();
-      if (ccrpSolution(w, me).active) {
-        if (me.ag!.ccrpHeld) return;
-        const r = w.ccrpHold(me.id, true);
-        log.push(r.ok ? 'Release held: CCRP, fly the keel into the circle' : r.reason, { t: w.t, tone: r.ok ? undefined : 'caution' });
-        return;
-      }
-      const out = w.agLaunch(me.id);
-      if (!Array.isArray(out)) { log.push(out.reason || 'No release', { t: w.t, tone: 'caution' }); return; }
-      salvos++;
-      if (lesson === 'bombs' && out.some(x => x.type === 'fab250')) ccipBombs++;
-    }
-    function fireUp(): void {
-      if (!me.ag!.ccrpHeld) return;
-      world().ccrpHold(me.id, false);
-      log.push('Release let go: no bomb', { t: world().t, tone: 'caution' });
-    }
-    function tapTv(e: MouseEvent): void {
-      const sh = me.ag!.shkval;
-      if (!sh.on) return;
-      if (sh.lockedUnitId) { log.push('Unlock first (Enter)', { t: world().t }); return; }
-      const { fx, fy } = tv.pickOffset(e.clientX, e.clientY);
-      const fov = shkvalFovDeg(sh.zoom);
-      const d = dirFrom(me.heading + sh.az + fx * fov.h * D2R, sh.el - fy * fov.v * D2R);
-      world().shkvalPointAt(me.id, { x: me.pos.x + d.x * 10000, y: me.pos.y + d.y * 10000, z: me.pos.z + d.z * 10000 });
     }
 
     function setCam(c: Cam): void {
@@ -394,7 +243,6 @@ const factory: PageFactory = (): Page => {
       shots = new Map(); salvos = 0; bestMissM = null; done = new Set(); ended = false; endAt = null; dived = false; pulled = false;
       ccrpReleases = 0; ccrpPassesMissed = 0; ccrpMissM = null; ccipMissM = null; ccipBombs = 0; bombPhase = 'ccrp'; phaseAt = null;
       ccrpBombs = new Set(); armFired = 0; armLaunchRangeM = null; ringS = 0; samLaunches = 0; hitsTaken = 0;
-      armCursor.x = 0; armCursor.y = -4;
       rwrBezel.el.hidden = !sc.sams.length;
       sortieState = 'brief'; aglSet = AGL_DEFAULT; scripted = false;
       const isSortie = lesson === 'sortie';
@@ -404,7 +252,7 @@ const factory: PageFactory = (): Page => {
       navBox.hidden = true;
       sortieHost.replaceChildren();
       if (isSortie) renderBrief();
-      slew.up = slew.down = slew.left = slew.right = 0;
+      ck.resetInputs();
       const def = LESSONS[lesson];
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(fresh.el);
@@ -443,7 +291,7 @@ const factory: PageFactory = (): Page => {
         sites.push({ id: sc.aaa, unitId: sc.aaa, name: 'ZSU-23-4', x: u.pos.x, z: u.pos.z, ringM: tracker.aaa.ringM, kind: 'aaa' });
       }
       const units = [...w.groundUnits.values()].filter(u => u.kind !== 'sam-site' && u.kind !== 'aaa').map(u => ({ id: u.id, kind: u.kind, x: u.pos.x, z: u.pos.z }));
-      return { sites, units };
+      return { sites, units, plan: SORTIE_PLAN };
     }
     function drawBrief(): void {
       if (briefOverlay.hidden) return;
@@ -562,10 +410,7 @@ const factory: PageFactory = (): Page => {
       else if (!ended || endAt != null) w.step(dt);
       const sh = me.ag!.shkval;
       if (sh.laserOn) { laserRunS += dt; laserS += dt; if (laserRunS >= 5) lasedLongEnough = true; } else laserRunS = 0;
-      if (armMode()) {
-        armCursor.x = Math.max(-ARM_HUD_DEG, Math.min(ARM_HUD_DEG, armCursor.x + (slew.right - slew.left) * ARM_SLEW_DPS * dt));
-        armCursor.y = Math.max(-9, Math.min(4, armCursor.y + (slew.up - slew.down) * ARM_SLEW_DPS * dt));
-      }
+      ck.step(dt);
       if (!ended && me.alive && insideRing()) ringS += dt;
       readEvents();
       flyLesson();
@@ -793,60 +638,7 @@ const factory: PageFactory = (): Page => {
     }
 
     // ------------------------------------------------------------------ displays
-    function tvState(): It23mState {
-      const w = world(), ag = me.ag!, sh = ag.shkval;
-      const aim = shkvalAimPoint(w, me);
-      const check = w.canAgLaunch(me.id);
-      const guided = ag.selected ? AG_WEAPONS[ag.selected].guidance !== 'ballistic' : false;
-      let tof: number | null = null;
-      for (const wp of w.agWeapons.values()) if (wp.alive && wp.guided && wp.shooterId === me.id && wp.timeToImpact != null) tof = tof == null ? wp.timeToImpact : Math.min(tof, wp.timeToImpact);
-      if (tof == null && guided && sh.lockedUnitId && aim && ag.selected === 'vikhr') tof = me.pos.distanceTo(aim) / VIKHR_MEAN_MS;
-      const fov = shkvalFovDeg(sh.zoom);
-      return {
-        on: sh.on, mode: sh.mode, zoom: sh.zoom, targetSizeM: sh.targetSizeM,
-        azDeg: sh.az * R2D, elDeg: sh.el * R2D, pitchDeg: me.pitch * R2D,
-        radarAltM: me.pos.y - w.groundHeight(me.pos.x, me.pos.z),
-        laserOn: sh.laserOn, laserCooling: sh.laserCoolS > 0,
-        rangeM: sh.laserOn && aim ? me.pos.distanceTo(aim) : null,
-        tofS: tof, pr: guided && check.pr, fovHDeg: fov.h, groundStab: sh.groundStab,
-      };
-    }
-
-    function hudState(): Su25tHudState {
-      const w = world(), ag = me.ag!, sh = ag.shkval;
-      const sel = ag.selected as AgWeaponId | null;
-      const spec = sel ? AG_WEAPONS[sel] : null;
-      const check = w.canAgLaunch(me.id);
-      const aim = shkvalAimPoint(w, me);
-      const ballistic = spec?.guidance === 'ballistic';
-      const ccrp = ccrpSolution(w, me);
-      const imp = sel && ballistic && ag.master !== 'nav' && !ccrp.active ? predictImpact(w, me, sel) : null;
-      const band = check.band;
-      const arm = sel === 'kh58' && ag.arm.detecting && ag.master === 'ag';
-      return {
-        master: ag.master, modeLabel: arm ? 'ПРГ' : hudModeLabel(ag.master, sh.on),
-        weaponLabel: ag.master === 'nav' ? null : spec?.hudLabel ?? null, rounds: sel ? ag.stores[sel] ?? 0 : null,
-        pitchDeg: me.pitch * R2D, headingDeg: me.heading * R2D, speedKmh: me.vel.length() * 3.6, altM: me.pos.y,
-        range: band && ag.master !== 'nav' ? { cur: check.range ?? (arm && ag.arm.emitterId ? me.pos.distanceTo(w.samSites.get(ag.arm.emitterId)!.pos) : null), min: band.min, max: band.max } : null,
-        pr: check.pr && ag.master !== 'nav' && !ccrp.active,
-        laserCursor: sh.on && aim ? hudAngles(me.pos, me.heading, me.pitch, aim) : null,
-        ccip: imp ? hudAngles(me.pos, me.heading, me.pitch, imp) : null,
-        reticle: spec && !ballistic && sh.on && ag.master === 'ag' ? (check.range != null && band && check.range <= band.max && check.range >= band.min ? 'in' : 'out') : null,
-        ccrp: ccrp.active ? { errDeg: ccrp.errDeg!, inCircle: ccrp.inCircle, ttrS: ccrp.ttrS, held: ag.ccrpHeld } : null,
-        arm: arm ? { emitters: armMarks(), cursor: ag.arm.emitterId ? null : { xDeg: armCursor.x, yDeg: armCursor.y } } : null,
-        stations: ag.stations.filter(s => s.weapon !== 'l081').map(s => ({
-          station: s.station, label: STATION_LABEL[s.weapon] ?? AG_WEAPONS[s.weapon as AgWeaponId]?.hudLabel ?? s.weapon, count: s.count, selected: s.weapon === sel,
-        })),
-      };
-    }
-
-    function renderTv(): void {
-      const sh = me.ag!.shkval;
-      if (tvCam && sh.on && me.alive) tvCam.render(me.pos, shkvalDir(me), shkvalFovDeg(sh.zoom).v);
-      tv.draw(tvState(), tvCam && sh.on ? tvCam.image : null);
-      hud.draw(hudState());
-      if (sc.sams.length) rwr.draw(me.rwr, world().t);
-    }
+    function renderTv(): void { ck.draw(tvCam, sc.sams.length > 0); }
 
     function updateUi(force: boolean): void {
       const w = world(), ag = me.ag!, sh = ag.shkval;
@@ -865,8 +657,7 @@ const factory: PageFactory = (): Page => {
         ? `${live([...sc.tanks, ...sc.apcs])}/${sc.tanks.length + sc.apcs.length} · bunker ${w.groundUnits.get(sc.bunker)?.alive ? "up" : "down"}`
         : `${live(list)} of ${list.length} ${list === sc.trucks ? 'trucks' : 'tanks'}`);
       ro.set('sam', samTxt || '—');
-      fireBtn.setLit(check.pr);
-      laserBtn.setLit(sh.laserOn);
+      ck.updateLamps();
       const cur = def.steps.find(s => !done.has(s.id));
       steps.setCurrent(cur?.id ?? null);
       let tone: Tone | undefined;
