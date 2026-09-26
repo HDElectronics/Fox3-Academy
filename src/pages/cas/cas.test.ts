@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { buildCasScenario, bearingDeg, distM, type CasLessonId } from './scenario';
 import { DANGER_CLOSE_M, gradeKneeboard, lineText, makeNineLine, NINE_LINE_ORDER, trainerGrid, cardinal } from './nineLine';
 import { classifyImpact, headingErrorDeg } from './safety';
+import { CAS_LESSON_ORDER, LESSONS, progressKey, scoreCas } from './lessons';
 
-const LESSONS: CasLessonId[] = ['nine-line', 'talk-on', 'geometry', 'danger-close', 'sortie'];
+const LESSON_IDS: CasLessonId[] = ['nine-line', 'talk-on', 'geometry', 'danger-close', 'sortie'];
 
 describe('CAS scenario', () => {
-  it.each(LESSONS)('%s: JTAC sees the target, friendlies are blue, target and decoys red', lesson => {
+  it.each(LESSON_IDS)('%s: JTAC sees the target, friendlies are blue, target and decoys red', lesson => {
     const sc = buildCasScenario(lesson);
     const w = sc.world;
     const jtac = w.groundUnits.get(sc.jtac)!;
@@ -102,5 +103,34 @@ describe('safety rules', () => {
     expect(headingErrorDeg(10, [20, 70])).toBe(10);
     expect(headingErrorDeg(355, [340, 20])).toBe(0);
     expect(headingErrorDeg(30, [340, 20])).toBe(10);
+  });
+});
+
+describe('CAS scoring', () => {
+  const base = { lesson: 'geometry' as const, targets: 3, targetsKilled: 3, impacts: { 'on-target': 3 }, releases: 3, violations: [], aborts: 0, shotDown: false };
+  it('gives three stars to a clean cleared-hot attack', () => {
+    expect(scoreCas(base)).toMatchObject({ stars: 3, passed: true, title: 'Clean CAS' });
+  });
+  it('caps a release without clearance at one star with coaching', () => {
+    const d = scoreCas({ ...base, violations: ['no-clearance'] });
+    expect(d.stars).toBe(1);
+    expect(d.passed).toBe(false);
+    expect(d.coaching.join(' ')).toMatch(/without cleared hot/);
+  });
+  it('fails any fratricide at zero stars', () => {
+    expect(scoreCas({ ...base, impacts: { 'on-target': 2, fratricide: 1 } }).stars).toBe(0);
+  });
+  it('drops a danger-close impact to two stars', () => {
+    expect(scoreCas({ ...base, impacts: { 'on-target': 3, 'danger-close': 1 } }).stars).toBe(2);
+  });
+  it('grades the kneeboard card', () => {
+    const card = (correct: number, passed: boolean) => scoreCas({ ...base, lesson: 'nine-line', card: { correct, passed } });
+    expect(card(9, true).stars).toBe(3);
+    expect(card(7, true).stars).toBe(2);
+    expect(card(7, false).passed).toBe(false);
+  });
+  it('keys progress per lesson and jet', () => {
+    expect(progressKey('talk-on')).toBe('cas:talk-on:su25t');
+    expect(CAS_LESSON_ORDER.every(id => LESSONS[id].steps.length > 0)).toBe(true);
   });
 });
