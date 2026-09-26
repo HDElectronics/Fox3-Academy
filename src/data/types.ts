@@ -320,3 +320,11 @@ export interface AgLoadout {
 
 /** Kinds of ground unit the trainer places. */
 export type GroundUnitKind = 'tank' | 'apc' | 'truck' | 'bunker' | 'building' | 'sam-site' | 'aaa';
+
+/**
+ * Target marks a JTAC (or a trainer script) puts down, as the DCS player sees them: a smoke column, a laser spot
+ * (seen only by a laser spot tracker, with a code) or an IR pointer (seen only through NVGs).
+ * docs/research/cas-jtac.md: the built-in JTAC smoke ("WP") is white; Combined Arms smokes are orange, red, green.
+ */
+export type MarkKind = 'smoke' | 'laser' | 'ir';
+export type MarkColour = 'white' | 'orange' | 'red' | 'green';

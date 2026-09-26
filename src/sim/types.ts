@@ -9,9 +9,9 @@
  * This is also three.js' frame (y-up, right-handed); the renderer only rescales (1 unit = 1 km).
  */
 import type { Vector3 } from 'three';
-import type { AgWeaponId, AircraftId, FighterId, GroundUnitKind, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
+import type { AgWeaponId, AircraftId, FighterId, GroundUnitKind, MarkColour, MarkKind, MissileId, RadarModeId, RwrSymbol, SamId } from '../data/types';
 
-export type { GroundUnitKind };
+export type { GroundUnitKind, MarkColour, MarkKind };
 
 export type Side = 'blue' | 'red';
 export type EntityId = string;
@@ -219,6 +219,41 @@ export interface GroundUnitSpawnOptions {
   sizeM?: number;
   hp?: number;
   samSiteId?: EntityId;
+}
+
+/** A target mark on the ground (marks.ts): smoke, a laser spot or an IR pointer spot. */
+export interface GroundMark {
+  kind: 'mark';
+  id: EntityId;
+  type: MarkKind;
+  /** Smoke colour; null for laser and IR. */
+  colour: MarkColour | null;
+  side: Side;
+  /** Ground unit that made the mark (the JTAC); the mark ends when it dies. null = scripted. */
+  ownerId: EntityId | null;
+  /** Mark point on the ground (y = terrain height). */
+  pos: Vector3;
+  /** Laser code (laser only, e.g. 1688); null otherwise. */
+  code: number | null;
+  t0: number;
+  /** Sim time the mark ends by itself; null = until endMark(). */
+  until: number | null;
+  alive: boolean;
+}
+
+export interface MarkSpawnOptions {
+  id?: EntityId;
+  type: MarkKind;
+  /** Smoke colour (default white); ignored for laser and IR. */
+  colour?: MarkColour;
+  side: Side;
+  ownerId?: EntityId | null;
+  /** y defaults to the terrain height at x, z. */
+  pos: { x: number; y?: number; z: number };
+  /** Seconds before the mark ends by itself. Default: SMOKE_DURATION_S for smoke, open-ended otherwise. */
+  durationS?: number | null;
+  /** Laser code (laser only). */
+  code?: number;
 }
 
 /** Su-25T master mode: [1] navigation, [7] air-to-ground, [8] fixed reticle. */
@@ -483,6 +518,8 @@ export type SimEvent =
   | { t: number; type: 'ag-miss'; weaponId: EntityId; weapon: AgWeaponId; reason: AgMissReason }
   /** A ground unit or SAM site destroyed (separate from 'kill', which is for aircraft). */
   | { t: number; type: 'ground-kill'; targetId: EntityId; by: EntityId | null; weapon: AgWeaponId | null }
+  /** A target mark put down ('on') or ended ('off': expired, terminated, or its owner died). */
+  | { t: number; type: 'mark'; markId: EntityId; mark: MarkKind; what: 'on' | 'off'; ownerId: EntityId | null }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
@@ -537,6 +574,8 @@ export interface RecordFrame {
   /** Ground units and A-G weapons in flight (absent in recordings without them). */
   groundUnits?: { id: EntityId; kind: GroundUnitKind; side: Side; pos: [number, number, number]; heading: number; alive: boolean }[];
   agWeapons?: { id: EntityId; type: AgWeaponId; side: Side; shooterId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
+  /** Target marks (absent in recordings without them). */
+  marks?: { id: EntityId; type: MarkKind; colour: MarkColour | null; side: Side; pos: [number, number, number]; alive: boolean }[];
   /** Shkval per attack jet while the sight is on: ground aim point, locked unit, laser. */
   shkval?: { ownerId: EntityId; point: [number, number, number] | null; locked: EntityId | null; laser: boolean }[];
 }
