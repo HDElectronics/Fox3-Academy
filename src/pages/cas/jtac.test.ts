@@ -21,9 +21,9 @@ function steerAtTarget(sc: CasScenario) {
 describe('JTAC flow', () => {
   it('runs check-in, 9-line, remarks, readback and IP inbound in the ED order', () => {
     const { j, wait, act } = setup();
-    expect(j.menu().map(m => m.action)).toEqual(['check-in']);
+    expect(j.allowed()).toEqual(['check-in']);
     act('check-in'); wait('checked-in');
-    act('ready-copy'); wait('remarks-ready');
+    act('ready-to-copy'); wait('remarks-ready');
     act('ready-remarks'); wait('readback');
     act('readback'); wait('await-ip');
     // The run-in starts inside 10 nm, so the smoke follows "Continue." at once.
@@ -34,6 +34,21 @@ describe('JTAC flow', () => {
     expect(jtacLines).toContain('Readback correct. Report IP inbound.');
     expect(jtacLines.slice(-2)).toEqual(['Continue.', 'Mark is on the deck.']);
     expect(j.calls.find(c => c.text === 'Continue.')!.verified).toBe(true);
+  });
+
+  it('shows the DCS radio menu: F4 JTACs, the JTAC, then its items; unsupported items disabled', () => {
+    const { j } = setup();
+    const root = j.menu();
+    const jtacs = root.find(n => n.fkey === 4)!;
+    expect(jtacs.label).toBe('JTACs...');
+    expect(root.find(n => n.fkey === 12)!.action).toBe('menu-exit');
+    const entry = jtacs.children!.find(n => n.label === 'Axeman 1-1')!;
+    const checkIn = entry.children!.find(n => n.action === 'check-in')!;
+    expect(checkIn.disabled).toBeFalsy();
+    j.state = 'checked-in';
+    const items = j.menu().find(n => n.fkey === 4)!.children![0]!.children!;
+    expect(items.find(n => n.action === 'ready-to-copy')!.disabled).toBeFalsy();
+    expect(items.find(n => n.action === 'request-bda')!.disabled).toBe(true);
   });
 
   it('rejects items that are not on the menu in this state', () => {

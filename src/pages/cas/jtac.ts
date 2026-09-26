@@ -9,6 +9,7 @@
 import type { World } from '../../sim/world';
 import type { EntityId, SimEvent } from '../../sim/types';
 import type { CommsMenuNode } from '../../data/types';
+import { buildCommsMenu, type JtacAction, type JtacMenuState } from '../../data/cas';
 import { type CasScenario, type XZ, bearingDeg, distM } from './scenario';
 import { type NineLine, NINE_LINE_ORDER, cardinal, lineText, M_PER_NM } from './nineLine';
 import { headingErrorDeg } from './safety';
@@ -17,9 +18,14 @@ export type JtacState =
   | 'idle' | 'checked-in' | 'nine-line' | 'remarks-ready' | 'remarks' | 'readback' | 'await-ip' | 'inbound'
   | 'mark-down' | 'talk-on' | 'cleared' | 'aborted' | 'off' | 'complete' | 'checked-out';
 
-export type JtacAction =
-  | 'check-in' | 'ready-copy' | 'ready-remarks' | 'readback' | 'ip-inbound' | 'contact-mark' | 'in' | 'off'
-  | 'repeat-brief' | 'what-target' | 'request-bda' | 'unable' | 'check-out';
+export type { JtacAction };
+
+/** Dialogue state → the data module's menu state (which items the DCS JTAC submenu shows). */
+const MENU_STATE: Record<JtacState, JtacMenuState> = {
+  idle: 'idle', 'checked-out': 'idle', 'checked-in': 'control', 'nine-line': 'control', 'remarks-ready': 'remarks',
+  remarks: 'remarks', readback: 'readback', 'await-ip': 'ip', inbound: 'inbound', 'mark-down': 'mark',
+  'talk-on': 'run-in', aborted: 'run-in', cleared: 'cleared', off: 'post', complete: 'post',
+};
 
 export interface JtacCall {
   t: number;
@@ -80,40 +86,46 @@ export class JtacController {
 
   onCall(fn: (c: JtacCall) => void): () => void { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
-  /** Radio menu for the current state (the JTAC submenu under F4 JTACs). Labels follow the ED manual. */
-  menu(): CommsMenuNode[] {
-    const s = this.state;
-    const it = (label: string, action: JtacAction, unverified = false): CommsMenuNode => ({ label, action, ...(unverified ? { unverified } : {}) });
-    const busy = this.queue.length > 0;
-    const items: CommsMenuNode[] = [];
-    if (s === 'idle' || s === 'checked-out') items.push(it('Check-in', 'check-in'));
-    if (s === 'checked-in' && !busy) items.push(it('Ready to copy', 'ready-copy'));
-    if (s === 'remarks-ready' && !busy) items.push(it('Ready to copy remarks', 'ready-remarks', true));
-    if (s === 'readback' && !busy) items.push(it('9-line readback', 'readback', true));
-    if (s === 'await-ip') items.push(it('IP Inbound', 'ip-inbound'));
-    if (s === 'mark-down') items.push(it('Contact the Mark', 'contact-mark'));
-    if (s === 'talk-on' || s === 'aborted') items.push(it('In', 'in'));
-    if (s === 'cleared') items.push(it('Off', 'off'));
+  /** Actions the trainer JTAC accepts right now (the menu shows the rest disabled). */
+  allowed(): JtacAction[] {
+    const s = this.state, busy = this.queue.length > 0;
+    const out: JtacAction[] = [];
+    if (s === 'idle' || s === 'checked-out') out.push('check-in');
+    if (s === 'checked-in' && !busy) out.push('ready-to-copy');
+    if (s === 'remarks-ready' && !busy) out.push('ready-remarks');
+    if (s === 'readback' && !busy) out.push('readback');
+    if (s === 'await-ip' && !busy) out.push('ip-inbound');
+    if (s === 'mark-down' && !busy) out.push('contact-mark');
+    if ((s === 'talk-on' || s === 'aborted') && !busy) out.push('in');
+    if (s === 'cleared') out.push('off');
     if (s !== 'idle' && s !== 'checked-out') {
-      items.push(it('Repeat Brief', 'repeat-brief'), it('What is my target?', 'what-target'));
-      if (this.attacks > 0) items.push(it('Request BDA', 'request-bda'));
-      items.push(it('Unable to comply', 'unable'), it('Check Out', 'check-out'));
+      out.push('repeat-brief', 'what-target');
+      if (this.attacks > 0) out.push('request-bda');
+      out.push('unable', 'check-out');
     }
-    return items;
+    return out;
+  }
+
+  /** The DCS radio menu for this state (root list, F4 JTACs, this JTAC's submenu). Unsupported items are disabled. */
+  menu(): CommsMenuNode[] {
+    const ok = new Set<string>([...this.allowed(), 'menu-back', 'menu-exit']);
+    const walk = (nodes: CommsMenuNode[]): CommsMenuNode[] => nodes.map(n => n.children
+      ? { ...n, children: walk(n.children) }
+      : n.action && !ok.has(n.action) ? { ...n, disabled: true } : n);
+    return walk(buildCommsMenu(this.callsign, MENU_STATE[this.state], this.nineLine.mark));
   }
 
   /** A radio-menu action from the pilot. Returns false when the item is not valid in this state. */
   act(a: JtacAction): boolean {
     const nl = this.nineLine;
     const say = (text: string) => this.push({ from: 'pilot', text, verified: false });
-    const valid = this.menu().some(m => m.action === a);
-    if (!valid) return false;
+    if (!this.allowed().includes(a)) return false;
     switch (a) {
       case 'check-in':
         say(`${this.callsign}, ${this.pilot}, checking in: ${this.sc.controlPoint.name}, weapons Vikhr and rockets, playtime 15 minutes.`);
         this.jtac(`${this.pilot}, ${this.callsign}, type 2 in effect. Advise when ready for 9-line.`, false, () => { this.state = 'checked-in'; });
         break;
-      case 'ready-copy':
+      case 'ready-to-copy':
         say('Ready to copy.');
         this.state = 'nine-line';
         NINE_LINE_ORDER.forEach(f => this.jtac(lineText(nl, f), false));
@@ -139,6 +151,7 @@ export class JtacController {
         break;
       }
       case 'in': this.inCall(); break;
+      default: return false;
       case 'off':
         say('Off.');
         this.afterAttack();
