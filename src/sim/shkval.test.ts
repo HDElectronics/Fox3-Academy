@@ -3,6 +3,7 @@ import { World } from './world';
 import type { SimEvent } from './types';
 import { LASER_LIMIT_S, canIdentify, idRangeKm, inLockGimbal, shkvalAimPoint, shkvalDir, shkvalFovDeg } from './shkval';
 import { groundIntersect } from './ground';
+import { targetFramePx } from '../ui/displays/it23m';
 import { D2R, dirFrom } from './math';
 
 /** Su-25T at 2000 m flying north at 200 m/s; ground targets placed by each test. */
@@ -208,5 +209,29 @@ describe('Shkval helpers', () => {
     expect(ac.radar.mode).toBe('off');
     world.step(2);
     expect(world.canLaunch('me').ok).toBe(false);
+  });
+});
+
+describe('Shkval target frame and lock rule agree', () => {
+  // Regression: the IT-23M drew a fixed frame with the laser off (up to 12 times the lock area at 1x),
+  // so a tank inside the drawn frame did not lock. The frame is now sized from the aim-point distance.
+  it.each([1, 8, 23] as const)('zoom %ix: a tank just inside the drawn frame locks, just outside does not', zoom => {
+    for (const edge of [0.9, 1.1]) {
+      const world = new World(1);
+      world.spawnAircraft({ id: 'me', side: 'blue', type: 'su25t', controller: 'script', pos: { x: 0, y: 2000, z: 0 }, heading: 0, speed: 200 });
+      const tank = world.spawnGroundUnit({ id: 'T', kind: 'tank', side: 'red', pos: { x: 0, z: -7000 } });
+      world.setAgMaster('me', 'ag'); world.shkvalPower('me', true);
+      const ac = world.aircraft.get('me')!;
+      while (ac.ag!.shkval.zoom !== zoom) world.shkvalZoom('me', 1);
+      const range = ac.pos.distanceTo(tank.pos);
+      const W = 400, fov = shkvalFovDeg(zoom).h;
+      const px = targetFramePx(ac.ag!.shkval.targetSizeM, range, fov, W);
+      const frameM = (px / W) * 2 * range * Math.tan((fov * Math.PI) / 360);
+      // Aim beside the tank so the frame edge sits `edge` times the frame-plus-tank half width away.
+      const off = ((frameM + tank.sizeM) / 2) * edge;
+      world.shkvalPointAt('me', { x: tank.pos.x + off, y: tank.pos.y, z: tank.pos.z });
+      world.shkvalStabilise('me', true);
+      expect(world.shkvalLock('me').ok, `edge ${edge}`).toBe(edge < 1);
+    }
   });
 });

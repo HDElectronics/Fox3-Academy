@@ -270,6 +270,7 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
       radarAltM: ac.pos.y - w.groundHeight(ac.pos.x, ac.pos.z),
       laserOn: sh.laserOn, laserCooling: sh.laserCoolS > 0,
       rangeM: sh.laserOn && aim ? ac.pos.distanceTo(aim) : null,
+      frameRangeM: aim ? ac.pos.distanceTo(aim) : null,
       tofS: tof, pr: guided && check.pr, fovHDeg: fov.h, groundStab: sh.groundStab,
     };
   }

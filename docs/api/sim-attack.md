@@ -54,6 +54,9 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
 - **Lock** (`shkvalLock`): the nearest live unit inside the target frame (frame and object overlap on the ground)
   whose size, capped at 60 m, is within 5 m of the set size, inside ±35° / +15..−85° and in line of sight.
   Failure reasons are pilot words ("Target size 20 m does not match: object about 10 m").
+  The frame is `frameWidthM(set, range, zoom)`: the set size, never below `FRAME_MIN_FRACTION` (2 %) of the TV
+  view width (trainer rule, not verified). The IT-23M draws the same frame from the aim-point distance, laser on
+  or off, so what sits inside the drawn frame is what locks.
 - **Locked**: the sight tracks the unit; outside the gimbal → `gimbal`, terrain → `terrain`, unit dead → `target-dead`.
 - **Unlocked**: slew rate is half a field of view per second (trainer value), clamped to the IT-23M scales
   (±40°, +20..−90°). Ground-stabilised, the sight holds its ground point as the jet moves. When clamping

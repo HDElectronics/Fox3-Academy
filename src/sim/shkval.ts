@@ -161,10 +161,22 @@ export const lockSize = (u: Pick<GroundUnit, 'sizeM'>): number => Math.min(u.siz
 /** S1 lock rule: the object must be within 5 m of the set target size. */
 export const sizeMatches = (u: Pick<GroundUnit, 'sizeM'>, setM: number): boolean => Math.abs(lockSize(u) - setM) <= SHKVAL_SIZE.matchM;
 
+/**
+ * Smallest target frame as a fraction of the TV width. Trainer rule, not verified: at wide zoom the set size is a
+ * pixel or two, so the frame is drawn (and locks) at this minimum instead. The IT-23M draws the same frame.
+ */
+export const FRAME_MIN_FRACTION = 0.02;
+
+/** Ground width (m) of the target frame at `rangeM`: the set size, never below FRAME_MIN_FRACTION of the view. */
+export function frameWidthM(setM: number, rangeM: number, zoom: ShkvalZoom): number {
+  const fovM = 2 * rangeM * Math.tan((shkvalFovDeg(zoom).h * Math.PI) / 360);
+  return Math.max(setM, FRAME_MIN_FRACTION * fovM);
+}
+
 /** Is the unit inside the TV target frame around `aim`? The frame and the object overlap on the ground. */
-function inFrame(u: GroundUnit, aim: Vector3, setM: number): boolean {
+function inFrame(u: GroundUnit, aim: Vector3, frameM: number): boolean {
   const dx = u.pos.x - aim.x, dz = u.pos.z - aim.z;
-  return Math.hypot(dx, dz) <= (setM + lockSize(u)) / 2;
+  return Math.hypot(dx, dz) <= (frameM + lockSize(u)) / 2;
 }
 
 /**
@@ -177,7 +189,8 @@ export function shkvalLock(world: World, ac: Aircraft): ShkvalResult {
   if (sh.lockedUnitId) return ok(sh.lockedUnitId);
   const aim = shkvalAimPoint(world, ac);
   if (!aim) return no('The sight is above the horizon');
-  const inside = [...world.groundUnits.values()].filter(u => u.alive && inFrame(u, aim, sh.targetSizeM));
+  const frameM = frameWidthM(sh.targetSizeM, ac.pos.distanceTo(aim), sh.zoom);
+  const inside = [...world.groundUnits.values()].filter(u => u.alive && inFrame(u, aim, frameM));
   if (!inside.length) return no('Nothing in the target frame');
   const matching = inside.filter(u => sizeMatches(u, sh.targetSizeM));
   if (!matching.length) {
