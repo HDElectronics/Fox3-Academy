@@ -1,0 +1,41 @@
+/* [OWNER: page-cas] CAS & JTAC page. Builds on the Strike page styles (strk-*). Tokens only. */
+.cas-tl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: min(420px, calc(100vw - 32px)); }
+.cas-subs {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3; display: flex; justify-content: center;
+  pointer-events: none;
+}
+.cas-subs > * { max-width: min(760px, 100%); }
+
+/* kneeboard card */
+.cas-card { display: flex; flex-direction: column; gap: 6px; }
+.cas-kb { display: flex; flex-direction: column; gap: 6px; }
+.cas-kb__grid { display: grid; gap: 4px; }
+.cas-kb__row {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 2px 8px;
+  padding: 2px 4px; border-left: 2px solid transparent; border-radius: var(--r-1);
+}
+.cas-kb__row.is-ok { border-left-color: var(--ok); }
+.cas-kb__row.is-bad { border-left-color: var(--warning); }
+.cas-kb__label { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--panel-muted); white-space: nowrap; }
+.cas-kb__input {
+  min-width: 0; min-height: 30px; padding: 0 8px; margin: 0;
+  background: var(--screen); color: var(--sym); caret-color: var(--sym-hi);
+  border: 1px solid var(--screen-line); border-radius: var(--r-1);
+  font-family: var(--font-mono); font-size: var(--fs-s);
+}
+.cas-kb__input::placeholder { color: var(--sym-dim); opacity: 0.6; }
+.cas-kb__input:focus-visible { outline: 2px solid var(--sym-hi); outline-offset: 1px; }
+.cas-kb__answer { grid-column: 2; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--panel-muted); }
+.cas-kb__row.is-bad .cas-kb__answer { color: var(--caution); }
+.cas-kb__remarks { margin: 0; padding-left: 18px; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--panel-ink); }
+.cas-kb__remarks:empty::before { content: 'Remarks follow the 9-line.'; color: var(--panel-muted); margin-left: -18px; }
+.cas-kb__remarks li { margin-bottom: 2px; }
+
+@media (max-width: 520px) {
+  .cas-kb__row { grid-template-columns: 84px minmax(0, 1fr); }
+  /* Phone: a compact steering cue beside the camera buttons, hidden while the radio menu is open. */
+  .cas-nav { min-width: 0; max-width: 140px; padding: 4px 6px; font-size: calc(var(--fs-xs) * 0.9); }
+  .cas-nav .strk-nav__row { white-space: normal; flex-wrap: wrap; gap: 0 6px; }
+  .cas-lab:has(.ui-radio:not([hidden])) .cas-nav { display: none; }
+}
+@media (pointer: coarse) { .cas-kb__input { min-height: 40px; } }
