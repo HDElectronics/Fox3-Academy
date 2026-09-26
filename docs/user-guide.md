@@ -222,6 +222,23 @@ in plan view: drag the timeline, zoom to the target area, click an event to jump
 result and miss reason, the gimbal margin at each guided launch, laser-on bursts, time inside each SAM ring and the
 gun envelope, a score out of 100 and coaching on each mistake.
 
+### CAS & JTAC (Su-25T)
+Only for the Su-25T. Work the built-in DCS JTAC before you fly it: the radio menu opens with \ (on screen: the
+Radio button), F4 JTACs, then the JTAC (Axeman 1-1). Browsers keep F5, F11 and F12, so the digits 1–0 also pick
+items. The flow follows the ED A-10C II manual: **Check-in** (the game sends your position, weapons and playtime),
+the JTAC gives the control type, **Ready to copy**, the 9 lines (IP, heading, distance, elevation, target, grid,
+mark, friendlies, egress), **Ready to copy remarks** (weapon, threats, final attack heading), **readback**, then
+**IP Inbound**. Inside 10 nm the JTAC puts white smoke down ("mark is on the deck"); **Contact the Mark** starts
+the talk-on from the smoke to the target. Turn onto the attack heading, call **In** and wait for **cleared hot**
+before you release; call **Off** after the attack for BDA and a re-attack or departure.
+Five lessons: **9-line** (type each line on the kneeboard card, then Check the card; IP, elevation, grid, mark and
+friendlies must be right), **Talk-on** (find the smoke, follow the talk-on and lock a tank with the Shkval; the
+smoke is a reference, not the target), **Cleared hot** (scored: release only when cleared, inside the briefed
+attack headings), **Danger close** (friendlies inside 500 m: any friendly hit fails) and **Sortie** (check-in at
+the holding point to egress, with the SA-15 and the ZSU-23-4). The Su-25T has no laser spot tracker, so a JTAC
+laser does not help it: ask for smoke and use the talk-on. When the AI JTAC clears or aborts, its exact wording and
+the talk-on are trainer versions, labelled simplified. Unit markers are off by default; switch them on in Controls.
+
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and
 drops chaff, scaled by skill (rookie to ace). The brief compares your launch zone with his. You fly a tactical

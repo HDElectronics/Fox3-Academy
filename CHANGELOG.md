@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add Learn → CAS & JTAC for the Su-25T (#53). Work the built-in JTAC through a DCS-style radio menu: check-in,
+  the 9-line on a kneeboard card, remarks and readback, IP inbound, white smoke inside 10 nm, the talk-on, In,
+  cleared hot or abort, Off and BDA. Five lessons score the card, clearance discipline and friendly safety. Adds
+  target marks to the sim and attack scene, the radio menu and subtitle widgets, and ground units, A-G weapons,
+  marks and JTAC calls in Tacview exports. The Su-25T cockpit is shared with Shkval & Vikhr.
+
 - Add Learn → Progress (#14): saved completions across all eleven jets, supported flight-ops and strike goals,
   best RWR/Sortie scores, and links to continue the next incomplete lesson. Reuse existing local progress.
 - Add Download ACMI to the BVR Sortie debrief (#14). Export sampled aircraft, missiles and SAMs with combat
