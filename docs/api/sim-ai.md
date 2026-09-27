@@ -310,6 +310,7 @@ DEFAULT_AI_CONFIG: AiConfig
 | `units` | `'metric'` | units in the event text |
 | `script` | null | `AiScript`: scripted flight (drill target) |
 | `scriptRadar` | `'rws'` | radar mode while scripted (`'off'` = silent) |
+| `ecmUsing` | null | DCS "ECM Using": `'never'` / `'locked'` (an emitter on its RWR locks or launches) / `'detected'` (any emitter on its RWR) / `'always'`; null leaves the spawn `jamming` flag alone. Jets without a jammer (`OWN_JAMMER`) never jam. The AI never takes a jam lock: it waits for burn-through (simplified). |
 
 `AiScript`: `{ maneuver: 'straight' | 'hot' | 'cold' | 'beam' | 'crank' | 'weave', refId?, side?, heading?,
 altitude?, speed?, weaveDeg? (30), weavePeriod? (40 s) }`. `hot`/`cold`/`beam`/`crank` are flown continuously

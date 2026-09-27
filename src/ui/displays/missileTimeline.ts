@@ -27,7 +27,7 @@ export interface MissileTimelineOptions {
 }
 
 const GUIDE_TAG: Record<MissileGuidance, string> = {
-  datalink: 'DL', inertial: 'INS', active: 'ACT', sarh: 'SARH', ir: 'IR', ballistic: 'BAL',
+  datalink: 'DL', inertial: 'INS', active: 'ACT', sarh: 'SARH', ir: 'IR', hoj: 'HOJ', ballistic: 'BAL',
 };
 
 export class MissileTimeline {

@@ -27,6 +27,7 @@ import {
 | `AIRCRAFT_ORDER` | `AircraftId[]` | Every jet: fighters, then attack jets. Picker and 3D models only. |
 | `isFighter(id)` | `id is FighterId` | Role guard for code that holds any `AircraftId`. |
 | `AIRCRAFT_CAVEATS` | `Record<AircraftId, string[]>` | "Simplified here" sentences: every aircraft value research could not confirm. Show the relevant ones in Hangar/Reference/lab callouts. |
+| `BURN_THROUGH_M`, `STROBE_RANGE_FACTOR`, `HOJ_MISSILES`, `isHojMissile`, `OWN_JAMMER`, `JAM_CUE`, `ECM_USING`, `ECM_CAVEATS` | `src/data/ecm.ts` | Jamming as DCS shows it: burn-through per radar, home-on-jam missiles, own jammer (name, key, trainer key, cockpit cue), the jam symbol per radar, the AI "ECM Using" option. Each fact carries `verified` and `source`. |
 | `MISSILES` | `Record<MissileId, MissileSpec>` | Seeker, midcourse, loft, pitbull, seeker range/gimbal, mass, size, burn, Mach/g, reference ranges, chaff factor, guidance rule, DCS notes. |
 | `MISSILE_REF_NOTE` | `string` | Caption to show next to `ref` ranges (they are ED's launch table, not flight results). |
 | `FLARE_SUSCEPTIBILITY` | `Record<MissileId, number>` | 0..1 flare factor for IR seekers (radar missiles 0). Deprecated derived compatibility map; read `MISSILES[id].flareSusceptibility`. |
@@ -318,6 +319,16 @@ Airgoons game-data reference. SA-10: older references show a smaller ring. SA-15
 dcsworld.pro. The single `track-to-impact` guidance rule simplifies DCS's mix of command and semi-active
 guidance (SA-10 terminal phase not verified). Missile speed, turn, lock-to-launch delay, notch gate and chaff
 chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
+
+### Jamming (`src/data/ecm.ts`)
+
+Research: `docs/research/ecm-datalink-iff.md`. Verified (ED/Heatblur manuals): F-15C burn-through 15–23 nm
+(trainer uses 19 nm), Su-27 under 25 km, F-15C/Su-27/F-14 HOJ missiles, the F-15C, Su-27, Hornet, Viper and F-14
+jam symbols, the F-15C and Su-27 jammer on `E`. **Not verified**: burn-through for the Su-33, J-11A, MiG-29S
+(Su-27 value), F-16C 25 nm (ED video via a blog), F-14B 26 nm (community test), M-2000C 22 nm (Chuck's), F/A-18C
+and JF-17 20 nm (no figure); the strobe range factor 1.75 (trainer); the Su-33 and MiG-29S jammers (game files);
+the J-11A having none; the JF-17 and M-2000C jam symbols; the AI "ECM Using" default. The Hornet, Viper and
+Tomcat jammers are panel switches in DCS: `E` is a trainer key there.
 
 ### Procedures and binds
 - FC3 `Backspace` unlock: medium confidence (mod copies of the FC3 bindings).

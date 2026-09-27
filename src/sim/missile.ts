@@ -24,6 +24,7 @@ import type { GuidanceSupport, World } from './world';
 import type { Aircraft, Countermeasure, EntityId, Missile, MissReason, PhoenixLaunchMode } from './types';
 import type { MissileId } from '../data/types';
 import { MISSILES } from '../data/missiles';
+import { isHojMissile } from '../data/ecm';
 import { guidanceSupport } from './radar';
 import { G0, M_PER_NM, clamp, inDopplerNotch, isLookDown, radialSpeedVsGround } from './math';
 import { sigma, soundSpeed } from './atmosphere';
@@ -425,11 +426,14 @@ export function createMissile(world: World, shooter: Aircraft, type: MissileId, 
   const closePhoenix = !!tgt && shooter.pos.distanceTo(tgt.pos) < 10 * M_PER_NM;
   const phoenixActive = phoenix && (closePhoenix || selected === 'p-stt' || selected === 'ph-act');
   const phoenixSarh = phoenix && !phoenixActive && selected === 'pd-stt';
+  // Fired from a jam lock (no range): the missile homes on the jammer (pure pursuit, docs/research/ecm-datalink-iff.md).
+  const sst = shooter.radar;
+  const hoj = !!tgt && isHojMissile(type) && sst.mode === 'stt' && !!sst.stt.hoj && sst.stt.targetId === tgt.id;
   const m: Missile = {
     kind: 'missile', id: world.uid('M'), type, side: shooter.side, shooterId: shooter.id, targetId: tgt ? tgt.id : targetId,
     pos: shooter.pos.clone(), vel: shooter.vel.clone(), launchedAt: world.t, alive: true,
     launchRadarMode: shooter.radar.mode, phoenixLaunchMode: phoenixMode,
-    guidance: spec.seeker === 'sarh' || phoenixSarh ? 'sarh' : spec.seeker === 'ir' ? 'ir' : spec.midcourse === 'inertial' ? 'inertial' : 'datalink',
+    guidance: hoj ? 'hoj' : spec.seeker === 'sarh' || phoenixSarh ? 'sarh' : spec.seeker === 'ir' ? 'ir' : spec.midcourse === 'inertial' ? 'inertial' : 'datalink',
     aimPos: tgt ? tgt.pos.clone() : shooter.pos.clone(), aimVel: tgt ? tgt.vel.clone() : new Vector3(),
     seekerOn: null, motorLeft: model.burnS, mass: spec.massKg, lofting: false,
     timeToActive: null, timeToImpact: null, result: null, closestApproach: Infinity,
@@ -445,6 +449,7 @@ export function createMissile(world: World, shooter: Aircraft, type: MissileId, 
     else if (spec.seeker === 'sarh') m.guidance = 'ballistic';
     return m;
   }
+  if (hoj) return m; // no pitbull countdown or loft: it flies straight at the jam
   const range = m.pos.distanceTo(tgt.pos);
   if (m.guidance === 'sarh' || spec.seeker === 'ir') m.seekerOn = tgt.id;
   if (spec.seeker === 'arh' && (phoenix ? phoenixActive : range <= model.pitbullM)) {
@@ -530,6 +535,24 @@ export function stepMissile(world: World, m: Missile, dt: number): void {
     case 'ir':
       hasGuide = updateSeeker(world, m, memo, dt, false);
       break;
+    case 'hoj': {
+      if (target && target.alive && target.jamming) {
+        // Pure pursuit on the jam source: aim at where it is now, no lead.
+        _gp.copy(target.pos); _gv.set(0, 0, 0);
+        m.aimPos.copy(target.pos); m.aimVel.set(0, 0, 0);
+        hasGuide = true;
+      } else if (MISSILES[m.type].seeker === 'arh') {
+        // Jamming stopped: an active missile flies on to the last bearing point and turns its seeker on there.
+        m.guidance = 'inertial';
+        _gp.copy(m.aimPos); _gv.set(0, 0, 0);
+        hasGuide = true;
+      } else {
+        m.guidance = 'ballistic';
+        memo.lostReason = 'lost-guidance';
+        emitSeekerLost(world, m, 'lost-guidance');
+      }
+      break;
+    }
     case 'ballistic':
       hasGuide = false;
       break;

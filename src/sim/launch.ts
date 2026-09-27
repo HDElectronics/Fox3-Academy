@@ -23,6 +23,7 @@ import { fighterSpec, fighterType, isFighterAc } from './jet';
 import type { MissileId, MissileSpec } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
+import { isHojMissile } from '../data/ecm';
 import { D2R, M_PER_NM, R2D, aspectAngle, dirFrom } from './math';
 import type { Vector3 } from 'three';
 import { dlzFor } from './dlz';
@@ -140,6 +141,14 @@ function canLaunchSingle(world: World, ac: Aircraft, targetId?: EntityId, missil
   const trk = trackOf(st, tid);
   const label = trk?.label ?? 'Target';
   if (tgt.side === ac.side) return fail(`${label} is friendly (IFF)`);
+
+  // Jam lock (HOJ / AOJ / JAT): no range, so no launch zone. Only home-on-jam missiles can take the shot.
+  if (ms.seeker !== 'ir' && st.mode === 'stt' && st.stt.targetId === tid && st.stt.hoj) {
+    if (!isHojMissile(mid)) return fail(`${ms.name} cannot home on jam: wait for burn-through`);
+    const off = trk ? offBoresight(ac, trk.pos) * R2D : 0, cone = launchConeDeg(mid);
+    if (off > cone) return fail(`Jammer ${off.toFixed(0)}° off the nose: ${ms.name} limit ${cone.toFixed(0)}°`);
+    return { ok: true, reason: '', targetId: tid, missile: mid, range: null, dlz: null };
+  }
 
   // Guidance requirements and the estimate the shot is computed on (radar-known for radar missiles).
   let estPos = tgt.pos, estVel = tgt.vel;

@@ -19,6 +19,7 @@ import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { fighterSpec, fighterType, isFighterAc } from './jet';
 import { MISSILES } from '../data/missiles';
+import { BURN_THROUGH_M, STROBE_RANGE_FACTOR } from '../data/ecm';
 import {
   D2R, M_PER_NM, MPS_PER_KT, R2D, aspectAngle, clamp, closureRate, dirFrom, elevationTo, inDopplerNotch,
   isLookDown, lerp, radialSpeedVsGround, relBearing, wrapPi,
@@ -193,7 +194,7 @@ export function createRadarState(spec: AircraftSpec): RadarState {
     rangeScale: (r.rangeScalesKm.find(k => k >= 80) ?? r.rangeScalesKm[r.rangeScalesKm.length - 1]) * 1000,
     beamAz: -azHalf, beamEl: 0, sweepDir: 1, bar: 0,
     frameTime: frameTimeFor(spec, azHalf, bars),
-    bricks: [], tracks: [], designated: [], stt: { targetId: null, lostFor: 0 },
+    bricks: [], strobes: [], tracks: [], designated: [], stt: { targetId: null, lostFor: 0 },
     cursor: { az: 0, range: 50000 },
   };
   st.beamEl = barElevation(spec, st, 0);
@@ -304,6 +305,23 @@ export function detectionRange(world: World, observer: Aircraft, target: Aircraf
   return km * 1000;
 }
 
+// ───────────────────────────────────────────────────────────── jamming (docs/research/ecm-datalink-iff.md)
+
+/** Range (m) inside which `observer`'s radar measures range on a jammer again (data/ecm.ts BURN_THROUGH_M). */
+export function burnThroughRange(observer: Aircraft): number {
+  return isFighterAc(observer) ? BURN_THROUGH_M[fighterType(observer)].value : 0;
+}
+
+/** How far a jammer shows as a strobe on `observer`'s radar (m). Trainer value (STROBE_RANGE_FACTOR). */
+export function strobeRange(observer: Aircraft): number {
+  return isFighterAc(observer) ? STROBE_RANGE_FACTOR * specOf(observer).radar.detectKm.headOn * 1000 : 0;
+}
+
+/** DCS jamming: a jammer outside burn-through hides its range; the radar sees only its bearing. */
+export function isJammed(observer: Aircraft, target: Aircraft, range = observer.pos.distanceTo(target.pos)): boolean {
+  return target.jamming && range > burnThroughRange(observer);
+}
+
 /** Is `target` inside `observer`'s Doppler notch (spec.notchKts, spec.notchNeedsLookDown)? */
 export function isNotched(world: World, observer: Aircraft, target: Aircraft): boolean {
   if (!isFighterAc(observer)) return false;
@@ -386,6 +404,7 @@ export function explainDetection(world: World, observer: Aircraft, target: Aircr
 }
 
 function detects(world: World, ac: Aircraft, tgt: Aircraft, g: Geo): boolean {
+  if (isJammed(ac, tgt, g.range)) return false;
   const R = detectionRange(world, ac, tgt);
   if (g.range > R) return false;
   if (isNotched(world, ac, tgt)) return false;
@@ -431,6 +450,17 @@ function emitLock(world: World, ac: Aircraft, targetId: EntityId, what: 'locked'
 function addBrick(world: World, st: RadarState, targetId: EntityId, z: Meas): void {
   removeBricks(st, targetId);
   st.bricks.push({ targetId, t: world.t, pos: z.pos, az: z.az, el: z.el, range: z.range, closure: z.closure });
+}
+
+function addStrobe(world: World, st: RadarState, targetId: EntityId, g: Geo): void {
+  const i = st.strobes.findIndex(x => x.targetId === targetId);
+  const z = { targetId, t: world.t, az: g.az + tri(world) * ANG_NOISE, el: g.el + tri(world) * ANG_NOISE };
+  if (i >= 0) st.strobes[i] = z; else st.strobes.push(z);
+}
+
+function ageStrobes(world: World, st: RadarState): void {
+  const oldest = world.t - brickLife(st);
+  for (let i = st.strobes.length - 1; i >= 0; i--) if (st.strobes[i].t < oldest) st.strobes.splice(i, 1);
 }
 
 function removeBricks(st: RadarState, targetId: EntityId): void {
@@ -551,6 +581,10 @@ function stepSearch(world: World, ac: Aircraft, spec: AircraftSpec, dt: number):
     const g = geoOf(ac, tgt.pos);
     if (!looked(spec, st, segs, g)) continue;
     if (g.range <= pr) ist.painted.set(tgt.id, world.t);
+    if (isJammed(ac, tgt, g.range)) {
+      if (g.range <= strobeRange(ac)) addStrobe(world, st, tgt.id, g);
+      continue;
+    }
     if (!detects(world, ac, tgt, g)) continue;
     hits.add(tgt.id);
     const z = measure(world, ac, tgt, g);
@@ -584,8 +618,29 @@ function stepStt(world: World, ac: Aircraft, spec: AircraftSpec, dt: number): vo
   const aim = ist.sttFrame === 'aircraft' ? aircraftAngles(ac, tgt.pos) : g;
   const inGimbal = Math.abs(aim.az) <= gimAz && Math.abs(aim.el) <= gimEl;
   if (inGimbal && g.range <= paintRange(ac)) ist.painted.set(tgt.id, world.t);
+  // Jam lock: angle only while the target jams outside burn-through. At burn-through (or when the jamming
+  // stops) it becomes an ordinary STT, which then needs the usual detection (F-15C manual: auto STT at burn-through).
+  if (st.stt.hoj && !isJammed(ac, tgt, g.range)) st.stt.hoj = false;
+  if (st.stt.hoj) {
+    if (!inGimbal) {
+      st.stt.lostFor += dt;
+      if (st.stt.lostFor > radarRules(fighterType(ac)).sttMemoryS) breakLock(world, ac, 'gimbal limit');
+      return;
+    }
+    st.stt.lostFor = 0;
+    const az = g.az + tri(world) * ANG_NOISE * 0.3, el = g.el + tri(world) * ANG_NOISE * 0.3;
+    // No range: the track sits on the line of sight at the burn-through range, a placeholder displays must not show.
+    trk.pos.copy(dirFrom(ac.heading + az, el).multiplyScalar(burnThroughRange(ac)).add(ac.pos));
+    trk.vel.set(0, 0, 0);
+    trk.coasting = false;
+    trk.lastHit = world.t;
+    st.beamAz = g.az;
+    st.beamEl = g.el;
+    return;
+  }
   let why: string | null = null;
   if (!inGimbal) why = 'gimbal limit';
+  else if (isJammed(ac, tgt, g.range)) why = 'jammed';
   else if (g.range > detectionRange(world, ac, tgt)) why = 'out of range';
   else if (isNotched(world, ac, tgt)) why = 'notched';
   if (why) {
@@ -693,6 +748,7 @@ export function stepRadar(world: World, ac: Aircraft, dt: number): void {
   }
   // The mode may have changed above (lock, break).
   if (st.bricks.length) ageBricks(world, st);
+  if (st.strobes.length) ageStrobes(world, st);
   if (st.mode === 'tws' || st.mode === 'stt') maintainTracks(world, ac);
   if (st.mode === 'tws') twsExtras(world, ac, spec);
 }
@@ -903,6 +959,56 @@ export function cycleDesignation(world: World, ac: Aircraft): void {
 
 export interface LockCheck { ok: boolean; reason: string }
 
+/**
+ * Can this radar take an angle-only lock on a jam strobe (F-15C HOJ, FC3 AOJ, Hornet AOJ, F-14 JAT)? Needs a
+ * fresh strobe on `targetId` inside the gimbal. Pages use it; the AI waits for burn-through (simplified).
+ */
+export function canLockJammer(world: World, ac: Aircraft, targetId: EntityId): LockCheck {
+  if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
+  const spec = specOf(ac), r = spec.radar, st = ac.radar;
+  if (st.mode === 'off') return { ok: false, reason: 'Radar is off' };
+  if (!r.modes.includes('stt')) return { ok: false, reason: `${spec.short} radar has no STT` };
+  const tgt = world.get(targetId);
+  if (!tgt || !tgt.alive || tgt.id === ac.id) return { ok: false, reason: 'No target' };
+  if (!isJammed(ac, tgt)) return { ok: false, reason: 'Not a jam strobe: lock it normally' };
+  if (!st.strobes.some(x => x.targetId === targetId)) return { ok: false, reason: 'No strobe on that bearing yet' };
+  const g = geoOf(ac, tgt.pos);
+  if (Math.abs(g.az) > r.gimbalAzDeg * D2R || Math.abs(g.el) > r.gimbalElDeg * D2R) {
+    return { ok: false, reason: `Strobe outside the gimbal (±${r.gimbalAzDeg}°)` };
+  }
+  return { ok: true, reason: '' };
+}
+
+/** Angle-only lock on a jammer. Range stays unknown until burn-through, when it becomes an ordinary STT. */
+export function lockJammer(world: World, ac: Aircraft, targetId: EntityId): boolean {
+  if (!canLockJammer(world, ac, targetId).ok) return false;
+  const st = ac.radar, ist = inner(st);
+  if (st.mode === 'stt') {
+    if (st.stt.targetId === targetId) return true;
+    if (st.stt.targetId) emitLock(world, ac, st.stt.targetId, 'unlocked');
+  } else if (st.mode === 'rws' || st.mode === 'tws' || st.mode === 'vs') {
+    ist.prevSearch = st.mode;
+    ist.prevBvr = st.mode;
+  }
+  dropAllTracks(world, ac, targetId);
+  const g = geoOf(ac, world.get(targetId)!.pos);
+  let trk = trackOf(st, targetId);
+  const pos = dirFrom(ac.heading + g.az, g.el).multiplyScalar(burnThroughRange(ac)).add(ac.pos);
+  if (!trk) trk = createTrack(world, ac, targetId, pos);
+  trk.firm = false; trk.vel.set(0, 0, 0); trk.coasting = false; trk.lastHit = world.t;
+  st.bricks.length = 0;
+  st.strobes = st.strobes.filter(x => x.targetId === targetId);
+  st.designated = [targetId];
+  st.snp2 = false;
+  st.mode = 'stt';
+  st.stt = { targetId, lostFor: 0, hoj: true };
+  ist.sttFrame = 'horizon';
+  st.beamAz = g.az;
+  st.beamEl = g.el;
+  emitLock(world, ac, targetId, 'locked');
+  return true;
+}
+
 /** Can this radar go STT on `targetId` right now? Reason in pilot words when not. */
 export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon'): LockCheck {
   if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
@@ -915,6 +1021,7 @@ export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: L
   if (Math.abs(g.az) > r.gimbalAzDeg * D2R || Math.abs(g.el) > r.gimbalElDeg * D2R) {
     return { ok: false, reason: `Target outside the gimbal (±${r.gimbalAzDeg}°)` };
   }
+  if (isJammed(ac, tgt, g.range)) return { ok: false, reason: 'Jammer: no range until burn-through. Lock the strobe (jam lock)' };
   const lockR = LOCK_RANGE_FACTOR * detectionRange(world, ac, tgt);
   if (g.range > lockR) return { ok: false, reason: `Too far to lock: ${(g.range / 1000).toFixed(0)} km, lock range ${(lockR / 1000).toFixed(0)} km` };
   if (isNotched(world, ac, tgt)) return { ok: false, reason: 'Target is in the notch' };
@@ -1157,6 +1264,7 @@ export function guidanceSupport(world: World, shooter: Aircraft, targetId: Entit
   if (!trk) return none;
   const est = () => ({ pos: trk.pos.clone(), vel: trk.vel.clone() });
   if (st.mode === 'stt' && st.stt.targetId === targetId) {
+    if (st.stt.hoj) return none; // no range: home-on-jam missiles guide themselves
     return { datalink: true, illuminating: st.stt.lostFor <= 0, estimate: est() };
   }
   if (st.mode === 'tws') {
