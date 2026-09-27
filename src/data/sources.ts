@@ -138,6 +138,26 @@ const LIST = {
   simtutsDefending: ['SimTuts, "DCS Missile Defense Guide: How to Defeat SAMs and Air-to-Air Missiles"', 'https://simtuts.com/guides/defending-against-missiles-dcs'],
   fThreatRingChart: ['ED Forums, "DCS World Mission Editor Threat Range Ring Chart" (not opened: access refused)', 'https://forum.dcs.world/topic/284720-dcs-world-mission-editor-threat-range-ring-chart/'],
   edSu25tManual: ['ED, DCS World Su-25T Flight Manual (EN, 68 pages)', 'https://www.digitalcombatsimulator.com/upload/iblock/61b/DCS%20World%20Su-25T%20Flight%20Manual%20EN.pdf'],
+
+  // --- CAS and JTAC (docs/research/cas-jtac.md, cas-jets.md) ---
+  edA10c2Manual: ['ED, DCS A-10C II Tank Killer Flight Manual (EN): radio menu, F4 JTAC, JTAC Engagement Flow', 'https://www.digitalcombatsimulator.com/upload/iblock/715/t05fb1h8itdhcvcf6fyi3h5944fvv4fx/DCS_A-10C_II_Flight_Manual_EN.pdf'],
+  edUserManual: ['ED, DCS World User Manual (EN, 2020): Easy Communication, Mission Editor FAC tasks, Smoke Marker', 'https://www.digitalcombatsimulator.com/upload/iblock/ed6/87v22jwd1xh51i3rgki944xsf503istq/DCS_User_Manual_EN_2020.pdf'],
+  edCombinedArmsManual: ['ED, DCS: Combined Arms User Manual (EN): playing as JTAC', 'http://cdn.akamai.steamstatic.com/steam/apps/240300/manuals/Combined_Arms_Manual_EN.pdf'],
+  chucksA10c: ["Chuck's Guides, DCS A-10C Warthog (JTAC coordinates, check-in and 9-line example)", 'https://assets.chucksguides.com/pdf/DCS%20A-10C%20Warthog%20Guide.pdf'],
+  chucksViper: ["Chuck's Guides, DCS F-16C Viper (LSS code, MGRS steerpoints)", 'https://assets.chucksguides.com/pdf/DCS%20F-16C%20Viper%20Guide.pdf'],
+  hoggitFacTasks: ['Hoggit wiki, DCS task fac AttackGroup / fac engageGroup', 'https://wiki.hoggitworld.com/view/DCS_task_fac_AttackGroup'],
+  hoggitJtacCallsigns: ['Hoggit wiki, Template: DCS enum callsigns jtac', 'https://wiki.hoggitworld.com/view/Template:DCS_enum_callsigns_jtac'],
+  hoggitJtac: ['Hoggit wiki, JTAC (multiplayer JTAC, CTLD)', 'https://wiki.hoggitworld.com/view/JTAC'],
+  mudspikeJtac: ['Mudspike, "DCS World JTAC Question(s)" (Sep 2023)', 'https://forums.mudspike.com/t/dcs-world-jtac-question-s/15641'],
+  steamJtacGbu: ['Steam DCS discussions, "Help with F/A-18C GBU mission w/JTAC" (Feb 2021)', 'https://steamcommunity.com/app/223750/discussions/0/3106890436349852965/'],
+  steamF10Menu: ['Steam DCS discussions, F10 menu opens the map (Aug 2021)', 'https://steamcommunity.com/app/223750/discussions/0/3038228636860993149'],
+  jtacAutoLase: ['ciribob, DCS-JTACAutoLaze README (script JTAC, coloured smoke)', 'https://github.com/ciribob/DCS-JTACAutoLaze/blob/master/README.md'],
+  fJtacLaserCode: ['ED Forums, "JTAC Laser code" (Mission Editor; snippet only)', 'https://forum.dcs.world/topic/191766-jtac-laser-code/'],
+  fJtacAbort: ['ED Forums, "JTAC ABORT ABORT ABORT message" (snippet only)', 'https://forum.dcs.world/topic/192411-jtac-abort-abort-abort-message/'],
+  fJtacClearedHot: ['ED Forums, "Help with AI JTAC: when are you cleared hot / told ABORT ABORT ABORT?" (snippet only)', 'https://forum.dcs.world/topic/242607-help-with-ai-jtac-when-are-you-cleared-hot-told-abort-abort-abort/'],
+  airgoonsSu25t: ['Airgoons wiki, Su-25T Frogfoot (laser code 1113 HUD diamond)', 'https://www.airgoons.com/w/Su-25T_Frogfoot'],
+  fSu25t1113: ['ED Forums, "Laser Code 1113 and (at least) Su-25T" (2016; snippet only)', 'https://forum.dcs.world/topic/138919-laser-code-1113-and-at-least-su-25t/'],
+  fSu25t1113Bug: ['ED Forums, "Su-25 missiles stopped being guided by laser code 1113" (bug report, c. Jun 2025; snippet only)', 'https://forum.dcs.world/topic/375657-su-25-missiles-stopped-being-guided-by-laser-code-1113/'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type SourceKey = keyof typeof LIST;
@@ -153,7 +173,7 @@ export const SOURCE_ID = Object.fromEntries(KEYS.map((k, i) => [k, i + 1])) as R
 /** Mechanics and cross-cutting topics that have their own source lists. */
 export type SourceTopic =
   | AircraftId | MissileId | RwrId
-  | 'notch' | 'chaff' | 'rwr-logic' | 'datalink' | 'kinematics' | 'ai' | 'tactics' | 'binds-fc3' | 'fc3-tws' | 'sam';
+  | 'notch' | 'chaff' | 'rwr-logic' | 'datalink' | 'kinematics' | 'ai' | 'tactics' | 'binds-fc3' | 'fc3-tws' | 'sam' | 'cas';
 
 const T: Record<SourceTopic, SourceKey[]> = {
   su27: ['edSu27Fc3Manual', 'edFc3Manual', 'dmN001', 'dmIrst', 'dmPlanes', 'edFc3Changelog', 'su27CombatGuide'],
@@ -203,6 +223,12 @@ const T: Record<SourceTopic, SourceKey[]> = {
   'binds-fc3': ['bindsFc3Mods', 'bindsF16aDemo', 'joyproF15c', 'edSu27Fc3Manual', 'edF15cManual'],
   sam: ['airgoonsAirDefences', 'simtutsDefending', 'fThreatRingChart', 'edHornetGuide'],
   'fc3-tws': ['edSu27Fc3Manual', 'edMig29Manual', 'edSu33Manual', 'edF15cManual', 'edFc3Changelog', 'fTwsMulti', 'fCyclingTws'],
+  cas: [
+    'edA10c2Manual', 'edUserManual', 'edCombinedArmsManual', 'edHornetGuide', 'edViperGuide', 'edSu25tManual',
+    'chucksA10c', 'chucksHornet', 'chucksViper', 'hoggitFacTasks', 'hoggitJtacCallsigns', 'hoggitJtac', 'mudspikeJtac',
+    'steamJtacGbu', 'steamF10Menu', 'jtacAutoLase', 'fJtacLaserCode', 'fJtacAbort', 'fJtacClearedHot',
+    'airgoonsSu25t', 'fSu25t1113', 'fSu25t1113Bug',
+  ],
 };
 
 /** Topic → source ids. */

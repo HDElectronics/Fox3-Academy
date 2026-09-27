@@ -213,7 +213,7 @@ export interface RwrSpec {
 }
 
 /** 'targeting': optical targeting system keys (Su-25T Shkval), for jets without an air-to-air radar. */
-export type BindGroup = 'radar' | 'weapons' | 'defence' | 'targeting';
+export type BindGroup = 'radar' | 'weapons' | 'defence' | 'targeting' | 'comms';
 export interface KeyBind {
   action: string;
   /** FC3 keyboard label or full-fidelity HOTAS/cockpit function name. */
@@ -328,3 +328,32 @@ export type GroundUnitKind = 'tank' | 'apc' | 'truck' | 'bunker' | 'building' | 
  */
 export type MarkKind = 'smoke' | 'laser' | 'ir';
 export type MarkColour = 'white' | 'orange' | 'red' | 'green';
+
+/**
+ * One entry of the DCS radio (comms) menu as the player sees it: items are numbered F1, F2, … in order unless
+ * `fkey` pins the number (the root list skips numbers, e.g. F4 JTACs, F10 Other, F12 Exit). A node with
+ * `children` opens a submenu; a leaf carries an `action` id the page handles.
+ */
+export interface CommsMenuNode {
+  label: string;
+  /** Function-key number shown before the label (1–12); default: position in the list, from 1. */
+  fkey?: number;
+  action?: string;
+  children?: CommsMenuNode[];
+  /** Shown greyed out and not selectable (e.g. out of range, "problem: no LOS"). */
+  disabled?: boolean;
+  /** Set when the label or its position is not verified against the current game. */
+  unverified?: boolean;
+}
+
+/** A JTAC or pilot radio call as a text template ({callsign}, {ip}, …), with its verification status. */
+export interface JtacCallSpec {
+  id: string;
+  speaker: 'jtac' | 'pilot';
+  text: string;
+  /** True only when the wording is sourced (docs/research/cas-jtac.md); otherwise the UI labels it simplified. */
+  verified: boolean;
+  /** Source id(s) in SOURCES. */
+  sources?: string[];
+  note?: string;
+}

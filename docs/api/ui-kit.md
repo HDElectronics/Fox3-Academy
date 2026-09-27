@@ -172,6 +172,75 @@ const unbind = bindKeys({
   → `0 | 1 | 2`; `isTextField(target)`; `isModifierCode(code)`.
   Use `parseKeyList(bind.keys).length > 0` to test whether a data string is bindable.
 
+## Radio (`radioMenu.ts`, `radioLog.ts`)
+
+The DCS comms menu and radio subtitles for the CAS / JTAC pages. Game-level only: the list looks and
+behaves as the player sees it (docs/research/cas-jtac.md, sections 1 and 4).
+
+### `radioMenu({ id, title?, root, onSelect, onClose? })`
+→ `{ el, toggleEl, open({ focus? }?), close(), toggle(), isOpen(), back(), path(), refresh(), select(n), handleKey(chord), destroy() }`
+
+- `root: () => CommsMenuNode[]` is called on every render, so the page rebuilds items from JTAC state;
+  call `refresh()` after a state change (the open submenu is kept while its label still exists).
+- Rows read `F1. Wingman...`: numbered by position from F1 unless `fkey` pins the number (F4 JTACs, F10
+  Other). Submenus get `...`. Submenus add F11 "Previous menu" (wording not verified, tagged) and every
+  list adds F12 "Exit", unless an item pins 11 or 12. `disabled` rows are dimmed and ignored; a leaf with
+  no `action` counts as disabled. `unverified` rows carry a "not verified" tag (text, not colour only).
+- Selecting a submenu descends; a leaf closes the menu, then calls `onSelect(action, path)` with the labels
+  from the root list to the leaf (DCS closes the menu after sending). Reopening starts at the root list.
+- `el` is the panel (hidden while closed; place it with `lab.overlay('tl', menu.el)`). `toggleEl` is a
+  "Radio \" cap for touch users: place it anywhere; a click opens the menu and focuses the first item.
+- Rows are real `<button role="menuitem">` in a `role="menu"`; arrows / Home / End move focus, Esc closes
+  (focus returns to the toggle), Left or Backspace go back. One polite status line announces open,
+  submenu and close only.
+- The widget binds no keys. `handleKey(chord)` returns true when consumed: `\` toggles; while open,
+  `F1`..`F12` pick by number (F11 back and F12 exit unless pinned), digits `1`..`9`, `0` and `Num1`..`Num0`
+  alias F1..F10, `Esc` closes. While open every F-key and digit is consumed, even an empty number, as in
+  DCS. Modified chords (`RAlt+1`) are never consumed. Closed, only `\` is consumed.
+- Browsers keep F5 (reload), F11 (full screen), F12 (developer tools) and sometimes F1 (help); some
+  cannot be cancelled. The digit aliases are the reliable path; lesson text should name both
+  ("F4 (or 4)").
+- `radioMenuRows(nodes, atRoot)` and `radioMenuKey(chord)` are the pure rules, exported for tests.
+
+### `radioMenuKeys(menu, { fallback?, enabled? }?)` → `KeyMap`
+
+Spread it into the page's single `bindKeys` map. It binds `\`, `Esc`, `F1`..`F12`, `0`..`9` and
+`Num0`..`Num9` with `preventDefault: false`: the browser default is cancelled only when the menu consumed
+the key, so F5 still reloads while the menu is closed. `bindKeys` has no way for a binding to decline, so
+**do not bind these chords elsewhere in the same map**: give the page's own handlers for them in
+`fallback` (called when the menu did not consume the key; call `e.preventDefault()` there yourself if
+needed). `enabled` turns the whole set off (for example while a lesson hides the radio).
+
+```ts
+const menu = radioMenu({ id: 'cas-radio', root: () => jtacMenu(state), onSelect: (action) => jtac.send(action) });
+const subs = radioLog({ id: 'cas-subs' });
+lab.overlay('tl', menu.el); lab.overlay('bl', subs.el);
+console.append(menu.toggleEl, subs.historyEl);
+bag.add(bindKeys({
+  ...radioMenuKeys(menu, { fallback: { 'Esc': () => pause() } }),
+  'RAlt+I': () => cycleView(),
+}));
+bag.add(menu.destroy); bag.add(subs.destroy);
+// in the frame loop: subs.tick(world.time); after a JTAC state change: menu.refresh();
+```
+
+### `radioLog({ id, max? = 3, ttlS? = 8, historyMax? = 100, historyLabel? })`
+→ `{ el, historyEl, push({ from, text, t?, tone?, unverified? }), tick(nowS), clear(), visible, size, destroy() }`
+
+- `el`: subtitle overlay with the last `max` calls, oldest on top, `from: text` ("Axeman 11: Continue",
+  "You: Ready to copy"). Hidden when empty. It is the one `aria-live="polite"` region.
+- No timers: `tick(nowS)` in sim seconds fades a line in its last second and removes it at `ttlS`, so a
+  paused sim keeps its subtitles. `t` defaults to the last tick time. A clock that goes back (restarted
+  scenario) removes older lines. `radioLineState(age, ttl)` is the pure rule.
+- `historyEl`: the full transcript, newest first, `mm:ss` stamped, capped at `historyMax`; put it in a
+  console panel if the page wants one (height via `--log-h`).
+- `unverified: true` tags the line "simplified" (wording not verified against the game, rule 2).
+- `destroy()` detaches both elements.
+
+CSS classes: `.ui-radio`, `__title`, `__list`, `__item` (`.is-disabled`, `.is-nav`), `__key`, `__label`,
+`__nv`; `.ui-radio-toggle`; `.ui-radio-log`, `__line` (`.is-fading`, tones), `__from`, `__text`, `__nv`,
+`__history`, `__row`, `__t`.
+
 ## DOM helpers (`dom.ts`)
 
 `h(tag, attrs, ...children)` (unchanged contract), `append`, `setText`, `$`, `$$`, plus:

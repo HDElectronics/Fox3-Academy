@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add Learn → CAS & JTAC for the Su-25T (#53). Work the built-in JTAC through a DCS-style radio menu: check-in,
+  the 9-line on a kneeboard card, remarks and readback, IP inbound, white smoke inside 10 nm, the talk-on, In,
+  cleared hot or abort, Off and BDA. Five lessons score the card, clearance discipline and friendly safety. Adds
+  target marks to the sim and attack scene, the radio menu and subtitle widgets, and ground units, A-G weapons,
+  marks and JTAC calls in Tacview exports. The Su-25T cockpit is shared with Shkval & Vikhr.
+
 - Fly the dive yourself in the Shkval & Vikhr CCIP pass and the CCIP half of the Bombs lesson: no automatic
   roll-in or pull-out. The arrows now pitch as in DCS in every lesson that flies the jet (Up nose down, Down nose
   up; Sortie W / S follow the arrows); a released key holds the dive angle. A ground trail shows where the CCIP

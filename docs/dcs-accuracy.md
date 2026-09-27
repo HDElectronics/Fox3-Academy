@@ -34,6 +34,11 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
 
 ## Deliberately simplified
 
+- **CAS & JTAC**: the JTAC dialogue follows the ED A-10C II manual order and item names, but its voice lines,
+  the talk-on phrasing, the smoke offset and the call pace are trainer versions. When the AI clears hot, says
+  continue or aborts is not documented by ED; the trainer clears on the briefed attack heading with the Shkval on
+  a briefed target. Danger close is a single 500 m trainer distance. The 9-line grid is a trainer grid.
+
 - **Flight**: you fly a tactical autopilot (commanded heading, altitude, speed), not a stick. All jets share the
   same handling limits apart from their performance numbers.
 - **Missiles**: game mechanics (a speed-over-time curve, a turn-rate cap, steering to the intercept point) tuned
@@ -59,6 +64,11 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
 
 The [manual/web verification review](research/verification-status.md) separates sourced corrections from
 items that still require a current DCS installation. No in-game validation is implied.
+
+- JTAC radio menu labels not in the ED manual ("Check-in 15 min", "Ready to copy remarks", "9-line readback"),
+  the positions of the always-available items, the smoke lifetime (300 s trainer value) and the reported
+  "ABORT ABORT ABORT, you do not have permission to fire" call. Whether the Su-25T can use a JTAC laser on code
+  1113 (community reports, not modelled).
 
 - Whether an R-77 or AIM-120 fired from STT gives a launch warning or only the lock until pitbull.
 - Whether pressing Enter in the Su-27's СНП forces a lock before 85 % of Rmax (the Su-27 manual says yes; the

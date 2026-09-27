@@ -624,6 +624,9 @@ const SU25T_BINDS: KeyBind[] = [
   { group: 'targeting', keyboard: 'RShift + O', action: 'Laser rangefinder / designator', keys: 'RShift + O', note: 'ЛД on the IT-23M. Keep it on to impact for Vikhr, Kh-25ML and Kh-29L. Limit not verified (see caveats).' },
   { group: 'targeting', keyboard: 'I', action: 'Anti-radiation passive detection', keys: 'I', note: 'Needs the L-081 Fantasmagoria pod on station 6.' },
   { group: 'defence', keyboard: 'RShift + R / RAlt + , and RAlt + .', action: 'RWR mode / volume', keys: 'RShift + R / RAlt + , and RAlt + .', note: 'SPO-15 Beryoza. The mode filter hides search radars.' },
+  { group: 'comms', keyboard: '\\', action: 'Radio menu', keys: '\\', note: 'DCS radio menu key per ED\'s A-10C II manual (US keyboard; other layouts vary). The Su-25T manual does not list it.' },
+  { group: 'comms', keyboard: 'F1 … F12', action: 'Select a menu item', keys: 'F1 … F12', note: 'F4 JTACs, then the JTAC, then the item. The trainer also takes digits: browsers reserve F5, F11 and F12.' },
+  { group: 'comms', keyboard: 'Esc', action: 'Close the radio menu', keys: 'Esc', note: 'F12 Exit does the same.' },
 ];
 
 const SU25T_PROCEDURES: Procedure[] = [

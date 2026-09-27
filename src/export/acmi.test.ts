@@ -104,6 +104,151 @@ describe('Tacview ACMI export', () => {
     expect(read(out).removed).toEqual([]);
   });
 
+  it('keeps the BVR-only export byte-identical (snapshot taken before the ground and A-G export)', () => {
+    const f0 = frame(0, [aircraft('a', { pos: [100, 6000, 200], heading: 0.3, pitch: 0.05, roll: -0.2 }), aircraft('b', { type: 'su27', side: 'red', pos: [0, 7000, -40000], heading: Math.PI })]);
+    f0.sams = [{ id: 's', type: 'sa11', side: 'red', pos: [5000, 0, -30000], state: 'track', active: true, targetId: 'a' }];
+    const f1 = frame(0.25, f0.aircraft, [missile('m', { pos: [100, 6000, -100] })]);
+    f1.sams = f0.sams;
+    f1.samMissiles = [{ id: 'sm', type: 'sa11', side: 'red', pos: [5000, 50, -30000], guided: true, alive: true, siteId: 's', targetId: 'a' }];
+    const f2 = frame(0.5, [f0.aircraft[0], { ...f0.aircraft[1], alive: false }], [missile('m', { alive: false })]);
+    const events: SimEvent[] = [
+      { t: 0.1, type: 'launch', missileId: 'm', shooterId: 'a', targetId: 'b', missile: 'aim120c', range: 30000, radarMode: 'tws' },
+      { t: 0.2, type: 'cm', ownerId: 'b', what: 'chaff' },
+      { t: 0.25, type: 'pitbull', missileId: 'm', targetId: 'b' } as SimEvent,
+      { t: 0.3, type: 'sam', siteId: 's', what: 'launch', targetId: 'a', missileId: 'sm' },
+      { t: 0.35, type: 'datalink-lost', missileId: 'm', why: 'test' } as SimEvent,
+      { t: 0.45, type: 'hit', missileId: 'm', targetId: 'b' },
+      { t: 0.45, type: 'kill', targetId: 'b', by: 'a' },
+      { t: 0.6, type: 'miss', missileId: 'sm', reason: 'timeout' } as SimEvent,
+    ];
+    expect(exportAcmi([f0, f1, f2], { title: 'BVR', callsigns: { a: 'Eagle 1' }, events })).toMatchInlineSnapshot(`
+      "﻿FileType=text/acmi/tacview
+      FileVersion=2.2
+      0,ReferenceTime=2000-01-01T00:00:00Z
+      0,DataSource=Fox3 Academy,DataRecorder=Fox3 Academy
+      0,Title=BVR
+      0,ReferenceLongitude=0,ReferenceLatitude=0
+      0,Comments=Simplified trainer whole-fight truth. Synthetic origin 0N 0E and date 2000-01-01. Native coordinates are east and north metres. Objects are sampled every 0.25 s; events retain their recorded times. No DCS terrain or sensor picture.
+      #0
+      1,T=0.00089832|-0.00179663|6000|-11.459|2.865|17.189|100|-200|17.189,Name=F-15C,Type=Air+FixedWing,Coalition=Blue,Color=Blue,CallSign=Eagle 1
+      2,T=0|0.35932611|7000|0|0|180|0|40000|180,Name=Su-27,Type=Air+FixedWing,Coalition=Red,Color=Red
+      4,T=0.04491576|0.26949459|0|5000|30000,Name=SA-11 Gadfly,Type=Ground+AntiAircraft,Coalition=Red,Color=Red
+      #0.1
+      0,Event=Message|1|AIM-120C launched
+      #0.25
+      1,T=0.00089832|-0.00179663|6000|-11.459|2.865|17.189|100|-200|17.189
+      2,T=0|0.35932611|7000|0|0|180|0|40000|180
+      3,T=0.00089832|0.00089832|6000|100|100,Name=AIM-120C,Type=Weapon+Missile,Coalition=Blue,Color=Blue,Parent=1
+      4,T=0.04491576|0.26949459|0|5000|30000
+      5,T=0.04491576|0.26949459|50|5000|30000,Name=SA-11 Gadfly missile,Type=Weapon+Missile,Coalition=Red,Color=Red,Parent=4
+      0,Event=Message|3|Missile active
+      #0.3
+      0,Event=Message|4|1|SAM launch
+      #0.35
+      0,Event=Message|3|Datalink lost: test
+      #0.45
+      0,Event=Message|3|2|Missile hit
+      -3
+      0,Event=Message|2|Aircraft destroyed
+      -2
+      #0.5
+      -4
+      -5
+      1,T=0.00089832|-0.00179663|6000|-11.459|2.865|17.189|100|-200|17.189
+      #0.6
+      0,Event=Message|Missile ended: timeout
+      "
+    `);
+  });
+
+  it('exports ground units, A-G weapons, smoke marks, kills and JTAC notes with documented tags and events', () => {
+    type Gu = NonNullable<RecordFrame['groundUnits']>[number];
+    const unit = (id: string, kind: Gu['kind'], alive = true): Gu => ({ id, kind, side: 'red', pos: [0, 0, -8000], heading: Math.PI / 2, alive });
+    const jet = aircraft('a', { type: 'su25t' });
+    const f0 = frame(0, [jet]);
+    f0.groundUnits = [unit('g1', 'tank'), unit('g2', 'truck'), { ...unit('jt', 'apc'), side: 'blue', pos: [0, 0, -2000] }];
+    f0.marks = [{ id: 'k', type: 'smoke', colour: 'white', side: 'blue', pos: [0, 0, -7900], alive: true }, { id: 'l', type: 'laser', colour: null, side: 'blue', pos: [0, 0, -8000], alive: true }];
+    const f1 = frame(0.25, [jet]);
+    f1.groundUnits = f0.groundUnits;
+    f1.marks = f0.marks;
+    f1.agWeapons = [
+      { id: 'w', type: 'kh29l', side: 'blue', shooterId: 'a', targetId: 'g1', pos: [0, 4000, -1000], guided: true, alive: true },
+      { id: 'r', type: 's8', side: 'blue', shooterId: 'a', targetId: null, pos: [0, 4000, -1000], guided: false, alive: true },
+      { id: 'c', type: 'gun25t', side: 'blue', shooterId: 'a', targetId: null, pos: [0, 4000, -1000], guided: false, alive: true },
+    ];
+    const f2 = frame(0.5, [jet]);
+    f2.groundUnits = [unit('g1', 'tank', false), unit('g2', 'truck', false), f0.groundUnits[2]];
+    f2.marks = f0.marks;
+    const f3 = frame(0.75, [jet]);
+    f3.groundUnits = f2.groundUnits;
+    // Still sampled after its end event: the ended smoke must not respawn.
+    f3.marks = f0.marks;
+    const events: SimEvent[] = [
+      { t: 0, type: 'mark', markId: 'k', mark: 'smoke', what: 'on', ownerId: 'jt' },
+      { t: 0, type: 'note', text: 'Two, type 2, bomb on target, smoke, white' },
+      { t: 0.2, type: 'ag-launch', weaponId: 'w', shooterId: 'a', targetId: 'g1', weapon: 'kh29l', range: 7000 },
+      { t: 0.2, type: 'ag-launch', weaponId: 'c', shooterId: 'a', targetId: null, weapon: 'gun25t', range: null },
+      { t: 0.4, type: 'ag-impact', weaponId: 'w', weapon: 'kh29l', targetId: 'g1', pos: [0, 0, -8000], killed: ['g1'] },
+      { t: 0.4, type: 'ground-kill', targetId: 'g1', by: 'a', weapon: 'kh29l' },
+      { t: 0.45, type: 'ag-miss', weaponId: 'r', weapon: 's8', reason: 'ground' },
+      { t: 0.7, type: 'mark', markId: 'k', mark: 'smoke', what: 'off', ownerId: 'jt' },
+      { t: 0.8, type: 'mark', markId: 'l', mark: 'laser', what: 'on', ownerId: 'jt' },
+    ];
+    const out = exportAcmi([f0, f1, f2, f3], { events });
+    // IDs: a=1, g1=2, g2=3, jt=4, k=5, r=6, w=7. Cannon rounds and laser spots are not objects and take no ID.
+    expect(out).toContain('2,T=0|0.07186522|0|0|0|90|0|8000|90,Name=Tank,Type=Ground+Heavy+Armor+Vehicle+Tank,Coalition=Red,Color=Red');
+    expect(out).toContain('Name=Truck,Type=Ground+Light+Vehicle');
+    expect(out).toContain('Name=APC,Type=Ground+Armor+Vehicle,Coalition=Blue');
+    expect(out).toContain('5,T=0|0.07096691|0|0|7900,Name=White smoke,Type=Misc+Decoy+SmokeGrenade,Coalition=Blue');
+    expect(out).not.toContain('Name=Laser');
+    expect(out).toContain('Coalition=Blue,Color=Blue\n0,Event=Message|5|4|White smoke mark on\n0,Event=Message|Two\\, type 2\\, bomb on target\\, smoke\\, white');
+    expect(out).toContain('7,T=0|0.00898315|4000|0|1000,Name=Kh-29L,Type=Weapon+Missile,Coalition=Blue,Color=Blue,Parent=1');
+    expect(out).toContain('6,T=0|0.00898315|4000|0|1000,Name=S-8,Type=Weapon+Rocket,Coalition=Blue,Color=Blue,Parent=1');
+    expect(out).not.toMatch(/30 mm cannon/);
+    expect(out).toContain('#0.2\n0,Event=Message|1|2|Kh-29L launched\n#0.25');
+    expect(out).toContain('#0.4\n0,Event=Message|7|2|Kh-29L impact\n-7\n0,Event=Message|2|1|Tank destroyed by Kh-29L\n0,Event=Destroyed|2\n-2\n');
+    expect(out).toContain('#0.45\n0,Event=Message|6|S-8 missed: ground\n-6\n');
+    // No kill event for the truck: its recorded death still gives a Destroyed event at the next sample.
+    expect(out).toContain('#0.5\n0,Event=Destroyed|3\n-3\n1,T=');
+    expect(out).toContain('#0.7\n0,Event=Message|5|4|White smoke mark off\n-5\n#0.75\n1,T=');
+    expect(out).toContain('#0.8\n0,Event=Message|4|Laser mark on\n');
+    const { removed } = read(out);
+    expect(removed.filter(r => r.id === '2')).toEqual([{ id: '2', t: 0.4 }]);
+    expect(removed.filter(r => r.id === '5')).toEqual([{ id: '5', t: 0.7 }]);
+    expect(out.split('Name=Tank').length).toBe(2);
+    expect(out.split('Name=White smoke').length).toBe(2);
+  });
+
+  it('lets a ground kill at a sample time reference the unit and keeps a killed SAM site removed', () => {
+    const f0 = frame(0);
+    f0.sams = [{ id: 's', type: 'sa11', side: 'red', pos: [0, 0, -5000], state: 'off', active: false, targetId: null }];
+    f0.groundUnits = [{ id: 'g', kind: 'aaa', side: 'red', pos: [0, 0, -4000], heading: 0, alive: true }];
+    const f1 = { ...frame(0.25), sams: f0.sams, groundUnits: [{ ...f0.groundUnits[0], alive: false }] };
+    const f2 = { ...frame(0.5), sams: f0.sams, groundUnits: f1.groundUnits };
+    const events: SimEvent[] = [
+      { t: 0.25, type: 'ground-kill', targetId: 'g', by: null, weapon: 'gun25t' },
+      { t: 0.3, type: 'ground-kill', targetId: 's', by: null, weapon: 'kh58' },
+    ];
+    const out = exportAcmi([f0, f1, f2], { events });
+    expect(out).toContain('Name=AAA,Type=Ground+AntiAircraft');
+    expect(out).toContain('#0.25\n2,T=0|0.04491576|0|0|5000\n0,Event=Message|1|AAA destroyed by 30 mm cannon\n0,Event=Destroyed|1\n-1\n');
+    expect(out).toContain('#0.3\n0,Event=Message|2|SA-11 Gadfly destroyed by Kh-58\n0,Event=Destroyed|2\n-2\n#0.5\n');
+    expect(out.trimEnd().endsWith('#0.5')).toBe(true);
+    expect(out.split('Name=SA-11').length).toBe(2);
+  });
+
+  it('exports a live Su-25T strike recording with ground units and A-G weapons', () => {
+    const world = new World(3);
+    const events: SimEvent[] = [];
+    world.on(e => events.push(e));
+    world.spawnGroundUnit({ id: 't', kind: 'tank', side: 'red', pos: { x: 0, z: -6000 } });
+    world.spawnAircraft({ id: 'a', type: 'su25t', side: 'blue', controller: 'player', pos: { x: 0, y: 3000, z: 0 }, heading: 0, speed: 200 });
+    world.step(1);
+    const out = exportAcmi(world.recording, { events });
+    expect(out).toContain('Name=Tank,Type=Ground+Heavy+Armor+Vehicle+Tank');
+    expect(read(out).positions.size).toBe(2);
+  });
+
   it('rejects nonfinite positions rather than emitting corrupt telemetry', () => {
     expect(() => exportAcmi([frame(0, [aircraft('a', { pos: [NaN, 1, 1] })])])).toThrow('invalid coordinate');
     expect(() => exportAcmi([frame(-1)])).toThrow('negative time');

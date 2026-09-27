@@ -705,12 +705,36 @@ itDisplay.draw(state, tv.image);
   (`view.addExplosion` plus a smoke column), and, for the shooter: the laser line jet → aim point while ЛД is on,
   the Shkval field-of-view cone and footprint, and the lock gimbal shell (±35°, +15..−85°, 5 km). Layers
   (`setLayer`): `laser`, `fov`, `gimbal` (off by default), `markers` (screen-size unit diamonds, lock brackets,
-  stabilised point cross), `smoke`. `setWorld(world)` after a restart; `tvHidden()` lists what the TV pass hides
-  (the overlay, the WorldView group with the own jet and tags, clouds). `dispose()` frees everything.
+  stabilised point cross; unit diamonds take the side colour, `sideColor(palette, side)`), `smoke`, `marks` (the
+  `MarkLayer`, below) and `friendlies` (markers over blue units; both default on). `setWorld(world)` after a restart
+  (also resets the mark layer and re-samples the geometry); `tvHidden()` lists what the TV pass hides (the overlay,
+  the mark layer's `truth` group, the WorldView group with the own jet and tags, clouds). `dispose()` frees everything.
+- `scene.setGeometry({ ip?, target?, attackHeadingDeg?: [fromDeg, toDeg] } | null)`: attack geometry on the ground
+  in the overlay (so never in the TV): a 300 m ring and a triangle at the IP, a 150 m cross and a cross symbol at the
+  target, and the wedge of allowed final attack headings drawn on the approach side of the target (dashed radials
+  from 400 m to `WEDGE_LENGTH_M` = 8 km and an arc; headings clockwise from `fromDeg` to `toDeg`, so `[330, 30]`
+  crosses north). Ground heights are sampled once per call. `approachBearingsDeg(from, to, step)` is the pure
+  helper (a jet on heading h comes from bearing h + 180).
+- `MarkLayer(shared, palette, show?)` (a `Group`, owned by `AttackScene` as `scene.markLayer`, also usable alone):
+  draws `world.marks` with `sync(world)` or a recorded frame's `marks` with `syncFrame(frame)` (age counts from the
+  first frame that showed the mark; seeking back resets). Game-level look only:
+  - Smoke: a column of `SMOKE_PUFFS` (28) camera-facing puffs in one instanced draw call, rising to `SMOKE_TOP_M`
+    (95 m) over `SMOKE_RISE_S` (14 s), widening from 7 to 37 m and leaning downwind (direction from the mark id).
+    The column builds up over the first 14 s. Colours come from tokens (`smokeColours`: white from `--missile`,
+    orange `--caution`, red `--warning`, green `--ok`). It is a real scene object with no screen-size uniform, so
+    the Shkval TV shows it at any zoom; white smoke reads bright against the ground in the grey picture.
+  - Laser spot: a glow, ring and dot in `--warning`, drawn over the terrain, in `truth` (hidden in the TV: the
+    Su-25T has no laser spot tracker).
+  - IR pointer: a line from the owner unit to the spot and a glow in `--ok`, in `truth`, off by default (NVG only).
+  - `show` / `setLayer('smoke' | 'laser' | 'ir', on)`; ended marks fade out over `MARK_FADE_S` (4 s) and are then
+    skipped; `reset()`; `puffCount`; `dispose()`. No per-frame allocation.
 - `ShkvalTv(stage, { width = 320, height = 240, every = 2, hidden })`: a PerspectiveCamera at the jet along the
   sight line with the zoom's vertical field of view renders the Stage scene into a WebGLRenderTarget every
   `every`-th call, reads it back and writes a black-and-white picture (`tvLut`: sRGB transfer and a contrast
   stretch; `toGreyImage` flips GL rows) into `image` (a 2D canvas). The sky dome is moved to the TV camera for the
   pass and restored. Cost: one small extra render and a 300 KB read-back every other frame.
 
-Pure helpers (tested in `attack.test.ts`): `createAttackField`, `terrainHook`, `tvLut`, `toGreyImage`, `unitModelScale`.
+Pure helpers (tested in `attack.test.ts`): `createAttackField`, `terrainHook`, `tvLut`, `toGreyImage`, `unitModelScale`,
+`smokePuff`, `markFade`, `approachBearingsDeg`. Harness: `sandbox/render-marks.html` (`?cam=target|close|jet`,
+`&t=<pre-roll s>`, `&ir=1`): Su-25T, blue and red units, white and orange smoke, a laser spot, an IR pointer, the
+attack geometry and the Shkval TV picture.

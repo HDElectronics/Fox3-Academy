@@ -5,6 +5,7 @@ import { FLIGHT_OPS } from '../../data/flightOps';
 import { LESSON_PATH, isDone, type ProgressReader } from '../../app/learningProgress';
 import { lessonPath } from '../../app/navigation';
 import { LESSONS, LESSON_ORDER, progressKey } from '../strike/lessons';
+import { CAS_LESSON_ORDER, LESSONS as CAS_LESSONS, progressKey as casProgressKey } from '../cas/lessons';
 
 export interface ProgressGoal { id: string; label: string; href: string; done: boolean }
 export interface JetProgress {
@@ -46,6 +47,8 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
   } else {
     for (const lesson of LESSON_ORDER) goals.push({ id: lesson, label: LESSONS[lesson].title,
       href: progressHref(`strike?lesson=${lesson}`, id), done: get(progressKey(lesson)) === true });
+    for (const lesson of CAS_LESSON_ORDER) goals.push({ id: `cas-${lesson}`, label: `CAS: ${CAS_LESSONS[lesson].title}`,
+      href: progressHref(`cas?lesson=${lesson}`, id), done: get(casProgressKey(lesson)) === true });
   }
   return { id, goals, completed: goals.filter(g => g.done).length, total: goals.length,
     next: goals.find(g => !g.done) ?? null, scores };
