@@ -19,6 +19,9 @@ import { BURN_THROUGH_M, OWN_JAMMER } from '../../data/ecm';
 import { R2D } from '../../sim/math';
 import { PLAYER, buildLabWorld, buildSnap, lastPaintOf, needsRestart, readScan, updatePaints, type PaintRec } from './labSim';
 import { simplifiedLines } from './explainer';
+import { IFF, IFF_CAVEATS } from '../../data/iff';
+import { iffFacts } from './iff';
+import type { IffSnap } from './exercises';
 
 describe('scan geometry', () => {
   test('frame times match the documented DCS values', () => {
@@ -184,6 +187,14 @@ function flyExercise(ac: FighterId, id: Exclude<ExerciseId, 'free'>): number | n
         if (hit) world.lockJammer(PLAYER, hit);
       }
     }
+    if (id === 'iff') {
+      // The pilot: interrogate once both contacts paint (interrogating jets), then lock the one that did not answer.
+      const x = buildSnap(world, me, units, scene, targetIds, paint, inspected, null).iff;
+      const auto = IFF[ac].mode === 'auto';
+      if (x && !auto && x.friendSeen && x.hostileSeen && !mem.latched[1]) world.interrogate(PLAYER);
+      const identified = auto ? mem.latched[0] : mem.latched[1];
+      if (x && identified && x.stt !== 'hostile') world.lock(PLAYER, x.hostileId);
+    }
     if (id === 'notch' && mem.phase === 'gone') {
       setManeuver(world, targetIds[0], 'hot', { refId: PLAYER });
       mem.phase = 'hotAgain'; mem.since = world.t;
@@ -198,7 +209,7 @@ describe('exercises on every jet', () => {
   test('availability is data-driven: Flankers cannot trade frame time', () => {
     expect(availableExercises('su27')).not.toContain('revisit');
     expect(availableExercises('mig29s')).not.toContain('revisit');
-    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(6);
+    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(7);
     expect(EXERCISE_DEFS.revisit.unavailable('su27')).toMatch(/fixed/);
   });
   test('scenes start with the problem visible: low bandit below the bars, notch bandit painted in the bars', () => {
@@ -451,5 +462,127 @@ describe('jammer and burn-through', () => {
       expect(sc.targets[0].range, ac).toBeGreaterThan(bt + 10000);
       expect(sc.targets[0].jamming).toBe(true);
     }
+  });
+});
+
+// ------------------------------------------------------------------------------------------ IFF
+
+describe('friend or foe', () => {
+  const base: Snap = {
+    t: 10, ac: 'f16c', units: 'imperial', mode: 'rws', ownAlt: 9000, frame: 4, revisit: 4, bars: 4, azHalfDeg: 30,
+    azCenterDeg: 0, elCenterDeg: 0, cursorRange: 60000, covTop: 12000, covBottom: 6000, selectedId: null, targets: [],
+  };
+  const isnap = (ac: FighterId, x: Partial<IffSnap>): Snap => ({
+    ...base, ac,
+    iff: { friendId: 'target2', hostileId: 'target1', friendSeen: true, hostileSeen: true, friendAz: 4, hostileAz: -4, friendReply: false, replyAge: null, hostileAsked: false, stt: null, ...x },
+  });
+  const ev = (ac: FighterId, mem: Mem, x: Partial<IffSnap>) => EXERCISE_DEFS.iff.evaluate(isnap(ac, x), mem);
+
+  test('interrogating jet: unknown, interrogate, lock the hostile', () => {
+    const mem: Mem = { latched: [] };
+    expect(ev('f16c', mem, { friendSeen: false, hostileSeen: false }).steps).toEqual([false, false, false]);
+    let e = ev('f16c', mem, {});
+    expect(e.steps).toEqual([true, false, false]);
+    expect(e.text).toMatch(/RCtrl \+ Left/);
+    e = ev('f16c', mem, { friendReply: true, replyAge: 0, hostileAsked: true });
+    expect(e.steps).toEqual([true, true, false]);
+    expect(e.text).toMatch(/right contact answered.*Lock the left one/);
+    // Viper: the reply is gone after 2 s; the answer stays latched.
+    e = ev('f16c', mem, { friendReply: false, replyAge: 3, hostileAsked: true });
+    expect(e.steps[1]).toBe(true);
+    expect(e.text).toMatch(/reply is gone/);
+    e = ev('f16c', mem, { stt: 'hostile', hostileAsked: true });
+    expect(e.done).toBe(true);
+    expect(e.why).toMatch(/fire on a friend/);
+  });
+
+  test('auto-IFF jet: the friend cue by itself, then lock the other one', () => {
+    const mem: Mem = { latched: [] };
+    let e = ev('f15c', mem, { hostileAsked: true });
+    expect(e.steps).toEqual([false, false]);
+    expect(e.text).toMatch(/Circle instead of a rectangle/i);
+    e = ev('f15c', mem, { friendReply: true, replyAge: 0, hostileAsked: true });
+    expect(e.steps).toEqual([true, false]);
+    e = ev('f15c', mem, { friendReply: true, stt: 'hostile' });
+    expect(e.done).toBe(true);
+  });
+
+  test('locking the hostile before identifying the friend does not finish', () => {
+    const mem: Mem = { latched: [] };
+    const e = ev('f14b', mem, { stt: 'hostile' });
+    expect(e.done).toBe(false);
+    expect(e.tone).toBe('caution');
+    expect(e.text).toMatch(/Locked before you identified/);
+  });
+
+  test('locking the friend: warning, not a failure, and explained when he was never identified', () => {
+    const mem: Mem = { latched: [] };
+    let e = ev('m2000c', mem, { stt: 'friend' });
+    expect(e.tone).toBe('warning');
+    expect(e.text).toMatch(/nothing on your scope said so/);
+    expect(e.done).toBe(false);
+    e = ev('m2000c', mem, { friendReply: true, replyAge: 0 });
+    expect(e.steps[1]).toBe(true);
+    expect(e.why).toMatch(/Earlier you locked the friend/);
+    e = ev('m2000c', mem, { friendReply: true, stt: 'friend' });
+    expect(e.text).toMatch(/locked on the friend: he answered/);
+    expect(ev('m2000c', mem, { friendReply: true, stt: 'hostile' }).done).toBe(true);
+  });
+
+  test('every jet: auto vs interrogate steps, the key or the trainer button, the friend cue', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const f = iffFacts(ac), spec = IFF[ac];
+      const steps = EXERCISE_DEFS.iff.steps(ac, AIRCRAFT[ac].units, { elev: null, zone: null, width: null, cursor: null, expRange: null, lock: 'Enter' });
+      expect(f.auto, ac).toBe(spec.mode === 'auto');
+      expect(steps.length, ac).toBe(f.auto ? 2 : 3);
+      expect(f.cue.startsWith(spec.friendCue), ac).toBe(true);
+      expect(f.cue.includes('not verified'), ac).toBe(!spec.verified);
+      expect(f.shoot, ac).toMatch(/fire on a friend/);
+      expect(f.noReply, ac).toMatch(/hostile/);
+      if (f.auto) {
+        expect(f.how, ac).toMatch(/Automatic/);
+        expect(steps[0].text.toLowerCase(), ac).toContain(spec.friendCue.toLowerCase());
+      } else if (spec.key) {
+        expect(f.how, ac).toContain(spec.key);
+        expect(steps[1].keys, ac).toBe(spec.key);
+        expect(f.chord, ac).not.toBeNull();
+        if (spec.trainerKey) expect(f.how, ac).toMatch(/trainer key/);
+        if (!spec.verified) expect(f.how, ac).toMatch(/not verified/);
+      } else {
+        expect(f.how, ac).toMatch(/designate or lock.*trainer control/);
+        expect(steps[1].text, ac).toMatch(/press Interrogate/);
+        expect(f.buttonTitle, ac).toMatch(/Trainer control/);
+      }
+      // The lab's other keys never collide with the IFF key.
+      const k = labKeys(ac);
+      const used = [k.elev, k.zone, k.width, k.range, k.expRange].flatMap(p => (p ? [p.a, p.b] : []));
+      if (k.mode) used.push(k.mode.key);
+      if (f.chord) {
+        expect(used, ac).not.toContain(f.chord);
+        expect(lockKeyOf(ac)?.chord, ac).not.toBe(f.chord);
+      }
+    }
+    expect(iffFacts('fa18c').noReply).toMatch(/two/i);
+    expect(iffFacts('f16c').show).toMatch(/2 s/);
+    expect(iffFacts('jf17').noReply).toMatch(/red/);
+    expect(iffFacts('f14b').how).toMatch(/trainer key/);
+  });
+
+  test('scene: the friend flies for the player, both inside detection, same altitude, a few degrees apart', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const sc = EXERCISE_DEFS.iff.scene(ac, AIRCRAFT[ac].units);
+      const lw = buildLabWorld(ac, AIRCRAFT[ac].units, sc, sc.scan);
+      const [ho, fr] = lw.targetIds.map(id => lw.world.get(id));
+      expect(fr?.side, ac).toBe(lw.me.side);
+      expect(ho?.side, ac).not.toBe(lw.me.side);
+      expect(sc.targets[0].alt).toBe(sc.targets[1].alt);
+      const snap = buildSnap(lw.world, lw.me, 'metric', sc, lw.targetIds, new Map(), new Set(), null);
+      for (const t of snap.targets) expect(t.beyond, `${ac} ${t.role}`).toBe(false);
+      expect(snap.iff?.friendReply, ac).toBe(false);
+    }
+  });
+
+  test('the explainer lists the IFF caveats', () => {
+    for (const ac of FIGHTER_ORDER) for (const c of IFF_CAVEATS) expect(simplifiedLines(ac), ac).toContain(c);
   });
 });

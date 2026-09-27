@@ -15,6 +15,8 @@ import {
 } from './geometry';
 import { JET_NOTES } from './notes';
 import { jamFacts, lockKeyOf } from './jamming';
+import { iffFacts } from './iff';
+import { IFF, IFF_CAVEATS, IFF_RANGE_FACTOR } from '../../data/iff';
 
 /** "Simplified here" lines for this page: the sim's radar model plus the jet's scan/detection caveats. */
 export function simplifiedLines(ac: FighterId): string[] {
@@ -28,6 +30,7 @@ export function simplifiedLines(ac: FighterId): string[] {
     'The 3D view and the side view show the truth. The radar display shows only what the radar has painted.',
     'Jamming is one burn-through range per radar; a jammer shows as a strobe out to 1.75 × the head-on detection range (trainer value). Home-on-jam missiles fly pure pursuit.',
   ];
+  lines.push(...IFF_CAVEATS);
   const ld = lookDownCaveat(ac);
   if (ld) lines.push(ld.replace(/^Simplified: /, ''));
   const re = /bar|scan|detect|notch|beam|range scale|elevation|azimuth|gimbal|TWS scan|frame/i;
@@ -170,6 +173,16 @@ export function buildExplainer(ac: FighterId, u: Units): HTMLElement {
     h('p', null, `${jf.burnThrough} Inside that range the radar measures his range again and the jam lock becomes a normal lock.`),
     h('p', null, `${jf.hojLine} ${jf.pursuit}`),
     h('p', null, jf.ownJammer ?? ''),
+  );
+
+  const ff = iffFacts(ac);
+  sec('iff', 'IFF: friend or unknown',
+    h('p', null, 'IFF asks a contact who he is. A friend answers and your display marks him. Everyone else gives no reply and stays unknown: no reply never proves hostile, because his transponder may be off.'),
+    h('p', null, `In the ${spec.short}: ${ff.how}`, ff.key ? h('span', { class: 'rl-ex__keys' }, ' ', kbd(ff.key)) : null),
+    h('p', null, `Friend cue: ${ff.cue}. ${ff.show}`),
+    h('p', null, ff.noReply),
+    h('p', null, ff.shoot),
+    h('p', null, `IFF reaches ${rng(IFF_RANGE_FACTOR * r.detectKm.headOn * 1000, u)} here, ${IFF_RANGE_FACTOR} × the head-on detection range (trainer value), within ±${IFF[ac].scanHalfDeg}° of the nose. Source: ${IFF[ac].source}.`),
   );
 
   const notes = JET_NOTES[ac];
