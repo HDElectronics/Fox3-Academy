@@ -15,7 +15,9 @@ describe('jet names in prose', () => {
   it('finds every jet short name', () => {
     for (const spec of Object.values(AIRCRAFT)) {
       if (!spec.short.includes('-')) continue;
-      expect(jets(`In the ${spec.short}, lock him.`)).toEqual([spec.short]);
+      // Only the hyphenated designation is kept whole ("A-10C II" → "A-10C"); the space may break.
+      const hyphenated = spec.short.split(/\s+/).find(t => t.includes('-'))!;
+      expect(jets(`In the ${spec.short}, lock him.`)).toEqual([hyphenated]);
     }
   });
 

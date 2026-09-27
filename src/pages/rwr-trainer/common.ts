@@ -17,11 +17,13 @@ export const RWR_PLACARD: Record<RwrId, string> = {
   alr56m: 'ALR-56M',
   jf17rwr: 'RWR · MAWS',
   serval: 'VCM · SERVAL',
+  alr69: 'ALR-69',
 };
 
 /** Short everyday name for copy ('the SPO', 'the TEWS'). */
 export const RWR_SHORT: Record<RwrId, string> = {
   spo15: 'the SPO', alr56c: 'the TEWS', alr67: 'the ALR-67', alr56m: 'the ALR-56M', jf17rwr: 'the RWR', serval: 'the Serval',
+  alr69: 'the ALR-69',
 };
 
 /** FC3 jets: the RWR/SPO mode bind (All / Lock only). Null where the jet's binds have none. */

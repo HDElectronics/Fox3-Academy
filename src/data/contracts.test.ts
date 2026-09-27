@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AIRCRAFT, AIRCRAFT_CAVEATS, FIGHTER_ORDER } from './aircraft';
+import { AIRCRAFT, AIRCRAFT_CAVEATS, ATTACK_ORDER, FIGHTER_ORDER } from './aircraft';
 import { MISSILES, FLARE_SUSCEPTIBILITY } from './missiles';
-import { AG_CAVEATS } from './agWeapons';
+import { AG_CAVEATS, AG_LOADOUTS, AG_WEAPONS, AG_WEAPON_ORDER, GUN_ROUNDS } from './agWeapons';
+import { RWRS, RWR_CAVEATS } from './rwr';
+import { sourcesFor } from './sources';
 import { PROCEDURES } from './procedures';
 
 describe('data contracts', () => {
@@ -31,6 +33,46 @@ describe('data contracts', () => {
       expect(['radar', 'weapons', 'defence']).toContain(b.group);
       expect(b.keyboard === null || b.keyboard.length > 0).toBe(true);
     }
+  });
+
+  it('gives every attack jet loadouts of known stores, a gun load and procedures', () => {
+    expect(ATTACK_ORDER).toEqual(['su25t', 'a10c']);
+    const nonWeapons = ['l081', 'r60', 'r73', 'tgp', 'aim9m'];
+    for (const ac of ATTACK_ORDER) {
+      expect(AIRCRAFT[ac].role).toBe('attack');
+      expect(AG_LOADOUTS[ac].length, ac).toBeGreaterThan(0);
+      expect(GUN_ROUNDS[ac]).toBeGreaterThan(0);
+      expect(PROCEDURES[ac].procedures.length, ac).toBeGreaterThan(0);
+      expect(sourcesFor(ac).length, ac).toBeGreaterThan(0);
+      for (const lo of AG_LOADOUTS[ac]) for (const st of lo.stations) {
+        expect(st.station).toBeGreaterThanOrEqual(1);
+        expect(st.station).toBeLessThanOrEqual(11);
+        expect(nonWeapons.includes(st.weapon) || st.weapon in AG_WEAPONS, `${ac}/${lo.id}: ${st.weapon}`).toBe(true);
+      }
+    }
+    expect(new Set(AG_WEAPON_ORDER)).toEqual(new Set(Object.keys(AG_WEAPONS)));
+  });
+
+  it('keeps the A-10C II laser-spot stores on code 1688 and its unverified keys out of the keyboard field', () => {
+    for (const w of Object.values(AG_WEAPONS)) {
+      expect(w.defaultLaserCode === 1688, w.id).toBe(w.guidance === 'laser-spot');
+      if (w.guidance === 'laser-spot') expect(w.needsLaser, w.id).toBe(false); // the spot may come from the JTAC
+    }
+    expect(AG_LOADOUTS.a10c.every(lo => lo.stations.some(st => st.weapon === 'tgp'))).toBe(true);
+    const bind = (action: RegExp) => PROCEDURES.a10c.binds.find(b => action.test(b.action));
+    expect(bind(/^Weapon release/)?.keyboard).toBeNull();
+    expect(bind(/^Weapon release/)?.note).toMatch(/RAlt \+ Space.*not verified/);
+    expect(bind(/^Fire the gun/)?.keyboard).toBeNull();
+    expect(bind(/^Fire the laser/)?.keyboard).toBe('Insert');
+    expect(bind(/^Master mode/)?.keyboard).toBe('M');
+    expect(bind(/^Set SPI/)?.keyboard).toBe('LCtrl + Up');
+  });
+
+  it('describes the ALR-69 for the A-10C II with its caveats', () => {
+    expect(AIRCRAFT.a10c.rwr).toBe('alr69');
+    expect(RWRS.alr69.aircraft).toEqual(['a10c']);
+    expect(RWR_CAVEATS.alr69.length).toBeGreaterThan(0);
+    expect(sourcesFor('alr69').length).toBeGreaterThan(0);
   });
 
   it('distinguishes an unmodelled single-target scan mode from multi-target TWS', () => {

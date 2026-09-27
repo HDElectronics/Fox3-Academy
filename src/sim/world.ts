@@ -36,6 +36,7 @@ import { createSamSite, stepSams } from './sam';
 import { createGunState, stepGuns } from './guns';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
 import { createMark, endMark, stepMarks } from './marks';
+import { pointTgp, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
 import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
@@ -139,7 +140,7 @@ export class World {
       ai: o.controller === 'ai' ? { skill: o.skill ?? 'regular', state: 'patrol', stateSince: this.t, data: {} } : null,
     };
     ac.selectedWeapon = (Object.keys(ac.stores) as MissileId[]).find(k => (ac.stores[k] ?? 0) > 0) ?? null;
-    if (spec.role === 'attack') ac.ag = createAttackState(o.agLoadout);
+    if (spec.role === 'attack') ac.ag = createAttackState(spec.id, o.agLoadout);
     this.aircraft.set(id, ac);
     if (spec.role === 'fighter' && o.radarMode && o.radarMode !== 'rws') setRadarMode(this, ac, o.radarMode);
     this.emit({ t: this.t, type: 'spawn', id });
@@ -173,6 +174,27 @@ export class World {
     this.marks.set(m.id, m);
     this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId, code: m.code });
     return m;
+  }
+
+  // ── A-10C II targeting pod (sim/tgp.ts) ──
+  tgpPower(id: EntityId, on: boolean): void { const ac = this.aircraft.get(id); if (ac) setTgpPower(this, ac, on); }
+  tgpSlew(id: EntityId, x: number, y: number): void { const ac = this.aircraft.get(id); if (ac) setTgpSlew(ac, x, y); }
+  tgpPointAt(id: EntityId, p: { x: number; y?: number; z: number }): void { const ac = this.aircraft.get(id); if (ac) pointTgp(this, ac, p); }
+  tgpTrack(id: EntityId, mode: 'area' | 'point' | 'inr'): TgpResult {
+    const ac = this.aircraft.get(id); return ac ? tgpTrack(this, ac, mode) : { ok: false, reason: 'No aircraft' };
+  }
+  tgpLaser(id: EntityId, on: boolean): TgpResult {
+    const ac = this.aircraft.get(id); return ac ? setTgpLaser(this, ac, on) : { ok: false, reason: 'No aircraft' };
+  }
+  tgpLss(id: EntityId, on: boolean): TgpResult {
+    const ac = this.aircraft.get(id); return ac ? setTgpLss(this, ac, on) : { ok: false, reason: 'No aircraft' };
+  }
+  tgpCode(id: EntityId, which: 'laser' | 'lss', code: number): TgpResult {
+    const ac = this.aircraft.get(id); return ac ? setTgpCode(ac, which, code) : { ok: false, reason: 'No aircraft' };
+  }
+  /** TMS Forward Long: the pod's line of sight becomes the SPI. */
+  setSpi(id: EntityId): TgpResult {
+    const ac = this.aircraft.get(id); return ac ? setSpiFromTgp(this, ac) : { ok: false, reason: 'No aircraft' };
   }
 
   /** End a mark now (smoke cleared, laser terminated). No-op when it has already ended. */
@@ -209,7 +231,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     stepGuns(this, h);
     if (this.groundUnits.size) stepGroundUnits(this, h);
-    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); stepCcrp(this, ac); }
+    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); stepTgp(this, ac, h); stepCcrp(this, ac); }
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);

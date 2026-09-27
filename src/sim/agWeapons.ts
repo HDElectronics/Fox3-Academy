@@ -49,6 +49,15 @@ export const AG_MODEL: Record<AgWeaponId, AgModel> = {
   s13:      { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 8, damage: 1, dispersionMrad: 3, boost: 450 },
   fab250:   { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 20, damage: 2, dispersionMrad: 4, boost: 0 },
   gun25t:   { speed: [], turnRate: 0, maxTime: 6, hitRadiusM: 0, killRadiusM: 2, damage: 0.35, dispersionMrad: 4, boost: 900 },
+  // A-10C II stores: same kind of trainer constants, chosen to feel like the DCS outcome, not weapon data.
+  gbu12:    { speed: [[0, 220], [30, 250]], turnRate: 0.25, maxTime: 90, hitRadiusM: 5, killRadiusM: 12, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65d:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65h:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65l:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  apkws:    { speed: [[0, 230], [1.5, 650], [15, 420]], turnRate: 0.5, maxTime: 30, hitRadiusM: 3, killRadiusM: 4, damage: 1, dispersionMrad: 0, boost: 0 },
+  mk82:     { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 20, damage: 2, dispersionMrad: 4, boost: 0 },
+  cbu97:    { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 60, damage: 1.5, dispersionMrad: 5, boost: 0 },
+  gau8:     { speed: [], turnRate: 0, maxTime: 6, hitRadiusM: 0, killRadiusM: 2, damage: 0.4, dispersionMrad: 4, boost: 1000 },
 };
 
 /** Rounds per cannon trigger press (one release = one short burst). Trainer value. */

@@ -45,10 +45,11 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
     if (typeof rwr === 'number' && Number.isFinite(rwr) && rwr >= 0) scores.push({ label: 'Best RWR run', value: `${Math.floor(rwr)} correct` });
     if (typeof sortie === 'number' && Number.isFinite(sortie) && sortie >= 0 && sortie <= 100) scores.push({ label: 'Best winning sortie', value: `${Math.round(sortie)}/100` });
   } else {
-    for (const lesson of LESSON_ORDER) goals.push({ id: lesson, label: LESSONS[lesson].title,
+    // Shkval & Vikhr is the Su-25T cockpit only (routes.ts `jets`); CAS & JTAC is every attack jet.
+    if (id === 'su25t') for (const lesson of LESSON_ORDER) goals.push({ id: lesson, label: LESSONS[lesson].title,
       href: progressHref(`strike?lesson=${lesson}`, id), done: get(progressKey(lesson)) === true });
     for (const lesson of CAS_LESSON_ORDER) goals.push({ id: `cas-${lesson}`, label: `CAS: ${CAS_LESSONS[lesson].title}`,
-      href: progressHref(`cas?lesson=${lesson}`, id), done: get(casProgressKey(lesson)) === true });
+      href: progressHref(`cas?lesson=${lesson}`, id), done: get(casProgressKey(lesson, id)) === true });
   }
   return { id, goals, completed: goals.filter(g => g.done).length, total: goals.length,
     next: goals.find(g => !g.done) ?? null, scores };

@@ -10,7 +10,8 @@
  * - Procedure ids used on every jet: 'search', 'stt-shot', 'support', 'defend'. 'tws-multi' only where the
  *   jet can engage several targets. Extra ids: 'tws-designate' (FC3 Russian single-target СНП),
  *   'dt-sam' (F-16C two-target SAM).
- * - Attack jets (Su-25T) have no BVR procedures: 'shkval-lock', 'laser-shot', 'tv-shot', 'sead'.
+ * - Attack jets have no BVR procedures. Su-25T: 'shkval-lock', 'laser-shot', 'tv-shot', 'sead'.
+ *   A-10C II: 'soi-spi', 'jtac-laser', 'gbu12-own-laser', 'agm65l-jtac', 'maverick', 'datalink-9line'.
  */
 import type { AircraftId, AircraftProcedures, KeyBind, Procedure, ProcedureStep } from './types';
 
@@ -669,6 +670,100 @@ const SU25T_PROCEDURES: Procedure[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------------------------------------
+// A-10C II (full fidelity). Source: docs/research/a10c.md. HOTAS names as the DCS Controls menu gives them;
+// keyboard defaults from ED's training missions and the community default-key exports (research section 1).
+// Short = press and release; Long = hold 1 s or more (manual p. 107).
+// ---------------------------------------------------------------------------------------------------------
+
+const A10_RELEASE_NOTE = 'A-10C default list: RAlt + Space. Community; not verified for the A-10C II. Check your controls.';
+const A10_GUN_NOTE = 'A-10C default list: Space. Community; not verified for the A-10C II. Check your controls.';
+
+const A10C_BINDS: KeyBind[] = [
+  { group: 'targeting', keyboard: 'LCtrl + Up', action: 'Set SPI (Long); TGP AREA / POINT track, TAD hook, Maverick lock (Short)', keys: 'HOTAS TMS Forward', note: 'Acts on the sensor of interest (SOI). Hold the key for Long.' },
+  { group: 'targeting', keyboard: 'LCtrl + Down', action: 'SPI back to the steerpoint (Long); TGP back to INR (Short)', keys: 'HOTAS TMS Aft' },
+  { group: 'targeting', keyboard: 'LCtrl + Left', action: 'Broadcast SPI on the datalink (Long); clear NEW TASKING (Short)', keys: 'HOTAS TMS Left', note: 'Keyboard default from the community export; the ED lessons do not name it.' },
+  { group: 'targeting', keyboard: 'LCtrl + Right', action: 'Markpoint at the TGP crosshair (Short)', keys: 'HOTAS TMS Right' },
+  { group: 'targeting', keyboard: 'Home / End / Delete / PageDown', action: 'TGP zoom and TAD scale (Fwd / Aft); weapon profile, gunsight, TGP laser mode (Left / Right Short)', keys: 'HOTAS DMS Forward / Aft / Left / Right', note: 'With the HUD as SOI, DMS Left / Right Short cycles the DSMS weapon profiles.' },
+  { group: 'targeting', keyboard: 'V / C', action: 'Slave all sensors to the SPI (Fwd Long); TGP to the steerpoint (Aft Long); FOV (Fwd Short); Maverick recage (Aft Short)', keys: 'HOTAS China Hat Forward / Aft', note: 'China Hat Aft Short with the TGP as SOI is listed as "Toggle LSS" in the HOTAS table; start LSS with OSB 6 to be sure.' },
+  { group: 'targeting', keyboard: 'U / J / H / K', action: 'Choose the SOI: HUD (Up Short), HMCS (Down Short), left / right MFCD (Left / Right Long); Short Left / Right cycles pages', keys: 'HOTAS Coolie Switch Up / Down / Left / Right', note: 'Down Long: DSMS quick-look. Up Long: MSG quick-look.' },
+  { group: 'targeting', keyboard: '; . , /', action: 'Slew the TGP, TAD cursor, HUD TDC or Maverick', keys: 'HOTAS Slew Up / Down / Left / Right' },
+  { group: 'targeting', keyboard: 'Insert', action: 'Fire the laser (airborne)', keys: 'HOTAS Nosewheel Steering Button', note: 'LATCH OFF: hold it. LATCH ON: press to toggle. Needs TGP on, laser ARM or TRAIN, and an unmasked pod.' },
+  { group: 'targeting', keyboard: 'RAlt + Right / RAlt + Left / RAlt + Down', action: 'TGP video BHOT / WHOT / CCD', keys: 'HOTAS Boat Switch Forward / Aft / Center', note: 'On the MAV page the Boat switch also sets the AGM-65L code and force correlate.' },
+  { group: 'weapons', keyboard: 'M', action: 'Master mode NAV → GUNS → CCIP → CCRP; hold for air-to-air', keys: 'HOTAS Master Mode Control Button' },
+  { group: 'weapons', keyboard: null, action: 'Weapon release (hold for CCRP, consent and Mavericks)', keys: 'Weapon release', note: A10_RELEASE_NOTE },
+  { group: 'weapons', keyboard: null, action: 'Fire the gun', keys: 'Gun Trigger (second stage)', note: A10_GUN_NOTE },
+  { group: 'defence', keyboard: '7 / 8 / 9 / 0', action: 'Countermeasure programs', keys: 'HOTAS CMS Forward / Aft / Left / Right', note: 'What each direction dispenses depends on the CMSP program setup; not detailed in research.' },
+  { group: 'defence', keyboard: '-', action: 'ALQ-131 jammer on / off', keys: 'HOTAS CMS Z Axis', note: 'Needs the ALQ-131 pod.' },
+  { group: 'comms', keyboard: '\\', action: 'Radio menu', keys: '\\', note: 'US keyboard (manual p. 767); other layouts vary.' },
+  { group: 'comms', keyboard: 'F1 … F12', action: 'Select a menu item', keys: 'F1 … F12', note: 'F4 JTACs, then the JTAC, then the item. The trainer also takes digits: browsers reserve F5, F11 and F12.' },
+  { group: 'comms', keyboard: 'Esc', action: 'Close the radio menu', keys: 'Esc' },
+];
+
+const A10C_PROCEDURES: Procedure[] = [
+  {
+    id: 'soi-spi', title: 'SOI and SPI',
+    steps: [
+      s('Pick the sensor of interest: HUD with Coolie Up Short, an MFCD with Coolie Left or Right Long. A green box marks an MFCD SOI; an asterisk marks the HUD.', { hotas: 'HOTAS Coolie Switch', keys: 'U / H / K' }),
+      s('Slew and track with the SOI. The other sensor MFCD shows NOT SOI.', { hotas: 'HOTAS Slew', keys: '; . , /' }),
+      s('Make the point you track the SPI: TMS Forward Long.', { hotas: 'HOTAS TMS Forward', keys: 'LCtrl + Up (hold)' }),
+      s('Point every sensor at the SPI: China Hat Forward Long.', { hotas: 'HOTAS China Hat Forward', keys: 'V (hold)' }),
+      s('Send the SPI back to the steerpoint: TMS Aft Long.', { hotas: 'HOTAS TMS Aft', keys: 'LCtrl + Down (hold)' }),
+    ],
+  },
+  {
+    id: 'jtac-laser', title: 'JTAC laser hand-off (LSS / LST)',
+    steps: [
+      s('Take the 9-line and note the laser code (1688 by default).', { keys: '\\' }),
+      s('Set the TGP LSS code to the JTAC\'s code: CNTL page, OSB 17.', { note: 'The L code (your laser) and the LSS code (what you search for) are separate.' }),
+      s('Call IP Inbound, then Laser On when the JTAC tells you to continue.', { keys: '\\, F1' }),
+      s('TGP as SOI, slaved to the target area. Start LSS with OSB 6: LSRCH, then DETECT, OSB 6 reads LST, then LTRACK with a box on the spot.', { hotas: 'OSB 6' }),
+      s('Call Spot. Shift or Terminate are on F3.', { keys: '\\, F1' }),
+      s('Make the laser spot your SPI.', { hotas: 'HOTAS TMS Forward', keys: 'LCtrl + Up (hold)' }),
+      s('Call In. Release only after "cleared hot", then call Off.', { hotas: 'Weapon release', note: A10_RELEASE_NOTE }),
+    ],
+  },
+  {
+    id: 'gbu12-own-laser', title: 'GBU-12 on your own laser',
+    steps: [
+      s('AHCP: Master Arm, Laser ARM, TGP ON. TGP to A-G; the TGP L code matches the bomb (1688).'),
+      s('Track the target (AREA or POINT) and make it the SPI.', { hotas: 'HOTAS TMS Forward', keys: 'LCtrl + Up (short, then hold)' }),
+      s('HUD as SOI, select the GBU-12 profile, CCRP.', { hotas: 'HOTAS Coolie Up, DMS Left / Right, Master Mode', keys: 'U, Delete / PageDown, M' }),
+      s('Fly the reticle onto the ASL and hold release until the cue passes the reticle.', { hotas: 'Weapon release', note: A10_RELEASE_NOTE }),
+      s('Lase from about 8 s before impact, or let auto-lase do it. L flashes on the HUD; keep the pod unmasked.', { hotas: 'HOTAS Nosewheel Steering Button', keys: 'Insert' }),
+    ],
+  },
+  {
+    id: 'agm65l-jtac', title: 'AGM-65L on the JTAC\'s laser',
+    steps: [
+      s('Set the missile code to the JTAC\'s code on the DSMS INV page (1688 by default).'),
+      s('Ask for Laser On. Select the 65L profile and make the MAV page the SOI.', { keys: '\\, F1' }),
+      s('Slave to the SPI and uncage with TMS Forward. The X flashes on laser energy and becomes a solid square on lock.', { hotas: 'HOTAS China Hat Forward, TMS Forward', keys: 'V (hold), LCtrl + Up' }),
+      s('Hold release to launch. The spot must stay on the target until impact.', { hotas: 'Weapon release', note: A10_RELEASE_NOTE }),
+    ],
+  },
+  {
+    id: 'maverick', title: 'AGM-65D / H Maverick',
+    steps: [
+      s('EO power on the DSMS; wait out the 3-minute alignment (ALN, then RDY).'),
+      s('Select the Maverick profile: DLZ replaces SENSOR on the MAV page.', { hotas: 'HOTAS DMS Left / Right', keys: 'Delete / PageDown' }),
+      s('Slave to the SPI, zoom with China Hat Forward Short, slew the gate onto the target.', { hotas: 'HOTAS China Hat Forward, Slew', keys: 'V, ; . , /' }),
+      s('Lock: the gate collapses and the pointing cross flashes. Lock between about 3 and 7 nm.', { hotas: 'HOTAS TMS Forward', keys: 'LCtrl + Up' }),
+      s('Hold release to launch. Fire and forget.', { hotas: 'Weapon release', note: A10_RELEASE_NOTE }),
+    ],
+  },
+  {
+    id: 'datalink-9line', title: 'Digital 9-line on the TAD',
+    steps: [
+      s('JTRS (datalink) ON. Set the NET ID to 01-01 for JTAC work.'),
+      s('NEW TASKING shows on both MFCDs; a red triangle flashes on the TAD and ATTACK flashes at the top. Read the 9-line on the MSG page.'),
+      s('Accept with WILCO (OSB 19): the triangle goes steady. CNTCO (OSB 7) removes it.', { hotas: 'OSB 19' }),
+      s('TAD as SOI, hook the triangle and make it the SPI.', { hotas: 'HOTAS Coolie Left / Right Long, TMS Forward', keys: 'H / K (hold), LCtrl + Up (short, then hold)' }),
+      s('Slave the TGP to the SPI and find the target, or run LSS there.', { hotas: 'HOTAS China Hat Forward', keys: 'V (hold)' }),
+    ],
+  },
+];
+
 export const PROCEDURES: Record<AircraftId, AircraftProcedures> = {
   su27: { aircraft: 'su27', binds: ruBinds('su27'), procedures: ruProcedures('su27') },
   su33: { aircraft: 'su33', binds: ruBinds('su33'), procedures: ruProcedures('su33') },
@@ -681,6 +776,7 @@ export const PROCEDURES: Record<AircraftId, AircraftProcedures> = {
   jf17: { aircraft: 'jf17', binds: JF17_BINDS, procedures: JF17_PROCEDURES },
   m2000c: { aircraft: 'm2000c', binds: M2K_BINDS, procedures: M2K_PROCEDURES },
   su25t: { aircraft: 'su25t', binds: SU25T_BINDS, procedures: SU25T_PROCEDURES },
+  a10c: { aircraft: 'a10c', binds: A10C_BINDS, procedures: A10C_PROCEDURES },
 };
 
 /** A procedure by id for a jet, or undefined (e.g. 'tws-multi' on the Su-27). */

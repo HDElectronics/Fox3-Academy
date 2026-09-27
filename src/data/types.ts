@@ -11,7 +11,7 @@ export type FighterId =
   | 'f15c' | 'fa18c' | 'f16c' | 'f14b' | 'jf17' | 'm2000c';
 
 /** Attack jets: no air-to-air radar. Shown only on air-to-ground routes. */
-export type AttackId = 'su25t';
+export type AttackId = 'su25t' | 'a10c';
 
 /** Every jet in the picker. BVR code keys on FighterId; the shell, store and 3D models key on this. */
 export type AircraftId = FighterId | AttackId;
@@ -29,7 +29,7 @@ export type SamId = 'sa10' | 'sa11' | 'sa15';
 /** The RWR range class a SAM site reports as (matches the RwrSymbol emitter kinds). */
 export type SamClass = 'sam-long' | 'sam-medium' | 'sam-short';
 
-export type RwrId = 'spo15' | 'alr56c' | 'alr67' | 'alr56m' | 'jf17rwr' | 'serval';
+export type RwrId = 'spo15' | 'alr56c' | 'alr67' | 'alr56m' | 'jf17rwr' | 'serval' | 'alr69';
 
 /** Cockpit skin used for the whole UI when this aircraft is selected. */
 export type CockpitSkin = 'ru' | 'us';
@@ -265,26 +265,31 @@ export interface SamSpec {
   uncertain: string[];
 }
 
-// ─── Air-to-ground (Su-25T) ──────────────────────────────────────────────────────────────────────────────
+// ─── Air-to-ground (Su-25T, A-10C II) ──────────────────────────────────────────────────────────────────────────
 
 /** Air-to-ground stores the trainer models. Separate from MissileId: none of these has an air-to-air DLZ. */
 export type AgWeaponId =
   | 'vikhr' | 'kh25ml' | 'kh29l' | 'kh29t' | 'kab500kr'
-  | 's8' | 's13' | 'fab250' | 'gun25t' | 'kh58';
+  | 's8' | 's13' | 'fab250' | 'gun25t' | 'kh58'
+  // A-10C II (docs/research/a10c.md)
+  | 'gbu12' | 'agm65d' | 'agm65h' | 'agm65l' | 'apkws' | 'mk82' | 'cbu97' | 'gau8';
 
 /**
  * How the pilot guides the weapon in the game:
  * 'beam-riding' (Vikhr: lock and laser held to impact), 'laser' (Kh-25ML / Kh-29L: same rule),
  * 'tv' (Kh-29T / KAB-500Kr: lock, release, fire and forget), 'ballistic' (rockets, bombs, gun),
- * 'anti-radiation' (Kh-58: needs a radar emitter and the Fantasmagoria pod).
+ * 'anti-radiation' (Kh-58: needs a radar emitter and the Fantasmagoria pod),
+ * 'laser-spot' (A-10C II GBU-12, AGM-65L, APKWS: homes on any laser spot with its code, from the own pod or a JTAC).
  */
-export type AgGuidance = 'beam-riding' | 'laser' | 'tv' | 'ballistic' | 'anti-radiation';
+export type AgGuidance = 'beam-riding' | 'laser' | 'tv' | 'ballistic' | 'anti-radiation' | 'laser-spot';
 
 export interface AgWeaponSpec {
   id: AgWeaponId;
   name: string;               // 'Vikhr', 'Kh-25ML'
-  /** Label the Su-25T HUD shows for the selected store (S1): '9А4172', '25МЛ', 'АБ', 'ВПУ'. */
+  /** Label the cockpit shows for the selected store: Su-25T HUD (S1) '9А4172', '25МЛ'; A-10C II DSMS 'GBU-12', '65D'. */
   hudLabel: string;
+  /** Laser code the store is set to by default ('laser-spot' weapons, A-10C II DSMS INV page: 1688). */
+  defaultLaserCode?: number;
   kind: 'missile' | 'bomb' | 'rocket' | 'gun';
   guidance: AgGuidance;
   /** ПР needs a Shkval lock (АС). */
@@ -307,7 +312,7 @@ export interface AgWeaponSpec {
 }
 
 /** One store on a pylon. Station numbers are 1..11 left to right. */
-export interface AgStation { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73'; count: number }
+export interface AgStation { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73' | 'tgp' | 'aim9m'; count: number }
 
 export interface AgLoadout {
   id: string;

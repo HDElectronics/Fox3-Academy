@@ -10,11 +10,16 @@ import { SAMS } from '../data/sams';
 
 interface Record { id: AssetId; category: string; sha256: string }
 const records = JSON.parse(await readFile(new URL('../assets/models/manifest.json', import.meta.url), 'utf8')) as Record[];
+/** Catalog entries still drawn by their procedural fallback (A-10C II slice: models come separately). */
+const PENDING: string[] = ['a10c', 'gbu12', 'agm65d', 'agm65h', 'agm65l', 'apkws', 'mk82', 'cbu97', 'gau8'];
 describe('production exterior files', () => {
   it('covers the app catalogs and generic ground classes with bundled URLs', () => {
     const ids = new Set(records.map(r => r.id));
-    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa'];
+    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa']
+      .filter(id => !PENDING.includes(id));
     expect(ids).toEqual(new Set(expected));
+    // A pending entry has no bundled file yet, so the procedural fallback draws it.
+    for (const id of PENDING) expect(assetUrl(id as AssetId), id).toBeUndefined();
     expect(records.length).toBe(ids.size);
     for (const record of records) expect(assetUrl(record.id)).toBeTruthy();
   });

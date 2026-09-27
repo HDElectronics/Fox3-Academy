@@ -11,7 +11,7 @@ export { SOURCES, SOURCE_ID, SOURCE_TOPICS, sourcesFor, type SourceKey, type Sou
 
 export { FLIGHT_OPS, FLIGHT_OPS_CAVEATS } from './flightOps';
 export { GUNS, GUN_JET_IDS, TURN_PERF, WVR_CAVEATS, gunSpecFor, turnPerfFor, sustainedG, type GunJetId, type GunSightKind, type GunSpec, type TurnPerf } from './wvr';
-export { AG_WEAPONS, AG_WEAPON_ORDER, AG_CAVEATS, SU25T_LOADOUTS, SU25T_GUN_ROUNDS } from './agWeapons';
+export { AG_WEAPONS, AG_WEAPON_ORDER, AG_CAVEATS, SU25T_LOADOUTS, SU25T_GUN_ROUNDS, A10C_LOADOUTS, A10C_GUN_ROUNDS, AG_LOADOUTS, GUN_ROUNDS } from './agWeapons';
 export {
   NINE_LINE_FIELDS, NINE_LINE_REMARKS, JTAC_CONTROL_TYPES, JTAC_CALLS, CALL_PLACEHOLDERS, jtacCall, fillCall,
   JTAC_ACTIONS, jtacMenuItems, buildCommsMenu, COMMS_MENU, JTAC_DEFAULT_LASER_CODE, SMOKE_MARK_RANGE_NM,
