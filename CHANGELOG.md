@@ -182,8 +182,8 @@
 - B5: Require IR acquisition in Missile Lab and add optional radar-dependent support.
 - B6: Apply sourced display, countermeasure-action, and JF-17 BVR start-mode corrections; record unresolved
   current-game checks in a dedicated verification note.
-- B7: Investigate 110 seeded AI engagements and add convergence regression coverage. Six-minute pacing
-  remains open; no unsupported defensive tuning was applied.
+- B7: Investigate 110 seeded AI engagements and add convergence regression coverage. Closed without tuning
+  (#3): regular-vs-regular fights occur only in the diagnostic matrix, and no source supports faster AI.
 - Add a free TWS lab with continuous cursor control, explicit designation/lock/unlock, optional DCS СНП snap,
   and tactical arrow-key heading/altitude commands alongside guided lessons.
 - Add an MIT license, contribution guide, and neutral public documentation; remove obsolete deployment

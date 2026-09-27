@@ -25,11 +25,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B27. Verify the JTAC and CCIP trainer values in game** ([#63](https://github.com/HDElectronics/Fox3-Academy/issues/63)).
   AI JTAC wording, radio menu labels outside the ED manual, when the AI clears or aborts, smoke lifetime, the
   Su-25T 1113 laser report, the Shkval frame minimum and the S-8 / S-13 dispersion. Labelled until checked.
-- **B7. Long regular-vs-regular fights.** Investigated in
-  [ai-engagement-review.md](docs/research/ai-engagement-review.md). All 110 seeded diagnostics resolved within
-  ten simulated minutes, without a stuck-state classification. Some Hornet/MiG-29S and Mirage/MiG-29S cases
-  still exceed six minutes. Five-seed regression checks protect eventual resolution. Improve pacing only
-  with a sourced gameplay reason; do not weaken defensive behavior simply to shorten fights.
 
 ## P2 — Display, UX and API cleanup
 
