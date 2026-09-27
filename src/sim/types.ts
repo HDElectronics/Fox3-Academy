@@ -81,6 +81,18 @@ export interface JamStrobe {
   el: number;           // rad relative to horizon
 }
 
+/** A datalink track on a side's network (sim/datalink.ts): AWACS surveillance, a donor's radar track, or a PPLI position. */
+export interface DatalinkTrack {
+  targetId: EntityId;   // ground truth (UI must only use it for picking)
+  pos: Vector3;         // as reported, extrapolated since
+  vel: Vector3;
+  t: number;            // last update
+  source: 'awacs' | 'donor' | 'ppli';
+  /** The fighter that sent it (donor, PPLI); null for AWACS. */
+  donorId: EntityId | null;
+  sovereignty: 'friendly' | 'hostile' | 'unknown';
+}
+
 /** An IFF answer this radar got (data/iff.ts): a friendly reply, or no reply (never proves hostile). */
 export interface IffReply {
   targetId: EntityId;
@@ -637,6 +649,12 @@ export interface RadarPicture {
   strobes: { key: string; targetId: EntityId; az: number; el: number; age: number; fade: number }[];
   /** Own jammer transmitting. */
   ownJamming: boolean;
+  /** Datalink picture for this jet (data/datalink.ts): one per target. `correlated`: own radar also holds it. */
+  datalink: {
+    key: string; targetId: EntityId; az: number; range: number; alt: number; relHeading: number; speed: number;
+    source: 'awacs' | 'donor' | 'ppli'; donorLabel: string | null; sovereignty: 'friendly' | 'hostile' | 'unknown';
+    correlated: boolean; age: number;
+  }[];
   tracks: {
     label: string;
     targetId: EntityId;
@@ -653,6 +671,8 @@ export interface RadarPicture {
     locked: boolean;
     /** Own IFF says friend (data/iff.ts): automatic on the F-15C and FC3 jets, after an interrogation elsewhere. Not truth. */
     friendly: boolean;
+    /** Datalink ID for this contact (sim/datalink.ts): the Hornet HAFU bottom half; AWACS hostile + no IFF reply = hostile. */
+    dl?: 'friendly' | 'hostile' | 'unknown';
     /** The latest IFF answer still showing ('no-reply' only drawn where the jet marks it, JF-17 red), and its age (s). */
     iff?: { reply: 'friend' | 'no-reply'; age: number };
     missiles: { missileId: EntityId; label: string; guidance: MissileGuidance; timeToActive: number | null; timeToImpact: number | null }[];

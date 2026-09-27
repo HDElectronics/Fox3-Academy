@@ -12,8 +12,8 @@ import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT, isFighter } from '../data/aircraft';
 import { OWN_JAMMER } from '../data/ecm';
 import type {
-  AgMasterMode, AgSalvo, AgWeapon, Aircraft, Countermeasure, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
-  RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
+  AgMasterMode, AgSalvo, AgWeapon, Aircraft, Countermeasure, DatalinkTrack, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
+  RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, Side, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
 
@@ -29,6 +29,7 @@ import { createMissile, stepMissile } from './missile';
 import { dropChaff, dropFlare, stepCountermeasures } from './countermeasures';
 import { canLock, canLockJammer, createRadarState, interrogate, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
 import { updateRwr } from './rwr';
+import { stepDatalink } from './datalink';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
@@ -68,6 +69,10 @@ export class World {
   readonly agWeapons = new Map<EntityId, AgWeapon>();
   /** Target marks (marks.ts): JTAC smoke, laser and IR spots. */
   readonly marks = new Map<EntityId, GroundMark>();
+  /** Datalink picture per side (sim/datalink.ts). */
+  readonly datalink: Record<Side, DatalinkTrack[]> = { blue: [], red: [] };
+  /** AWACS orbit point per side (m); none = no AWACS. The AWACS is not an entity: it cannot be shot. */
+  readonly awacs: Partial<Record<Side, XYZ>> = {};
   /** Height-map terrain. null = flat ground at `groundAlt` (see groundHeight / lineOfSight). */
   terrain: TerrainHook | null = null;
   countermeasures: Countermeasure[] = [];
@@ -212,6 +217,7 @@ export class World {
     if (this.agWeapons.size) stepAgWeapons(this, h);
     if (this.marks.size) stepMarks(this);
     updateRwr(this, h);
+    stepDatalink(this, h);
     if (this.record && this.t - this.lastRecord >= RECORD_EVERY) { this.lastRecord = this.t; this.snapshot(); }
   }
 
@@ -357,6 +363,10 @@ export class World {
   canLockJammer(id: EntityId, targetId: EntityId): LockCheck {
     const ac = this.aircraft.get(id);
     return ac ? canLockJammer(this, ac, targetId) : { ok: false, reason: 'No aircraft' };
+  }
+  /** Put an AWACS for `side` at this orbit point (m), or remove it (null). */
+  setAwacs(side: Side, pos: XYZ | null): void {
+    if (pos) this.awacs[side] = { ...pos }; else delete this.awacs[side];
   }
   /** IFF interrogation (data/iff.ts): friends in the volume answer. */
   interrogate(id: EntityId): { friends: number; asked: number } {

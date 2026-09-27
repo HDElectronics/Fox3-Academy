@@ -7,7 +7,8 @@
  * firing-order digit 1-6 on the right, replaced by TTI after launch, which blinks once the active
  * command has gone. Extrapolated track = small X over the dot. Scan limits = two dashed lines from
  * own aircraft (dash + gap = 20 nm), one strobe in STT. Jam strobe = line to the rim with '<' at 50 nm; JAT lock
- * = bright jam strobe + 'JAT', no range.
+ * = bright jam strobe + 'JAT', no range. Datalink (Link 4): the datalink half-shape below the dot (unknown ⊔,
+ * hostile ∨, friendly ∪); a track own radar does not hold is a dot with only that lower half, never pickable.
  */
 import { M_PER_NM } from '../../../sim/math';
 import { blinkOn } from '../surface';
@@ -16,7 +17,7 @@ import {
   fmtAltK, fmtClosure, fmtRangeShort, fmtScale, planToScreen, screenToPlan, secs, tidAltDigit, tomcatWeapon, type Pt,
 } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, jamLock, missilePhase, primaryTrack, rangedStt, strobeAlpha, type FrameCtx, type Mapping, type PicTrack,
+  X, Y, brickAlpha, dlAlpha, dlOnly, hit, jamLock, missilePhase, primaryTrack, rangedStt, strobeAlpha, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
 export function drawTid(f: FrameCtx): Mapping {
@@ -120,6 +121,24 @@ export function drawTid(f: FrameCtx): Mapping {
   }
   g.reset();
 
+  // ---- datalink tracks own radar does not hold: dot with the datalink half-shape below (Heatblur F-14 manual,
+  // Link 4). Never pickable: a Phoenix needs own radar.
+  for (const d of dlOnly(pic)) {
+    const p = map(d.az, d.range);
+    if (Math.hypot(p.x - cx, p.y - cy) > R + 2 * u) continue;
+    g.ink(th.sym, 0.8, 0.26, dlAlpha(d.age));
+    g.circle(p.x, p.y, 0.45 * u, true);
+    dlSymbol(f, p.x, p.y, d.sovereignty, 1.5 * u);
+    if (d.speed > 1) {
+      const len = (d.speed / 926) * 0.36 * 46 * u;
+      const a = d.relHeading + rot;
+      g.line(p.x, p.y, p.x + Math.sin(a) * len, p.y - Math.cos(a) * len);
+    }
+    g.font(2.6);
+    g.text(tidAltDigit(d.alt), p.x - 2.2 * u, p.y - 0.6 * u, 'right');
+  }
+  g.reset();
+
   // ---- track files
   const prim = primaryTrack(pic);
   for (const t of pic.tracks) {
@@ -208,6 +227,15 @@ function symbol(f: FrameCtx, x: number, y: number, kind: 'unknown' | 'hostile' |
   else g.poly([x - s, top, x - s, top - s, x + s, top - s, x + s, top], false);
 }
 
+/** Datalink half-shape below the dot (Heatblur): unknown ⊔, hostile ∨, friendly ∪. */
+function dlSymbol(f: FrameCtx, x: number, y: number, kind: 'unknown' | 'hostile' | 'friendly', s: number): void {
+  const { g, u } = f;
+  const top = y + 0.9 * u;
+  if (kind === 'friendly') g.arc(x, top, s, 0, Math.PI);
+  else if (kind === 'hostile') g.poly([x - s, top, x, top + s * 1.15, x + s, top], false);
+  else g.poly([x - s, top, x - s, top + s, x + s, top + s, x + s, top], false);
+}
+
 /**
  * IFF on the TID: a friendly reply (RIO interrogation, I key in the trainer) turns the track into the TID friendly
  * symbol ∩. The Heatblur manual's two bars above and below the return belong to the DDD, which is not drawn; tried on
@@ -222,6 +250,7 @@ function drawTidTrack(f: FrameCtx, t: PicTrack, x: number, y: number, rot: numbe
   const on = !t.coasting || blinkOn(1.6, f.now, 0.7);
   g.ink(col, bright ? 1.2 : 0.85, bright ? 0.32 : 0.26, on ? (t.firm ? 1 : 0.75) : 0.35);
   symbol(f, x, y, kind, 1.5 * u);
+  if (t.dl) dlSymbol(f, x, y, t.dl, 1.5 * u);
   // Velocity vector from the dot: 1,800 kt ~ 0.36 R.
   if (t.firm && t.speed > 1) {
     const len = (t.speed / 926) * 0.36 * 46 * u;

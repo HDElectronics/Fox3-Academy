@@ -30,7 +30,7 @@ import { buildSortie, sortieEnd, sortieWorld, SORTIE_LIMIT_S, enemyCount, type S
 import { SortieRecorder, missilesLeft } from './recorder';
 import type { SortieResult } from './coach';
 import { reasonText } from './coach';
-import { flightHint, type HintState } from './hints';
+import { datalinkLine, dlFrom, flightHint, type HintState } from './hints';
 import { iffKey, jammerKey, trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
 import { ScriptedPilot } from './autopilot';
 import { HoldAction } from './input';
@@ -132,6 +132,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   bag.add(clearHeldInputs);
   let pic: RadarPicture | null = null;
   let wasHoj = false;
+  /** Targets the datalink has already shown (logged once each). */
+  const dlSeen = new Set<EntityId>();
   /** Launch allowed although the cue is not lit (see updateUi). */
   let inRange = false;
 
@@ -863,8 +865,19 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     const hojNow = me.radar.mode === 'stt' && !!me.radar.stt.hoj;
     if (wasHoj && !hojNow && me.radar.mode === 'stt' && me.radar.stt.targetId) say(`Burn-through: range on ${names(me.radar.stt.targetId)}, ordinary lock now`, 'ok');
     wasHoj = hojNow;
+    logDatalink();
     const dead = !me.alive || !!ending;
     for (const b of [fireBtn, wpnBtn, chaffBtn, flareBtn, desBtn, unlockBtn, stepBtn, decoyBtn, iffBtn].filter((x): x is ButtonHandle => !!x)) b.setDisabled(dead);
+  }
+
+  /** One log line the first time the datalink shows a contact (PPLI friends left out): what the jet knows, never truth. */
+  function logDatalink(): void {
+    if (!pic || !me.alive) return;
+    for (const d of pic.datalink) {
+      if (d.source === 'ppli' || dlSeen.has(d.targetId)) continue;
+      dlSeen.add(d.targetId);
+      say(datalinkLine(d, rng), d.sovereignty === 'hostile' ? 'caution' : 'dim');
+    }
   }
 
   /** Launch zone against a track: the picture's when it has one, else from the radar's own estimate (FC3 СНП before the lock). */
@@ -914,6 +927,9 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         primaryUnidentified: !!prim && !pm?.stt?.hoj && !primTrack?.friendly && !primTrack?.iff,
         recentS: Number.isFinite(lastIffT) ? world.t - lastIffT : null,
       },
+      datalink: pm?.datalink.filter(d => d.source !== 'ppli').map(d => ({
+        from: dlFrom(d), range: d.range, bearing: d.az, alt: d.alt, correlated: d.correlated, sovereignty: d.sovereignty,
+      })),
       ecm: {
         strobes: pm?.strobes.length ?? 0, jamLock: !!pm?.stt?.hoj,
         hojWeapon: !!me.selectedWeapon && isHojMissile(me.selectedWeapon), burnThrough: BURN_THROUGH_M[ac].value,

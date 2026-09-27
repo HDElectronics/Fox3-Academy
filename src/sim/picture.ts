@@ -13,6 +13,7 @@ import { MISSILES } from '../data/missiles';
 import { D2R, R2D, aspectAngle, closureRate, headingOf, relBearing, wrapPi } from './math';
 import { brickLife, iffReply, identifiedFriend, scanElevationLimits } from './radar';
 import { canLaunch } from './launch';
+import { datalinkFor, datalinkSovereignty } from './datalink';
 
 export interface PictureOptions {
   /** Display units (defaults to the jet's own: Russian jets metric, Western imperial). */
@@ -104,9 +105,22 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
       locked: st.mode === 'stt' && st.stt.targetId === tr.targetId,
       friendly: !!reply?.friend,
       iff: reply ? { reply: reply.friend ? 'friend' : 'no-reply', age: t - reply.t } : undefined,
+      dl: datalinkSovereignty(world, ac, tr.targetId) ?? undefined,
       missiles: live.filter(m => m.targetId === tr.targetId).map(m => ({
         missileId: m.id, label: labels.get(m.id) ?? 'M', guidance: m.guidance, timeToActive: m.timeToActive, timeToImpact: m.timeToImpact,
       })),
+    };
+  });
+
+  const own = new Set([...st.tracks.map(x => x.targetId), ...st.bricks.map(x => x.targetId)]);
+  const datalink: RadarPicture['datalink'] = datalinkFor(world, ac).map(d => {
+    const moving = d.vel.length() > 1, donor = d.donorId ? world.get(d.donorId) : undefined;
+    return {
+      key: `${d.source}:${d.targetId}`, targetId: d.targetId,
+      az: relBearing(ac.pos, ac.heading, d.pos), range: ac.pos.distanceTo(d.pos), alt: d.pos.y,
+      relHeading: moving ? wrapPi(headingOf(d.vel) - ac.heading) : 0, speed: d.vel.length(),
+      source: d.source, donorLabel: donor ? donor.callsign : null, sovereignty: d.sovereignty,
+      correlated: own.has(d.targetId), age: t - d.t,
     };
   });
 
@@ -147,7 +161,7 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
     scan: { azCenter: st.azCenter, azHalf: st.azHalf, elCenter: st.elCenter, bars: st.bars, beamAz: st.beamAz, beamEl: st.beamEl, bar: st.bar, frameTime: st.frameTime },
     altCoverage,
     ownAlt: ac.pos.y, ownSpeed: ac.vel.length(),
-    bricks, strobes, ownJamming: ac.jamming, tracks, stt, weapon, dlz,
+    bricks, strobes, ownJamming: ac.jamming, datalink, tracks, stt, weapon, dlz,
     shootCue, cueLabel: cueLabelFor(ac.type, weaponId), launchBlockedReason,
     missilesInFlight,
     cursor: { ...st.cursor },

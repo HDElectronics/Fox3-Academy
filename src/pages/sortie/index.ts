@@ -10,6 +10,7 @@
  *   ?scenario=1v1|1v2|2v2&enemy=<id>&skill=rookie|regular|veteran|ace&range=<km>
  *   ?sams=0|1|2&sam=sa10|sa11|sa15   SAM sites on the bandits' side
  *   ?ecm=never|locked|detected|always   bandit "ECM Using" (mission editor option)
+ *   ?awacs=1|0           a friendly AWACS behind you feeds the datalink picture
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
@@ -18,7 +19,7 @@ import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import type { AiSkill } from '../../sim/types';
 import { h } from '../../ui';
 import { jetKeyMap } from './keys';
-import { parseEcm, parseSetup, SKILLS, RANGE_MAX_M, RANGE_MIN_M, type SortieSetup } from './setup';
+import { parseAwacs, parseEcm, parseSetup, SKILLS, RANGE_MAX_M, RANGE_MIN_M, type SortieSetup } from './setup';
 import { cruiseFor } from '../../sim/scenarios';
 import { mountBrief } from './brief';
 import { mountFly, type FlyOutcome } from './fly';
@@ -41,6 +42,7 @@ export function applyParams(s: SortieSetup, p: URLSearchParams): SortieSetup {
   const st = p.get('sam');
   if (st === 'sa10' || st === 'sa11' || st === 'sa15') out.samType = st;
   out.ecm = parseEcm(p.get('ecm')) ?? out.ecm;
+  out.awacs = parseAwacs(p.get('awacs')) ?? out.awacs;
   return out;
 }
 

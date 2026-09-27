@@ -22,6 +22,9 @@ import { simplifiedLines } from './explainer';
 import { IFF, IFF_CAVEATS } from '../../data/iff';
 import { iffFacts } from './iff';
 import type { IffSnap } from './exercises';
+import { dlCue, type DlSnap, type DlTrackSnap } from './exercises';
+import { dlFacts } from './datalink';
+import { DATALINK, DATALINK_CAVEATS } from '../../data/datalink';
 
 describe('scan geometry', () => {
   test('frame times match the documented DCS values', () => {
@@ -195,6 +198,19 @@ function flyExercise(ac: FighterId, id: Exclude<ExerciseId, 'free'>): number | n
       const identified = auto ? mem.latched[0] : mem.latched[1];
       if (x && identified && x.stt !== 'hostile') world.lock(PLAYER, x.hostileId);
     }
+    if (id === 'dl') {
+      // The pilot: radar on (FC3), then once the datalink tracks show, slew the scan onto the AWACS track and lock.
+      const f = dlFacts(ac);
+      const x = buildSnap(world, me, units, scene, targetIds, paint, inspected, null).dl;
+      if (me.radar.mode === 'off' && world.t > 1) world.setRadarMode(PLAYER, 'rws');
+      const nSeen = (f.radarOnFirst ? 1 : 0) + 1 + (f.wingType ? 1 : 0);
+      if (x && f.has && mem.latched.slice(0, nSeen).filter(Boolean).length === nSeen && me.radar.mode !== 'stt') {
+        const cue = dlCue(x.tracks);
+        const corr = x.tracks.find(t => t.source !== 'ppli' && t.correlated);
+        if (corr) world.lock(PLAYER, corr.targetId);
+        else if (cue) world.setScan(PLAYER, { azCenter: (ru ? 30 : cue.az) * D2R, autoCenter: false });
+      }
+    }
     if (id === 'notch' && mem.phase === 'gone') {
       setManeuver(world, targetIds[0], 'hot', { refId: PLAYER });
       mem.phase = 'hotAgain'; mem.since = world.t;
@@ -209,7 +225,7 @@ describe('exercises on every jet', () => {
   test('availability is data-driven: Flankers cannot trade frame time', () => {
     expect(availableExercises('su27')).not.toContain('revisit');
     expect(availableExercises('mig29s')).not.toContain('revisit');
-    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(7);
+    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(8);
     expect(EXERCISE_DEFS.revisit.unavailable('su27')).toMatch(/fixed/);
   });
   test('scenes start with the problem visible: low bandit below the bars, notch bandit painted in the bars', () => {
@@ -584,5 +600,152 @@ describe('friend or foe', () => {
 
   test('the explainer lists the IFF caveats', () => {
     for (const ac of FIGHTER_ORDER) for (const c of IFF_CAVEATS) expect(simplifiedLines(ac), ac).toContain(c);
+  });
+});
+
+// ------------------------------------------------------------------------------------------ datalink
+
+describe('datalink picture', () => {
+  const base: Snap = {
+    t: 10, ac: 'f16c', units: 'imperial', mode: 'rws', ownAlt: 9000, frame: 4, revisit: 4, bars: 4, azHalfDeg: 30,
+    azCenterDeg: 0, elCenterDeg: 0, cursorRange: 60000, covTop: 12000, covBottom: 6000, selectedId: null, targets: [],
+  };
+  const trk = (x: Partial<DlTrackSnap>): DlTrackSnap => ({ targetId: 'target1', source: 'awacs', donorLabel: null, az: 42, range: 50000, correlated: false, age: 2, ...x });
+  const AW = trk({});
+  const DON = trk({ targetId: 'target3', source: 'donor', donorLabel: 'Wingman', az: -8, range: 90000 });
+  const PP = trk({ targetId: 'target2', source: 'ppli', donorLabel: 'Wingman', az: -8, range: 40000 });
+  const dsnap = (ac: FighterId, x: Partial<DlSnap>, extra: Partial<Snap> = {}): Snap => ({
+    ...base, ac, ...extra, dl: { radarOn: true, tracks: [], lock: null, ...x },
+  });
+  const ev = (ac: FighterId, mem: Mem, x: Partial<DlSnap>, extra: Partial<Snap> = {}) => EXERCISE_DEFS.dl.evaluate(dsnap(ac, x, extra), mem);
+
+  test('FC3: radar on, AWACS track, correlate, lock', () => {
+    const mem: Mem = { latched: [] };
+    let e = ev('su27', mem, { radarOn: false }, { mode: 'off' });
+    expect(e.steps).toEqual([false, false, false, false]);
+    expect(e.text).toMatch(/Switch it on \(I\)/);
+    e = ev('su27', mem, { tracks: [AW] });
+    expect(e.steps).toEqual([true, true, false, false]);
+    expect(e.text).toMatch(/not on your own radar.*42° right.*slew the scan right/);
+    // A lock on something off the datalink does not count.
+    e = ev('su27', mem, { tracks: [trk({ correlated: true })], lock: 'other' });
+    expect(e.steps).toEqual([true, true, true, false]);
+    expect(e.text).toMatch(/not on the datalink/);
+    e = ev('su27', mem, { tracks: [trk({ correlated: true })], lock: 'dl' });
+    expect(e.done).toBe(true);
+    expect(e.why).toMatch(/cannot be fired on/);
+  });
+
+  test('donor jet: AWACS track, wingman track, correlate, lock; locking the wingman warns', () => {
+    const mem: Mem = { latched: [] };
+    let e = ev('f16c', mem, { tracks: [AW, PP] });
+    expect(e.steps).toEqual([true, false, false, false]);
+    expect(e.text).toMatch(/Wait for his track/);
+    e = ev('f16c', mem, { tracks: [AW, PP, DON] });
+    expect(e.steps).toEqual([true, true, false, false]);
+    expect(e.text).toMatch(/Wingman's track at .*beyond your radar/);
+    e = ev('f16c', mem, { tracks: [AW, PP, { ...DON, correlated: true }], lock: 'ppli' });
+    expect(e.tone).toBe('warning');
+    expect(e.text).toMatch(/your wingman/);
+    expect(e.steps[3]).toBe(false);
+    e = ev('f16c', mem, { tracks: [AW, PP, { ...DON, correlated: true }], lock: 'dl' });
+    expect(e.done).toBe(true);
+  });
+
+  test('steps keep their order: a correlated track alone does not skip the donor step', () => {
+    expect(ev('su27', { latched: [] }, { radarOn: false }, { mode: 'off' }).steps[2]).toBe(false);
+    expect(ev('f16c', { latched: [] }, { tracks: [trk({ correlated: true })] }).steps).toEqual([true, false, false, false]);
+  });
+
+  test('Hornet in RWS shows only correlated datalink tracks', () => {
+    const mem: Mem = { latched: [] };
+    let e = ev('fa18c', mem, { tracks: [AW, DON] }, { mode: 'rws' });
+    expect(e.steps).toEqual([false, false, false, false]);
+    expect(e.text).toMatch(/In RWS the Hornet shows only/);
+    e = ev('fa18c', mem, { tracks: [AW, DON] }, { mode: 'tws' });
+    expect(e.steps).toEqual([true, true, false, false]);
+    expect(EXERCISE_DEFS.dl.scene('fa18c', 'imperial').scan.mode).toBe('tws');
+  });
+
+  test('jets without a picture: one step, own radar, and the reason', () => {
+    for (const ac of ['f15c', 'm2000c'] as FighterId[]) {
+      const steps = EXERCISE_DEFS.dl.steps(ac, 'imperial', { elev: null, zone: null, width: null, cursor: null, expRange: null, lock: 'Enter' });
+      expect(steps.map(s => s.id), ac).toEqual(['own']);
+      const tg: TargetSnap = {
+        id: 'target1', role: 'bandit', callsign: 'Bandit', range: 50000, groundRange: 50000, alt: 9000, az: 5, el: 0, inGimbal: true, inAz: true,
+        inBars: true, beyond: false, notched: false, detectable: true, detectRange: 70000, radial: 200, groundSpeed: 200, seenNow: false,
+        lastPaint: null, firstSeenRange: null, inspected: false,
+      };
+      const mem: Mem = { latched: [] };
+      let e = EXERCISE_DEFS.dl.evaluate({ ...base, ac, targets: [tg] }, mem);
+      expect(e.done).toBe(false);
+      expect(e.text).toMatch(/no (datalink display|air-to-air datalink) in DCS/);
+      e = EXERCISE_DEFS.dl.evaluate({ ...base, ac, targets: [{ ...tg, seenNow: true, firstSeenRange: 50000 }] }, mem);
+      expect(e.done).toBe(true);
+    }
+    expect(dlFacts('f15c').none).toMatch(/call AWACS on the radio/);
+    expect(dlFacts('m2000c').none).toMatch(/TAF.*not verified/);
+  });
+
+  test('every jet: network name, where, symbol, donors line only with donors, coast and labels', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const f = dlFacts(ac), d = DATALINK[ac];
+      const steps = EXERCISE_DEFS.dl.steps(ac, AIRCRAFT[ac].units, { elev: null, zone: null, width: null, cursor: null, expRange: null, lock: 'Enter' });
+      expect(f.has, ac).toBe(d.name !== null);
+      expect(f.donors !== '', ac).toBe(d.donors.length > 0);
+      expect(f.wingType !== null, ac).toBe(d.donors.length > 0);
+      expect(f.fire, ac).toBe(DATALINK_CAVEATS[2]);
+      if (!f.has) { expect(f.none, ac).not.toBe(''); continue; }
+      expect(f.where, ac).toContain(d.name as string);
+      expect(f.where, ac).toContain(d.where);
+      expect(f.symbol, ac).toContain(d.symbol);
+      expect(f.coast, ac).toMatch(/20 s/);
+      expect(f.coast, ac).toMatch(ac === 'f16c' ? /verified/ : /simplified/);
+      expect(f.awacs, ac).toContain(DATALINK_CAVEATS[0]);
+      if (!d.verified) {
+        expect(f.where, ac).toMatch(/not verified/);
+        expect(f.source, ac).toMatch(/not verified/);
+      }
+      expect(steps.map(s => s.id), ac).toEqual([
+        ...(f.radarOnFirst ? ['on'] : []), 'awacs', ...(d.donors.length ? ['donor'] : []), 'corr', 'lock',
+      ]);
+      if (f.radarOnFirst) expect(steps[0].keys, ac).toBe('I');
+      if (f.wingType) expect(d.donors, ac).toContain(f.wingType);
+      if (d.ppli) expect(f.ppli, ac).not.toBe(''); else expect(f.ppli, ac).toBe('');
+    }
+    expect(dlFacts('f14b').donors).toContain(DATALINK_CAVEATS[3]);
+    expect(dlFacts('fa18c').where).toMatch(/In RWS only donor tracks/);
+  });
+
+  test('scene: AWACS behind, FC3 radar off, bandit outside the scan, wingman for the player, his bandit beyond your radar', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const f = dlFacts(ac);
+      const sc = EXERCISE_DEFS.dl.scene(ac, AIRCRAFT[ac].units);
+      const lw = buildLabWorld(ac, AIRCRAFT[ac].units, sc, sc.scan);
+      expect(lw.world.awacs[lw.me.side], ac).toBeDefined();
+      expect(lw.me.radar.mode === 'off', ac).toBe(f.radarOnFirst);
+      if (!f.has) continue;
+      const snap = buildSnap(lw.world, lw.me, 'metric', sc, lw.targetIds, new Map(), new Set(), null);
+      const by = (role: string) => snap.targets.find(x => x.role === role);
+      expect(by('awacs')?.inAz, ac).toBe(false);
+      expect(by('awacs')?.beyond, ac).toBe(false);
+      if (f.wingType) {
+        const wing = lw.world.get(lw.targetIds[1]);
+        expect(wing?.side, ac).toBe(lw.me.side);
+        expect(wing?.type, ac).toBe(f.wingType);
+        expect(wing?.radar.mode, ac).toBe('tws');
+        expect(by('donor')?.beyond, ac).toBe(true);
+      }
+    }
+  });
+
+  test('the cue prefers an uncorrelated AWACS track, never a friend', () => {
+    expect(dlCue([PP, DON, AW])?.source).toBe('awacs');
+    expect(dlCue([PP, DON, { ...AW, correlated: true }])?.source).toBe('donor');
+    expect(dlCue([PP])).toBeNull();
+  });
+
+  test('the explainer lists the datalink caveats', () => {
+    for (const ac of FIGHTER_ORDER) for (const c of DATALINK_CAVEATS) expect(simplifiedLines(ac), ac).toContain(c);
   });
 });

@@ -6,8 +6,9 @@
  */
 import type { RadarModeId, SamId, SeekerKind } from '../../data/types';
 import { SAMS } from '../../data/sams';
-import { fmtRange, clockCode, type Units } from '../../app/format';
+import { fmtAlt, fmtRange, clockCode, type Units } from '../../app/format';
 import { D2R } from '../../sim/math';
+import type { RadarPicture } from '../../sim/types';
 
 export type HintTone = 'warning' | 'caution' | 'hi' | 'ok' | 'dim';
 export interface Hint { text: string; why: string; tone: HintTone }
@@ -31,7 +32,7 @@ export interface HintState {
   rwr: { state: 'search' | 'lock' | 'launch' | 'missile'; bearing: number; elevation: number; emitter: string; missile: string | null; seeker: SeekerKind | null; /** The emitter is a SAM site of this class. */ sam?: SamId | null } | null;
   /** Your missiles still flying, supported ones first. */
   own: { label: string; guidance: string; tta: number | null; tti: number | null; target: string; targetOffDeg: number | null }[];
-  /** Bandits as the AWACS picture gives them (truth). bearing rad rel nose. */
+  /** Bandits as the trainer GCI picture gives them (truth, not the datalink). bearing rad rel nose. */
   bandits: { name: string; range: number; bearing: number; alt: number; inRne: boolean; rne: number | null; hot: boolean }[];
   ownAlt: number;
   /** Jamming: strobes on the scope, an angle-only jam lock, a home-on-jam missile selected, your burn-through (m). */
@@ -41,6 +42,26 @@ export interface HintState {
    * showing; `recentS` = seconds since you last interrogated (null: never); `wingman` = a friend is in the fight.
    */
   iff?: { mode: 'auto' | 'interrogate'; key: string | null; wingman: boolean; primaryUnidentified: boolean; recentS: number | null };
+  /**
+   * The jet's datalink picture (RadarPicture.datalink), never truth. `from`: 'AWACS' or the donor's callsign;
+   * `correlated`: your own radar also holds it. bearing rad rel nose (+ right).
+   */
+  datalink?: { from: string; range: number; bearing: number; alt: number; correlated: boolean; sovereignty: 'friendly' | 'hostile' | 'unknown' }[];
+}
+
+/** The nearest datalink contact your own radar does not hold, friends left out. */
+export function datalinkOnly(s: Pick<HintState, 'datalink'>): NonNullable<HintState['datalink']>[number] | null {
+  return (s.datalink ?? []).filter(d => !d.correlated && d.sovereignty !== 'friendly').sort((a, b) => a.range - b.range)[0] ?? null;
+}
+
+
+type DlContact = RadarPicture['datalink'][number];
+/** Who put a datalink track on your picture: the AWACS, or the donor by callsign. */
+export const dlFrom = (d: Pick<DlContact, 'source' | 'donorLabel'>) => (d.source === 'awacs' ? 'AWACS' : d.donorLabel ?? 'Donor');
+
+/** "Datalink: AWACS track, 65 nm, hostile, not on your radar". */
+export function datalinkLine(d: Pick<DlContact, 'source' | 'donorLabel' | 'range' | 'sovereignty' | 'correlated'>, rng: (m: number) => string): string {
+  return `Datalink: ${dlFrom(d)} track, ${rng(d.range)}, ${d.sovereignty}${d.correlated ? '' : ', not on your radar'}`;
 }
 
 /** Interrogations count as recent for this long (s): the Viper reply shows 2 s, but you asked. */
@@ -148,6 +169,15 @@ export function flightHint(s: HintState): Hint {
       ? { text: `Strobe on the scope: he is jamming. Lock the strobe${k(s.keys.designate)} for a home-on-jam shot, or close to burn-through.`, why: `A jammer shows bearing only. Your radar gets range back inside about ${R(ecm.burnThrough)}.`, tone: 'hi' }
       : { text: `Strobe on the scope: he is jamming. Your ${s.weapon.name} cannot home on jam: close to burn-through.`, why: `A jammer shows bearing only. Your radar gets range back inside about ${R(ecm.burnThrough)}.`, tone: 'dim' };
   }
+  const dlc = s.contacts === 0 ? datalinkOnly(s) : null;
+  if (dlc) {
+    const off = deg(dlc.bearing);
+    return {
+      text: `${dlc.from} has a contact your radar does not: point the scan at its bearing, ${off < 10 ? 'on the nose' : `${Math.round(off)}° ${side(dlc.bearing)}`}, ${R(dlc.range)}, ${fmtAlt(dlc.alt, s.units)}.`,
+      why: 'A datalink track cannot be fired on. Put it inside your scan, azimuth and bars at its altitude, and lock it with your own radar.',
+      tone: 'dim',
+    };
+  }
   if (s.contacts > 0) {
     if (s.jet.hasTws && s.radarMode === 'rws') return { text: `Contacts on the scope. Go TWS${k(s.keys.mode)} and designate the nearest${k(s.keys.designate)}.`, why: s.jet.twsLaunch ? 'TWS tracks them without a lock warning, and your Fox 3 can leave from TWS silently.' : 'In TWS you track him without a lock warning until the radar locks for the shot.', tone: 'hi' };
     if (s.jet.autoStt) return { text: `Slew the cursor onto the nearest contact (or click it) and designate${k(s.keys.designate)}: the radar locks by itself at ${Math.round(s.jet.autoStt * 100)} % of Rmax.`, why: 'FC3 Russian radars fire from STT only; СНП keeps him unaware until the auto-lock.', tone: 'hi' };
@@ -157,7 +187,7 @@ export function flightHint(s: HintState): Hint {
   if (near) {
     const off = deg(near.bearing);
     return {
-      text: `AWACS: ${near.name} ${off < 10 ? 'on the nose' : `${Math.round(off)}° ${side(near.bearing)}`}, ${R(near.range)}. ${off > 30 ? 'Turn toward him and search.' : 'Search: he will show in a frame or two.'}`,
+      text: `GCI (trainer picture): ${near.name} ${off < 10 ? 'on the nose' : `${Math.round(off)}° ${side(near.bearing)}`}, ${R(near.range)}. ${off > 30 ? 'Turn toward him and search.' : 'Search: he will show in a frame or two.'}`,
       why: 'The radar only sees inside its scan: point the nose at him and check the bars cover his altitude.',
       tone: 'dim',
     };

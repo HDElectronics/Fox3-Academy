@@ -147,6 +147,23 @@ never truth: an unidentified friend (`friendly: false`) draws as an ordinary con
 | `tid` | friendly symbol ∩ | unknown ⊓ | ∩ / ⊓ | ∩ is the TID symbol; the DDD two bars are not drawn |
 | `vtb` | `A` in the STT data block; beside the `V` outside STT | nothing | no cue | community (Chuck's) |
 
+### Datalink (`picture.datalink`, `track.dl`; `docs/research/ecm-datalink-iff.md` §2, `data/datalink.ts` `DATALINK`)
+
+`picture.datalink` holds only what this jet's network gives (empty on the F-15C and M-2000C). An entry whose target
+own radar holds as a track is not drawn twice: the track carries the datalink ID in `dl` and draws it on its own
+symbol (`dlOnly(pic)` in `radar/common.ts`). Entries fade with age toward the 20 s coast (`dlAlpha`, gone after
+`DL_COAST_S`). Datalink entries register no hit: they cannot be picked or locked, a launch needs own radar.
+Tested in `radar/datalink.test.ts`.
+
+| format | own track with `dl` | datalink-only entry | verified |
+|---|---|---|---|
+| `mfd` Hornet | HAFU bottom half = datalink ID (hemisphere friendly, bracket unknown, caret hostile; `ok` / `caution` / `hostile` on the colour skin). Top half hostile only with two factors: no IFF reply and `dl === 'hostile'` (`hafuTop`) | HAFU with only the bottom half; PPLI member = basic PPLI circle; in RWS only entries correlated to a radar return | yes (ED Hornet guide pp. 200–210) |
+| `mfd` Viper | symbol red (`hostile`, colour on) when the datalink calls it hostile | PPLI blue (`datalink`, trainer: every member counts as own flight), donor track green (`ok`) circle, AWACS track small open diamond, red when hostile; no donor callsign drawn | FCR + 20 s coast yes (pp. 452–475); colours community; shapes not verified |
+| `mfd` JF-17 | unchanged | circle `ok` friendly, open triangle red (`hostile`) unknown or hostile, a box around it when own radar does not see it (`correlated` false) | community (Chuck's; the guide places it on the HSD) |
+| `ru-hud` | unchanged (filled contact = own radar) | AWACS track own radar does not see = open triangle | Su-27 yes (pp. 57–58, on the HDD; the trainer draws it on the HUD picture); other FC3 jets by family |
+| `tid` | datalink half-shape below the dot: unknown ⊔, hostile ∨, friendly ∪ | dot with only the lower half, velocity vector, altitude digit | yes (Heatblur F-14 manual, Link 4) |
+| `f15-vsd`, `vtb` | nothing | nothing (no datalink picture in DCS) | yes / community |
+
 ## RwrDisplay
 
 ```ts
@@ -290,7 +307,7 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
 - F-15C VSD shows the HUD's post-launch `T tta tti` / `M tti` counter (in DCS it is HUD-only); no NCTR print,
   no bearing to the PDT (the picture has no own heading unless you pass `ownHeading`).
 - Hornet threat rank is by range; Hornet / Viper / JF-17 OSB legends are placed plausibly, not verified per button.
-- F-14 TID has no launch-zone vectors or datalink tracks; the steering centroid is not drawn. The DDD `JET`
+- F-14 TID has no launch-zone vectors; the steering centroid is not drawn. The DDD `JET`
   strobe is not drawn (no DDD format).
 - Jam symbols: exact shape and size of the Hornet dugout and Viper chevrons are stylised; the Su-27 strobe's
   flashing pattern is a trainer choice; JF-17 and M-2000C strobes and every lock cue marked "not verified"
@@ -300,6 +317,11 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
   around an interrogated contact is a trainer aid (the display's base symbology is green in the US skin, so the
   green friend colour alone does not read). The M-2000C `A` beside a non-locked track and the Viper mark offset and
   fade timing are trainer choices; DCS says only "may be offset" and "shown for 2 s".
+- Datalink: the FC3 AWACS triangles belong to the HDD, drawn here on the HUD picture. Viper colours (blue own flight,
+  green donors) are community; the trainer has no flights, so PPLI members are blue and donor tracks green, and the
+  Viper AWACS diamond is a stand-in (ED draws the sovereignty shapes as images). JF-17 datalink symbols are community
+  and appear on its radar page here (the guide puts them on the HSD). No Hornet own-flight letters or C2 / donor
+  PPLI dots; no Viper donor callsign or lock lines.
 - M-2000C VTB contacts show one detection-bar tick (the picture does not say which bar painted them).
 - Scope RWR placement uses the per-RWR rules above; symbol glyphs for the Serval are ED-style codes (per data).
 - SPO-15 signal strength is a column of 15 lamps (the lamp count is not confirmed by research).
@@ -316,12 +338,14 @@ scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-liv
 `?only=` takes `su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c rwr-<id> helpers` (comma list), `?pause=1`,
 `?perf=1` logs draw cost, `&sams=1` adds SA-15 / SA-10 / AWACS emitters, `&hl=s1` highlights one emitter,
 `&jam=strobe` adds two jam strobes, `&jam=lock` an angle-only jam lock plus a strobe, `&iff=1` a friend with an IFF
-reply (a new reply every 4 s, so the Viper mark comes and goes), a no-reply track, a friendly and a plain brick. Clicking a track in the
+reply (a new reply every 4 s, so the Viper mark comes and goes), a no-reply track, a friendly and a plain brick, `&dl=1` the datalink picture the jet's network gives (AWACS, one stale
+AWACS track, donor and PPLI entries, a datalink ID on the first own track or a correlated brick). Clicking a track in the
 sandbox toggles its designation (pick demo); clicking a strobe reports `strobe j1`.
 
 ```
 scripts/shot.sh '/sandbox/displays.html?only=su27,mig29s,f15c,fa18c,f16c,jf17,f14b,f14g,m2000c&jam=lock&pause=1' .shots/jam-lock.png 1440 1500 4000
 scripts/shot.sh '/sandbox/displays.html?only=su27,mig29s,f15c,fa18c,f16c,jf17,f14b,f14g,m2000c&iff=1&t=29&pause=1' .shots/iff-us.png 1440 1500 5000
+scripts/shot.sh '/sandbox/displays.html?dl=1&pause=1&only=fa18c,f16c,jf17,f14b,f15c,m2000c' .shots/dl-us.png 1440 1500 4000
 ```
 
 ## ACM cues and the IR tone (issue #11)

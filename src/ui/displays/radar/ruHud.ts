@@ -10,15 +10,18 @@
  *  - right: fixed ±60° elevation scale with the scan's elevation-coverage bar;
  *  - bottom: azimuth-coverage bar with the beam caret, mode label 'СНП ДВБ' lower left, weapon
  *    '27ЭР' lower right, ПР when launch is authorised.
+ * Datalink: AWACS tracks own radar does not see are open triangles (ED Su-27 manual pp. 57–58 put them on the
+ * HDD top-down view; the trainer draws them on this picture). Not pickable.
  * The missile counter at the bottom is a trainer addition (ED documents no TTI on the ИЛС).
  */
 import { D2R, R2D } from '../../../sim/math';
 import { AIRCRAFT } from '../../../data/aircraft';
 import { blinkOn } from '../surface';
-import { caretDown, caretLeft, cross, diamond, missileIcon, stick } from '../glyphs';
+import { caretDown, caretLeft, cross, diamond, missileIcon, stick, triUp } from '../glyphs';
 import { bscopeToScreen, fmtScale, ruWeaponLabel, screenToBscope, secs, speedVal, type Rect } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, hitAlong, jamLock, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen, strobeAlpha, visibleCoast,
+  X, Y, brickAlpha, dlAlpha, dlOnly, hit, hitAlong, jamLock, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen, strobeAlpha,
+  visibleCoast,
   type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
@@ -82,6 +85,15 @@ export function drawRuHud(f: FrameCtx): Mapping {
     g.ink(th.sym, 0.9, 0.2, brickAlpha(b));
     dots(f, p.x, p.y, !!b.friendly);
     hit(f, p.x, p.y, b.targetId, 'brick');
+  }
+  g.reset();
+  // ---- datalink: AWACS tracks own radar does not see, as open triangles (ED Su-27 manual pp. 57–58: HDD top-down
+  // view; the trainer draws them on this picture). Never pickable: lock them with own radar.
+  for (const d of dlOnly(pic)) {
+    if (d.correlated || d.range > pic.rangeScale || Math.abs(d.az) > gAz) continue;
+    const p = map(d.az, d.range);
+    g.ink(th.sym, 0.8, 0.26, dlAlpha(d.age));
+    triUp(g, p.x, p.y - 1.1 * u, 2.2 * u, false);
   }
   g.reset();
   const ordered = [...pic.tracks].sort((a, b) => w(a) - w(b));

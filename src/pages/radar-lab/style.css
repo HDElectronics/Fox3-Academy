@@ -22,6 +22,11 @@
 .rl-exshort { margin: -4px 0 0; font-size: var(--fs-s); line-height: 1.4; color: var(--s-label); }
 .rl-notchrow[hidden], .rl-steps[hidden] { display: none; }
 .rl-progress { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--s-label); }
+.rl-dlrow { display: flex; flex-direction: column; gap: 6px; }
+.rl-dllist {
+  margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.4; color: var(--datalink);
+}
 .rl-note { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-label); }
 .rl-ra { margin-top: 2px; }
 .rl-flabel { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -34,6 +39,9 @@
 .rl-simple { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
 #rl-log { --log-h: 6.5em; }
 #rl-expanel .ui-seg__sub { min-height: 1em; }
+/* Free + eight exercises on one row: a grid instead of wrapping flex. */
+#rl-ex.ui-seg { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(8, minmax(0, 1fr)); }
+#rl-ex .ui-seg__opt { min-width: 0; padding-inline: 2px; }
 
 /* ---- Why panel (strip) ---- */
 .rl-why { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }

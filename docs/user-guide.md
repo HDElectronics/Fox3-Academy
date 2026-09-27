@@ -51,6 +51,11 @@ until you interrogate: TMS Left (`RCtrl + Left`) on the Viper (a green circle wi
 on the Hornet, `I` on the JF-17 and F-14 (a trainer key for the RIO button there), `S` on the M-2000C. Then lock the
 one that did not answer. No reply never proves hostile.
 
+Exercise 8, **Datalink picture**, puts a friendly AWACS behind you (and, on the Hornet, Viper, F-14 and JF-17, a
+wingman sharing his radar track). See the contact the datalink shows beyond your radar, bring your scan onto it
+until it correlates, then lock it with your own radar: a datalink track cannot be fired on. The Su-27 family
+switches the radar on first (its AWACS picture then stays). The F-15C and M-2000C have no datalink picture in DCS.
+
 ### TWS
 Track-while-scan practice in 3D for every jet. Four bandits come at you. Switch between
 RWS, TWS and STT, build track files, designate and shoot. The panel "What each bandit's RWR says" is the point:
@@ -285,6 +290,9 @@ radar, Use if detected by radar, Always use). A jamming bandit is a strobe on yo
 the strobe for a home-on-jam shot or close to burn-through. Your own jammer is on `E` where the jet has one (a
 Jammer button on the F/A-18C, where `E` is chaff; the J-11A has none). The debrief marks jammer on/off and
 home-on-jam shots.
+
+Under **AWACS** the brief puts a friendly AWACS behind you: your datalink shows the bandits it sees, the coach points
+your scan at a contact the datalink has and your radar does not, and a Link 16 wingman shares his tracks.
 
 **IFF** works the same way in the Sortie: an IFF button on the jet's key, or a note on the jets where it is
 automatic. What your radar calls friendly comes from your IFF, not from the game's truth, so with an AI wingman you

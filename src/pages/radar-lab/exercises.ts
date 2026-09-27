@@ -16,10 +16,11 @@ import {
 } from './geometry';
 import { jamFacts } from './jamming';
 import { iffFacts } from './iff';
+import { dlFacts } from './datalink';
 
-export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre' | 'jam' | 'iff';
+export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre' | 'jam' | 'iff' | 'dl';
 /** Graded exercises in order (Free scan is not graded). */
-export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre', 'jam', 'iff'];
+export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre', 'jam', 'iff', 'dl'];
 
 export type Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim';
 
@@ -52,6 +53,10 @@ export interface Scene {
   maxTime: number;
   /** Restart when a closing target gets this close (m). */
   minRange: number;
+  /** A friendly AWACS orbits behind the player (datalink exercise). */
+  awacs?: boolean;
+  /** Start with the own radar off (FC3 datalink: the picture starts when the radar is switched on). */
+  radarOff?: boolean;
 }
 
 export interface StepText { id: string; text: string; keys?: string }
@@ -108,6 +113,27 @@ export interface Snap {
   jam?: JamSnap;
   /** The friend and the hostile of the IFF exercise, as the own IFF holds them. */
   iff?: IffSnap;
+  /** The own datalink picture (datalink exercise), as the display gets it. */
+  dl?: DlSnap;
+}
+
+/** One datalink track as the own picture holds it. Angles in degrees off the nose, range in metres, age in s. */
+export interface DlTrackSnap {
+  targetId: string;
+  source: 'awacs' | 'donor' | 'ppli';
+  donorLabel: string | null;
+  az: number;
+  range: number;
+  correlated: boolean;
+  age: number;
+}
+
+/** What the own datalink and radar hold (datalink exercise). */
+export interface DlSnap {
+  radarOn: boolean;
+  tracks: DlTrackSnap[];
+  /** STT holding: on a datalink track (AWACS or donor), on a friend's PPLI, on something else, or none. */
+  lock: 'dl' | 'ppli' | 'other' | null;
 }
 
 /** What the own IFF and radar hold on the IFF exercise's two contacts. Angles in degrees. */
@@ -897,7 +923,164 @@ const iff: ExerciseDef = {
   },
 };
 
-export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre, jam, iff };
+// ------------------------------------------------------------------------------------------ 8. datalink
+
+/** The AWACS bandit sits this far off the nose: outside every starting scan, inside every gimbal. */
+const DL_OFF_DEG = 42;
+const DL_SPEED = 200;
+
+/** The track the pilot should bring his radar onto: an uncorrelated AWACS track first, then a donor track. */
+export function dlCue(tracks: readonly DlTrackSnap[]): DlTrackSnap | null {
+  const free = tracks.filter(x => x.source !== 'ppli' && !x.correlated);
+  return free.find(x => x.source === 'awacs') ?? free[0] ?? null;
+}
+
+const dl: ExerciseDef = {
+  id: 'dl', num: 8, title: 'Datalink picture',
+  short: 'AWACS and other fighters show you tracks beyond your radar: find them with your own radar before you shoot',
+  unavailable(ac) {
+    const rs = r(ac);
+    return rs.modes.includes('stt') ? null : `The ${rs.name} has no single-target track, so there is nothing to lock.`;
+  },
+  scene(ac, u) {
+    const rs = r(ac), bandit = opp(ac), f = dlFacts(ac);
+    const det = detectKm(rs, bandit, 0, false) * 1000;
+    const own = niceAlt(9000, u);
+    if (!f.has) {
+      const range = niceRange(0.7 * det, u);
+      const d = defaultScan(ac);
+      return {
+        playerAlt: own, playerMach: PLAYER_MACH, awacs: true,
+        targets: [{ role: 'bandit', callsign: 'Bandit', type: bandit, range, bearingDeg: 5, alt: own, aspectDeg: 0, speed: DL_SPEED }],
+        scan: { mode: 'rws', azHalfDeg: azNear(ac, 30), bars: d.bars, azCenterDeg: 0, elCenterDeg: 0, rangeScaleM: rangeScaleFor(rs, range * 1.3), cursorM: range },
+        maxTime: 150, minRange: 15000,
+      };
+    }
+    const targets: SceneTarget[] = [
+      // Inside detection range but outside the starting scan: the AWACS sees him, your radar does not.
+      { role: 'awacs', callsign: 'Bandit-1', type: bandit, range: niceRange(0.75 * det, u), bearingDeg: DL_OFF_DEG, alt: own, aspectDeg: 0, speed: DL_SPEED },
+    ];
+    let far = targets[0].range;
+    if (f.wingType) {
+      // Wingman ahead on the same heading, radar in TWS; his bandit is beyond your radar and inside his.
+      const wing = niceRange(0.6 * det, u);
+      const wingDet = detectKm(r(f.wingType), bandit, 0, false) * 1000;
+      far = niceRange(wing + 0.65 * wingDet, u);
+      targets.push(
+        { role: 'wingman', callsign: 'Wingman', type: f.wingType, range: wing, bearingDeg: -8, alt: own + 300, aspectDeg: 180, friendly: true, radar: 'tws' },
+        { role: 'donor', callsign: 'Bandit-2', type: bandit, range: far, bearingDeg: -8, alt: own, aspectDeg: 0, speed: 150 },
+      );
+    }
+    const d = defaultScan(ac);
+    return {
+      playerAlt: own, playerMach: PLAYER_MACH, awacs: true, radarOff: f.radarOnFirst,
+      targets,
+      // Hornet: TWS, since in RWS its display shows only datalink tracks that match a radar return.
+      scan: { mode: f.rwsOnly ? 'tws' : 'rws', azHalfDeg: azNear(ac, 20), bars: d.bars, azCenterDeg: 0, elCenterDeg: 0, rangeScaleM: rangeScaleFor(rs, far * 1.1), cursorM: targets[0].range },
+      maxTime: 150, minRange: 15000,
+    };
+  },
+  steps(ac, _u, k) {
+    const f = dlFacts(ac);
+    if (!f.has) return [{ id: 'own', text: 'No datalink picture: find the bandit with your own radar' }];
+    const out: StepText[] = [];
+    if (f.radarOnFirst) out.push({ id: 'on', text: 'Switch the radar on: the AWACS picture appears', keys: f.radarKey ?? undefined });
+    out.push({ id: 'awacs', text: 'See the AWACS track beyond your radar' });
+    if (f.wingType) out.push({ id: 'donor', text: 'See your wingman\'s track' });
+    out.push({ id: 'corr', text: 'Bring your radar onto it: it correlates' });
+    out.push({ id: 'lock', text: 'Lock it with your own radar: click it on the scope', keys: k.lock ?? undefined });
+    return out;
+  },
+  evaluate(s, mem) {
+    const f = dlFacts(s.ac), u = s.units;
+    const spec = AIRCRAFT[s.ac];
+    if (!f.has) {
+      const tg = s.targets[0];
+      const seen = latch(mem, 0, !!tg?.seenNow);
+      return {
+        steps: [seen], current: seen ? null : 0, done: seen, tone: seen ? 'ok' : undefined,
+        text: seen
+          ? `Painted with your own radar${tg ? ` at ${rng(tg.firstSeenRange ?? tg.groundRange, u)}` : ''}. In the ${spec.short} that is the only picture you get.`
+          : `${f.none}${tg ? ` Bandit ${rng(tg.groundRange, u)} on the nose, ${alt(tg.alt, u)}, hot.` : ''}`,
+        why: seen ? `${f.none} ${f.source}` : f.source,
+      };
+    }
+    const n = (f.radarOnFirst ? 1 : 0) + 1 + (f.wingType ? 1 : 0) + 2;
+    const x = s.dl;
+    if (!x) return { steps: Array(n).fill(false) as boolean[], current: 0, text: '', why: '', done: false };
+    // What the display draws: the Hornet in RWS shows only datalink tracks that match a radar return.
+    const hidden = f.rwsOnly && s.mode === 'rws';
+    const shown = hidden ? x.tracks.filter(t => t.correlated) : x.tracks;
+    const awacs = shown.filter(t => t.source === 'awacs');
+    const donor = shown.filter(t => t.source === 'donor');
+    const steps: boolean[] = [];
+    let i = 0;
+    if (f.radarOnFirst) steps.push(latch(mem, i++, x.radarOn && shown.length > 0));
+    const iAwacs = i;
+    steps.push(latch(mem, i++, awacs.length > 0 && (!f.radarOnFirst || !!mem.latched[0])));
+    const iDonor = f.wingType ? i : -1;
+    if (f.wingType) steps.push(latch(mem, i++, donor.length > 0 && !!mem.latched[iAwacs]));
+    const seenAll = steps.every(Boolean);
+    const iCorr = i;
+    steps.push(latch(mem, i++, seenAll && x.tracks.some(t => t.source !== 'ppli' && t.correlated)));
+    steps.push(latch(mem, i++, !!mem.latched[iCorr] && x.lock === 'dl'));
+    const done = steps.every(Boolean);
+    const cue = dlCue(shown);
+    const where = (t: DlTrackSnap) => `${sdeg(t.az, 0)}, ${rng(t.range, u)}`;
+    const slew = (t: DlTrackSnap) => {
+      const off = t.az - s.azCenterDeg;
+      const dir = off < 0 ? 'left' : 'right';
+      return `He is ${Math.abs(off).toFixed(0)}° ${dir} of your scan centre: slew the scan ${dir}${r(s.ac).azHalfWidthOptionsDeg.length > 1 ? ' or widen it' : ''}, or wait while he closes.`;
+    };
+    let text: string, why: string, tone: Tone | undefined;
+    if (done) {
+      text = 'Locked with your own radar. The datalink showed him first; only your own radar gives you a lock and a launch zone.';
+      why = `${f.fire} ${f.coast}`;
+      tone = 'ok';
+    } else if (x.lock === 'ppli') {
+      text = 'That is your wingman: the datalink shows him as a friend. Unlock and lock a bandit.';
+      why = f.ppli || f.fire;
+      tone = 'warning';
+    } else if (hidden && !steps[iCorr]) {
+      text = `In RWS the Hornet shows only datalink tracks that match a radar return: the rest are hidden. Go back to ${r(s.ac).modeLabels.tws ?? 'TWS'}.`;
+      why = f.where;
+      tone = 'caution';
+    } else if (f.radarOnFirst && !steps[0]) {
+      text = x.radarOn
+        ? 'Radar on. The AWACS picture updates every 10 s here (trainer value): wait for it.'
+        : `A friendly AWACS is on station behind you. Your radar is off, so the datalink shows nothing yet. Switch it on${f.radarKey ? ` (${f.radarKey})` : ''}.`;
+      why = f.awacs;
+      tone = x.radarOn ? 'hi' : undefined;
+    } else if (!steps[iAwacs]) {
+      text = 'AWACS is on station behind you. Wait for its picture: it updates every 10 s here (trainer value).';
+      why = f.awacs;
+    } else if (iDonor >= 0 && !steps[iDonor]) {
+      const a = awacs[0];
+      text = `${a ? `AWACS track at ${where(a)}${a.correlated ? '' : ': not on your own radar'}. ` : ''}Your wingman ahead has his radar on. Wait for his track to come over the datalink.`;
+      why = `${f.where} ${f.symbol}`;
+      tone = 'hi';
+    } else if (!steps[iCorr]) {
+      const d = donor[0];
+      const lead = iDonor >= 0 && d ? `${d.donorLabel ?? 'Your wingman'}'s track at ${where(d)}${d.correlated ? '' : ', beyond your radar'}. ` : '';
+      text = cue
+        ? `${lead}Datalink track at ${where(cue)}: not on your own radar. ${slew(cue)}`
+        : `${lead}Bring your radar onto a datalink track.`;
+      why = `${f.fire} ${f.symbol}`;
+      tone = 'hi';
+    } else if (x.lock === 'other') {
+      text = 'That contact is not on the datalink. Lock the track your radar and the datalink both hold.';
+      why = f.fire;
+      tone = 'caution';
+    } else {
+      text = 'Your radar holds him too: the track correlates, own radar and datalink on the same contact. Lock him with your own radar.';
+      why = `${f.coast} ${f.fire}`;
+      tone = 'hi';
+    }
+    return { steps, current: done ? null : firstOpen(steps), text, why, tone, done };
+  },
+};
+
+export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre, jam, iff, dl };
 
 /** Exercises this jet can do (graded only). */
 export function availableExercises(ac: FighterId): Exclude<ExerciseId, 'free'>[] {

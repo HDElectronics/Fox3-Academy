@@ -48,7 +48,7 @@ function picture(aircraftType: FighterId, patch: Partial<RadarPicture> = {}): Ra
     mode: 'tws', modeLabel: 'TWS', rangeScale: 148000, gimbalAz: 60 * D,
     scan: { azCenter: 0, azHalf: 60 * D, elCenter: 0, bars: 4, beamAz: 0, beamEl: 0, bar: 0, frameTime: 4 },
     altCoverage: { top: 10000, bottom: 2000, atRange: 40000 }, ownAlt: 6000, ownSpeed: 250,
-    bricks: [], strobes: [], ownJamming: false, tracks: [], stt: null, weapon: null, dlz: null, shootCue: false,
+    bricks: [], strobes: [], ownJamming: false, datalink: [], tracks: [], stt: null, weapon: null, dlz: null, shootCue: false,
     cueLabel: '', launchBlockedReason: '', missilesInFlight: [], cursor: { az: -40 * D, range: 30000 }, ...patch,
   };
 }

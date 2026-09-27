@@ -13,6 +13,9 @@
  *    with '4' beside the return for 2 s (not written into the track symbol).
  *  - JF-17: mode, crossed STBY, IFF, CNTL on top; azimuth and bars left; range and '*' right; HPT
  *    circle; weapon scale with the NEZ as a bar; HPT data block; 'TOA nn' after launch; IFF green friend, red no reply.
+ *  - Datalink (docs/research/ecm-datalink-iff.md §2): Hornet HAFU bottom half = datalink ID, datalink-only HAFUs,
+ *    PPLI circles; Viper datalink air tracks (colours community); JF-17 colours and boxed off-radar symbols
+ *    (community). See drawMfdDatalink. Datalink entries are never pickable.
  */
 import { D2R, R2D } from '../../../sim/math';
 import { mach } from '../../../sim/atmosphere';
@@ -23,7 +26,7 @@ import {
   screenToBscope, secs, speedVal, viperAzLegend, viperWeapon, type MfdFamily, type Rect,
 } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, hitAlong, jamLock, missileOfInterest, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen,
+  X, Y, brickAlpha, dlAlpha, dlOnly, hit, hitAlong, jamLock, missileOfInterest, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen,
   strobeAlpha, visibleCoast, type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
@@ -59,6 +62,9 @@ export function drawMfd(f: FrameCtx): Mapping {
     hit(f, p.x, p.y, b.targetId, 'brick');
   }
   g.reset();
+
+  // ---- datalink entries own radar does not track (never pickable: a launch needs own radar)
+  drawMfdDatalink(f, fam, gAz, map, color);
 
   // Hornet threat rank: non-friendly trackfiles ordered by range (closest = 1). Stylised ranking.
   const ranked = pic.tracks.filter(t => !t.friendly).sort((a, b) => a.range - b.range);
@@ -192,6 +198,53 @@ function drawMfdJamLock(f: FrameCtx, fam: MfdFamily, plot: Rect, gAz: number, ma
     g.text(fam === 'hornet' ? 'AOJ' : 'HOJ', lx, plot.y + 5 * u, lx < x ? 'right' : 'left');
   }
   hit(f, x, plot.y + 1.4 * u, jl.targetId, 'stt');
+}
+
+// ------------------------------------------------------------------ datalink (docs/research/ecm-datalink-iff.md §2)
+
+/**
+ * Datalink entries own radar does not track. Drawn, never registered for picking.
+ *  - Hornet (ED guide pp. 200–210): HAFU with only the bottom (datalink) half; PPLI members as the basic PPLI circle.
+ *    In RWS only donor HAFUs correlated to a radar return show.
+ *  - Viper (ED guide pp. 452–475; colours community): PPLI members blue (trainer: every member counts as own flight),
+ *    donor tracks green, AWACS surveillance tracks a small open diamond (shape not verified), red when hostile.
+ *  - JF-17 (Chuck's guide, community): green friendly, red unknown or hostile; circle friendly, triangle air contact;
+ *    a box around a symbol own radar does not see.
+ */
+function drawMfdDatalink(f: FrameCtx, fam: MfdFamily, gAz: number, map: MapFn, color: boolean): void {
+  const { g, th, u, pic } = f;
+  for (const d of dlOnly(pic)) {
+    if (d.range > pic.rangeScale || Math.abs(d.az) > gAz) continue;
+    if (fam === 'hornet' && pic.mode === 'rws' && !d.correlated) continue;
+    const p = map(d.az, d.range), a = dlAlpha(d.age);
+    if (fam === 'hornet') {
+      const r = 2.2 * u;
+      if (d.source === 'ppli') {
+        g.ink(color ? th.ok : th.sym, 0.8, 0.26, a);
+        g.circle(p.x, p.y, 1.5 * u);
+        stick(g, p.x, p.y, d.relHeading, stickLen(f, d.speed) * 0.8, 1.5 * u);
+      } else {
+        g.ink(color ? sovColor(f, d.sovereignty) : th.sym, 0.8, 0.26, a);
+        hafuBottom(g, p.x, p.y, r, d.sovereignty);
+        stick(g, p.x, p.y, d.relHeading, stickLen(f, d.speed), r * 1.2);
+      }
+    } else if (fam === 'viper') {
+      const hostile = d.sovereignty === 'hostile';
+      const col = !color ? th.sym : hostile ? th.hostile : d.source === 'ppli' ? th.datalink : d.source === 'donor' ? th.ok : th.sym;
+      g.ink(col, 0.8, 0.26, a);
+      if (d.source === 'awacs') diamond(g, p.x, p.y, 1.3 * u);
+      else g.circle(p.x, p.y, 1.2 * u);
+      stick(g, p.x, p.y, d.relHeading, stickLen(f, d.speed) * 0.7, 1.3 * u);
+    } else {
+      const friend = d.source === 'ppli' || d.sovereignty === 'friendly';
+      g.ink(!color ? th.sym : friend ? th.ok : th.hostile, 0.8, 0.26, a);
+      if (friend) g.circle(p.x, p.y, 1.2 * u);
+      else triUp(g, p.x, p.y - 0.8 * u, 1.6 * u, false);
+      if (!d.correlated) g.rect(p.x - 2.2 * u, p.y - 2.2 * u, 4.4 * u, 4.4 * u, false);
+      stick(g, p.x, p.y, d.relHeading, stickLen(f, d.speed) * 0.7, 1.4 * u);
+    }
+  }
+  g.reset();
 }
 
 function weight(t: PicTrack): number {
@@ -328,14 +381,39 @@ function drawScales(f: FrameCtx, fam: MfdFamily, plot: Rect, map: (az: number, r
 
 // ------------------------------------------------------------------ track symbols
 
+type Sov = 'friendly' | 'hostile' | 'unknown';
+
+/**
+ * Hornet HAFU top half (own-sensor ID): friendly from own IFF; hostile needs two factors, no IFF reply AND a hostile
+ * datalink ID (ED Hornet guide p. 208), or the page's `nonFriendly: 'hostile'` override; unknown otherwise.
+ */
+export function hafuTop(f: Pick<FrameCtx, 'opts'>, t: Pick<PicTrack, 'friendly' | 'iff' | 'dl'>): Sov {
+  if (t.friendly) return 'friendly';
+  if (f.opts.nonFriendly === 'hostile') return 'hostile';
+  return t.iff?.reply === 'no-reply' && t.dl === 'hostile' ? 'hostile' : 'unknown';
+}
+
+/** HAFU colours on the colour skin: green friendly, yellow unknown, red hostile. */
+function sovColor(f: FrameCtx, k: Sov): string {
+  return k === 'friendly' ? f.th.ok : k === 'hostile' ? f.th.hostile : f.th.caution;
+}
+
 function hafuColor(f: FrameCtx, t: PicTrack, color: boolean): string {
   const th = f.th;
   if (!color) return t.designation || t.locked ? th.symHi : th.sym;
-  if (t.friendly) return th.ok;
-  return f.opts.nonFriendly === 'hostile' ? th.hostile : th.symHi;
+  const k = hafuTop(f, t);
+  if (k === 'friendly') return th.ok;
+  return k === 'hostile' ? th.hostile : th.symHi;
 }
 
-/** Hornet HAFU: top half = own-sensor ID (hemisphere friendly, bracket unknown, caret hostile). */
+/** HAFU bottom half (datalink ID), drawn from y downward: hemisphere friendly, bracket unknown, caret hostile. */
+function hafuBottom(g: FrameCtx['g'], x: number, y: number, r: number, k: Sov): void {
+  if (k === 'friendly') g.arc(x, y, r, 0, Math.PI);
+  else if (k === 'hostile') g.poly([x - r, y, x, y + r * 1.3, x + r, y], false);
+  else g.poly([x - r, y, x - r, y + r, x + r, y + r, x + r, y], false);
+}
+
+/** Hornet HAFU: top half = own-sensor ID (hemisphere friendly, bracket unknown, caret hostile), bottom half = datalink ID. */
 function drawHafu(f: FrameCtx, t: PicTrack, x: number, y: number, rank: number, color: boolean): void {
   const { g, u } = f;
   const r = 2.2 * u;
@@ -347,9 +425,14 @@ function drawHafu(f: FrameCtx, t: PicTrack, x: number, y: number, rank: number, 
     brick(g, x, y, 2.6 * u, 1.3 * u, true);
     return;
   }
+  const top = hafuTop(f, t);
+  if (t.dl) {
+    g.ink(color ? sovColor(f, t.dl) : col, strong ? 1.2 : 0.9, strong ? 0.34 : 0.26, t.firm ? 1 : 0.7);
+    hafuBottom(g, x, y, r, t.dl);
+  }
   g.ink(col, strong ? 1.2 : 0.9, strong ? 0.34 : 0.26, t.firm ? 1 : 0.7);
-  if (t.friendly) g.arc(x, y, r, Math.PI, Math.PI * 2);
-  else if (f.opts.nonFriendly === 'hostile') g.poly([x - r, y, x, y - r * 1.3, x + r, y], false);
+  if (top === 'friendly') g.arc(x, y, r, Math.PI, Math.PI * 2);
+  else if (top === 'hostile') g.poly([x - r, y, x, y - r * 1.3, x + r, y], false);
   else g.poly([x - r, y, x - r, y - r, x + r, y - r, x + r, y], false);
   // Aspect stem from the symbol.
   if (t.firm) stick(g, x, y - r * 0.5, t.relHeading, stickLen(f, t.speed), r);
@@ -405,7 +488,8 @@ function viperIffMark(f: FrameCtx, x: number, y: number, age: number, alpha = 1)
 function drawViperTrack(f: FrameCtx, t: PicTrack, x: number, y: number, color: boolean): void {
   const { g, th, u } = f;
   // The IFF answer is not part of the track file (sovereignty colours come from the datalink): see viperIffMark.
-  const col = color && f.opts.nonFriendly === 'hostile' ? th.hostile : th.sym;
+  // With the ROE factors off the jet uses the sovereignty the datalink sends (ED Viper guide pp. 310–311).
+  const col = color && (f.opts.nonFriendly === 'hostile' || t.dl === 'hostile') ? th.hostile : th.sym;
   const strong = !!t.designation || t.locked;
   if (t.iff?.reply === 'friend') viperIffMark(f, x, y, t.iff.age);
   g.ink(col, strong ? 1.2 : 0.9, 0.26, t.firm ? 1 : 0.75);

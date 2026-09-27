@@ -21,7 +21,7 @@ function render(size: number, patch: Partial<RadarPicture> = {}) {
     mode: 'tws', modeLabel: 'СНП', rangeScale: 80000, gimbalAz: Math.PI / 3,
     scan: { azCenter: 0, azHalf: Math.PI / 6, elCenter: 0, bars: 4, beamAz: 0, beamEl: 0, bar: 0, frameTime: 4 },
     altCoverage: { top: 10000, bottom: 2000, atRange: 40000 }, ownAlt: 6000, ownSpeed: 250,
-    bricks: [], strobes: [], ownJamming: false, tracks: [track()], stt: null, weapon: null, dlz: null, shootCue: false,
+    bricks: [], strobes: [], ownJamming: false, datalink: [], tracks: [track()], stt: null, weapon: null, dlz: null, shootCue: false,
     cueLabel: '', launchBlockedReason: '', missilesInFlight: [], cursor: { az: 0, range: 30000 }, ...patch,
   };
   const f: FrameCtx = {
