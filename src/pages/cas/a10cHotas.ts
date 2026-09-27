@@ -2,9 +2,11 @@
  * [OWNER: page-cas] A-10C II HOTAS logic for the CAS page, pure (no DOM, no three.js), so tests can fly it: the sensor
  * of interest (SOI), short and long presses (Long = held 1 s or more, ED manual p. 107), TMS / DMS / China Hat /
  * Coolie per SOI, the TGP slew and the TAD cursor, hooking the digital 9-line triangle, the SPI, slave-all-to-SPI,
- * LSS (OSB 6), the laser (Nosewheel Steering button), the master mode cycle and weapon release.
- * Functions and keys from docs/research/a10c.md §1-4 (PROCEDURES.a10c binds). Not modelled: HMCS, markpoints, the
- * DSMS, the CNTL page (codes stay 1688), TGP video modes. Trainer values: the long-press threshold is the manual's
+ * LSS (OSB 6), the laser (Nosewheel Steering button), the master mode cycle and weapon release. The right MFCD shows
+ * the TGP or the MAV page (Coolie Right Short cycles them, Right Long makes the shown page the SOI); with the MAV page
+ * as SOI the slew moves the Maverick gate, TMS Forward Short locks, China Hat Aft Short recages (research §6).
+ * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Not modelled: HMCS, markpoints, the
+ * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
  * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
  */
 import { Vector3 } from 'three';
@@ -31,16 +33,19 @@ const HOOK_SCALE = 0.07;
 /** An SPI or a pod point within this distance of a live briefed target is "on the target" (m). Trainer value. */
 export const ON_TARGET_M = 25;
 
-export type Soi = 'hud' | 'tad' | 'tgp';
+export type Soi = 'hud' | 'tad' | 'tgp' | 'mav';
 export type LeftPage = 'tad' | 'msg';
+/** Right MFCD page: the TGP page or the MAV page. */
+export type RightPage = 'tgp' | 'mav';
 export type HotasSwitch = 'tmsF' | 'tmsA' | 'tmsL' | 'tmsR' | 'dmsF' | 'dmsA' | 'dmsL' | 'dmsR' | 'chF' | 'chA' | 'coolieU' | 'coolieD' | 'coolieL' | 'coolieR';
-/** Where the SPI came from: the steerpoint (default), the TAD tasking triangle, or the pod. */
-export type SpiSource = 'steer' | 'tasking' | 'tgp';
+/** Where the SPI came from: the steerpoint (default), the TAD tasking triangle, the pod, or the Maverick line of sight. */
+export type SpiSource = 'steer' | 'tasking' | 'tgp' | 'mav';
 
 export interface HotasHost {
   world(): World;
   me(): Aircraft;
-  jtac(): JtacController;
+  /** The JTAC, or null on pages without one (Targeting pod & Mavericks). */
+  jtac(): JtacController | null;
   /** Current steerpoint (the default SPI). */
   steerpoint(): XZ & { name: string };
   /** Briefed target unit ids. */
@@ -57,6 +62,11 @@ const MASTER_CYCLE: A10cMasterMode[] = ['NAV', 'GUNS', 'CCIP', 'CCRP'];
 export class A10cHotas {
   soi: Soi = 'hud';
   leftPage: LeftPage = 'tad';
+  rightPage: RightPage = 'tgp';
+  /** Maverick seeker field of view (China Hat Forward Short with the MAV page as SOI). */
+  mavFov: 'wide' | 'narrow' = 'wide';
+  /** China Hat Forward Long presses so far (lessons check a slave after the pod moved). */
+  slaveCount = 0;
   master: A10cMasterMode = 'NAV';
   spiSource: SpiSource = 'steer';
   tadScaleNm = 10;
@@ -75,7 +85,8 @@ export class A10cHotas {
 
   /** Back to the start state for a new lesson: HUD SOI, TAD on the left, cursor ahead of the jet. */
   reset(): void {
-    this.soi = 'hud'; this.leftPage = 'tad'; this.master = 'NAV'; this.spiSource = 'steer';
+    this.soi = 'hud'; this.leftPage = 'tad'; this.rightPage = 'tgp'; this.mavFov = 'wide'; this.slaveCount = 0;
+    this.master = 'NAV'; this.spiSource = 'steer';
     this.tadScaleNm = 10; this.hooked = null; this.laserHeld = false; this.laserLatched = false;
     this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null;
     const ac = this.host.me();
@@ -120,11 +131,12 @@ export class A10cHotas {
     this.updateMilestones();
   }
 
-  /** Slew input (−1..1): the TGP with the TGP as SOI, the TAD cursor with the TAD as SOI. */
+  /** Slew input (−1..1): the TGP with the TGP as SOI, the Maverick gate with the MAV page as SOI, the TAD cursor with the TAD as SOI. */
   slew(x: number, y: number): void {
     this.slewIn = { x, y };
-    const ac = this.host.me();
-    this.host.world().tgpSlew(ac.id, this.soi === 'tgp' ? x : 0, this.soi === 'tgp' ? y : 0);
+    const ac = this.host.me(), w = this.host.world();
+    w.tgpSlew(ac.id, this.soi === 'tgp' ? x : 0, this.soi === 'tgp' ? y : 0);
+    if (ac.ag?.mav) w.mavSlew(ac.id, this.soi === 'mav' ? x : 0, this.soi === 'mav' ? y : 0);
   }
 
   private act(sw: HotasSwitch, long: boolean): void {
@@ -132,10 +144,10 @@ export class A10cHotas {
       case 'coolieU': if (long) this.leftPage = 'msg'; else this.setSoi('hud'); break;
       case 'coolieD': this.host.log(long ? 'DSMS quick-look: not modelled' : 'HMCS: not modelled', 'caution'); break;
       case 'coolieL': if (long) this.setSoi('tad'); else this.cycleLeft(); break;
-      case 'coolieR': if (long) this.setSoi('tgp'); break;
+      case 'coolieR': if (long) this.setSoi(this.rightPage); else this.cycleRight(); break;
       case 'tmsF': this.tmsForward(long); break;
       case 'tmsA': this.tmsAft(long); break;
-      case 'tmsL': if (long) this.host.log('SPI broadcast on the datalink'); else this.host.jtac().clearNewTasking(); break;
+      case 'tmsL': if (long) this.host.log('SPI broadcast on the datalink'); else this.host.jtac()?.clearNewTasking(); break;
       case 'tmsR': this.host.log('Markpoint: not modelled', 'caution'); break;
       case 'dmsF': case 'dmsA': this.dmsForwardAft(sw === 'dmsF'); break;
       case 'dmsL': case 'dmsR': this.dmsLeftRight(); break;
@@ -146,9 +158,16 @@ export class A10cHotas {
 
   setSoi(s: Soi): void {
     if (s === 'tad') this.leftPage = 'tad';
+    if (s === 'tgp' || s === 'mav') this.rightPage = s;
     this.soi = s;
     // A slew held across the SOI change goes to the new sensor only.
     this.slew(this.slewIn.x, this.slewIn.y);
+  }
+
+  /** Coolie Right Short: next right MFCD page (TGP ↔ MAV); an SOI on that MFCD moves to the new page. */
+  cycleRight(): void {
+    this.rightPage = this.rightPage === 'tgp' ? 'mav' : 'tgp';
+    if (this.soi === 'tgp' || this.soi === 'mav') this.setSoi(this.rightPage);
   }
 
   private cycleLeft(): void {
@@ -159,6 +178,21 @@ export class A10cHotas {
   // ------------------------------------------------------------------ TMS
   private tmsForward(long: boolean): void {
     const w = this.host.world(), ac = this.host.me(), t = ac.ag?.tgp;
+    if (this.soi === 'mav') {
+      const m = ac.ag?.mav;
+      if (!m) { this.host.log('No AGM-65D / H loaded', 'caution'); return; }
+      if (long) {
+        if (!m.aim) { this.host.log('Maverick caged: slave it to the SPI first', 'caution'); return; }
+        ac.ag!.spi = m.aim.clone();
+        this.spiSource = 'mav';
+        this.host.log('SPI: Maverick line of sight');
+        return;
+      }
+      const r = w.mavLock(ac.id);
+      if (!r.ok) this.host.log(r.reason, 'caution');
+      else this.host.log(`MAV: locked${this.host.targets().includes(r.unitId ?? '') ? '' : ' (not a briefed target)'}`);
+      return;
+    }
     if (this.soi === 'tgp') {
       if (!t) return;
       if (long) {
@@ -202,7 +236,7 @@ export class A10cHotas {
   /** TAD: hook the symbol nearest the cursor within the hook radius (tasking triangle, SPI, SADL friendly). */
   hook(): boolean {
     const c = this.cursor, r = this.tadScaleNm * NM * HOOK_SCALE;
-    const tk = this.host.jtac().tasking;
+    const tk = this.host.jtac()?.tasking;
     const cands: { what: 'tasking' | 'spi' | 'friendly'; p: XZ }[] = [];
     if (tk && tk.state !== 'cntco') cands.push({ what: 'tasking', p: tk.pos });
     cands.push({ what: 'spi', p: this.spiXZ() });
@@ -216,7 +250,7 @@ export class A10cHotas {
   }
 
   private hookedXZ(): XZ | null {
-    if (this.hooked === 'tasking') { const tk = this.host.jtac().tasking; return tk && tk.state !== 'cntco' ? tk.pos : null; }
+    if (this.hooked === 'tasking') { const tk = this.host.jtac()?.tasking; return tk && tk.state !== 'cntco' ? tk.pos : null; }
     if (this.hooked === 'spi') return this.spiXZ();
     if (this.hooked === 'friendly') {
       const f = this.host.friendlies()[0];
@@ -256,6 +290,7 @@ export class A10cHotas {
     const ac = this.host.me();
     if (long) { this.slaveToSpi(); return; }
     if (this.soi === 'tgp' && ac.ag?.tgp) this.host.world().tgpToggleFov(ac.id);
+    if (this.soi === 'mav' && ac.ag?.mav) { this.mavFov = this.mavFov === 'wide' ? 'narrow' : 'wide'; this.host.log(`MAV FOV ${this.mavFov === 'wide' ? 'WIDE' : 'NARO'}`); }
   }
 
   private chinaAft(long: boolean): void {
@@ -267,10 +302,12 @@ export class A10cHotas {
       return;
     }
     // Manual p. 112 lists China Hat Aft Short with the TGP as SOI as "Toggle LSS" (not verified in game).
-    if (this.soi === 'tgp') this.toggleLss();
+    if (this.soi === 'tgp') { this.toggleLss(); return; }
+    // Otherwise China Hat Aft Short recages the Maverick (research §6).
+    if (ac.ag?.mav) { w.mavRecage(ac.id); this.host.log('Maverick recaged'); }
   }
 
-  /** China Hat Forward Long: every sensor to the SPI (the pod here; the Maverick page is not modelled). */
+  /** China Hat Forward Long: every sensor to the SPI: the pod and, when loaded, the AGM-65D / H seeker. */
   slaveToSpi(): void {
     const w = this.host.world(), ac = this.host.me();
     const p = this.spiXZ();
@@ -279,6 +316,8 @@ export class A10cHotas {
     if (!t.on) w.tgpPower(ac.id, true);
     if (t.lss !== 'off') w.tgpLss(ac.id, false);
     w.tgpPointAt(ac.id, p);
+    if (ac.ag!.mav) { if (ac.ag!.spi) w.mavSlaveToSpi(ac.id); else w.mavPointAt(ac.id, p); }
+    this.slaveCount++;
     if (this.spiSource !== 'steer' || ac.ag!.spi) this.milestones.add('slave');
     this.host.log('Sensors slaved to the SPI');
   }

@@ -1,6 +1,7 @@
 /**
- * [OWNER: page-cas] A-10C II cockpit for the CAS page: the HUD over the forward view, the left MFCD (TAD or MSG page),
- * the right MFCD (TGP page with the pod video), the ALR-69 for the sortie, the HOTAS buttons, the key map and the
+ * [OWNER: page-cas] A-10C II cockpit for the CAS page and the Targeting pod & Mavericks page: the HUD over the forward
+ * view, the left MFCD (TAD or MSG page), the right MFCD (TGP page with the pod video, or the MAV page with the
+ * AGM-65D / H seeker video), the ALR-69 for the sortie, the HOTAS buttons, the key map and the
  * display views built from the sim. The HOTAS logic lives in a10cHotas.ts (pure, tested). Keys from PROCEDURES.a10c
  * (docs/research/a10c.md §1): TMS LCtrl+arrows, DMS Home/End/Delete/PageDown, China Hat V/C, Coolie U/J/H/K, slew
  * ; . , /, Insert laser, M master mode; weapon release RAlt+Space and gun Space are the A-10C default list (community,
@@ -13,7 +14,7 @@ import { PROCEDURES } from '../../data/procedures';
 import type { Aircraft, EntityId } from '../../sim/types';
 import type { World } from '../../sim/world';
 import { D2R, relBearing } from '../../sim/math';
-import { canAgLaunch, predictImpact } from '../../sim/agWeapons';
+import { canAgLaunch, predictImpact, spotFor } from '../../sim/agWeapons';
 import { TGP_FOV_DEG, tgpViewWidthM } from '../../sim/tgp';
 import type { ShkvalTv } from '../../render/attack';
 import { vFovDeg, type ForwardView } from '../../render/forwardView';
@@ -22,8 +23,8 @@ import {
   h, screenBezel, button, placard, keyHint, disclosure, mobileAction, type ButtonHandle, type Cleanup, type KeyMap, type KeyHandler,
 } from '../../ui';
 import {
-  RwrDisplay, A10cHud, A10cTadPage, A10cTgpPage, A10cMsgPage, TAD_RING,
-  type A10cHudView, type TgpPageView, type TadView, type MsgPageView,
+  RwrDisplay, A10cHud, A10cTadPage, A10cTgpPage, A10cMsgPage, A10cMavPage, TAD_RING,
+  type A10cHudView, type TgpPageView, type TadView, type MsgPageView, type MavPageView, type HudMavCue,
 } from '../../ui/displays';
 import { noseOffsetM, holdAngleAltitude } from '../strike/cockpit';
 import { A10cHotas, type HotasHost, type HotasSwitch } from './a10cHotas';
@@ -34,24 +35,30 @@ import type { XZ } from './scenario';
 const HUD_FOV = 26, HUD_BORE = 0.4;
 const NM = 1852, KT = 1.943844, FT = 3.28084;
 const _pos = new Vector3(), _q = new Quaternion(), _dir = new Vector3();
+/** Maverick seeker picture field of view (deg), WIDE and NARO. Trainer values, not verified. */
+export const MAV_FOV_DEG = { wide: 6, narrow: 3 } as const;
+const isDh = (w: string | null | undefined): w is 'agm65d' | 'agm65h' => w === 'agm65d' || w === 'agm65h';
 
 export interface A10cCockpitHost {
   bag: Cleanup;
   world(): World;
   me(): Aircraft;
-  jtac(): JtacController;
+  /** The JTAC, or null on pages without one. */
+  jtac(): JtacController | null;
   steerpoint(): XZ & { name: string };
   targets(): readonly EntityId[];
   friendlies(): { id: EntityId; label: string }[];
   log(text: string, opts?: { t?: number; tone?: 'ok' | 'caution' | 'warning' }): void;
   canFire(): boolean;
+  /** Leave out the MSG page buttons (WILCO / CNTCO) on pages without a datalink tasking. */
+  noMsg?: boolean;
 }
 
 export interface A10cCockpit {
   hotas: A10cHotas;
   hudBezel: { el: HTMLElement };
   leftBezel: { el: HTMLElement };
-  /** The TGP page: the page shows it big with the TV camera. */
+  /** The right MFCD (TGP or MAV page): the page shows it big with the TV camera. */
   tgpBezel: { el: HTMLElement };
   rwrBezel: { el: HTMLElement };
   touchPad: HTMLElement;
@@ -69,6 +76,7 @@ export interface A10cCockpit {
   storeText(): string;
   hudView(): A10cHudView;
   tgpView(image: CanvasImageSource | null): TgpPageView;
+  mavView(image: CanvasImageSource | null): MavPageView;
   tadView(): TadView;
   msgView(): MsgPageView | null;
 }
@@ -85,6 +93,8 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const slew = { up: 0, down: 0, left: 0, right: 0 };
   const applySlew = () => hotas.slew(slew.right - slew.left, slew.up - slew.down);
   let noseDir: -1 | 0 | 1 = 0, noseHeldS = 0, holdGamma: number | null = null;
+  /** Gun trigger held: the gun fires every step while held (trainer rate). */
+  let triggerHeld = false;
   const nosePress = (d: -1 | 1) => { if (noseDir !== d) { noseDir = d; noseHeldS = 0; holdGamma = null; } };
   const noseRelease = () => { if (noseDir) { noseDir = 0; holdGamma = me().pitch; } };
 
@@ -93,19 +103,23 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const tadCanvas = h('canvas', { class: 'strk-canvas cas-mfcd__canvas', 'aria-label': 'Left MFCD: TAD page. Click to put the TAD cursor there.' });
   const msgCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'Left MFCD: MSG page with the digital 9-line', hidden: true });
   const tgpCanvas = h('canvas', { class: 'strk-canvas cas-mfcd__canvas', 'aria-label': 'Right MFCD: TGP page. Click to point the pod there.' });
+  const mavCanvas = h('canvas', { class: 'strk-canvas cas-mfcd__canvas', 'aria-label': 'Right MFCD: MAV page. Click to make it the SOI.', hidden: true });
   const rwrCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'ALR-69 radar warning display' });
   const hudBezel = screenBezel({ id: 'cas-a10-hud', label: 'HUD', aspect: '1', content: hudCanvas, class: 'strk-hud' });
   const leftBezel = screenBezel({ id: 'cas-a10-left', label: 'Left MFCD', aspect: '1', content: h('div', { class: 'cas-mfcd__pages' }, tadCanvas, msgCanvas), class: 'cas-mfcd' });
-  const tgpBezel = screenBezel({ id: 'cas-a10-tgp', label: 'Right MFCD · TGP', aspect: '1', content: tgpCanvas, class: 'cas-mfcd cas-tgp' });
+  const tgpBezel = screenBezel({ id: 'cas-a10-tgp', label: 'Right MFCD · TGP', aspect: '1', content: h('div', { class: 'cas-mfcd__pages' }, tgpCanvas, mavCanvas), class: 'cas-mfcd cas-tgp' });
   const rwrBezel = screenBezel({ id: 'cas-a10-rwr', label: 'ALR-69', aspect: '1', content: rwrCanvas, class: 'strk-rwr' });
   const hud = new A10cHud(hudCanvas, { fovDeg: HUD_FOV, boreY: HUD_BORE });
   const tad = new A10cTadPage(tadCanvas);
   const msg = new A10cMsgPage(msgCanvas);
   const tgp = new A10cTgpPage(tgpCanvas);
+  const mav = new A10cMavPage(mavCanvas);
+  let mavRenderKey = '', lastPage: 'tgp' | 'mav' | '' = '';
   const rwr = new RwrDisplay(rwrCanvas, { rwr: 'alr69' });
-  bag.add(() => { hud.dispose(); tad.dispose(); msg.dispose(); tgp.dispose(); rwr.dispose(); });
+  bag.add(() => { hud.dispose(); tad.dispose(); msg.dispose(); tgp.dispose(); mav.dispose(); rwr.dispose(); });
   bag.on(tadCanvas, 'click', (e: Event) => clickTad(e as MouseEvent));
   bag.on(tgpCanvas, 'click', (e: Event) => clickTgp(e as MouseEvent));
+  bag.on(mavCanvas, 'click', () => hotas.setSoi('mav'));
 
   // ------------------------------------------------------------------ buttons
   const cap = (label: string, aria: string, fn: () => void, keys?: string, lamp = false) =>
@@ -120,8 +134,10 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const tap = (sw: HotasSwitch, long = false) => () => hotas.tap(sw, long);
   const soiHud = cap('HUD', 'SOI to the HUD (Coolie Up Short)', tap('coolieU'), 'U', true);
   const soiTad = cap('TAD', 'SOI to the left MFCD TAD (Coolie Left Long)', tap('coolieL', true), 'H', true);
-  const soiTgp = cap('TGP', 'SOI to the right MFCD TGP (Coolie Right Long)', tap('coolieR', true), 'K', true);
+  const soiTgp = cap('TGP', 'SOI to the right MFCD TGP page (Coolie Right Long)', () => hotas.setSoi('tgp'), 'K', true);
+  const soiMav = cap('MAV', 'SOI to the right MFCD MAV page (Coolie Right Short shows it, Right Long makes it SOI)', () => hotas.setSoi('mav'), undefined, true);
   const pageBtn = cap('TAD / MSG', 'Left MFCD page (Coolie Left Short)', tap('coolieL'));
+  const rPageBtn = cap('TGP / MAV', 'Right MFCD page (Coolie Right Short)', tap('coolieR'));
   const tmsFs = cap('TMS Fwd', 'TMS Forward Short: track, hook', tap('tmsF'), 'LCtrl+Up');
   const tmsFl = cap('TMS Fwd Long', 'TMS Forward Long: set SPI', tap('tmsF', true));
   const tmsAs = cap('TMS Aft', 'TMS Aft Short: INR, unhook', tap('tmsA'), 'LCtrl+Down');
@@ -130,10 +146,11 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const slave = cap('Slave to SPI', 'China Hat Forward Long: slave all sensors to the SPI', tap('chF', true), 'V');
   const fovBtn = cap('FOV', 'China Hat Forward Short: TGP WIDE / NARO', tap('chF'));
   const toStp = cap('TGP to STPT', 'China Hat Aft Long: TGP to the steerpoint', tap('chA', true), 'C');
+  const recage = cap('MAV recage', 'China Hat Aft Short with the MAV page as SOI: recage the Maverick', () => { if (hotas.soi === 'tgp') hotas.setSoi('mav'); hotas.tap('chA'); });
   const lssBtn = button({ label: 'LSS · OSB 6', size: 's', lamp: true, keepCase: true, ariaLabel: 'TGP page OSB 6: laser spot search', onClick: () => hotas.toggleLss() });
   const laserBtn = button({ label: 'Laser latch', size: 's', lamp: true, keepCase: true, keys: 'Insert', ariaLabel: 'Fire the laser: latch on or off (Insert: hold to fire)', onClick: () => hotas.toggleLaserLatch() });
-  const wilcoBtn = button({ label: 'WILCO · OSB 19', size: 's', lamp: true, keepCase: true, ariaLabel: 'MSG page OSB 19: WILCO', onClick: () => { if (host.jtac().wilco()) log('WILCO: tasking accepted', 'ok'); } });
-  const cntcoBtn = button({ label: 'CNTCO · OSB 7', size: 's', keepCase: true, ariaLabel: 'MSG page OSB 7: cannot comply', onClick: () => { if (host.jtac().cntco()) log('CNTCO: tasking refused'); } });
+  const wilcoBtn = button({ label: 'WILCO · OSB 19', size: 's', lamp: true, keepCase: true, ariaLabel: 'MSG page OSB 19: WILCO', onClick: () => { if (host.jtac()?.wilco()) log('WILCO: tasking accepted', 'ok'); } });
+  const cntcoBtn = button({ label: 'CNTCO · OSB 7', size: 's', keepCase: true, ariaLabel: 'MSG page OSB 7: cannot comply', onClick: () => { if (host.jtac()?.cntco()) log('CNTCO: tasking refused'); } });
   const masterBtn = cap('M Master', 'Master mode NAV, GUNS, CCIP, CCRP', () => { log(`Master mode ${hotas.cycleMaster()}`); }, 'M');
   const profBtn = cap('Profile', 'DMS Right Short with the HUD as SOI: next weapon profile', tap('dmsR'), 'PageDown');
   const releaseBtn = button({ label: 'Release', variant: 'primary', lamp: true, keys: 'RAlt+Space', onClick: () => { hotas.releaseWeapon(); } });
@@ -148,11 +165,11 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const row = (...els: HTMLElement[]) => h('div', { class: 'strk-row' }, ...els);
   const slewPad = slewGrid('strk-pad cas-a10-pad');
   const controlRows = [
-    placard('SOI (Coolie)'), row(soiHud.el, soiTad.el, soiTgp.el, pageBtn.el),
+    placard('SOI (Coolie)'), row(soiHud.el, soiTad.el, soiTgp.el, soiMav.el), row(pageBtn.el, rPageBtn.el),
     placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el, tmsLs.el),
     placard('Slew'), slewPad,
-    placard('China Hat · TGP'), row(slave.el, fovBtn.el, toStp.el), row(lssBtn.el, laserBtn.el),
-    placard('MSG page'), row(wilcoBtn.el, cntcoBtn.el),
+    placard('China Hat · TGP · MAV'), row(slave.el, fovBtn.el, toStp.el), row(lssBtn.el, laserBtn.el, recage.el),
+    ...(host.noMsg ? [] : [placard('MSG page'), row(wilcoBtn.el, cntcoBtn.el)]),
     placard('Weapons'), row(masterBtn.el, profBtn.el, flareBtn.el), releaseBtn.el,
   ];
   const binds = PROCEDURES.a10c.binds;
@@ -179,7 +196,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     'Insert': { down: () => hotas.setLaserHeld(true), up: () => hotas.setLaserHeld(false) },
     'M': () => log(`Master mode ${hotas.cycleMaster()}`),
     'RAlt+Space': { down: () => { hotas.releaseWeapon(); }, inModal: false },
-    'Space': { down: () => { hotas.gun(); }, inModal: false },
+    'Space': { down: () => { triggerHeld = true; hotas.gun(); }, up: () => { triggerHeld = false; }, inModal: false },
     'Left': { down: () => steer(-2), repeat: true },
     'Right': { down: () => steer(2), repeat: true },
     'Up': { down: () => nosePress(-1), up: () => noseRelease(), repeat: true },
@@ -244,7 +261,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       weapon: sel && spec ? { id: sel, label: spec.hudLabel, count: ag.stores[sel] ?? 0 } : null,
       pipper: imp ? angles(ac, imp) : null, releaseCue: null, ccrp,
       spi: Math.abs(spiA.az) < 0.35 && Math.abs(spiA.el) < 0.35 ? spiA : null,
-      belowMinAlt: false, laserFiring: !!ag.tgp?.laserFiring,
+      belowMinAlt: false, laserFiring: !!ag.tgp?.laserFiring, mav: hudMav(ac),
     };
   }
   function tgpView(image: CanvasImageSource | null): TgpPageView {
@@ -258,8 +275,35 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       soi: hotas.soi === 'tgp', isSpi: hotas.spiSource === 'tgp' && !!spi && spi.distanceTo(t.aim) < 5, units: 'imperial',
     };
   }
+  function mavView(image: CanvasImageSource | null): MavPageView {
+    const w = world(), ac = me(), ag = ac.ag!, m = ag.mav, sel = ag.selected;
+    const profile = sel === 'agm65d' || sel === 'agm65h' || sel === 'agm65l' ? sel : null;
+    const aim = m?.aim ?? null;
+    const dh = (ag.stores.agm65d ?? 0) + (ag.stores.agm65h ?? 0);
+    const band = profile ? { min: AG_WEAPONS[profile].rangeKm.min * 1000, max: AG_WEAPONS[profile].rangeKm.max * 1000 } : null;
+    const isL = profile === 'agm65l';
+    return {
+      t: w.t, profile, image: profile && !isL && aim ? image : null,
+      caged: isL ? false : !aim, locked: isL ? false : !!m?.lockedUnitId,
+      sinceBreakS: m?.lastBreak ? w.t - m.lastBreak.t : null,
+      status: isL ? ((ag.stores.agm65l ?? 0) > 0 ? 'RDY' : 'EMPTY') : dh > 0 ? 'RDY' : 'EMPTY',
+      rangeM: isL ? (ag.tgp?.on ? ac.pos.distanceTo(ag.tgp.aim) : null) : aim ? ac.pos.distanceTo(aim) : null,
+      dlz: band, laserCode: isL ? ag.laserCodes.agm65l ?? null : null,
+      spotSeen: isL && !!spotFor(w, ac, 'agm65l'),
+      soi: hotas.soi === 'mav', units: 'imperial',
+    };
+  }
+  /** HUD Maverick cue: the seeker line of sight, the lock and the DLZ, with a D / H profile selected. */
+  function hudMav(ac: Aircraft): HudMavCue | null {
+    const ag = ac.ag!, m = ag.mav, sel = ag.selected;
+    if (!m || !isDh(sel)) return null;
+    const a = m.aim ? angles(ac, m.aim) : null;
+    const rng = m.aim ? ac.pos.distanceTo(m.aim) : null;
+    const band = { min: AG_WEAPONS[sel].rangeKm.min * 1000, max: AG_WEAPONS[sel].rangeKm.max * 1000 };
+    return { los: a, locked: !!m.lockedUnitId, rangeM: rng, dlz: band, tooClose: rng != null && rng < band.min };
+  }
   function tadView(): TadView {
-    const w = world(), ac = me(), tk = host.jtac().tasking;
+    const w = world(), ac = me(), tk = host.jtac()?.tasking;
     const sp = host.steerpoint();
     return {
       t: w.t, own: { x: ac.pos.x, z: ac.pos.z, heading: ac.heading }, scaleNm: hotas.tadScaleNm,
@@ -270,7 +314,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     };
   }
   function msgView(): MsgPageView | null {
-    const tk = host.jtac().tasking;
+    const tk = host.jtac()?.tasking;
     return tk ? { title: 'CAS 9-LINE', lines: tk.lines, state: tk.state } : null;
   }
   function storeText(): string {
@@ -288,18 +332,33 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (noseDir) { noseHeldS += dt; ac.cmd.altitude = ac.pos.y + noseDir * noseOffsetM(noseHeldS); }
       else if (holdGamma != null && ac.alive) ac.cmd.altitude = holdAngleAltitude(ac.pos.y, ac.vel.length(), holdGamma);
       hotas.step(dt);
+      if (triggerHeld) hotas.gun();
     },
     resetInputs() {
-      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null;
+      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null; triggerHeld = false;
       hotas.reset();
     },
     draw(podCam, showRwr, hudCam = null) {
-      const ac = me(), t = ac.ag?.tgp;
-      if (podCam && t?.on && ac.alive) {
-        _dir.subVectors(t.aim, ac.pos).normalize();
-        podCam.render(ac.pos, _dir, TGP_FOV_DEG[t.fov]);
+      const ac = me(), t = ac.ag?.tgp, m = ac.ag?.mav;
+      const onMav = hotas.rightPage === 'mav';
+      if (tgpCanvas.hidden !== onMav) { tgpCanvas.hidden = onMav; mavCanvas.hidden = !onMav; }
+      if (onMav) {
+        // One camera: the right MFCD shows one page at a time, so it renders along the Maverick line of sight here.
+        const live = !!(podCam && m?.aim && ac.alive && isDh(ac.ag?.selected));
+        // Re-render at once when the page, the lock or the aim changes, so the video never shows a stale line of sight.
+        const key = `${m?.lockedUnitId ?? ''}|${Math.round(m?.aim?.x ?? 0)}|${Math.round(m?.aim?.z ?? 0)}`;
+        const fresh = mavRenderKey !== key || lastPage !== 'mav';
+        mavRenderKey = key; lastPage = 'mav';
+        if (live) { _dir.subVectors(m!.aim!, ac.pos).normalize(); podCam!.render(ac.pos, _dir, MAV_FOV_DEG[hotas.mavFov], fresh); }
+        mav.draw(mavView(live ? podCam!.image : null));
+      } else {
+        if (podCam && t?.on && ac.alive) {
+          _dir.subVectors(t.aim, ac.pos).normalize();
+          podCam.render(ac.pos, _dir, TGP_FOV_DEG[t.fov], lastPage !== 'tgp');
+        }
+        lastPage = 'tgp';
+        tgp.draw(tgpView(podCam && t?.on ? podCam.image : null));
       }
-      tgp.draw(tgpView(podCam && t?.on ? podCam.image : null));
       const onTad = hotas.leftPage === 'tad';
       if (tadCanvas.hidden === onTad) { tadCanvas.hidden = !onTad; msgCanvas.hidden = onTad; }
       if (onTad) tad.draw(tadView()); else msg.draw(msgView());
@@ -311,16 +370,17 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       hud.draw(hudView(), hudCam && ac.alive ? hudCam.image : null);
       if (showRwr) rwr.draw(ac.rwr, world().t);
       leftBezel.el.querySelector('.ui-bezel__label')!.textContent = hotas.leftPage === 'tad' ? 'Left MFCD · TAD' : 'Left MFCD · MSG';
+      tgpBezel.el.querySelector('.ui-bezel__label')!.textContent = onMav ? 'Right MFCD · MAV' : 'Right MFCD · TGP';
     },
     updateLamps() {
-      const ac = me(), t = ac.ag?.tgp, tk = host.jtac().tasking;
+      const ac = me(), t = ac.ag?.tgp, tk = host.jtac()?.tasking;
       releaseBtn.setLit(hotas.master !== 'NAV' && world().canAgLaunch(ac.id).ok);
       lssBtn.setLit(!!t && t.lss !== 'off');
       lssBtn.setLabel(t && (t.lss === 'detect' || t.lss === 'track') ? 'LST · OSB 6' : 'LSS · OSB 6');
       laserBtn.setLit(!!t?.laserFiring);
       wilcoBtn.setLit(tk?.state === 'new');
-      for (const [b, s] of [[soiHud, 'hud'], [soiTad, 'tad'], [soiTgp, 'tgp']] as const) b.setLit(hotas.soi === s);
+      for (const [b, s] of [[soiHud, 'hud'], [soiTad, 'tad'], [soiTgp, 'tgp'], [soiMav, 'mav']] as const) b.setLit(hotas.soi === s);
     },
-    storeText, hudView, tgpView, tadView, msgView,
+    storeText, hudView, tgpView, mavView, tadView, msgView,
   };
 }

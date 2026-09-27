@@ -10,6 +10,8 @@ import type { AppStore } from './store';
 import { h } from '../ui/dom';
 
 const DEFAULT_ROLES: readonly AircraftRole[] = ['fighter'];
+/** The route that teaches one attack jet's own cockpit, named in the gate text. */
+const OWN_COCKPIT: Partial<Record<AircraftId, string>> = { su25t: 'Shkval & Vikhr', a10c: 'Targeting pod & Mavericks' };
 
 export function routeRoles(route: Pick<RouteDef, 'roles'>): readonly AircraftRole[] {
   return route.roles ?? DEFAULT_ROLES;
@@ -34,9 +36,9 @@ export function roleGatePanel(route: RouteDef, app: AppStore): HTMLElement {
       ? `The ${jet.short} has no air-to-air radar. Pick a fighter.`
       : `${route.label} is for attack jets. Pick one.`;
   const detail = wrongJet
-    ? `Fly the ${jet.short} in CAS & JTAC (Learn).`
+    ? `Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
     : jet.role === 'attack'
-      ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in CAS & JTAC${jet.id === 'su25t' ? ' or Shkval & Vikhr' : ''} (Learn).`
+      ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
       : `The ${jet.short} is a fighter.`;
   const choices = jet.role === 'attack' && !wrongJet ? FIGHTER_ORDER : AIRCRAFT_ORDER.filter(id => jetAllowed(route, id));
   return h('div', { class: 'role-gate' },
