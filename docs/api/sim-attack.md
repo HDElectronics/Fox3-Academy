@@ -80,8 +80,11 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
   `emitter-off` when the radar goes silent (not verified). Guidance loss is irreversible: restoring the
   laser or lock cannot rescue the shot. A lost-guidance ground impact emits `ag-impact` with no damage and
   resolves as a miss with the original `lostWhy`, even next to a unit. Unguided stores fly with gravity only
-  and a fixed Gaussian dispersion from `world.rand()`. Valid guided and unguided impacts damage every unit
-  within a trainer kill radius.
+  and a fixed Gaussian dispersion from `world.rand()` (trainer values, not verified: S-8 4 mrad, S-13 3 mrad,
+  bombs and cannon 4 mrad; the rockets were halved from 8 and 6 so a steady CCIP rocket pass kills a truck, as it
+  does in DCS). Valid guided and unguided impacts damage every unit within a trainer kill radius.
+  `predictImpact` (the CCIP pipper) starts 2 m below the jet and interpolates the ground crossing exactly like the
+  weapon itself, so with no dispersion the store lands on the pipper (it used to read about 15 m long).
 - **CCRP** (`ccrpSolution(world, ac)` → `{ active, reason, target, ttrS, errDeg, inCircle, passed }`): active with a
   free-fall bomb selected, the Shkval designating a ground point (stabilised or locked) and the laser on (S1).
   `ttrS` is the along-track distance from the no-dispersion impact point to the designated point over the ground

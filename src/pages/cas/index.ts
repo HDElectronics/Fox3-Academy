@@ -18,7 +18,8 @@ import { D2R, R2D } from '../../sim/math';
 import { shkvalAimPoint } from '../../sim/shkval';
 import { CAS_CAVEATS } from '../../data/cas';
 import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '../../render';
-import { AttackScene, ShkvalTv } from '../../render/attack';
+import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
+import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts, callout, placard,
   bindKeys, disclosure, modal, radioMenu, radioMenuKeys, radioLog, toggle, type ModalHandle, type Tone,
@@ -72,7 +73,6 @@ const factory: PageFactory = (): Page => {
       bag, world: () => sc.world, me: () => me,
       log: (text, opts) => log.push(text, opts),
       canFire: () => !ended,
-      climb: m => { me.cmd.altitude = Math.max(sc.groundM + 300, me.cmd.altitude + m); },
     });
     const { tvBezel, hudBezel, rwrBezel, touchPad, keyList } = ck;
 
@@ -142,17 +142,20 @@ const factory: PageFactory = (): Page => {
     const stage = isWebGLAvailable() ? new Stage(viewport, { autoPause: 'render', maxDpr: 1.5, environment: { surface: 'land', grid: false, hazeKm: 60 }, ariaLabel: 'CAS attack in 3D' }) : null;
     bag.add(() => stage?.dispose());
     let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null;
+    let trail: ImpactTrail | null = null;
 
     sc = buildCasScenario(lesson);
     me = sc.me;
     if (stage) {
       view = new WorldView(stage, sc.world, { units: 'metric', layers: { dropLines: false, shadows: false } });
       scene = new AttackScene(stage, sc.world, view, { field: sc.field, shooterId: me.id, layers: { markers: showMarkers } });
-      tvCam = new ShkvalTv(stage, { hidden: () => scene!.tvHidden() });
+      trail = new ImpactTrail(stage);
+      bag.add(() => trail?.dispose());
+      tvCam = new ShkvalTv(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
       bag.add(() => tvCam?.dispose());
       rig = new CameraRig(stage, { source: view, mode: 'chase' });
       stage.onFrame(dt => { if (dt > 0) tick(Math.min(dt, 0.1)); });
-      stage.onFrame(() => ck.draw(tvCam, sc.sams.length > 0), { priority: FramePriority.env + 50 });
+      stage.onFrame(() => { ck.draw(tvCam, sc.sams.length > 0); trail?.update(sc.world.t, me.alive ? me.pos : null, ccipPoint()); }, { priority: FramePriority.env + 50 });
     } else {
       let last = performance.now(), raf = 0;
       const loop = (now: number) => { tick(Math.min(0.1, (now - last) / 1000)); last = now; ck.draw(null, sc.sams.length > 0); raf = requestAnimationFrame(loop); };
@@ -171,6 +174,12 @@ const factory: PageFactory = (): Page => {
       if (!p) return { kind: 'none' };
       for (const id of sc.targets) { const u = w.groundUnits.get(id); if (u?.alive && distM(u.pos, p) <= AIM_ON_TARGET_M) return { kind: 'target', unitId: id }; }
       return { kind: 'none' };
+    }
+    /** CCIP ground point of the selected unguided weapon (rockets, gun) for the impact trail. */
+    function ccipPoint() {
+      const ag = me.ag!, sel = ag.selected;
+      if (!me.alive || ag.master === 'nav' || !sel || ccrpSolution(sc.world, me).active) return null;
+      return predictImpact(sc.world, me, sel);
     }
     const hdgDeg = () => ((me.heading * R2D) % 360 + 360) % 360;
     const alive = (ids: readonly EntityId[]) => ids.filter(id => sc.world.groundUnits.get(id)?.alive).length;

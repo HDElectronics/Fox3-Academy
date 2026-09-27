@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from './world';
 import type { AgWeapon, SimEvent } from './types';
 import { AG_WEAPONS } from '../data/agWeapons';
-import type { AgLaunchCheck } from './agWeapons';
+import { AG_MODEL, predictImpact, type AgLaunchCheck } from './agWeapons';
 import type { AgWeaponId } from '../data/types';
 
 const isCheck = (r: AgWeapon[] | AgLaunchCheck): r is AgLaunchCheck => !Array.isArray(r);
@@ -247,5 +247,27 @@ describe('Ballistic stores: fixed dispersion, deterministic', () => {
     const r = world.agLaunch('me') as AgWeapon[];
     expect(r.length).toBe(10);
     expect(ag.stores.gun25t).toBe(n - 10);
+  });
+});
+
+describe('CCIP pipper accuracy', () => {
+  // Regression: the pipper stepped the flight at 0.05 s and stopped at the first point below ground, reading about
+  // 15 m long for rockets. With no dispersion a store must land on the pipper (the pod's lateral offset aside).
+  it.each(['s8', 's13', 'fab250'] as const)('%s with no dispersion lands within 4 m of the pipper', w => {
+    const disp = AG_MODEL[w].dispersionMrad;
+    AG_MODEL[w].dispersionMrad = 0;
+    try {
+      const { world, ac } = setup({ loadout: 'unguided', alt: 1200 });
+      world.setAgMaster('me', 'ag');
+      if (!world.selectAgWeapon('me', w)) { ac.ag!.stores[w] = 4; world.selectAgWeapon('me', w); }
+      ac.pitch = -20 * Math.PI / 180;
+      ac.vel.set(0, 200 * Math.sin(ac.pitch), -200 * Math.cos(ac.pitch));
+      const p = predictImpact(world, ac, w)!;
+      const out = world.agLaunch('me');
+      expect(isCheck(out)).toBe(false);
+      const wp = (out as AgWeapon[])[0]!;
+      for (let i = 0; i < 60 * 60 && wp.alive; i++) world.step(1 / 60);
+      expect(Math.hypot(wp.pos.x - p.x, wp.pos.z - p.z)).toBeLessThan(4);
+    } finally { AG_MODEL[w].dispersionMrad = disp; }
   });
 });

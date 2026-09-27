@@ -120,7 +120,7 @@ export const LESSONS: Record<LessonId, LessonDef> = {
     steps: [
       { id: 'mode', text: 'Air-to-ground mode: ОПТ-ЗЕМЛЯ.', keys: '7', check: s => s.master === 'ag' },
       { id: 'weapon', text: 'Select the S-8 rockets (С8), or the cannon (ВПУ).', keys: 'D or C', check: s => s.selected === 's8' || s.selected === 'gun25t' },
-      { id: 'fire', text: 'In the dive, steer the pipper onto a truck and fire when ПР lights.', keys: 'Left / Right, Space', check: s => s.shots > 0 },
+      { id: 'fire', text: 'Push the nose down (Up arrow; hold longer for a steeper dive), steer the pipper onto a truck, fire when ПР lights, then pull up (Down arrow).', keys: 'Up / Down, Left / Right, Space', check: s => s.shots > 0 },
       { id: 'hit', text: 'Destroy a truck.', check: s => s.hits > 0 },
     ],
   },
@@ -166,7 +166,7 @@ export const LESSONS: Record<LessonId, LessonDef> = {
     steps: [
       { id: 'brief', text: 'Brief: pick the loadout, read the threats and the IP, then fly.', check: s => s.sortiePhase !== undefined && s.sortiePhase !== 'brief' },
       { id: 'ingress', text: 'Ingress low (50–100 m) on the steering cue to the IP. Terrain hides you from the SAM radars.', keys: 'Left / Right, Up / Down', check: s => !!s.ipReached },
-      { id: 'popup', text: 'Past the IP, turn onto the target and pop up to about 600 m for the Shkval search.', keys: 'Up', check: s => !!s.ipReached && (s.aglM ?? 0) > 400 },
+      { id: 'popup', text: 'Past the IP, turn onto the target and pop up to about 600 m for the Shkval search (Down arrow raises the height).', keys: 'Down', check: s => !!s.ipReached && (s.aglM ?? 0) > 400 },
       { id: 'search', text: 'Air-to-ground mode, Shkval on, find the column (10 m) or the bunker (60 m) and lock: АС.', keys: '7, O, Enter', check: s => s.locked === 'tank' || s.locked === 'apc' || s.locked === 'bunker' || s.hits > 0 },
       { id: 'attack', text: 'Attack with your loadout. Laser weapons: hold the lock and ЛД to impact.', keys: 'Space', check: s => s.hits > 0 },
       { id: 'egress', text: 'Egress: turn back, descend and fly out past the IP.', keys: 'Left / Right, Down', check: s => s.sortiePhase === 'done' },

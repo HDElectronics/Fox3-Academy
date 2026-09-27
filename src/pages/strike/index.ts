@@ -19,10 +19,10 @@ import { AG_WEAPONS } from '../../data/agWeapons';
 import type { Aircraft, AgMissReason, EntityId } from '../../sim/types';
 import { D2R, R2D } from '../../sim/math';
 import { LASER_LIMIT_S, shkvalAimPoint } from '../../sim/shkval';
-import { ccrpSolution } from '../../sim/agWeapons';
+import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import { samRingM } from '../../sim/sam';
 import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '../../render';
-import { AttackScene, ShkvalTv } from '../../render/attack';
+import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts,
   callout, placard, bindKeys, disclosure, modal, select, toggle, type ModalHandle, type Tone,
@@ -41,12 +41,12 @@ import { AREA_VIEW, drawPlan, type MapPlan, type MapScene } from './sortieMap';
 import { PLAN } from './sortie';
 import { mountSortieDebrief } from './sortieDebrief';
 
-const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
+const SHOTS = ['shkval', 'locked', 'vikhr-flight', 'impact', 'debrief', 'ccip', 'ccrp', 'sead', 'sead-lock', 'threat', 'threat-debrief'] as const;
 type Shot = typeof SHOTS[number];
 type Cam = 'chase' | 'target' | 'tv';
 const SHOT_LESSON: Record<Shot, LessonId> = {
   shkval: 'shkval', locked: 'laser', 'vikhr-flight': 'vikhr', impact: 'vikhr', debrief: 'vikhr',
-  ccrp: 'bombs', sead: 'sead', 'sead-lock': 'sead', threat: 'threat', 'threat-debrief': 'threat',
+  ccip: 'ccip', ccrp: 'bombs', sead: 'sead', 'sead-lock': 'sead', threat: 'threat', 'threat-debrief': 'threat',
 };
 const SORTIE_SHOTS = ['brief', 'ingress', 'attack', 'egress', 'debrief'] as const;
 type SortieShotParam = typeof SORTIE_SHOTS[number];
@@ -81,7 +81,7 @@ const factory: PageFactory = (): Page => {
     let shots = new Map<EntityId, ShotRecord>();
     let salvos = 0, bestMissM: number | null = null;
     let done = new Set<string>();
-    let ended = false, endAt: number | null = null, dived = false, pulled = false;
+    let ended = false, endAt: number | null = null, dived = false, closestM = Infinity;
     let result: ModalHandle | null = null;
     let uiClock = 0;
     const sa11 = params.get('sa11') === '1';
@@ -106,7 +106,7 @@ const factory: PageFactory = (): Page => {
       bag, world: () => sc.world, me: () => me,
       log: (text, opts) => log.push(text, opts),
       canFire: () => !ended,
-      climb: m => climb(m),
+      nose: d => nose(d),
       onRelease: out => { salvos++; if (lesson === 'bombs' && out.some(x => x.type === 'fab250')) ccipBombs++; },
       onLockFail: reason => {
         const aim = shkvalAimPoint(sc.world, me);
@@ -181,7 +181,7 @@ const factory: PageFactory = (): Page => {
     }
     const stage = isWebGLAvailable() ? new Stage(viewport, { autoPause: 'render', maxDpr: 1.5, environment: { surface: 'land', grid: false, hazeKm: 60 }, ariaLabel: 'Attack run in 3D' }) : null;
     bag.add(() => stage?.dispose());
-    let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null;
+    let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null, trail: ImpactTrail | null = null;
 
     sc = buildScenario(lesson);
     me = sc.me;
@@ -189,7 +189,9 @@ const factory: PageFactory = (): Page => {
     if (stage) {
       view = new WorldView(stage, sc.world, { units: 'metric', layers: { dropLines: false, shadows: false } });
       scene = new AttackScene(stage, sc.world, view, { field: sc.field, shooterId: me.id });
-      tvCam = new ShkvalTv(stage, { hidden: () => scene!.tvHidden() });
+      trail = new ImpactTrail(stage);
+      bag.add(() => trail?.dispose());
+      tvCam = new ShkvalTv(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
       bag.add(() => tvCam?.dispose());
       rig = new CameraRig(stage, { source: view, mode: 'chase' });
       stage.onFrame(dt => { if (dt > 0) tick(Math.min(dt, 0.1)); });
@@ -205,9 +207,11 @@ const factory: PageFactory = (): Page => {
     bag.add(bindKeys(ck.keys));
 
     // ------------------------------------------------------------------ actions
-    function climb(m: number): void {
-      if (lesson === 'sortie') { aglSet = Math.max(AGL_MIN, Math.min(AGL_MAX, aglSet + Math.sign(m) * AGL_STEP)); return; }
-      me.cmd.altitude = Math.max(sc.groundM + 150, me.cmd.altitude + m);
+    /** Sortie: the arrows set the terrain-following height (Down = higher, like pulling the nose up). Elsewhere the cockpit flies the pitch. */
+    function nose(d: -1 | 0 | 1): boolean {
+      if (lesson !== 'sortie') return false;
+      if (d) aglSet = Math.max(AGL_MIN, Math.min(AGL_MAX, aglSet + d * AGL_STEP));
+      return true;
     }
 
     function setCam(c: Cam): void {
@@ -240,7 +244,7 @@ const factory: PageFactory = (): Page => {
       scene?.setShooter(me.id);
       evCursor = 0;
       bunkerSizeFail = false; laserRunS = 0; lasedLongEnough = false; laserS = 0;
-      shots = new Map(); salvos = 0; bestMissM = null; done = new Set(); ended = false; endAt = null; dived = false; pulled = false;
+      shots = new Map(); salvos = 0; bestMissM = null; done = new Set(); ended = false; endAt = null; dived = false; closestM = Infinity;
       ccrpReleases = 0; ccrpPassesMissed = 0; ccrpMissM = null; ccipMissM = null; ccipBombs = 0; bombPhase = 'ccrp'; phaseAt = null;
       ccrpBombs = new Set(); armFired = 0; armLaunchRangeM = null; ringS = 0; samLaunches = 0; hitsTaken = 0;
       rwrBezel.el.hidden = !sc.sams.length;
@@ -325,7 +329,7 @@ const factory: PageFactory = (): Page => {
         loadSel.el,
         h('p', { class: 'strk-brief__plan' }, plan.plan),
         sa11Tog.el,
-        callout({ kind: 'simplified', body: 'Trainer steering cue and terrain following: Up / Down set the height above the ground. Flares on Delete (Su-25T binding not verified). The ZSU-23-4 is a simple gun-site rule.' }),
+        callout({ kind: 'simplified', body: 'Trainer steering cue and terrain following: Down raises and Up lowers the height above the ground (nose up / nose down, as in DCS). Flares on Delete (Su-25T binding not verified). The ZSU-23-4 is a simple gun-site rule.' }),
         button({ label: 'Fly the sortie', variant: 'primary', block: true, id: 'strk-fly', onClick: () => startSortie(false) }).el,
       ));
     }
@@ -449,6 +453,7 @@ const factory: PageFactory = (): Page => {
         me.pos.set(TANKS_AT.x + 900, sc.groundM + st.aglM, TANKS_AT.z + st.rangeM);
         me.heading = me.cmd.heading = -5 * D2R; me.cmd.altitude = sc.groundM + st.aglM;
         me.vel.set(Math.sin(me.heading) * st.speed, 0, -Math.cos(me.heading) * st.speed);
+        ck.resetInputs();
         log.push('Repositioned for another CCRP leg', { t: w.t });
         return;
       }
@@ -459,8 +464,9 @@ const factory: PageFactory = (): Page => {
       me.pos.set(c.x, sc.groundM + START.ccip.aglM, c.z + START.ccip.rangeM);
       me.heading = me.cmd.heading = 0; me.cmd.altitude = sc.groundM + START.ccip.aglM; me.cmd.speed = START.ccip.speed;
       me.vel.set(0, 0, -START.ccip.speed);
-      dived = false; pulled = false;
-      log.push('CCIP pass: Shkval off, rolling in on the trucks at 5 km', { t: w.t });
+      ck.resetInputs();
+      dived = false; closestM = Infinity;
+      log.push('CCIP pass: Shkval off. Push the nose down onto the trucks (Up arrow)', { t: w.t });
     }
 
     function flyLesson(): void {
@@ -503,12 +509,13 @@ const factory: PageFactory = (): Page => {
         }
         return;
       }
-      // CCIP pass: roll in at 5 km, pull out at 900 m or 300 m above the ground.
-      const agl = me.pos.y - w.groundHeight(me.pos.x, me.pos.z);
-      if (!dived && range < 5000) { dived = true; me.cmd.altitude = sc.groundM + 150; log.push('Rolling in: pipper to the trucks', { t: w.t }); }
-      if (dived && !pulled && (range < 900 || agl < 300)) {
-        pulled = true; me.cmd.altitude = sc.groundM + 1000; me.cmd.heading = me.heading + 60 * D2R;
-        log.push('Pull out', { t: w.t }); endAt = w.t + (lesson === 'bombs' ? 12 : 4);
+      // CCIP pass: the pilot flies the dive (Up nose down, Down nose up, Left / Right). The pass ends once the jet
+      // is past the trucks or at the time limit; weapons still in flight resolve before the debrief.
+      closestM = Math.min(closestM, range);
+      if (!dived && range < 1500) dived = true;
+      if (endAt == null && ((dived && range > closestM + 300) || w.t > 150)) {
+        endAt = w.t + (lesson === 'bombs' ? 12 : 4);
+        log.push(dived ? 'Past the target: pass complete' : 'Time up', { t: w.t });
       }
     }
 
@@ -638,7 +645,16 @@ const factory: PageFactory = (): Page => {
     }
 
     // ------------------------------------------------------------------ displays
-    function renderTv(): void { ck.draw(tvCam, sc.sams.length > 0); }
+    function renderTv(): void {
+      ck.draw(tvCam, sc.sams.length > 0);
+      trail?.update(world().t, me.alive ? me.pos : null, ccipPoint());
+    }
+    /** The CCIP ground point of the selected unguided weapon (the HUD pipper), for the impact trail. */
+    function ccipPoint() {
+      const ag = me.ag!, sel = ag.selected;
+      if (!me.alive || ag.master === 'nav' || !sel || ccrpSolution(world(), me).active) return null;
+      return predictImpact(world(), me, sel);
+    }
 
     function updateUi(force: boolean): void {
       const w = world(), ag = me.ag!, sh = ag.shkval;
@@ -676,6 +692,10 @@ const factory: PageFactory = (): Page => {
       const samOnMe = [...w.samMissiles.values()].some(m => m.alive && m.guided && m.targetId === me.id);
       if (samOnMe) { text = `SAM launch: notch it. Put the SAM at 3 or 9 o'clock and descend, or turn out of the ring.`; why = 'Radar guided: the missile needs the site track to impact. Flares do not decoy it.'; tone = 'warning'; }
       else if (insideRing() && !ended) { why = 'Inside the SAM ring: every second counts against you.'; tone = 'caution'; }
+      const diving = lesson === 'ccip' || (lesson === 'bombs' && bombPhase === 'ccip');
+      if (diving && !ended && !samOnMe && me.pos.y - w.groundHeight(me.pos.x, me.pos.z) < 300 && me.vel.y < -5) {
+        text = 'Pull up: Down arrow.'; why = 'Below 300 m and descending. Pull the nose up now.'; tone = 'warning';
+      }
       if (lesson === 'sortie') {
         if (sortieState === 'done') return;
         updateNav();
@@ -742,6 +762,21 @@ const factory: PageFactory = (): Page => {
       } else if (s === 'locked') {
         w.shkvalPointAt(id, tank.pos); w.shkvalZoom(id, 1); w.shkvalLock(id); w.laser(id, true);
         run(3);
+      } else if (s === 'ccip') {
+        // Push over until the pipper reaches the trucks, then let go and hold the dive angle.
+        setMaster('ag'); w.selectAgWeapon(id, 's8');
+        const trucksAt = () => centreOf(w, sc.trucks) ?? { x: TRUCKS_AT.x, y: sc.groundM, z: TRUCKS_AT.z };
+        const toTrucks = () => { const c = trucksAt(); return Math.hypot(c.x - me.pos.x, c.z - me.pos.z); };
+        for (let i = 0; i < 1800 && toTrucks() > 4000; i++) tick(1 / 30);
+        ck.nose(-1);
+        for (let i = 0; i < 300; i++) {
+          const p = predictImpact(w, me, 's8'), c = trucksAt();
+          if (p && Math.hypot(p.x - me.pos.x, p.z - me.pos.z) <= toTrucks()) break;
+          me.cmd.heading = Math.atan2(c.x - me.pos.x, -(c.z - me.pos.z));
+          tick(1 / 30);
+        }
+        ck.nose(0);
+        run(1.5);
       } else if (s === 'ccrp') {
         setMaster('ag'); w.selectAgWeapon(id, 'fab250'); w.shkvalPower(id, true);
         w.shkvalPointAt(id, tank.pos); w.shkvalStabilise(id, true); w.shkvalZoom(id, 1); w.laser(id, true);

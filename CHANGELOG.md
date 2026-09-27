@@ -8,6 +8,12 @@
   target marks to the sim and attack scene, the radio menu and subtitle widgets, and ground units, A-G weapons,
   marks and JTAC calls in Tacview exports. The Su-25T cockpit is shared with Shkval & Vikhr.
 
+- Fly the dive yourself in the Shkval & Vikhr CCIP pass and the CCIP half of the Bombs lesson: no automatic
+  roll-in or pull-out. The arrows now pitch as in DCS in every lesson that flies the jet (Up nose down, Down nose
+  up; Sortie W / S follow the arrows); a released key holds the dive angle. A ground trail shows where the CCIP
+  pipper's impact point has been. Fix the CCIP pipper reading about 15 m long, and halve the S-8 / S-13 trainer
+  dispersion so a steady rocket pass kills a truck.
+
 - Add Learn → Progress (#14): saved completions across all eleven jets, supported flight-ops and strike goals,
   best RWR/Sortie scores, and links to continue the next incomplete lesson. Reuse existing local progress.
 - Add Download ACMI to the BVR Sortie debrief (#14). Export sampled aircraft, missiles and SAMs with combat

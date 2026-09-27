@@ -99,8 +99,11 @@ describe('jetKeyMap', () => {
 
   test('trainer steering keys avoid the jet keys', () => {
     expect(trainerKeys(jetKeyMap('su27')).left).toBe('Left');          // D is weapon cycle
-    expect(trainerKeys(jetKeyMap('su27')).climb).toBe('Up / W');
-    expect(trainerKeys(jetKeyMap('fa18c')).climb).toBe('Up');           // S is undesignate
+    // DCS keyboard pitch: Down (S) pulls the nose up, Up (W) pushes it down.
+    expect(trainerKeys(jetKeyMap('su27')).climb).toBe('Down / S');
+    expect(trainerKeys(jetKeyMap('su27')).descend).toBe('Up / W');
+    expect(trainerKeys(jetKeyMap('fa18c')).climb).toBe('Down');         // S is undesignate
+    expect(trainerKeys(jetKeyMap('fa18c')).descend).toBe('Up');
     expect(trainerKeys(jetKeyMap('f14b')).left).toBe('Left / A');
     for (const ac of FIGHTER_ORDER) {
       const used = usedChords(jetKeyMap(ac));

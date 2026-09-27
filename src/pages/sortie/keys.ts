@@ -201,8 +201,9 @@ export function trainerKeys(map: JetKeyMap): TrainerKeys {
   return {
     left: ad ? 'Left / A' : 'Left',
     right: ad ? 'Right / D' : 'Right',
-    climb: ws ? 'Up / W' : 'Up',
-    descend: ws ? 'Down / S' : 'Down',
+    // DCS keyboard pitch: Down (and S) pulls the nose up, Up (and W) pushes it down.
+    climb: ws ? 'Down / S' : 'Down',
+    descend: ws ? 'Up / W' : 'Up',
     faster: 'LShift',
     slower: 'LCtrl',
     afterburner: fk('B'),
