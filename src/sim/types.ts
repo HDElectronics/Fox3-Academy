@@ -290,6 +290,9 @@ export interface ShkvalState {
   laserCoolS: number;
 }
 
+/** Unguided release quantity per trigger press (S1: ПО 1 / ПО 2 / ПО 4 / ВСЕ, cycled with [LCtrl-Space]). */
+export type AgSalvo = 1 | 2 | 4 | 'all';
+
 export interface AttackState {
   master: AgMasterMode;
   /** Rounds left per A-G store (the cannon counts rounds). */
@@ -301,6 +304,8 @@ export interface AttackState {
   station: number | null;
   /** Fire pairs where the weapon allows it (Vikhr). */
   pair: boolean;
+  /** Rockets and bombs released per press, all at once (S1 ЗАЛП). The default ПО 1 is a trainer choice, not verified. */
+  salvo: AgSalvo;
   /** L-081 Fantasmagoria pod carried (needed for the Kh-58). */
   pod: boolean;
   /** Anti-radiation passive detection ([I]) and the emitter (SAM site id) locked for the Kh-58. */

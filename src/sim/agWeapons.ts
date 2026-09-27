@@ -17,7 +17,7 @@ import type { AgWeaponId } from '../data/types';
 import { AG_WEAPONS } from '../data/agWeapons';
 import type { AgMissReason, AgWeapon, Aircraft, AttackState, EntityId } from './types';
 import { D2R, G0, clamp, dirFrom, relBearing } from './math';
-import { cycleAgWeapon, stationsWith } from './attack';
+import { cycleAgWeapon, salvoCount, stationsWith } from './attack';
 import { damageGround, groundHeight, groundUnitVel } from './ground';
 import { shkvalAimPoint } from './shkval';
 import { kh58CanAttack } from '../data/agWeapons';
@@ -261,7 +261,7 @@ export function agLaunch(world: World, ac: Aircraft, opts: { ccrp?: boolean } = 
   const ag = ac.ag!, w = check.weapon, spec = AG_WEAPONS[w];
   const out: AgWeapon[] = [];
   if (spec.guidance === 'ballistic') {
-    const n = w === 'gun25t' ? Math.min(GUN_BURST, ag.stores[w] ?? 0) : 1;
+    const n = w === 'gun25t' ? Math.min(GUN_BURST, ag.stores[w] ?? 0) : salvoCount(ag, w);
     for (let i = 0; i < n; i++) {
       const station = takeRound(ag, w);
       const aim = predictImpact(world, ac, w) ?? ac.pos.clone();

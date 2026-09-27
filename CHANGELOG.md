@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Su-25T follow-ups (#61): Nose ▼ / Nose ▲ pitch buttons on the phone touch pad; the S1 salvo selector
+  (ПО 1 / ПО 2 / ПО 4 / ВСЕ, LCtrl + Space or the ПО Salvo button) for rockets and bombs, shown in the Store
+  readout; laser codes kept in recordings and Tacview messages ("Laser mark 1688 on").
+
 - Add Learn → CAS & JTAC for the Su-25T (#53). Work the built-in JTAC through a DCS-style radio menu: check-in,
   the 9-line on a kneeboard card, remarks and readback, IP inbound, white smoke inside 10 nm, the talk-on, In,
   cleared hot or abort, Off and BDA. Five lessons score the card, clearance discipline and friendly safety. Adds
