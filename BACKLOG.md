@@ -45,7 +45,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 - **B16. Remaining device QA.** The [browser QA pass](docs/browser-qa.md) covers live desktop/phone-width
   interactions across every module. Still verify physical key holds (FC3 Space 1 s, Viper TMS Right 1 s,
-  M-2000C 2 s), RWR audio by ear, touch on real phones, browser Back/Forward scroll restoration across
+  M-2000C 2 s), RWR audio by ear, touch on real tablets (phones get the desktop-only panel), browser Back/Forward scroll restoration across
   routes, and frame rate on low-end GPUs, including the new exterior assets and the Shkval second viewport.
   Hold cancellation and thresholds have automated regression tests.
 
@@ -61,5 +61,5 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B25. Cockpit explorer** ([#46](https://github.com/HDElectronics/Fox3-Academy/issues/46)). Removed from the app
   to be rebuilt by the community: an interactive, sourced map of an aircraft's cockpit controls. The previous
   F-16C catalogue is in the repository history; research in [f16-cockpit.md](docs/research/f16-cockpit.md). Done
-  when a `cockpit` route returns with one aircraft fully mapped and sourced, phone layout checked and image rights
+  when a `cockpit` route returns with one aircraft fully mapped and sourced, narrow layout checked and image rights
   clear.

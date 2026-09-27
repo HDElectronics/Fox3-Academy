@@ -1,5 +1,8 @@
 # Browser QA — 2026-09-21
 
+> Since 2026-09-27 the app is desktop only: phones see the panel in `src/app/deviceGate.ts`. The 390 px checks
+> below remain as history; narrow layouts are now checked for tablets and small desktop windows.
+
 This pass used interactive Chrome on macOS at 1440 × 900 and an actual 390 × 844 browser viewport,
 plus the repository's headless visual harness. Phone-width browser checks do not establish real-device
 touch behavior. Existing aircraft models and DCS fact sources were unchanged.

@@ -100,6 +100,13 @@ kbd {
 .role-gate p { font-family: var(--font-body); margin: 0 0 var(--gap-3); }
 .role-gate__lead { font-weight: 600; }
 .role-gate__jets { display: flex; flex-wrap: wrap; gap: var(--gap-2); }
+/* Desktop-only gate (src/app/deviceGate.ts): phones see this panel instead of the app. */
+.phone-gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: var(--gap-4); }
+.phone-gate > .ui-console { max-width: 460px; width: 100%; padding: var(--gap-4); }
+.phone-gate__title { font-family: var(--font-display); margin: 0 0 var(--gap-3); }
+.phone-gate p { font-family: var(--font-body); margin: 0 0 var(--gap-3); }
+.phone-gate__lead { font-weight: 600; }
+.phone-gate__status { font-family: var(--font-mono); font-size: var(--fs-s); overflow-wrap: anywhere; min-height: 1.2em; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }

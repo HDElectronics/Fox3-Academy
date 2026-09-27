@@ -64,7 +64,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |
 | `docs/` | Human docs: user guide, developer guide, DCS accuracy, decisions | `docs/README.md` |
-| `sandbox/` | Dev-only kit and page harnesses, `frame.html` for phone shots (not in the build) | `docs/developer-guide.md` |
+| `sandbox/` | Dev-only kit and page harnesses, `frame.html` for narrow shots (not in the build) | `docs/developer-guide.md` |
 | `tests/tune/` | Env-gated tuning, AI duel sweep, DLZ generator | |
 | `scripts/` | `shot.sh` (headless screenshots) | |
 
@@ -106,19 +106,22 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
 
 ```
 scripts/shot.sh '/#/tws?ac=su27' .shots/tws-su27.png 1440 900 6000   # path, output, width, height, wait ms
-scripts/shot.sh '/#/tws?ac=f15c' .shots/tws-390.png 390 844 6000     # true 390 px phone layout
+scripts/shot.sh '/#/tws?ac=f15c' .shots/tws-820.png 820 1180 6000   # tablet / narrow window layout
 ```
 
 It starts a dev server on :5190 if none is running, takes a headless-Chrome screenshot (WebGL works via
 SwiftShader) and prints the page's console output. View the PNG. Check at least su27 (Russian skin, metric,
-no Fox 3), f15c (US skin, multi-target) and m2000c or f14b (edge cases), at 1440 and 390 wide.
+no Fox 3), f15c (US skin, multi-target) and m2000c or f14b (edge cases), at 1440 and 820 wide.
+The app is desktop only: phones (touch-only, short screen side under 600 px) get the panel in
+`src/app/deviceGate.ts` instead of the app, so there is no phone layout to check. Tablets and narrow windows
+keep the responsive layouts and the touch controls.
 
 Headless gotchas:
 - Time is virtual and `requestAnimationFrame` barely runs, so use each page's `?shot=<state>` pre-roll
   (and `?t=<seconds>` on the radar lab) to reach interesting states.
 - Screenshots of a scrolled window come out blank: use a tall window (e.g. 1440x3000) or section params.
 - Headless Chrome never lays out narrower than 500 px; `shot.sh` hosts narrower widths in
-  `sandbox/frame.html` and crops, so 390 is a real 390 layout.
+  `sandbox/frame.html` and crops, so a narrow shot is a real narrow layout.
 
 ## Gotchas
 

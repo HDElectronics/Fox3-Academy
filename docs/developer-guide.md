@@ -59,7 +59,7 @@ time. Switching jets or units remounts the current page, so pages read the jet o
 so switching guided/free sessions remounts even on the same path. It consumes `ac` once before mounting.
 The shell measures both navigation rows into `--shell-h` for viewport sizing.
 
-3D labs opt into `labLayout({ mobileTabs: true, mobileActions })`. Phone tab changes hide panels without
+3D labs opt into `labLayout({ mobileTabs: true, mobileActions })`. Narrow-screen tab changes hide panels without
 rebuilding their World or Stage. Dispose the layout with the page's cleanup bag. `mobileAction` mirrors an
 existing button's state and invokes its original handler; its MutationObserver must also be disposed.
 

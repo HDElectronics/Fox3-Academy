@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Su-25T follow-ups (#61): Nose ▼ / Nose ▲ pitch buttons on the phone touch pad; the S1 salvo selector
+- Make Fox3 Academy desktop only. Phones (touch-only, shorter screen side under 600 px) see a short panel with a
+  Copy link button instead of the app; tablets, touchscreen laptops and narrow desktop windows keep the full app.
+  Visual checks move from 390 px to 1440 and 820 px.
+
+- Su-25T follow-ups (#61): Nose ▼ / Nose ▲ pitch buttons on the tablet touch pad; the S1 salvo selector
   (ПО 1 / ПО 2 / ПО 4 / ВСЕ, LCtrl + Space or the ПО Salvo button) for rockets and bombs, shown in the Store
   readout; laser codes kept in recordings and Tacview messages ("Laser mark 1688 on").
 
