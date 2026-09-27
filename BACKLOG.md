@@ -22,6 +22,9 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   in-game observation.
 - **B24. Verify flight-ops and SAM values in game** ([#35](https://github.com/HDElectronics/Fox3-Academy/issues/35)).
   Pattern, takeoff, carrier, launch, refuelling and SAM values marked not verified in `docs/api/data.md`.
+- **B27. Verify the JTAC and CCIP trainer values in game** ([#63](https://github.com/HDElectronics/Fox3-Academy/issues/63)).
+  AI JTAC wording, radio menu labels outside the ED manual, when the AI clears or aborts, smoke lifetime, the
+  Su-25T 1113 laser report, the Shkval frame minimum and the S-8 / S-13 dispersion. Labelled until checked.
 - **B7. Long regular-vs-regular fights.** Investigated in
   [ai-engagement-review.md](docs/research/ai-engagement-review.md). All 110 seeded diagnostics resolved within
   ten simulated minutes, without a stuck-state classification. Some Hornet/MiG-29S and Mirage/MiG-29S cases
@@ -34,12 +37,9 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   flight-ops PRs: touch panel on tanker starts, catapults 3–4, deck altitude on the HUD, carrier wake, and others.
 - **B23. SAM follow-ups** ([#34](https://github.com/HDElectronics/Fox3-Academy/issues/34)). AI jets ignore SAMs,
   sites cannot be destroyed, SA-10 drill pacing.
-- **B26. CAS & JTAC module** ([#53](https://github.com/HDElectronics/Fox3-Academy/issues/53)). Teach the in-game JTAC workflow before players fly it: radio menu,
-  9-line into a kneeboard card, white smoke and talk-on, IP Inbound / In / cleared hot, friendlies close, a CAS
-  sortie with debrief. Su-25T first, A-10C II next. Plan and build order in [cas-plan.md](docs/cas-plan.md);
-  research in [cas-jtac.md](docs/research/cas-jtac.md) and [cas-jets.md](docs/research/cas-jets.md). Done when
-  the `cas` route ships lessons 1–5 for the Su-25T with every unverified JTAC phrase labelled, `npm run check`
-  green and visual checks at 1440 and 390.
+- **B28. CAS follow-ups** ([#61](https://github.com/HDElectronics/Fox3-Academy/issues/61)). Pitch buttons on touch screens,
+  the S1 rocket salvo selector (ПО 1 / 2 / 4 / ВСЕ), the laser code in recordings, the IR pointer lesson, and a
+  multirole route role so the Hornet and Viper can fly CAS.
 
 ## P3 — Quality and infrastructure
 
@@ -53,6 +53,8 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 - Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
+- A-10C II as the next CAS jet ([#62](https://github.com/HDElectronics/Fox3-Academy/issues/62)): laser spot search, the
+  digital 9-line on the TAD, coordinates and markpoints (research in [cas-jets.md](docs/research/cas-jets.md)).
 
 ## Community contributions — deferred from active implementation
 

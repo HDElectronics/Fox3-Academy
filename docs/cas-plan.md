@@ -1,6 +1,6 @@
 # CAS & JTAC module: plan
 
-Status: proposed (2026-09-26). Tracks backlog item B26. Game level only (AGENTS.md rule 1): the module teaches
+Status: shipped for the Su-25T (2026-09-27, #54–#60, issue #53). Follow-ups: #61, #62 (A-10C II), #63 (in-game checks). Game level only (AGENTS.md rule 1): the module teaches
 what the DCS player sees and does with the built-in JTAC (radio menu, 9-line, marks, clearance calls) and never
 weapon effects, fuzing or risk-estimate tables.
 
