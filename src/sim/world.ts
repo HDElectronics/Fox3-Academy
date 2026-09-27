@@ -11,7 +11,7 @@ import { Vector3 } from 'three';
 import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  AgMasterMode, AgWeapon, Aircraft, Countermeasure, EntityId, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, Missile,
+  AgMasterMode, AgWeapon, Aircraft, Countermeasure, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
   RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
@@ -33,6 +33,7 @@ import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
 import { createSamSite, stepSams } from './sam';
 import { createGunState, stepGuns } from './guns';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
+import { createMark, endMark, stepMarks } from './marks';
 import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
@@ -64,6 +65,8 @@ export class World {
   /** Ground targets (ground.ts) and air-to-ground weapons in flight (agWeapons.ts). */
   readonly groundUnits = new Map<EntityId, GroundUnit>();
   readonly agWeapons = new Map<EntityId, AgWeapon>();
+  /** Target marks (marks.ts): JTAC smoke, laser and IR spots. */
+  readonly marks = new Map<EntityId, GroundMark>();
   /** Height-map terrain. null = flat ground at `groundAlt` (see groundHeight / lineOfSight). */
   terrain: TerrainHook | null = null;
   countermeasures: Countermeasure[] = [];
@@ -158,6 +161,17 @@ export class World {
     return u;
   }
 
+  /** Put down a target mark (smoke, laser or IR spot). y defaults to the terrain height. */
+  spawnMark(o: MarkSpawnOptions): GroundMark {
+    const m = createMark(this, o);
+    this.marks.set(m.id, m);
+    this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId });
+    return m;
+  }
+
+  /** End a mark now (smoke cleared, laser terminated). No-op when it has already ended. */
+  endMark(id: EntityId): void { endMark(this, id); }
+
   /** Ground height (m) at x, z: the terrain hook, or flat groundAlt. */
   groundHeight(x: number, z: number): number { return groundHeight(this, x, z); }
   /** Line of sight a→b over the terrain (flat ground: both ends above it). */
@@ -195,6 +209,7 @@ export class World {
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);
     if (this.samSites.size || this.samMissiles.size) stepSams(this, h);
     if (this.agWeapons.size) stepAgWeapons(this, h);
+    if (this.marks.size) stepMarks(this);
     updateRwr(this, h);
     if (this.record && this.t - this.lastRecord >= RECORD_EVERY) { this.lastRecord = this.t; this.snapshot(); }
   }
@@ -407,6 +422,11 @@ export class World {
     if (this.agWeapons.size) {
       f.agWeapons = [...this.agWeapons.values()].map(w => ({
         id: w.id, type: w.type, side: w.side, shooterId: w.shooterId, targetId: w.targetId, pos: [w.pos.x, w.pos.y, w.pos.z], guided: w.guided, alive: w.alive,
+      }));
+    }
+    if (this.marks.size) {
+      f.marks = [...this.marks.values()].map(m => ({
+        id: m.id, type: m.type, colour: m.colour, side: m.side, pos: [m.pos.x, m.pos.y, m.pos.z], alive: m.alive,
       }));
     }
     const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);

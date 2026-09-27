@@ -34,6 +34,10 @@ Game level only (AGENTS.md rule 1). Rules come from the ED *DCS World Su-25T Fli
 - `RecordFrame.groundUnits`, `.agWeapons`, `.shkval` (aim point, locked unit, laser) when present.
   Powered sights record `shkvalAimPoint(world, ac)`, including the current ground intersection while
   unstabilised; a sight looking above the horizon records a null point.
+- Target marks (`marks.ts`, for the CAS module): `MarkKind` (`'smoke' | 'laser' | 'ir'`) and `MarkColour`
+  (`'white' | 'orange' | 'red' | 'green'`) live in `src/data/types.ts`. `world.marks: Map<EntityId, GroundMark>`
+  (`kind: 'mark'`), `world.spawnMark(MarkSpawnOptions)`, `world.endMark(id)`, a `mark` event (`what: 'on' | 'off'`)
+  and `RecordFrame.marks`.
 
 ## AttackState (`ac.ag`)
 
@@ -97,11 +101,22 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
 - **Pairs**: `pair` fires two Vikhrs from alternate stations (S1: Vikhr can be fired in pairs). The cannon fires
   `GUN_BURST` (10) rounds per release.
 
+## Marks (`marks.ts`)
+
+A mark is a point on the ground with a kind, a smoke colour or a laser code, and a lifetime
+(docs/research/cas-jtac.md). Smoke defaults to white (the built-in JTAC "WP" mark) and lasts `SMOKE_DURATION_S`
+(300 s, trainer value, not verified); laser and IR marks last until `endMark` unless `durationS` is given. A mark
+with an `ownerId` (the JTAC ground unit) ends when that unit dies. `stepMarks` runs after the A-G weapons each tick
+and emits `mark off` once. Who can see a mark is not a sim rule: pages and the renderer decide (eyes for smoke, a
+laser spot tracker for the laser, NVGs for IR; the Su-25T has no laser spot tracker). `marksNear(world, p, r)`
+lists live marks nearest first.
+
 ## World delegations (pages talk only to World)
 
 `setAgMaster`, `cycleAgWeapon`, `selectAgWeapon`, `setAgPair`, `shkvalPower`, `shkvalSlew(x, y)`,
 `shkvalStabilise`, `shkvalPointAt(p)`, `shkvalZoom(±1)`, `shkvalTargetSize({ step } | { m })`, `shkvalLock`,
-`shkvalUnlock`, `laser`, `armDetect`, `armLock(siteId?)`, `canAgLaunch(w?)`, `agLaunch`, `ccrpHold(id, on)`. For displays:
+`shkvalUnlock`, `laser`, `armDetect`, `armLock(siteId?)`, `canAgLaunch(w?)`, `agLaunch`, `ccrpHold(id, on)`, `spawnMark`,
+`endMark`. For displays:
 `shkvalAimPoint`, `shkvalRange`, `shkvalFovDeg`, `predictImpact`, `armEmitters` (module functions).
 
 ## Tests
@@ -113,5 +128,6 @@ fire-and-forget, Kh-58 emitter zone/emission recheck, deterministic dispersion, 
 `src/sim/ccrpSead.test.ts`: CCRP gating, automatic release at time to release 0 on the point, no release outside
 the circle or after letting go; Kh-58 detection zone, lock, ПР inside the band and the kill of the site and its
 radar vehicle; a Vikhr on the SAM radar vehicle silences the site.
+`src/sim/marks.test.ts`: defaults per kind, expiry, owner death, idempotent end, recording, `marksNear`, determinism.
 `src/sim/radarAttack.test.ts` covers 60 seconds of F-15C detection of a Su-25T plus attack-owner command/query
 rejections. `src/data/contracts.test.ts` checks the simplified laser model caveat.

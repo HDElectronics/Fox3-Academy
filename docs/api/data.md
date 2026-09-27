@@ -272,6 +272,12 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
   Delete flare key for the Su-25T are trainer values, **not verified**. The 1-minute continuous laser coaching line
   follows S1 (printed p. 57).
 
+### CAS and JTAC
+
+Research: `docs/research/cas-jtac.md`, `docs/research/cas-jets.md`; plan in `docs/cas-plan.md`.
+- Smoke mark lifetime `SMOKE_DURATION_S` = 300 s (`src/sim/marks.ts`): trainer value, **not verified**. No ED source
+  gives the built-in JTAC smoke duration; community JTAC scripts refresh smoke every 5 minutes.
+
 ### SAM sites
 
 Research: `docs/research/sam-threats.md`. No ring was checked in the Mission Editor (the ED ring chart thread
