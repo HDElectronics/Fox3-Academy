@@ -17,7 +17,7 @@ import type { Aircraft, EntityId } from '../../sim/types';
 import { D2R, R2D } from '../../sim/math';
 import { shkvalAimPoint } from '../../sim/shkval';
 import { CAS_CAVEATS } from '../../data/cas';
-import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '../../render';
+import { Stage, WorldView, CameraRig, ForwardView, isWebGLAvailable, FramePriority } from '../../render';
 import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import {
@@ -142,7 +142,7 @@ const factory: PageFactory = (): Page => {
     const stage = isWebGLAvailable() ? new Stage(viewport, { autoPause: 'render', maxDpr: 1.5, environment: { surface: 'land', grid: false, hazeKm: 60 }, ariaLabel: 'CAS attack in 3D' }) : null;
     bag.add(() => stage?.dispose());
     let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null;
-    let trail: ImpactTrail | null = null;
+    let trail: ImpactTrail | null = null, hudCam: ForwardView | null = null;
 
     sc = buildCasScenario(lesson);
     me = sc.me;
@@ -152,10 +152,12 @@ const factory: PageFactory = (): Page => {
       trail = new ImpactTrail(stage);
       bag.add(() => trail?.dispose());
       tvCam = new ShkvalTv(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
+      hudCam = new ForwardView(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
+      bag.add(() => hudCam?.dispose());
       bag.add(() => tvCam?.dispose());
       rig = new CameraRig(stage, { source: view, mode: 'chase' });
       stage.onFrame(dt => { if (dt > 0) tick(Math.min(dt, 0.1)); });
-      stage.onFrame(() => { ck.draw(tvCam, sc.sams.length > 0); trail?.update(sc.world.t, me.alive ? me.pos : null, ccipPoint()); }, { priority: FramePriority.env + 50 });
+      stage.onFrame(() => { ck.draw(tvCam, sc.sams.length > 0, hudCam); trail?.update(sc.world.t, me.alive ? me.pos : null, ccipPoint()); }, { priority: FramePriority.env + 50 });
     } else {
       let last = performance.now(), raf = 0;
       const loop = (now: number) => { tick(Math.min(0.1, (now - last) / 1000)); last = now; ck.draw(null, sc.sams.length > 0); raf = requestAnimationFrame(loop); };

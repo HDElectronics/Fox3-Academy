@@ -198,7 +198,7 @@ and tones not in the research notes say "not verified".
 ### Shkval & Vikhr (Su-25T)
 Only for the Su-25T (pick it in the top bar; fighters see a panel that sends them back). The IT-23M shows the
 black-and-white Shkval TV picture with its symbology: azimuth and elevation scales, КС / АС, zoom, target size in
-metres, ЛД, slant range in km, time of flight and ПР. Beside it the HUD shows ОПТ-ЗЕМЛЯ / ЗЕМЛЯ, the store label
+metres, ЛД, slant range in km, time of flight and ПР. Beside it the HUD (ИЛС) shows the world ahead through the glass with ОПТ-ЗЕМЛЯ / ЗЕМЛЯ, the store label
 (9А4172, С8, ВПУ), the launch range scale, the laser cursor, the CCIP pipper and the station boxes.
 Four lessons: **Shkval** (7, O, slew with ; , . /, Enter to stabilise and lock, = / - to zoom, RCtrl+] / RCtrl+[
 for target size; a 10 m frame will not lock the 60 m bunker), **Laser** (RShift+O, read the range, let the laser

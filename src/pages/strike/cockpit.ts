@@ -16,8 +16,10 @@ import { salvoLabel } from '../../sim/attack';
 import { shkvalAimPoint, shkvalDir, shkvalFovDeg } from '../../sim/shkval';
 import { armEmitters, ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import type { ShkvalTv } from '../../render/attack';
+import { aimBelowBoresightDeg, type ForwardView } from '../../render/forwardView';
 import { h, screenBezel, button, placard, keyHint, disclosure, mobileAction, type ButtonHandle, type Cleanup, type KeyMap, type Tone } from '../../ui';
 import { RwrDisplay, It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
+import { HUD_BORE_Y, HUD_FOV_DEG } from '../../ui/displays/su25tHud';
 import { projectArmHudPoint } from '../../ui/displays/su25tHud';
 import { pickArmEmitter } from './targeting';
 
@@ -106,8 +108,11 @@ export interface Su25tCockpit {
   step(dt: number): void;
   /** Clear held inputs, the held pitch angle and the Kh-58 square (after a restart or a scripted reposition). */
   resetInputs(): void;
-  /** Draw the TV (with the Shkval camera image when there is one), the HUD and, when asked, the SPO-15. */
-  draw(tvCam: ShkvalTv | null, showRwr: boolean): void;
+  /**
+   * Draw the TV (with the Shkval camera image when there is one), the HUD (over the world ahead when `hudCam` is
+   * given) and, when asked, the SPO-15.
+   */
+  draw(tvCam: ShkvalTv | null, showRwr: boolean, hudCam?: ForwardView | null): void;
   updateLamps(): void;
   tvState(): It23mState;
   hudState(): Su25tHudState;
@@ -370,11 +375,15 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
       armCursor.y = Math.max(-9, Math.min(4, armCursor.y + (slew.up - slew.down) * ARM_SLEW_DPS * dt));
     },
     resetInputs() { slew.up = slew.down = slew.left = slew.right = 0; armCursor.x = 0; armCursor.y = -4; noseDir = 0; noseHeldS = 0; holdGamma = null; },
-    draw(tvCam, showRwr) {
+    draw(tvCam, showRwr, hudCam = null) {
       const ac = me(), sh = ac.ag!.shkval;
       if (tvCam && sh.on && ac.alive) tvCam.render(ac.pos, shkvalDir(ac), shkvalFovDeg(sh.zoom).v);
       tv.draw(tvState(), tvCam && sh.on ? tvCam.image : null);
-      hud.draw(hudState());
+      if (hudCam && ac.alive) {
+        const aspect = Math.max(0.2, hudCanvas.clientWidth / Math.max(1, hudCanvas.clientHeight));
+        hudCam.render(ac.pos, ac.heading, ac.pitch, HUD_FOV_DEG, aimBelowBoresightDeg(HUD_BORE_Y, HUD_FOV_DEG, aspect));
+      }
+      hud.draw(hudState(), hudCam && ac.alive ? hudCam.image : null);
       if (showRwr) rwr.draw(ac.rwr, world().t);
     },
     updateLamps() {

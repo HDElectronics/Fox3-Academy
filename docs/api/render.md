@@ -379,6 +379,23 @@ offset from a centre inside the view).
 
 ---
 
+## ForwardView (`forwardView.ts`, see-through HUDs)
+
+A second camera at the jet along its heading and pitch (no roll: the frame the trainer HUDs draw in), rendered
+into a small render target (192 × 192, every 3rd call), read back and copied in colour into `image`, a 2D canvas a
+HUD display draws under its symbology. Same pipeline as the Shkval TV, in colour.
+
+```ts
+const hudCam = new ForwardView(stage, { hidden: () => scene.tvHidden() });   // hide symbology, own jet, clouds
+hudCam.render(ac.pos, ac.heading, ac.pitch, HUD_FOV_DEG, aimBelowBoresightDeg(HUD_BORE_Y, HUD_FOV_DEG, aspect));
+hud.draw(state, hudCam.image);
+hudCam.dispose();
+```
+
+`vFovDeg(hFov, aspect)` converts the HUD's horizontal field of view; `aimBelowBoresightDeg(boreY, hFov, aspect)`
+tilts the camera so the boresight lands `boreY` down the picture (the Su-25T ИЛС datum sits at 0.42). Used by the
+Su-25T ИЛС on Strike and CAS. The Merge page already draws its gun sight over the main camera in Cockpit view.
+
 ## Models (`jets.ts`)
 
 - `new JetMesh(id, side: 'blue' | 'red' | 'neutral', stage.palette)`: a Group built in **metres**

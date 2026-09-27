@@ -21,7 +21,7 @@ import { D2R, R2D } from '../../sim/math';
 import { LASER_LIMIT_S, shkvalAimPoint } from '../../sim/shkval';
 import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import { samRingM } from '../../sim/sam';
-import { Stage, WorldView, CameraRig, isWebGLAvailable, FramePriority } from '../../render';
+import { Stage, WorldView, CameraRig, ForwardView, isWebGLAvailable, FramePriority } from '../../render';
 import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts,
@@ -181,7 +181,7 @@ const factory: PageFactory = (): Page => {
     }
     const stage = isWebGLAvailable() ? new Stage(viewport, { autoPause: 'render', maxDpr: 1.5, environment: { surface: 'land', grid: false, hazeKm: 60 }, ariaLabel: 'Attack run in 3D' }) : null;
     bag.add(() => stage?.dispose());
-    let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null, trail: ImpactTrail | null = null;
+    let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null, trail: ImpactTrail | null = null, hudCam: ForwardView | null = null;
 
     sc = buildScenario(lesson);
     me = sc.me;
@@ -192,6 +192,9 @@ const factory: PageFactory = (): Page => {
       trail = new ImpactTrail(stage);
       bag.add(() => trail?.dispose());
       tvCam = new ShkvalTv(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
+      // The ИЛС shows the world ahead through the combiner (the TV's hidden set: symbology, own jet, clouds, trail).
+      hudCam = new ForwardView(stage, { hidden: () => [...scene!.tvHidden(), trail!] });
+      bag.add(() => hudCam?.dispose());
       bag.add(() => tvCam?.dispose());
       rig = new CameraRig(stage, { source: view, mode: 'chase' });
       stage.onFrame(dt => { if (dt > 0) tick(Math.min(dt, 0.1)); });
@@ -646,7 +649,7 @@ const factory: PageFactory = (): Page => {
 
     // ------------------------------------------------------------------ displays
     function renderTv(): void {
-      ck.draw(tvCam, sc.sams.length > 0);
+      ck.draw(tvCam, sc.sams.length > 0, hudCam);
       trail?.update(world().t, me.alive ? me.pos : null, ccipPoint());
     }
     /** The CCIP ground point of the selected unguided weapon (the HUD pipper), for the impact trail. */
