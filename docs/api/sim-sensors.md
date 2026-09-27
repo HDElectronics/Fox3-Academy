@@ -322,6 +322,21 @@ DCS models one kind of jamming: it hides range and leaves the bearing (docs/rese
   out of `tracks` and its `stt` range, alt, aspect and closure are placeholders a display must not show.
 - Tested in `src/sim/ecm.test.ts`.
 
+## IFF (`radar.ts`, issue #12 part 2)
+
+`friendly` in the radar picture is what the jet's own IFF says, not truth (data/iff.ts `IFF`).
+- `st.iff`: one `IffReply { targetId, friend, t }` per target. `iffReply(world, ac, id)` returns it while it still
+  shows (`IFF[type].showS`: Viper 2 s, others kept); `identifiedFriend` is `iffReply(...)?.friend`.
+- Auto-IFF radars (F-15C, Su-27 family) record a reply on every detection and STT update. Interrogating radars
+  need `interrogate(world, ac)` / `world.interrogate(id)`: every aircraft within ±`scanHalfDeg` of the nose and
+  `iffRange(ac)` (1.2 × head-on detection, trainer value) answers; friends reply friendly, others give no reply
+  (never hostile). Emits `{ type: 'iff', ownerId, friends, asked }`. The Hornet (`onDesignate`) also interrogates
+  the contact it designates or locks.
+- Picture: tracks carry `friendly` and `iff?: { reply: 'friend' | 'no-reply', age }`; bricks carry `friendly`.
+- `canLaunch`: a player may fire at an unidentified friend (fratricide, as in DCS); an IFF friendly reply refuses the
+  shot. AI shooters know sides (not verified in DCS) and are always refused.
+- Tested in `src/sim/iff.test.ts`.
+
 ## Simplified here (say so in the UI)
 
 - Detection is a range test with a linear probability edge, not a signal-to-noise model; no PRF (ППС/ЗПС/АВТ,

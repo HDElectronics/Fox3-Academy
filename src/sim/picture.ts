@@ -11,7 +11,7 @@ import type { FighterId, AircraftSpec, DisplayFormat, MissileId } from '../data/
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { D2R, R2D, aspectAngle, closureRate, headingOf, relBearing, wrapPi } from './math';
-import { brickLife, scanElevationLimits } from './radar';
+import { brickLife, iffReply, identifiedFriend, scanElevationLimits } from './radar';
 import { canLaunch } from './launch';
 
 export interface PictureOptions {
@@ -71,7 +71,7 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
     for (const b of st.bricks) {
       if (st.mode === 'tws' && tracked.has(b.targetId)) continue;
       const age = t - b.t;
-      bricks.push({ key: `${b.targetId}@${b.t.toFixed(3)}`, targetId: b.targetId, az: b.az, range: b.range, alt: b.pos.y, age, fade: Math.max(0, Math.min(1, 1 - age / life)) });
+      bricks.push({ key: `${b.targetId}@${b.t.toFixed(3)}`, targetId: b.targetId, az: b.az, range: b.range, alt: b.pos.y, age, fade: Math.max(0, Math.min(1, 1 - age / life)), friendly: identifiedFriend(world, ac, b.targetId) });
     }
   }
 
@@ -90,7 +90,7 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
     const speed = tr.vel.length();
     const moving = tr.firm && speed > 1;
     const d = st.designated.indexOf(tr.targetId);
-    const tgt = world.get(tr.targetId);
+    const reply = iffReply(world, ac, tr.targetId);
     return {
       label: tr.label, targetId: tr.targetId,
       az: relBearing(ac.pos, ac.heading, tr.pos), range: ac.pos.distanceTo(tr.pos), alt: tr.pos.y,
@@ -102,7 +102,8 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
       designation: d === 0 ? 'primary' : d > 0 ? 'secondary' : null,
       designationIndex: d,
       locked: st.mode === 'stt' && st.stt.targetId === tr.targetId,
-      friendly: !!tgt && tgt.side === ac.side,
+      friendly: !!reply?.friend,
+      iff: reply ? { reply: reply.friend ? 'friend' : 'no-reply', age: t - reply.t } : undefined,
       missiles: live.filter(m => m.targetId === tr.targetId).map(m => ({
         missileId: m.id, label: labels.get(m.id) ?? 'M', guidance: m.guidance, timeToActive: m.timeToActive, timeToImpact: m.timeToImpact,
       })),

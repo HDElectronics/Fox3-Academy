@@ -14,12 +14,13 @@
  */
 import { Vector3 } from 'three';
 import type { GuidanceSupport, World } from './world';
-import type { Aircraft, EntityId, RadarState, TrackFile } from './types';
+import type { Aircraft, EntityId, IffReply, RadarState, TrackFile } from './types';
 import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { fighterSpec, fighterType, isFighterAc } from './jet';
 import { MISSILES } from '../data/missiles';
 import { BURN_THROUGH_M, STROBE_RANGE_FACTOR } from '../data/ecm';
+import { IFF, IFF_RANGE_FACTOR } from '../data/iff';
 import {
   D2R, M_PER_NM, MPS_PER_KT, R2D, aspectAngle, clamp, closureRate, dirFrom, elevationTo, inDopplerNotch,
   isLookDown, lerp, radialSpeedVsGround, relBearing, wrapPi,
@@ -194,7 +195,7 @@ export function createRadarState(spec: AircraftSpec): RadarState {
     rangeScale: (r.rangeScalesKm.find(k => k >= 80) ?? r.rangeScalesKm[r.rangeScalesKm.length - 1]) * 1000,
     beamAz: -azHalf, beamEl: 0, sweepDir: 1, bar: 0,
     frameTime: frameTimeFor(spec, azHalf, bars),
-    bricks: [], strobes: [], tracks: [], designated: [], stt: { targetId: null, lostFor: 0 },
+    bricks: [], strobes: [], iff: [], tracks: [], designated: [], stt: { targetId: null, lostFor: 0 },
     cursor: { az: 0, range: 50000 },
   };
   st.beamEl = barElevation(spec, st, 0);
@@ -303,6 +304,59 @@ export function detectionRange(world: World, observer: Aircraft, target: Aircraf
   let km = lerp(hot, cold, (1 - Math.cos(asp)) / 2);
   km *= Math.pow(Math.max(AIRCRAFT[target.type].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
   return km * 1000;
+}
+
+// ───────────────────────────────────────────────────────────── IFF (docs/research/ecm-datalink-iff.md §3)
+
+/** How far this radar's IFF reaches (m). Trainer value (IFF_RANGE_FACTOR × head-on detection). */
+export function iffRange(ac: Aircraft): number {
+  return isFighterAc(ac) ? IFF_RANGE_FACTOR * specOf(ac).radar.detectKm.headOn * 1000 : 0;
+}
+
+function recordIff(world: World, ac: Aircraft, tgt: Aircraft): void {
+  const st = ac.radar, i = st.iff.findIndex(r => r.targetId === tgt.id);
+  const r = { targetId: tgt.id, friend: tgt.side === ac.side, t: world.t };
+  if (i >= 0) st.iff[i] = r; else st.iff.push(r);
+}
+
+/** The IFF answer for `targetId` still showing on this radar (data/iff.ts showS), or null. */
+export function iffReply(world: World, ac: Aircraft, targetId: EntityId): IffReply | null {
+  if (!isFighterAc(ac)) return null;
+  const r = ac.radar.iff.find(x => x.targetId === targetId);
+  return r && world.t - r.t <= IFF[fighterType(ac)].showS ? r : null;
+}
+
+/** Does own IFF say this contact is a friend right now? */
+export function identifiedFriend(world: World, ac: Aircraft, targetId: EntityId): boolean {
+  return !!iffReply(world, ac, targetId)?.friend;
+}
+
+/**
+ * Interrogate every aircraft inside the IFF volume (±scanHalfDeg around the nose, iffRange). Friends answer; others
+ * give no reply, which never proves hostile. Works with the radar in any mode but off (the IFF is a separate set).
+ */
+export function interrogate(world: World, ac: Aircraft): { friends: number; asked: number } {
+  if (!isFighterAc(ac) || ac.radar.mode === 'off') return { friends: 0, asked: 0 };
+  const half = IFF[fighterType(ac)].scanHalfDeg * D2R, R = iffRange(ac);
+  let friends = 0, asked = 0;
+  for (const tgt of world.aircraft.values()) {
+    if (tgt === ac || !tgt.alive) continue;
+    const g = geoOf(ac, tgt.pos);
+    if (g.range > R || Math.abs(g.az) > half || Math.abs(g.el) > half) continue;
+    recordIff(world, ac, tgt);
+    asked++;
+    if (tgt.side === ac.side) friends++;
+  }
+  world.emit({ t: world.t, type: 'iff', ownerId: ac.id, friends, asked });
+  return { friends, asked };
+}
+
+/** Auto-IFF radars (F-15C, FC3) and interrogate-on-designate (Hornet) answer for this contact now. */
+function autoIff(world: World, ac: Aircraft, tgt: Aircraft, onDesignate = false): void {
+  const spec = IFF[fighterType(ac)];
+  if (spec.mode === 'auto' || (onDesignate && spec.onDesignate)) {
+    if (ac.pos.distanceTo(tgt.pos) <= iffRange(ac)) recordIff(world, ac, tgt);
+  }
 }
 
 // ───────────────────────────────────────────────────────────── jamming (docs/research/ecm-datalink-iff.md)
@@ -587,6 +641,7 @@ function stepSearch(world: World, ac: Aircraft, spec: AircraftSpec, dt: number):
     }
     if (!detects(world, ac, tgt, g)) continue;
     hits.add(tgt.id);
+    autoIff(world, ac, tgt);
     const z = measure(world, ac, tgt, g);
     if (tws) {
       const trk = trackOf(st, tgt.id);
@@ -654,6 +709,7 @@ function stepStt(world: World, ac: Aircraft, spec: AircraftSpec, dt: number): vo
     return;
   }
   st.stt.lostFor = 0;
+  autoIff(world, ac, tgt);
   const z = measure(world, ac, tgt, g, 0.3);
   const ti = anchorOf(st, trk);
   ti.anchor.copy(z.pos); ti.anchorT = world.t;
@@ -922,6 +978,8 @@ export function designate(world: World, ac: Aircraft, targetId: EntityId): void 
     else lockTarget(world, ac, targetId);
     return;
   }
+  const who = world.get(targetId);
+  if (who) autoIff(world, ac, who, true);
   const cap = ac.type === 'mig29s' && !st.snp2 ? 1 : rules.designationCap;
   if (cap <= 1) st.designated = [targetId];
   else if (st.designated.length < cap) st.designated.push(targetId);
@@ -1060,6 +1118,7 @@ export function lockTarget(world: World, ac: Aircraft, targetId: EntityId, frame
   const g = geoOf(ac, tgt.pos);
   st.beamAz = g.az;
   st.beamEl = g.el;
+  autoIff(world, ac, tgt, true);
   emitLock(world, ac, targetId, 'locked');
   return true;
 }

@@ -81,6 +81,13 @@ export interface JamStrobe {
   el: number;           // rad relative to horizon
 }
 
+/** An IFF answer this radar got (data/iff.ts): a friendly reply, or no reply (never proves hostile). */
+export interface IffReply {
+  targetId: EntityId;
+  friend: boolean;
+  t: number;
+}
+
 export interface TrackFile {
   /** Stable display label, e.g. 'T1'. */
   label: string;
@@ -117,6 +124,8 @@ export interface RadarState {
   bricks: RadarBrick[]; // RWS returns, aged out by the radar module
   /** Jammers outside burn-through (all search modes), aged like bricks. */
   strobes: JamStrobe[];
+  /** IFF answers, one per target (latest). Auto-IFF radars refresh them on every hit. */
+  iff: IffReply[];
   tracks: TrackFile[];  // TWS / STT track files
   /** TWS designations, target ids in priority order. [0] is the primary (L&S / hot target). */
   designated: EntityId[];
@@ -521,6 +530,8 @@ export type SimEvent =
   | { t: number; type: 'lock'; ownerId: EntityId; targetId: EntityId; what: 'locked' | 'unlocked' | 'broken'; why?: string }
   | { t: number; type: 'rwr'; ownerId: EntityId; emitterId: EntityId; state: RwrContact['state'] }
   | { t: number; type: 'cm'; ownerId: EntityId; what: 'chaff' | 'flare' }
+  /** IFF interrogation: how many contacts answered friendly. */
+  | { t: number; type: 'iff'; ownerId: EntityId; friends: number; asked: number }
   /** Own self-protection jammer switched on or off. */
   | { t: number; type: 'jam'; ownerId: EntityId; on: boolean }
   | { t: number; type: 'ai'; ownerId: EntityId; state: AiMemory['state']; text: string; targetId?: EntityId; missileId?: EntityId; missile?: MissileId; range?: number }
@@ -620,7 +631,8 @@ export interface RadarPicture {
   altCoverage: { top: number; bottom: number; atRange: number };
   ownAlt: number;
   ownSpeed: number;                  // m/s
-  bricks: { key: string; targetId: EntityId; az: number; range: number; alt: number; age: number; fade: number }[];
+  /** `friendly`: own IFF says friend (auto-IFF radars only give bricks an answer). */
+  bricks: { key: string; targetId: EntityId; az: number; range: number; alt: number; age: number; fade: number; friendly?: boolean }[];
   /** Jam strobes: bearing (and elevation) only. Displays draw them in the jet's own jam symbol (data/ecm.ts JAM_CUE). */
   strobes: { key: string; targetId: EntityId; az: number; el: number; age: number; fade: number }[];
   /** Own jammer transmitting. */
@@ -639,7 +651,10 @@ export interface RadarPicture {
     designation: 'primary' | 'secondary' | null;
     designationIndex: number;        // 0-based order in the designation list, -1 if none
     locked: boolean;
+    /** Own IFF says friend (data/iff.ts): automatic on the F-15C and FC3 jets, after an interrogation elsewhere. Not truth. */
     friendly: boolean;
+    /** The latest IFF answer still showing ('no-reply' only drawn where the jet marks it, JF-17 red), and its age (s). */
+    iff?: { reply: 'friend' | 'no-reply'; age: number };
     missiles: { missileId: EntityId; label: string; guidance: MissileGuidance; timeToActive: number | null; timeToImpact: number | null }[];
   }[];
   /** `hoj`: angle-only jam lock; range, alt, aspect and closure are then estimates the display must not show. */
