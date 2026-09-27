@@ -4,5 +4,6 @@ export type { AttackLayers, AttackSceneOptions } from './attackScene';
 export { ShkvalTv, tvLut, toGreyImage } from './shkvalTv';
 export type { ShkvalTvOptions } from './shkvalTv';
 export { GroundUnitLayer, unitModelScale } from './groundUnits';
+export { ImpactTrail, trailSamples, TRAIL_S } from './impactTrail';
 export { createAttackField, terrainHook, LOS_LIFT_M } from './terrainHook';
 export type { AttackFieldOptions, AttackPad } from './terrainHook';

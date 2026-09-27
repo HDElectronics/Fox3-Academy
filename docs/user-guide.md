@@ -200,7 +200,10 @@ Four lessons: **Shkval** (7, O, slew with ; , . /, Enter to stabilise and lock, 
 for target size; a 10 m frame will not lock the 60 m bunker), **Laser** (RShift+O, read the range, let the laser
 cool), **Vikhr drill** (a tank platoon at 12–15 km: lock, lase, fire with Space at ПР and hold lock and laser to
 impact; scored on kills, misses with their reason, and laser time) and **CCIP pass** (S-8 rockets or the cannon on a
-truck column in a dive; Left / Right steer). Tap the TV picture to point the sight; on a phone a slew pad, zoom and
+truck column; you fly the dive yourself, as in DCS: Up pushes the nose down, Down pulls it up, Left / Right turn,
+and a released key holds the dive angle. Push over until the pipper reaches the trucks, fire a few rockets inside
+about 2.5 km, and pull out; below 300 m in a dive the coach calls Pull up. A ground ring and a fading trail show
+where the rockets would land now and where that point has been). Tap the TV picture to point the sight; on a phone a slew pad, zoom and
 size buttons and Fire / Lock / ЛД buttons appear. Launch ranges are community values and marked not verified.
 Three more scored lessons. **Bombs**: select АБ with D, designate the tank platoon with the Shkval (Enter to
 stabilise) and switch the laser on; the HUD shows the director circle and a time-to-release scale. Hold Space,
@@ -215,7 +218,7 @@ The Kh-58 type codes and the CCRP tolerances are trainer values, marked not veri
 **Sortie** puts it together. The brief shows the area map (start, IP, the armour column and the bunker, the SA-15
 ring and a ZSU-23-4 gun site) and a loadout picker: Vikhrs and rockets, laser missiles, TV weapons, bombs and
 rockets, or the Kh-58 SEAD fit; switch on the SA-11 for a harder day. Fly low to the IP on the steering cue at the
-top right (the jet follows the terrain at the height you set with Up / Down), pop up past the IP to about 600 m,
+top right (the jet follows the terrain at the height you set: Down raises it, Up lowers it), pop up past the IP to about 600 m,
 find the column or the bunker with the Shkval and attack, then turn back, descend and fly out past the IP. Delete
 drops flares (binding not verified; they do nothing against the radar SAMs here). The debrief replays the sortie
 in plan view: drag the timeline, zoom to the target area, click an event to jump to it. It lists every weapon's

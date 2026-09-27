@@ -45,8 +45,8 @@ export const AG_MODEL: Record<AgWeaponId, AgModel> = {
   kh29t:    { speed: [[0, 250], [3, 650], [25, 550]], turnRate: 0.35, maxTime: 45, hitRadiusM: 5, killRadiusM: 12, damage: 2, dispersionMrad: 0, boost: 0 },
   kab500kr: { speed: [[0, 220], [30, 260]], turnRate: 0.25, maxTime: 90, hitRadiusM: 6, killRadiusM: 15, damage: 2, dispersionMrad: 0, boost: 0 },
   kh58:     { speed: [[0, 250], [4, 1100], [60, 850]], turnRate: 0.3, maxTime: 120, hitRadiusM: 8, killRadiusM: 15, damage: 2, dispersionMrad: 0, boost: 0 },
-  s8:       { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 5, damage: 1, dispersionMrad: 8, boost: 500 },
-  s13:      { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 8, damage: 1, dispersionMrad: 6, boost: 450 },
+  s8:       { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 5, damage: 1, dispersionMrad: 4, boost: 500 },
+  s13:      { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 8, damage: 1, dispersionMrad: 3, boost: 450 },
   fab250:   { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 20, damage: 2, dispersionMrad: 4, boost: 0 },
   gun25t:   { speed: [], turnRate: 0, maxTime: 6, hitRadiusM: 0, killRadiusM: 2, damage: 0.35, dispersionMrad: 4, boost: 900 },
 };
@@ -218,13 +218,22 @@ function releaseVel(ac: Aircraft, w: AgWeaponId, world: World | null): Vector3 {
 export function predictImpact(world: World, ac: Aircraft, w: AgWeaponId): Vector3 | null {
   if (AG_WEAPONS[w].guidance !== 'ballistic') return null;
   const m = AG_MODEL[w];
-  const p = ac.pos.clone(), v = releaseVel(ac, w, null);
+  // Same start and ground-crossing rule as the real weapon (spawnWeapon, stepAgWeapon), so the pipper does not
+  // overshoot by up to one step (about 15 m long for rockets at the old fixed 0.05 s step).
+  const p = ac.pos.clone(), v = releaseVel(ac, w, null), prev = new Vector3();
+  p.y -= 2;
   const dt = 0.05;
   for (let t = 0; t < m.maxTime; t += dt) {
+    prev.copy(p);
     v.y -= G0 * dt;
     p.addScaledVector(v, dt);
     const gy = groundHeight(world, p.x, p.z);
-    if (p.y <= gy) { p.y = gy; return p; }
+    if (p.y <= gy) {
+      const k = (prev.y - groundHeight(world, prev.x, prev.z)) / Math.max(1e-6, prev.y - p.y);
+      p.copy(prev.lerp(p, clamp(k, 0, 1)));
+      p.y = groundHeight(world, p.x, p.z);
+      return p;
+    }
   }
   return null;
 }
