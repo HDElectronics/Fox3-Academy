@@ -24,7 +24,11 @@ export const RUNWAY = { lengthM: 2500, widthM: 45 } as const;
 export type IndexerColor = 'green' | 'yellow' | 'amber' | 'red' | null;
 
 /** A number from a manual, with its provenance. `verified: false` renders "not verified" in the UI. */
-export interface Sourced<T> { value: T; source: string; verified: boolean; note?: string }
+export interface Sourced<T> {
+  value: T; source: string; verified: boolean; note?: string;
+  /** A trainer key: the trainer binds it because no source gives the DCS default for this module. */
+  trainer?: boolean;
+}
 
 /** Per-jet flight-ops facts (src/data/flightOps.ts). Speeds in knots, altitudes in feet: as the manuals give them. */
 export interface FlightOpsJetData {
@@ -124,7 +128,7 @@ export interface FlightOpsLaunchData {
 
 /** Launch options for the 'catapult' and 'skiJump' starts. */
 export interface LaunchOptions {
-  /** Catapult 1 or 2, ski-jump position 1 or 3 (default: the first `stations` entry). */
+  /** Catapult 1–4, ski-jump position 1 or 3 (default: the first `stations` entry). */
   station?: number;
   heavy?: boolean;
 }
@@ -236,7 +240,11 @@ export interface FlightOpsTakeoffData {
   afterburner: Sourced<boolean>;
   /** Takeoff flap index into flapLabels (null when the jet has no flap control). */
   flapIndex: number | null;
-  keys: { brakes: Sourced<string>; throttleMax?: Sourced<string>; steering?: Sourced<string> };
+  /**
+   * `throttleMax`: the key that runs the throttle to MIL / afterburner. FC3 jets carry the FC3 default (not verified);
+   * the other jets carry the trainer key with `trainer: true` (label it "trainer key").
+   */
+  keys: { brakes: Sourced<string>; throttleMax: Sourced<string>; steering?: Sourced<string> };
   /** Short pilot cue for the lesson, e.g. "Rotate at Vr to 8–12°, gear up before 300 kt". */
   cue: string;
 }

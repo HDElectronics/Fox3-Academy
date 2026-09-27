@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { SHIP_HULL } from '../../data/ships';
 import {
-  FLIGHT_OPS_DT, LaunchEvaluator, applyAction, createFlightOpsState, demoPilot, launchStrip, shipFrame, stepFlightOps,
+  FLIGHT_OPS_DT, LaunchEvaluator, STATION_C, applyAction, catStrokeEndA, createFlightOpsState, demoPilot, launchStrip, shipFrame, stepFlightOps,
   trimForWeight, type FlightOpsAction, type FlightOpsInput, type FlightOpsJetId, type FlightOpsState, type LaunchOptions,
 } from './index';
 
@@ -36,6 +36,20 @@ describe('launch data', () => {
     expect(() => createFlightOpsState('su33', 'catapult')).toThrow();
     expect(() => createFlightOpsState('su33', 'skiJump', FLIGHT_OPS.su33, { station: 2 })).toThrow();
   });
+  it('offers all four CVN catapults and holds the jet on the matching bow or waist track', () => {
+    for (const id of ['fa18c', 'f14b'] as const) {
+      const l = FLIGHT_OPS[id].launch!;
+      expect(l.stations).toEqual([1, 2, 3, 4]);
+      for (const st of l.stations) expect(STATION_C.cvn[st]).toBeDefined();
+      const bow = shipFrame(createFlightOpsState(id, 'catapult', FLIGHT_OPS[id], { station: 1 }));
+      const waist = shipFrame(createFlightOpsState(id, 'catapult', FLIGHT_OPS[id], { station: 3 }));
+      expect(waist.c).toBe(STATION_C.cvn[3]);
+      expect(bow.a - waist.a).toBeCloseTo(catStrokeEndA('cvn', 1) - catStrokeEndA('cvn', 3), 6);
+      expect(waist.a).toBeGreaterThan(0);
+    }
+    expect(catStrokeEndA('cvn', 2)).toBe(SHIP_HULL.cvn.lengthM - 3);
+    expect(() => createFlightOpsState('fa18c', 'catapult', FLIGHT_OPS.fa18c, { station: 5 })).toThrow();
+  });
   it('trims the Hornet by gross weight', () => {
     const l = FLIGHT_OPS.fa18c.launch!;
     expect(trimForWeight(l, 40000)).toBe(16);
@@ -56,7 +70,7 @@ describe('launch data', () => {
 
 describe('demo launch', () => {
   const cases: [FlightOpsJetId, LaunchOptions][] = [
-    ['fa18c', {}], ['fa18c', { heavy: true, station: 2 }], ['f14b', {}], ['su33', {}], ['su33', { heavy: true, station: 3 }],
+    ['fa18c', {}], ['fa18c', { heavy: true, station: 2 }], ['fa18c', { station: 3 }], ['f14b', {}], ['f14b', { station: 4 }], ['su33', {}], ['su33', { heavy: true, station: 3 }],
   ];
   for (const [id, opts] of cases) {
     it(`launches the ${id} ${JSON.stringify(opts)} and passes every gate`, () => {

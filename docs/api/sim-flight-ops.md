@@ -103,6 +103,11 @@ Start `takeoff`: `TAKEOFF_START_M` (100 m) past the threshold on the centreline,
 gear down, takeoff flaps (`takeoffFlapIndex`: the data `flapIndex`; F-16C flaps with the gear; M-2000C 0),
 throttle idle, phase `ready`, `s.takeoff = { maxPitchOnGroundDeg: 0, tailStrike: false }`.
 
+Takeoff keys (`FlightOpsTakeoffData.keys`): `brakes`, `throttleMax` (required: the MIL / afterburner key) and
+optional `steering`, each `Sourced<string>`. `Sourced.trainer?: boolean` marks a trainer key: no source gives the
+DCS default, the trainer binds it. FC3 jets carry `PgUp` not verified; the fa18c, f16c, f14b, jf17 and m2000c
+carry `PgUp` with `trainer: true` (the page labels it "trainer key").
+
 - `ready`: `input.brakes` holds the jet at any power. Without brakes the roll starts once the thrust beats the
   wheel braking (throttle above 0.3); that step records `takeoff.brakeReleaseT` and enters `roll`. A roll that
   stops (abort) returns to `ready`.
@@ -227,8 +232,8 @@ ship, ordered `steps: LaunchStep[]` with `Sourced` keys or null, power `'MIL' | 
 `specialAB`, `fodScreens`, gates `sequence`, `shot`, `handsOff`, `cleanUp`, `clearingTurn` and `LaunchScore`.
 
 Starts (`createFlightOpsState(id, 'catapult' | 'skiJump', data, { station, heavy })`; throws when the jet has
-no launch of that kind or the station is not offered): `catapult` puts the fa18c or f14b on catapult 1 or 2
-of the CVN, `skiJump` the su33 on Kuznetsov position 1 (90 m) or 3 (180 m). Stopped on the deck (`s.speed` is
+no launch of that kind or the station is not offered): `catapult` puts the fa18c or f14b on CVN catapult 1–4
+(bow cats 1–2, waist cats 3–4; the shuttle is placed so the stroke ends at `catStrokeEndA(ship, station)`), `skiJump` the su33 on Kuznetsov position 1 (90 m) or 3 (180 m). Stopped on the deck (`s.speed` is
 the ship speed: no wind), gear down, takeoff flaps, idle, phase `ready`, `s.ship` as for the carrier starts,
 `s.launch.stage = 'hold'`. Hornet trim starts at 12° (`TRIM_START_DEG`), `trimWantDeg` from the weight table.
 
@@ -237,7 +242,7 @@ placeLaunchStart(s, data, opts), applyLaunchAction(s, action, data)   // via cre
 stepLaunchDeck(s, input, dt, data), stepLaunchAir(s, input, data)     // called by stepFlightOps
 launchStrip(s, data): { id, label, state: 'done' | 'next' | 'pending', t? }[]   // the sequence strip
 trimForWeight(launch, weight), launchPowerNeed(launch, weight), powerMet(s, need)
-catEndSpeedMs(data), minRampSpeedMs(data), hasLaunchStart(data), launchData(data), orderFaults(launch, done)
+catEndSpeedMs(data), catStrokeEndA(ship, station), minRampSpeedMs(data), hasLaunchStart(data), launchData(data), orderFaults(launch, done)
 SHOOTER_DELAY_S = 2, STROKE_S = 2.5, CAT_END_OVER_VA_KT = 15, SETTLE_S = 3, HANDS_ON = 0.1,
 COLD_CAT_FACTOR = 0.85, SETTLE_N = 0.3, STOPPER_S = 3, RUN_ACC = 15, RAMP_M = 25, RAMP_DEG = 12,
 MIN_RAMP_VA = 0.85, STATION_C (metres to starboard per station)
@@ -252,7 +257,8 @@ Arcade rules (AGENTS.md rule 1; not catapult or ramp performance):
   the end of the stroke), wrong trim, FOD screens, stoppers released without special afterburner and a heavy
   jet on a short ski-jump position are all `errors`.
 - Catapult: accepted salute → `shot`; 2 s later the cat fires (`stroke`, phase `roll`): constant acceleration
-  for 2.5 s to the approach speed + 15 kt, from a shuttle placed so the stroke ends 3 m short of the bow.
+  for 2.5 s to the approach speed + 15 kt, from a shuttle placed so the stroke ends 3 m short of the bow (cats
+  1–2) or at 62 % of the hull (waist cats 3–4, drawn parallel to the bow cats).
   Power below the need at the shot = `cold cat` (end speed × 0.85). At the end the jet flies 1 m above the deck
   with the AoA for 1.1 g (1.0 g trimmed low, 1.3 g trimmed high), `settle` for 3 s, then `free`. Stick beyond
   0.1 from the shot to the end of the settle sets `handsOn` (catapult jets).
@@ -268,8 +274,8 @@ Arcade rules (AGENTS.md rule 1; not catapult or ramp performance):
 Demo pilot (`demoPilot`, legs `launch` → `climbout`): one step every 0.8 s in the data order (trim in 1°
 clicks), power at the power step, salute 1 s after the power is set; hands off through the stroke and settle;
 then gear up with a positive climb, flaps to the after-launch setting above Vr + 20 kt, a 20° clearing turn to
-the published side (right from catapults 1–2), and a climb to 1500 ft. Clean launches: fa18c normal and heavy
-(19°, afterburner), f14b, su33 from position 1 and heavy from position 3.
+the published side (right from catapults 1–2, left from 3–4), and a climb to 1500 ft. Clean launches: fa18c
+normal, heavy (19°, afterburner) and from cat 3, f14b from cats 1 and 4, su33 from position 1 and heavy from position 3.
 
 Grading (`new LaunchEvaluator(data)`, `update(s)`, `score(s): LaunchScore`): sequence (no errors) and shot (no
 cold cat; ramp speed at or above the minimum) at the end of the stroke; handsOff (catapult) at the end of the
@@ -288,7 +294,8 @@ probe), `callText`, Su-33 `window` (metric IAS and altitude), F-16C `doorLimit`,
 racetrack, `drogue` pod / trail / droop / hose bands / envelope / bounce limit or `boom` pivot / nominal / limits,
 fuel unit and rate), `AarKind`, `HoseBand` (`'yellow' | 'yellowGreen' | 'green' | 'greenRed' | 'red'`),
 `TankerFrameVec { aft, right, up }`, `AarOptions { tanker? }`, `AarCall`, `AarDisconnect`, `AarState` on
-`FlightOpsState.aar`, `FlightOpsInput.stationKeep?`, actions `probeToggle`, `doorToggle`, `refuelLights`,
+`FlightOpsState.aar`, `FlightOpsInput.stationKeep?`, actions `probeToggle`, `doorToggle`, `refuelLights` (the demo switches the lights on for jets whose data has
+`keys.lights`),
 `callTanker`, gates `rejoin`, `precontact`, `contact`, `envelope`, `disconnect` and `AarScore`.
 
 Starts (`createFlightOpsState(id, 'aarRejoin' | 'aarPrecontact', data, { tanker })`; throws for the su27,
@@ -300,9 +307,9 @@ the tanker and 100 m below the pre-contact height, at the tanker's speed, probe 
 call made ("Cleared pre-contact"), not yet cleared contact. Gear up, clean, trimmed.
 
 ```ts
-placeAarStart(s, data, start, opts), applyAarAction(s, action, data)   // via createFlightOpsState / applyAction
+placeAarStart(s, data, start, opts, settle?), applyAarAction(s, action, data)   // via createFlightOpsState / applyAction
 stepAarStation(s, input, dt, data, levelThrottle), updateAar(s, data, dt)   // called by stepFlightOps
-tankerPose(tanker, t), toTanker(aar, p), fromTanker(aar, v), contactPointWorld(s, data)
+tankerPose(tanker, t), toTanker(aar, p), fromTanker(aar, v), contactPointWorld(s, data), bodyOffsetWorld(s, offset)
 basketRest(tanker), boomPoint(tanker, elevDeg?, extM?, azDeg?), contactTarget(tanker), precontactPoint(tanker, data)
 greenHoldPoint(tanker), hoseBandAt(tanker, coneToPodM), boomAngles(tanker, p), hasAarStart(data), aarData(data)
 tankerData(id), levelThrottle(s, data, speedMs)   // model.ts: throttle that holds a speed level at 1 g
@@ -317,6 +324,9 @@ Arcade rules (AGENTS.md rule 1; no hose, boom, hydraulic or fuel-system engineer
 - Tanker frame: aft of the tanker reference (+), right (+), up (+); level, turns with the tanker. `aar.rel` is the
   jet, `aar.tip` its probe tip or receptacle, `aar.relTarget` the tip from the basket at rest (drogue) or the
   nominal boom contact point (aft + = short of it), `aar.closureMs` the closure on it (+ closing).
+- Contact point: `contactPointWorld` turns `contactPointM` with the jet's heading, pitch and bank
+  (`bodyOffsetWorld`, the render's `orientationQuaternion` convention), so the sim tip is the drawn tip. The
+  starts trim the jet first (`settle`), so the pitched tip starts on the pre-contact point.
 - Station mode (`aar.station`): engages within 250 m of the pre-contact point below 15 m/s closure (releases
   beyond 350 m; `input.stationKeep = false` keeps it off). The throttle sets closure: the level-flight throttle
   at the tanker's speed holds position, each 0.05 away gives 1 m/s (about 2 kt), lag 1.5 s, limit 10 m/s.

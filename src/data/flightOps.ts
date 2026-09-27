@@ -113,6 +113,7 @@ const HORNET_CAT = 'ED F/A-18C Early Access Guide, Carrier takeoff';
 const TOMCAT_CAT = 'Heatblur DCS F-14 training lesson, carrier takeoff';
 const SALUTE_CONFLICT = 'The Supercarrier guide gives LCtrl+LShift+LAlt+S or the radio menu; the Heatblur Tomcat lesson gives LShift+U. Conflict, not verified in game.';
 const TRAINER_KEY = 'Default key not verified; trainer key.';
+const CVN_CATS = 'Four catapults: the source gives the clearing turn from each (right off 1–2, left off 3–4). Which catapults the deck crew assigns is not verified; the trainer offers all four.';
 
 /** Hornet catapult (#27): NWS HI, launch bar, hook up, T/O trim by weight, MIL, wipe out, salute, hands off. */
 const HORNET_LAUNCH: FlightOpsLaunchData = {
@@ -133,8 +134,8 @@ const HORNET_LAUNCH: FlightOpsLaunchData = {
   trimByWeightLb: ok([[44000, 16], [49000, 17], [Number.POSITIVE_INFINITY, 19]], HORNET_CAT,
     '16° below 44000 lb, 17° at 45000–48000 lb, 19° at 49000 lb and above. The trainer puts the gaps in the 17° band.'),
   weights: { unit: 'lb', normal: 42000, heavy: 50000 },
-  stations: [1, 2],
-  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER),
+  stations: [1, 2, 3, 4],
+  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER, CVN_CATS),
   after: { flapLabel: 'AUTO', cue: 'Gear up, flaps AUTO, clearing turn' },
   cue: 'NWS HI, launch bar, hook up, trim, MIL, wipe out, salute, hands off',
 };
@@ -151,8 +152,8 @@ const TOMCAT_LAUNCH: FlightOpsLaunchData = {
   ],
   power: nv('MIL', TOMCAT_CAT, 'MIL, no afterburner: not verified.'),
   weights: { unit: 'lb', normal: 60000, heavy: 70000 },
-  stations: [1, 2],
-  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER),
+  stations: [1, 2, 3, 4],
+  clearingTurn: ok({ 1: 'right', 2: 'right', 3: 'left', 4: 'left' }, SUPERCARRIER, CVN_CATS),
   after: { flapLabel: 'UP', cue: 'Gear up, flaps up, clearing turn' },
   cue: 'Hook up, MIL, salute, hands off',
 };
@@ -246,6 +247,9 @@ const TOMCAT_AAR = probeAar(TOMCAT, nv('LCtrl+R', TOMCAT, 'Refuel probe switch. 
 const JF17_AAR_DATA = probeAar(THUNDER_AAR, undefined, ok([2, 3], THUNDER_AAR, '2–3 kt of closure on the basket.'), { fwd: 6, right: 0.7, up: 0.8 });
 const MIRAGE_AAR_DATA = probeAar(MIRAGE_AAR, undefined, ok([2, 3], MIRAGE_AAR, '2–3 kt of closure on the basket.'), { fwd: 6, right: 0.6, up: 1.2 });
 
+/** Throttle to MIL / afterburner: no source gives the DCS default for these modules; the trainer binds PgUp. */
+const trainerThrottle = (source: string): Sourced<string> =>
+  ({ ...nv('PgUp', source, 'Trainer key: the DCS default throttle key for this module is not in docs/research.'), trainer: true });
 const WHEEL_BRAKE_KEY = 'DCS common default wheel-brake key; not in the source for this module.';
 const NO_TAILSTRIKE = 'Not published; gameplay value above the rotation band.';
 
@@ -369,7 +373,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
       gearUpMaxKt: nv(250, HORNET_TO, 'Not given in the takeoff section; the landing gear limit is used.'),
       afterburner: nv(false, HORNET_TO, 'MIL used; the guide reading does not fix MIL or MAX.'),
       flapIndex: 1,
-      keys: { brakes: nv('W', HORNET_TO, WHEEL_BRAKE_KEY) },
+      keys: { brakes: nv('W', HORNET_TO, WHEEL_BRAKE_KEY), throttleMax: trainerThrottle(HORNET_TO) },
       cue: 'Flaps HALF, T/O trim. Rotate to 6–8° nose-high, gear up, then flaps AUTO',
     },
   },
@@ -408,7 +412,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
       gearUpMaxKt: ok(300, VIPER_TO, 'Gear up before 300 kt.'),
       afterburner: ok(false, VIPER_TO, 'The guide gives MIL and afterburner takeoffs; the lesson uses MIL.'),
       flapIndex: 1,
-      keys: { brakes: nv('W', VIPER_TO, WHEEL_BRAKE_KEY) },
+      keys: { brakes: nv('W', VIPER_TO, WHEEL_BRAKE_KEY), throttleMax: trainerThrottle(VIPER_TO) },
       cue: 'MIL, release brakes. Pull 10 kt before Vr to 8–12°, gear up before 300 kt; the flaps follow',
     },
   },
@@ -486,7 +490,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
       gearUpMaxKt: nv(250, TOMCAT_TO, 'Not published; the landing gear limit is used.'),
       afterburner: nv(false, TOMCAT_TO, 'Not published; MIL used.'),
       flapIndex: 1,
-      keys: { brakes: nv('W', TOMCAT_TO, WHEEL_BRAKE_KEY) },
+      keys: { brakes: nv('W', TOMCAT_TO, WHEEL_BRAKE_KEY), throttleMax: trainerThrottle(TOMCAT_TO) },
       cue: 'Flaps DN, MIL, release brakes. Rotate to 8–12°, gear and flaps up with a positive climb',
     },
   },
@@ -516,7 +520,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
       gearUpMaxKt: ok(300, THUNDER_TO, 'Gear up at 30 ft and below 300 kt.'),
       afterburner: nv(false, THUNDER_TO, 'MIL used; not fixed in this reading.'),
       flapIndex: 1,
-      keys: { brakes: nv('W', THUNDER_TO, WHEEL_BRAKE_KEY) },
+      keys: { brakes: nv('W', THUNDER_TO, WHEEL_BRAKE_KEY), throttleMax: trainerThrottle(THUNDER_TO) },
       cue: 'Release brakes, auto T/O trim above 41 kt. Pull at 120 kt, lift off about 140 kt, gear up at 30 ft',
     },
   },
@@ -546,7 +550,7 @@ export const FLIGHT_OPS: Record<FlightOpsJetId, FlightOpsJetData> = {
       gearUpMaxKt: ok(260, MIRAGE_TO, 'Gear up before 260 kt.'),
       afterburner: ok(true, MIRAGE_TO, 'Full afterburner.'),
       flapIndex: null,
-      keys: { brakes: nv('W', MIRAGE_TO, WHEEL_BRAKE_KEY) },
+      keys: { brakes: nv('W', MIRAGE_TO, WHEEL_BRAKE_KEY), throttleMax: trainerThrottle(MIRAGE_TO) },
       cue: 'Nose-wheel steering for the start of the roll, full afterburner. Rotate below 13°, gear up before 260 kt',
     },
   },
@@ -576,13 +580,13 @@ export const FLIGHT_OPS_CAVEATS: string[] = [
   'Su-27, J-11A, Su-33, MiG-29S: the manuals give no approach AoA or pattern; 10° on speed, the pattern and the gear limit are gameplay values. Flap labels UP / TAKEOFF / LANDING are English stand-ins.',
   'Su-33: indexer colours (yellow fast, green on, red slow) are from the ISM-1 description; the on-speed number is not.',
   'Nav: the mode key 1 is sourced; LCtrl+~ for waypoints, the automatic ВЗВ → ПОС switch, the 12 km / 600 m intercept point and the tower call wording are not verified. Route waypoints are lesson points, not DCS mission data.',
-  'Takeoff: the F-16C Vr table, 10 kt early pull, 8–12° and 300 kt gear limit, the Hornet 6–8° and HALF flaps, the JF-17 120 kt pull, about 140 kt and 300 kt gear limit, the M-2000C full afterburner, 13° tail strike and 260 kt gear limit, and the F-15C W brake key are sourced. Other rotation speeds, pitch bands, tail-strike attitudes, gear limits and brake keys are gameplay values. F-15C: the quick start rotates at 150 kt; the detailed section pulls at 100 kt and holds 10°.',
+  'Takeoff: the F-16C Vr table, 10 kt early pull, 8–12° and 300 kt gear limit, the Hornet 6–8° and HALF flaps, the JF-17 120 kt pull, about 140 kt and 300 kt gear limit, the M-2000C full afterburner, 13° tail strike and 260 kt gear limit, and the F-15C W brake key are sourced. Throttle keys: FC3 PgUp is not verified; the other jets use PgUp as a trainer key. Other rotation speeds, pitch bands, tail-strike attitudes, gear limits and brake keys are gameplay values. F-15C: the quick start rotates at 150 kt; the detailed section pulls at 100 kt and holds 10°.',
   'M-2000C: no pilot flap control (elevons, automatic slats); the trainer has no flap keys or flap grading for it.',
   'Takeoff ground roll, rotation and liftoff are arcade rules tied to Vr and the pitch band, not a takeoff performance model.',
   'Touchdown zone is a trainer choice: 350 ft short to 1000 ft past the aim point, never short of the threshold.',
   'Carrier: Hornet hook H, 350 KIAS / 800 ft initial, 600 ft downwind 1¼–1½ nm abeam, ball at ¾ nm, gear and FULL flaps below 150 KIAS, and the Tomcat 800 ft 300–350 KIAS break, 15–17 s interval, 90 at 450–500 ft, ball at 0.6 nm, 15–18 s groove and MIL at touchdown are sourced. The Tomcat hook key, the ball-call key Y (DCS uses the radio menu), the Hornet groove time and 90 altitude and the whole Su-33 Case I pattern are not.',
   'Carrier: LSO calls, ball cells, the grade and the wire rule are arcade rules built on the Supercarrier guide thresholds; the grade comment bands and pass penalties are trainer choices.',
-  'Launch: Hornet NWS HI S, hook up U, T/O trim 16° / 17° / 19° by weight, MIL (afterburner from 49000 lb), wipe out, salute and hands off; Tomcat hook up U and salute LShift+U (Heatblur lesson text); clearing turn right from catapults 1–2 and left from 3–4; Su-33 runs of 90 m (positions 1–2) and 180 m (position 3, heavy), full then special afterburner LShift+E (10-minute limit), no FOD screens LAlt+I (−12 % thrust) are sourced. Not verified: the Hornet salute key (LCtrl+LShift+LAlt+S or the radio menu against LShift+U), the launch bar and wipe-out trainer keys, Tomcat MIL and hands off, the stopper release, the 29000 kg short-run limit and the trainer launch weights.',
+  'Launch: Hornet NWS HI S, hook up U, T/O trim 16° / 17° / 19° by weight, MIL (afterburner from 49000 lb), wipe out, salute and hands off; Tomcat hook up U and salute LShift+U (Heatblur lesson text); clearing turn right from catapults 1–2 and left from 3–4 (all four catapults offered); Su-33 runs of 90 m (positions 1–2) and 180 m (position 3, heavy), full then special afterburner LShift+E (10-minute limit), no FOD screens LAlt+I (−12 % thrust) are sourced. Not verified: which catapults DCS assigns to each jet, the waist catapult positions (drawn parallel to the bow catapults), the Hornet salute key (LCtrl+LShift+LAlt+S or the radio menu against LShift+U), the launch bar and wipe-out trainer keys, Tomcat MIL and hands off, the stopper release, the 29000 kg short-run limit and the trainer launch weights.',
   'Launch: the catapult stroke (2.5 s to the approach speed + 15 kt), the shooter delay, the ski-jump run acceleration, the 12° ramp, the minimum ramp speed (0.85 of the approach speed) and the settle after a cold cat or a short run are arcade rules, not catapult or ski-jump performance.',
   'Refuelling: Su-33 probe LCtrl+R, lights LAlt+R, the "Intent to refuel" call, 2000–9000 m, 500–570 km/h IAS, close from 10 m and hold 3–6 m below the pod; F-16C door below 400 kt / M0.85, below 400 kt / M0.95 while open; M-2000C and JF-17 2–3 kt closure are sourced. Not verified: the Su-33 RCtrl+R listing, the F-16C and F-15C door keys, the Hornet and Tomcat probe keys (trainer key LCtrl+R), the radio-menu call key, fixed probes on the JF-17 and M-2000C, contact-point positions, closure targets for the other jets.',
   'Refuelling: the Su-27, J-11A and MiG-29S have no AAR lesson. The J-11A probe is only a Deka plan; MiG-29S refuelling is not verified.',

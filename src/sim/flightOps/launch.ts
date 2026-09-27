@@ -53,6 +53,15 @@ export const STATION_C: Record<'cvn' | 'kuznetsov', Record<number, number>> = {
   kuznetsov: { 1: 7, 2: -7, 3: -14 },
 };
 
+/**
+ * Where a catapult stroke ends, metres forward of the ramp (ship frame): bow cats 1–2 end 3 m short of the bow,
+ * waist cats 3–4 at 62 % of the hull (drawing values; the waist cats are drawn parallel to the bow cats).
+ */
+export function catStrokeEndA(ship: 'cvn' | 'kuznetsov', station: number): number {
+  const L = SHIP_HULL[ship].lengthM;
+  return station <= 2 ? L - 3 : L * 0.62;
+}
+
 const CAT_POWER_MIN = 0.95;
 
 export const hasLaunchStart = (d: FlightOpsJetData) => d.launch !== undefined;
@@ -106,7 +115,7 @@ export function placeLaunchStart(s: FlightOpsState, d: FlightOpsJetData, opts: L
   let a: number;
   if (l.kind === 'catapult') {
     const vDeck = catEndSpeedMs(d) - s.ship.speedMs;
-    a = hull - 0.5 * vDeck * STROKE_S - 3;
+    a = catStrokeEndA(ship.id, station) - 0.5 * vDeck * STROKE_S;
   } else {
     a = hull - (l.runM?.value[station] ?? 90);
   }
