@@ -103,6 +103,25 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
 - **Pairs**: `pair` fires two Vikhrs from alternate stations (S1: Vikhr can be fired in pairs). The cannon fires
   `GUN_BURST` (10) rounds per release.
 
+## A-10C II targeting pod (`tgp.ts`) and laser-spot stores
+
+Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(type, loadoutId)` is per jet
+(`AG_LOADOUTS`, `GUN_ROUNDS`, `GUN_OF`): the A-10C II gets `ag.tgp` (the loadout carries a `'tgp'` station),
+`ag.spi` and `ag.laserCodes` (1688 for each laser-spot store); the Su-25T keeps the Shkval and `tgp: null`.
+- Pod: `world.tgpPower`, `tgpSlew` (x right, y away along the line of sight, rate ∝ view width), `tgpPointAt`,
+  `tgpTrack('point' | 'area' | 'inr')` (POINT takes the nearest live unit within max(25 m, 8 % of the view) and
+  follows it; masked or dead → INR), `setSpi` (TMS Forward Long), `tgpCode('laser' | 'lss', code)` (1111–1788,
+  digits 1–8), `tgpLaser` (the spot is a laser mark owned by the jet, on the aim, code = pod code), `tgpLss`
+  (LSRCH → DETECT on a spot with the LSS code within ±6° of the line of sight → LTRACK after 1 s, the aim follows the
+  spot; NO LSR when it goes). The pod sees ground only below +5° elevation and over the terrain.
+- `'laser-spot'` stores (GBU-12, AGM-65L, APKWS) home on any live laser spot with their code: the JTAC's or a pod's.
+  Launch needs a spot on the code ahead of the jet in sight; the GBU-12 may also go on the SPI (it takes a spot in its
+  ±30° cone on the way). Losing the spot: AGM-65L and APKWS miss (`laser-off`, hold to impact), the GBU-12 flies on
+  to the last spot.
+- A-10C II AGM-65D/H: the Maverick lock is the pod's POINT track (simplified; the Maverick page is not modelled).
+- Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
+- Tested in `tgp.test.ts` and `laserSpot.test.ts`.
+
 ## Marks (`marks.ts`)
 
 A mark is a point on the ground with a kind, a smoke colour or a laser code, and a lifetime

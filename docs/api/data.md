@@ -258,6 +258,13 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
 - JF-17: only `M2K`, `M29`, `SA8` confirmed; ARH seeker on the RWR shown as `M` (not documented).
 - Serval: symbol library not researched (ED-style codes stand in); tones and lock/launch look not documented.
 
+### A-10C II targeting pod and laser-spot stores (trainer values)
+
+Not verified, in `src/sim/tgp.ts` and `src/sim/agWeapons.ts`: pod fields of view WIDE 4° / NARO 1°, slew 0.6 view
+widths per second, POINT gate max(25 m, 8 % of the view), LSS cone ±6°, DETECT → LTRACK 1 s, the +5° elevation
+limit, the laser-spot store cone ±30° and the 15 m "spot on a unit" radius, and the A-10C II Maverick lock taken from
+the pod's POINT track. The codes (1688 default, 1111–1788) are from the ED manual.
+
 ### Air-to-ground (Su-25T)
 
 Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `AG_CAVEATS`.

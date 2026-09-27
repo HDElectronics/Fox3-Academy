@@ -405,6 +405,9 @@ export interface AgWeapon {
   alive: boolean;
   /** Still guided; false once a hold-to-impact rule broke (then it falls ballistic and misses). */
   guided: boolean;
+  /** 'laser-spot' stores: the code it homes on, and the laser spot (mark) it follows now. */
+  laserCode: number | null;
+  spotId: EntityId | null;
   /** Why guidance stopped, once it has. */
   lostWhy: AgMissReason | null;
   timeToImpact: number | null;
