@@ -1,9 +1,11 @@
+import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
+import { orientationQuaternion } from '../../render/units';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { TANKERS } from '../../data/tankers';
 import {
   AarEvaluator, FLIGHT_OPS_DT, STATION_MS_PER_THROTTLE, applyAction, createFlightOpsState, basketRest, demoPilot,
-  hoseBandAt, levelThrottle, stepFlightOps, tankerPose,
+  contactPointWorld, hoseBandAt, levelThrottle, toTanker, stepFlightOps, tankerPose,
   type FlightOpsAction, type FlightOpsInput, type FlightOpsJetId, type FlightOpsState,
 } from './index';
 
@@ -98,6 +100,14 @@ describe('refuelling demo', () => {
     expect(Number(m![1])).toBeGreaterThanOrEqual(3);
     expect(Number(m![2])).toBeLessThanOrEqual(6);
   });
+  it('switches the Su-33 refuelling lights on (the lights lesson step); no lights action for jets without the key', () => {
+    const su = fly('su33', 'aarRejoin', undefined, 30).s;
+    expect(su.aar!.lights).toBe(true);
+    const seen: FlightOpsAction[] = [];
+    const d = FLIGHT_OPS.f16c;
+    fly('f16c', 'aarRejoin', st => { const c = demoPilot(st, d); seen.push(...c.actions); return c; }, 30);
+    expect(seen).not.toContain('refuelLights');
+  });
   it('is deterministic', () => {
     const a = fly('fa18c', 'aarRejoin').s;
     const b = fly('fa18c', 'aarRejoin').s;
@@ -118,6 +128,41 @@ function closeAt(id: FlightOpsJetId, kt: number): Pilot {
     return { ...c, throttle: levelThrottle(s, d, a.tankerSpeedMs) + (want + 0.8 * (want - a.closureMs)) / STATION_MS_PER_THROTTLE };
   };
 }
+
+describe('contact point', () => {
+  it('turns the probe offset with the jet attitude, as the render draws it', () => {
+    const d = FLIGHT_OPS.su33;
+    const c = d.aar!.contactPointM.value;
+    const s = createFlightOpsState('su33', 'aarPrecontact', d);
+    for (const [h, p, b] of [[0, 0, 0], [0, 10, 0], [1.2, 5, 0], [4, -3, 25], [2.5, 8, -40]] as const) {
+      s.heading = h; s.pitch = p * Math.PI / 180; s.bank = b * Math.PI / 180;
+      const w = contactPointWorld(s, d);
+      const r = new Vector3(c.right, c.up, -c.fwd).applyQuaternion(orientationQuaternion(s.heading, s.pitch, s.bank));
+      expect(w.x - s.pos.x).toBeCloseTo(r.x, 6);
+      expect(w.y - s.pos.y).toBeCloseTo(r.y, 6);
+      expect(w.z - s.pos.z).toBeCloseTo(r.z, 6);
+    }
+  });
+  it('raises a forward probe tip when the nose comes up', () => {
+    const d = FLIGHT_OPS.su33;
+    const c = d.aar!.contactPointM.value;
+    const s = createFlightOpsState('su33', 'aarPrecontact', d);
+    s.bank = 0; s.pitch = 0;
+    const level = contactPointWorld(s, d);
+    s.pitch = 10 * Math.PI / 180;
+    const up = contactPointWorld(s, d);
+    expect(up.y - level.y).toBeCloseTo(c.fwd * Math.sin(s.pitch) + c.up * (Math.cos(s.pitch) - 1), 6);
+    expect(toTanker(s.aar!, up).aft).toBeGreaterThan(toTanker(s.aar!, level).aft);
+  });
+  it('starts the pitched probe tip on the pre-contact point', () => {
+    for (const id of ['su33', 'fa18c', 'f16c'] as const) {
+      const s = createFlightOpsState(id, 'aarPrecontact');
+      expect(s.pitch).not.toBe(0);
+      const a = s.aar!;
+      expect(Math.hypot(a.tip.aft - a.precontact.aft, a.tip.right - a.precontact.right, a.tip.up - a.precontact.up)).toBeLessThan(1e-6);
+    }
+  });
+});
 
 describe('refuelling rules', () => {
   it('bounces off the basket with too much closure', () => {

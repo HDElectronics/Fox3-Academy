@@ -414,7 +414,7 @@ The Merge Cockpit camera still draws its overlay sight over the main 3D view.
   anhedral stabs), F-14B (swing wings, glove, beaver tail, wide nacelles), JF-17 (side intakes, single
   tall fin), M-2000C (tailless delta, shock cones). Materials per side: body (side colour lightened),
   fins (side colour), canopy tint, dark nozzles/intakes, red/green nav lights.
-- `jet.setConfig({ gear?, flaps?, speedbrake? })`: configurable parts, each position 0..1 (clamped;
+- `jet.setConfig({ gear?, flaps?, speedbrake?, hook? })`: configurable parts, each position 0..1 (clamped;
   missing or non-finite values keep the previous one). Every jet has landing gear (nose + two mains,
   strut and wheel, a door beside each bay; the nose leg swings forward, the mains aft) and a
   speedbrake; all but the M-2000C have trailing-edge flaps (up to 25-40°; F-16C and Flankers:
@@ -423,9 +423,10 @@ The Merge Cockpit camera still draws its overlay sight over the main 3D view.
   F-14 upper and lower between the tails, JF-17 side plates on the rear fuselage, Mirage small
   upper and lower plates at each wing root. The M-2000C gets no flap part (DCS has no flap control
   for it: elevons and automatic slats). F-14 flaps sit on the outer wing at the 20° reference sweep
-  and hide while `setSweep()` is above it. No Su-33 tail hook. Hinge positions are simplified, not
+  and hide while `setSweep()` is above it. The carrier jets (F/A-18C, F-14B, Su-33) have a tailhook part: an arm under
+  the tail, 84 % of the length back, swinging `HOOK_DOWN_DEG` (35°) down by `hook`. Hinge positions are simplified, not
   measured. Simple low-poly plates in the shared materials, geometry cached per type like the swing
-  wing. Default config is gear up, flaps up, speedbrake in, and parts at 0 are hidden, so BVR pages
+  wing. Default config is gear up, flaps up, speedbrake in, hook stowed, and parts at 0 are hidden, so BVR pages
   see the unchanged clean jet. Read back with `jet.config`, `jet.configParts` (which parts exist)
   and `jet.groundClearanceM` (model origin above the wheel contact line with the gear down, metres).
 - `getJetModel(id)` (`model.parts` holds the part list), `JET_DIMENSIONS`, `jetMaterials(palette, side)`,
@@ -449,7 +450,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   the grid, adds the runway, the approach overlay and a `JetMesh`.
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
-    speedbrakePos)`; swaps the jet if `state.aircraft` changed.
+    speedbrakePos, hookPos ?? 0)`; swaps the jet if `state.aircraft` changed.
   - `setCamera('chase' | 'side' | 'tower' | 'lso' | 'cockpit' | 'deck' | 'wing' | 'receiver')`: chase = behind the jet on its heading, 9 m
     high and 7 m left, looking between the jet and the aim point while the runway is ahead (so the
     jet sits low right and the runway stays visible on final) and along the heading otherwise;
@@ -478,11 +479,11 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   - Deck launch (#27): on a ship start with `state.launch` the scene adds a `LaunchDeck` to the `CarrierMesh` and
     drives it each `update`. It remembers the ship-frame spot the jet was held on: the side view frames that spot
     and the jet along the ship's heading. Camera `'deck'` is the shooter's view: on the deck `DECK_EYE` ahead of
-    and beside the held jet (ahead 22 m, outboard 17 m, 1.8 m up; display choice), looking at the jet, no
-    smoothing, the field of view narrowing with range to about 45 m around the jet. Without a launch `'deck'`
+    and beside the held jet (ahead 8 m, outboard 26 m, 3 m up; display choice: far enough abeam that the raised
+    jet-blast deflector reads behind the tail), looking at the jet, no smoothing, the field of view narrowing with range to about 45 m around the jet. Without a launch `'deck'`
     shows the chase view.
-  - Tail hook: when `state.hookPos` is defined the scene hangs a simple arm under the jet's tail and swings it
-    35° down by `hookPos` (hidden when stowed). Drawn by the scene, not a `JetMesh` part.
+  - Tail hook: `state.hookPos` drives the `JetMesh` hook part (`setConfig({ hook })`, carrier jets only; hidden when
+    stowed or when the state has no hook).
   - Air-to-air refuelling (#28): `setTanker(tankerId | null)` adds a `TankerMesh` to `root` (world metres), hides
     the runway and the approach overlay; `null` removes it. With `state.aar`, `update(state)` places the jet with
     its model origin on the sim reference (no ground-clearance offset), draws a probe rod on probe jets (out by
@@ -507,10 +508,11 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   island and mast, landing-area paint (caution edge lines, dashed centreline, ramp line, wires with the target
   wire in the ok token), the Kuznetsov ski-jump, and the landing aid on the port side abeam the wires: IFLOLS
   panel with green datum bars, the amber ball (red in the red low cells), red waveoff and green cut lights, or
-  the Luna-3 colour light. `place({ x, z, heading })`, `setBall(ball | null)`, `dispose()`. Drawing values,
+  the Luna-3 colour light, and a foam wake astern on the sea (`flightOps:wake`: sea colour toward the missile
+  token, widening and fading over `WAKE.lengthM`, per-vertex alpha, no depth write, polygon offset). `place({ x, z, heading })`, `setBall(ball | null)`, `dispose()`. Drawing values,
   not ship plans. Pure helpers: `deckOutline(id)` (ship frame a, c), `landingPaint(ship, targetWire)`
   (`DeckStrip[]` in the landing frame), `landingLocal(u, v, angledDeg)`, `shipLocal(a, c)`,
-  `shipToLanding(a, c, angledDeg)`, `lensCell(ball)`. The Kuznetsov ski-jump follows the sim: the last `RAMP_M`
+  `shipToLanding(a, c, angledDeg)`, `lensCell(ball)`, `wakeStrip(id)` (wake cross-sections astern: a, half-width, alpha). The Kuznetsov ski-jump follows the sim: the last `RAMP_M`
   (25 m) of the bow rise on `skiJumpProfile()` to `RAMP_DEG` (12°) at the lip, wide enough for every launch position.
 - `LaunchDeck(palette, shipId)` (`flightOps/launchDeck.ts`, #27): deck-launch furniture in ship-local metres, a
   child of `CarrierMesh`. CVN: four catapult tracks at `STATION_C` (cats 1–2 on the bow, 3–4 on the waist), a
@@ -536,7 +538,9 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
 - Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
-  `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts.
+  `inspect=1` gives a close three-quarter view of the true-size jet to check the moving parts. `ship=cvn|kuznetsov`
+  puts the jet in the groove of a steaming carrier (sea, wake, hook down by `hook=0..1`, `d` from the hook aim point,
+  default 600 m; cameras chase, side, lso, cockpit).
 
 ## BfmAids (`bfmAids.ts`, close-combat lessons)
 

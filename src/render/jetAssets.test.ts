@@ -49,12 +49,12 @@ describe('aircraft asset adoption', () => {
 
   it('keeps every procedural part usable when loading does not complete', () => {
     const j = jet();
-    j.setConfig({ gear: 1, flaps: 1, speedbrake: 1 });
+    j.setConfig({ gear: 1, flaps: 1, speedbrake: 1, hook: 1 });
     expect(j.body.visible).toBe(true); expect(j.usingAsset).toBe(false);
     expect(j.children.filter(c => c.name.startsWith('part:')).every(c => c.visible)).toBe(true);
   });
 
-  it.each(['gear', 'flaps', 'speedbrake'] as const)('switches the complete airframe for deployed %s and restores the asset clean', async drive => {
+  it.each(['gear', 'flaps', 'speedbrake', 'hook'] as const)('switches the complete airframe for deployed %s and restores the asset clean', async drive => {
     const j = jet(); const a = exterior(j);
     j.setConfig({ [drive]: 1 });
     await a.finish();

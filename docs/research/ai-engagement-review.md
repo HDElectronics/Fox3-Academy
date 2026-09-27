@@ -24,3 +24,15 @@ No new source justifies weakening defense or changing those values solely to for
 Retain the sourced gameplay parameters. Keep multi-seed convergence regressions. The original six-minute
 pacing concern remains open for a future, explicitly labeled training-difficulty or scenario-design decision.
 Do not present a timeout threshold as evidence that real DCS behavior is incorrect.
+
+## Re-run and closure (2026-09-27, issue #3)
+
+Same command, five seeds, 600 s budget. All 110 engagements ended (one ace fight as a trade). The 50 regular fights: median 325 s, 12 over
+400 s, longest 560 s (F/A-18C vs MiG-29S, seed 5). The long traces show one cycle repeated five or six times:
+a shot at 80 to 85 % Rmax, a defended missile (notch, chaff or kinematic miss), a pump and a recommit, about
+100 s per cycle, with each reshot closer. Aces finish sooner because they shoot closer and pump less.
+
+No page puts two regular AI jets against each other. In Sortie the player fights the regular bandits and sets
+the pace, the AI wingman is a veteran, and time acceleration (up to 8×) shortens any wait. The six-minute figure
+was a test threshold, not a user-facing problem, and shortening the cycle would need an unsourced AI change.
+Decision: close #3 without tuning. The convergence regressions stay.

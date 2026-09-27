@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { FLIGHT_OPS_DT, LaunchEvaluator, applyAction, createFlightOpsState, demoPilot, stepFlightOps, type LaunchScore } from '../../sim/flightOps';
 import { parseChord } from '../../ui';
-import { FLIGHT_OPS_JETS, progressKey, stepOrder } from './logic';
+import { FLIGHT_OPS_JETS, progressKey, stepOrder, throttleMaxKey } from './logic';
 import {
   TRIM_KEYS, avoidKey, keyTag, launchCaption, launchCard, launchCurrent, launchKeys, launchLessonSteps, launchStarts, launchStepsDone,
-  launchWarnings, powerText, stationLabel, touchLabel, trimReadout, trimTable,
+  launchStepKey, launchStepTag, launchWarnings, powerText, stationLabel, touchLabel, trimReadout, trimTable,
 } from './launchLesson';
 
 describe('flight-ops launch page logic (#27)', () => {
@@ -114,5 +114,29 @@ describe('flight-ops launch page logic (#27)', () => {
     expect(launchCard({ ...base, outcome: 'short run' }).title).toBe('Short run');
     expect(launchCard({ ...base, outcome: 'sequence error' }).tone).toBe('caution');
     expect(launchCard({ ...base, outcome: null }).title).toBe('No launch');
+  });
+});
+
+describe('launch strip tags (#33)', () => {
+  it('tags the Su-33 stopper release "not verified" and never returns an empty tag or key', () => {
+    expect(launchStepTag(FLIGHT_OPS.su33, 'release')).toBe('not verified');
+    expect(launchStepKey(FLIGHT_OPS.su33, 'release')).toBeNull();
+    for (const id of ['fa18c', 'f14b', 'su33'] as const) {
+      for (const st of FLIGHT_OPS[id].launch!.steps) {
+        const tag = launchStepTag(FLIGHT_OPS[id], st.id);
+        expect(tag === null || tag.length > 0, `${id} ${st.id}`).toBe(true);
+        const key = launchStepKey(FLIGHT_OPS[id], st.id);
+        expect(key === null || key.length > 0, `${id} ${st.id}`).toBe(true);
+      }
+    }
+  });
+
+  it('shows the throttle key on the power step, tagged as a trainer key on the Western jets', () => {
+    expect(launchStepKey(FLIGHT_OPS.fa18c, 'power')).toBe(throttleMaxKey(FLIGHT_OPS.fa18c).key);
+    expect(launchStepTag(FLIGHT_OPS.fa18c, 'power')).toBe('trainer key');
+    expect(launchStepTag(FLIGHT_OPS.f14b, 'power')).toBe('trainer key');
+    expect(launchStepTag(FLIGHT_OPS.su33, 'power')).toBe('not verified');
+    const power = launchLessonSteps(FLIGHT_OPS.fa18c, 'imperial', 1, false).find(s => s.id === 'power')!;
+    expect(power.note).toMatch(/trainer key/);
   });
 });

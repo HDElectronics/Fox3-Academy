@@ -23,6 +23,18 @@ function flyTakeoff(id: FlightOpsJetId, pilot?: Pilot, maxS = 120) {
   return { s, score: ev.score() };
 }
 
+describe('throttle key', () => {
+  it('marks PgUp as a trainer key on the jets with no sourced throttle key', () => {
+    for (const id of JETS) {
+      const k = FLIGHT_OPS[id].takeoff.keys.throttleMax;
+      expect(k.value).toBe('PgUp');
+      expect(k.verified).toBe(false);
+      const fc3 = ['su27', 'j11a', 'su33', 'mig29s', 'f15c'].includes(id);
+      expect(!!k.trainer, id).toBe(!fc3);
+    }
+  });
+});
+
 describe('takeoff data', () => {
   it('has a takeoff for every jet with the pitch band below the tail-strike attitude', () => {
     for (const id of JETS) {

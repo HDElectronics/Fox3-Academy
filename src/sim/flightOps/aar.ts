@@ -117,15 +117,25 @@ export function fromTanker(a: AarState, v: TankerFrameVec): { x: number; y: numb
   };
 }
 
-/** Probe tip or receptacle in the world frame (receiver heading; pitch and bank ignored). */
+/**
+ * A jet-body offset (fwd, right, up metres) in the world frame, with the jet's heading, pitch and bank: the same
+ * rotation the render applies to the jet (src/render/units.ts orientationQuaternion: heading clockwise from north,
+ * nose −z, pitch nose-up +, bank right wing down +).
+ */
+export function bodyOffsetWorld(s: Pick<FlightOpsState, 'heading' | 'pitch' | 'bank'>, c: { fwd: number; right: number; up: number }) {
+  const cr = Math.cos(s.bank), sr = Math.sin(s.bank);
+  const cp = Math.cos(s.pitch), sp = Math.sin(s.pitch);
+  const ch = Math.cos(s.heading), sh = Math.sin(s.heading);
+  // Body axes: x right, y up, z aft. Roll, then pitch, then heading.
+  const x1 = c.right * cr + c.up * sr, y1 = -c.right * sr + c.up * cr, z1 = -c.fwd;
+  const y2 = y1 * cp - z1 * sp, z2 = y1 * sp + z1 * cp;
+  return { x: x1 * ch - z2 * sh, y: y2, z: x1 * sh + z2 * ch };
+}
+
+/** Probe tip or receptacle in the world frame (receiver heading, pitch and bank applied, as the render draws it). */
 export function contactPointWorld(s: FlightOpsState, d: FlightOpsJetData) {
-  const c = aarData(d).contactPointM.value;
-  const h = s.heading;
-  return {
-    x: s.pos.x + c.fwd * Math.sin(h) + c.right * Math.cos(h),
-    y: s.pos.y + c.up,
-    z: s.pos.z - c.fwd * Math.cos(h) + c.right * Math.sin(h),
-  };
+  const o = bodyOffsetWorld(s, aarData(d).contactPointM.value);
+  return { x: s.pos.x + o.x, y: s.pos.y + o.y, z: s.pos.z + o.z };
 }
 
 /** Basket at full trail below and behind the pod. */
@@ -190,8 +200,13 @@ function say(a: AarState, t: number, from: 'player' | 'tanker', text: string) {
   a.calls.push({ t, from, text });
 }
 
-/** Place the jet for the 'aarRejoin' or 'aarPrecontact' start (throws when the jet has no refuelling data). */
-export function placeAarStart(s: FlightOpsState, d: FlightOpsJetData, start: 'aarRejoin' | 'aarPrecontact', opts: AarOptions = {}): void {
+/**
+ * Place the jet for the 'aarRejoin' or 'aarPrecontact' start (throws when the jet has no refuelling data).
+ * `settle` trims the jet (AoA, pitch, throttle) once heading and speed are set, before the contact point is placed,
+ * so the pitched probe tip starts exactly on the pre-contact point.
+ */
+export function placeAarStart(s: FlightOpsState, d: FlightOpsJetData, start: 'aarRejoin' | 'aarPrecontact', opts: AarOptions = {},
+  settle?: (s: FlightOpsState) => void): void {
   const r = aarData(d);
   const id = opts.tanker ?? r.tanker;
   if (!r.tankers.includes(id)) throw new Error(`${d.id} does not refuel from the ${id}`);
@@ -212,8 +227,10 @@ export function placeAarStart(s: FlightOpsState, d: FlightOpsJetData, start: 'aa
   s.aar = a;
   s.heading = pose.heading;
   s.speed = pose.speedMs;
-  const c = r.contactPointM.value;
-  const offset = v3(-c.fwd, c.right, c.up);
+  settle?.(s);
+  // Contact point relative to the jet, tanker frame (the jet starts on the tanker heading).
+  const w = bodyOffsetWorld(s, r.contactPointM.value), h = a.tankerHeading;
+  const offset = v3(-(w.x * Math.sin(h) - w.z * Math.cos(h)), w.x * Math.cos(h) + w.z * Math.sin(h), w.y);
   if (start === 'aarRejoin') {
     a.rel = v3(REJOIN_START.aheadNm * M_PER_NM, 0, a.precontact.up - offset.up - REJOIN_START.belowM);
   } else {

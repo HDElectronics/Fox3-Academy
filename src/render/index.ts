@@ -20,12 +20,12 @@ export type { ForwardViewOptions } from './forwardView';
 export type { CameraMode, CameraRigOptions, FocusTarget, ModeOptions, FrameOptions as CameraFrameOptions } from './cameras';
 export {
   JetMesh, getJetModel, jetMaterials, JET_DIMENSIONS, NOMINAL_JET_M, NOMINAL_MISSILE_M, createMissileMesh, getMissileGeometry,
-  missileMaterials, smokeDensity, f14SweepForMach, solidMaterial,
+  missileMaterials, smokeDensity, f14SweepForMach, solidMaterial, HOOK_DOWN_DEG,
 } from './jets';
 export type { JetModel, JetConfig, JetPart, JetParts, JetPartDrive } from './jets';
 export {
   FlightOpsScene, RunwayMesh, runwayMarkings, ApproachOverlay, glidePoint, CarrierMesh, deckOutline, landingLocal, landingPaint,
-  lensCell, shipLocal, shipToLanding, LSO_EYE, CARRIER_CORRIDOR_M, DECK_EYE, WING_EYE, RECEIVER_EYE,
+  lensCell, shipLocal, shipToLanding, wakeStrip, LSO_EYE, CARRIER_CORRIDOR_M, DECK_EYE, WING_EYE, RECEIVER_EYE,
   LaunchDeck, TankerMesh, TANKER_LAYOUT, bandStripes, hoseMarkAt, hosePoints, rollPoint, tankerLocal,
 } from './flightOps';
 export type {

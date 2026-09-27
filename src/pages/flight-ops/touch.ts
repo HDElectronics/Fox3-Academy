@@ -41,7 +41,7 @@ export interface TouchControlsHandle {
   setCarrier(on: boolean): void;
   /** Show the launch sequence buttons (launch starts only). */
   setLaunch(on: boolean): void;
-  /** Show the refuelling buttons (refuelling starts only). */
+  /** Show the refuelling buttons (refuelling starts only); they replace the configuration buttons. */
   setAar(on: boolean): void;
   dispose(): void;
 }
@@ -54,6 +54,17 @@ export function stickFromPoint(px: number, py: number, rect: { left: number; top
   const m = Math.hypot(x, y);
   if (m > 1) { x /= m; y /= m; }
   return { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
+}
+
+/** Which button rows the panel shows for a start (pure, for tests). */
+export interface TouchRows { base: boolean; carrier: boolean; launch: boolean; aar: boolean }
+/**
+ * Refuelling starts show only the refuelling row (when the jet has refuelling buttons); the gear, flaps,
+ * brakes and nav buttons have no job behind the tanker. Every other start keeps the configuration row.
+ */
+export function touchRows(on: { carrier: boolean; launch: boolean; aar: boolean }, has: { launch: number; aar: number }): TouchRows {
+  const aar = on.aar && has.aar > 0;
+  return { base: !aar, carrier: on.carrier && !aar, launch: on.launch && has.launch > 0, aar };
 }
 
 export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
@@ -131,9 +142,18 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
   const aarBtns = (o.aar ?? []).map(x => button({ id: `fo-touch-a-${x.id}`, label: x.label, keys: x.key, title: x.title, onClick: () => o.onAar?.(x.id) }));
   const aarRow = h('div', { class: 'fo-touch__launch' }, aarBtns.map(b => b.el));
   aarRow.hidden = true;
+  const btnRow = h('div', { class: 'fo-touch__btns' }, btns.map(b => b.el));
   const el = h('div', { class: 'fo-touch', id: 'fo-touch' },
     pad,
-    h('div', { class: 'fo-touch__side' }, thr.el, h('div', { class: 'fo-touch__btns' }, btns.map(b => b.el)), launchRow, aarRow));
+    h('div', { class: 'fo-touch__side' }, thr.el, btnRow, launchRow, aarRow));
+  const on = { carrier: false, launch: false, aar: false };
+  const sync = () => {
+    const r = touchRows(on, { launch: launchBtns.length, aar: aarBtns.length });
+    btnRow.hidden = !r.base;
+    for (const b of carrierBtns) b.el.hidden = !r.carrier;
+    launchRow.hidden = !r.launch;
+    aarRow.hidden = !r.aar;
+  };
 
   return {
     el,
@@ -141,9 +161,9 @@ export function touchControls(o: TouchControlsOptions): TouchControlsHandle {
     get active() { return pointer !== null; },
     get wheelBrakes() { return wheel !== null; },
     setThrottle(v) { if (document.activeElement !== thr.input) thr.set(Math.round(v * 100), false); },
-    setCarrier(on) { for (const b of carrierBtns) b.el.hidden = !on; },
-    setLaunch(on) { launchRow.hidden = !on || !launchBtns.length; },
-    setAar(on) { aarRow.hidden = !on || !aarBtns.length; },
+    setCarrier(v) { on.carrier = v; sync(); },
+    setLaunch(v) { on.launch = v; sync(); },
+    setAar(v) { on.aar = v; sync(); },
     dispose() {
       pad.removeEventListener('pointerdown', down);
       pad.removeEventListener('pointermove', move);
