@@ -26,6 +26,8 @@ const POINT_GATE_M = 25;
 export const LSS_HALF_DEG = 6;
 /** DETECT shows this long before LTRACK takes over (s). Trainer value. */
 const LSS_DETECT_S = 1;
+/** NO LSR shows this long, then the pod searches again (LSRCH), as the research describes (a10c.md §3). */
+const LSS_LOST_S = 1;
 /** The pod cannot look above this elevation (deg): no ground in view. Trainer value. */
 const MAX_EL_DEG = 5;
 
@@ -207,6 +209,7 @@ export function stepTgp(world: World, ac: Aircraft, dt: number): void {
     else t.aim.copy(u.pos);
   }
   // LSS: search → DETECT → LTRACK on a spot with the LSS code; NO LSR when the spot goes.
+  if (t.lss === 'lost' && world.t - t.lssSince >= LSS_LOST_S) { t.lss = 'search'; t.lssSince = world.t; }
   if (t.lss === 'search') {
     const found = spotsInCone(world, ac, t, t.lssCode)[0];
     if (found) { t.lss = 'detect'; t.lssMarkId = found.id; t.lssSince = world.t; }

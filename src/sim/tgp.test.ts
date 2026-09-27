@@ -80,6 +80,8 @@ describe('A-10C II targeting pod (docs/research/a10c.md §3)', () => {
     run(world, 0.1);
     expect(ac.ag!.tgp!.lss).toBe('lost');
     expect(other.alive).toBe(true);
+    run(world, 1.2);
+    expect(ac.ag!.tgp!.lss).toBe('search');                 // NO LSR for 1 s, then LSRCH again
   });
 
   it('a JTAC spot follows a moving unit; a jet laser spot ends when the jet dies', () => {

@@ -36,7 +36,7 @@ import { createSamSite, stepSams } from './sam';
 import { createGunState, stepGuns } from './guns';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
 import { createMark, endMark, stepMarks } from './marks';
-import { pointTgp, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
+import { pointTgp, toggleTgpFov, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
 import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
@@ -180,6 +180,8 @@ export class World {
   tgpPower(id: EntityId, on: boolean): void { const ac = this.aircraft.get(id); if (ac) setTgpPower(this, ac, on); }
   tgpSlew(id: EntityId, x: number, y: number): void { const ac = this.aircraft.get(id); if (ac) setTgpSlew(ac, x, y); }
   tgpPointAt(id: EntityId, p: { x: number; y?: number; z: number }): void { const ac = this.aircraft.get(id); if (ac) pointTgp(this, ac, p); }
+  /** WIDE ⇄ NARO. */
+  tgpToggleFov(id: EntityId): 'wide' | 'narrow' | null { const ac = this.aircraft.get(id); return ac ? toggleTgpFov(ac) : null; }
   tgpTrack(id: EntityId, mode: 'area' | 'point' | 'inr'): TgpResult {
     const ac = this.aircraft.get(id); return ac ? tgpTrack(this, ac, mode) : { ok: false, reason: 'No aircraft' };
   }
