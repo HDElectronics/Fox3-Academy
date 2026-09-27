@@ -4,7 +4,7 @@
  */
 import type { AgLoadout, AgWeaponId } from '../data/types';
 import { AG_WEAPON_ORDER, SU25T_GUN_ROUNDS, SU25T_LOADOUTS } from '../data/agWeapons';
-import type { AttackState } from './types';
+import type { AgSalvo, AttackState } from './types';
 import { createShkvalState } from './shkval';
 
 /** A-G state for a freshly spawned attack jet with one of the SU25T_LOADOUTS (default: the first). */
@@ -17,12 +17,29 @@ export function createAttackState(loadoutId?: string): AttackState {
     stores[s.weapon] = (stores[s.weapon] ?? 0) + s.count;
   }
   const ag: AttackState = {
-    master: 'nav', stores, stations, selected: null, station: null, pair: false,
+    master: 'nav', stores, stations, selected: null, station: null, pair: false, salvo: 1,
     pod: stations.some(s => s.weapon === 'l081'), arm: { detecting: false, emitterId: null }, ccrpHeld: false, ccrpReleased: false,
     shkval: createShkvalState(),
   };
   selectAgWeapon(ag, AG_WEAPON_ORDER.find(w => w !== 'gun25t' && (stores[w] ?? 0) > 0) ?? null);
   return ag;
+}
+
+/** Salvo sizes in the order [LCtrl-Space] cycles them (S1). */
+export const AG_SALVO_ORDER: readonly AgSalvo[] = [1, 2, 4, 'all'];
+/** Cockpit label of a salvo size (S1). */
+export const salvoLabel = (s: AgSalvo): string => (s === 'all' ? 'ВСЕ' : `ПО ${s}`);
+
+/** Next salvo size (ПО 1 → ПО 2 → ПО 4 → ВСЕ → ПО 1). */
+export function cycleAgSalvo(ag: AttackState): AgSalvo {
+  ag.salvo = AG_SALVO_ORDER[(AG_SALVO_ORDER.indexOf(ag.salvo) + 1) % AG_SALVO_ORDER.length]!;
+  return ag.salvo;
+}
+
+/** Rockets or bombs one press releases: the salvo size, capped by what is left. */
+export function salvoCount(ag: AttackState, w: AgWeaponId): number {
+  const left = ag.stores[w] ?? 0;
+  return ag.salvo === 'all' ? left : Math.min(ag.salvo, left);
 }
 
 /** Stations still carrying `w`, in station order. */

@@ -205,7 +205,9 @@ for target size; a 10 m frame will not lock the 60 m bunker), **Laser** (RShift+
 cool), **Vikhr drill** (a tank platoon at 12–15 km: lock, lase, fire with Space at ПР and hold lock and laser to
 impact; scored on kills, misses with their reason, and laser time) and **CCIP pass** (S-8 rockets or the cannon on a
 truck column; you fly the dive yourself, as in DCS: Up pushes the nose down, Down pulls it up, Left / Right turn,
-and a released key holds the dive angle. Push over until the pipper reaches the trucks, fire a few rockets inside
+and a released key holds the dive angle; on a tablet the Nose ▼ / Nose ▲ pad buttons do the same. LCtrl + Space
+(or the ПО Salvo button) sets how many rockets or bombs one press releases: ПО 1, ПО 2, ПО 4 or ВСЕ, shown in the
+Store readout. Push over until the pipper reaches the trucks, fire a few rockets inside
 about 2.5 km, and pull out; below 300 m in a dive the coach calls Pull up. A ground ring and a fading trail show
 where the rockets would land now and where that point has been). Tap the TV picture to point the sight; on a tablet a slew pad, zoom and
 size buttons and Fire / Lock / ЛД buttons appear. Launch ranges are community values and marked not verified.

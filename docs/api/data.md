@@ -281,7 +281,8 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
   The ±2° director tolerance (`CCRP_TOL_DEG`) and the 0.5 s late-release cut-off are trainer values, **not verified**.
 - Sortie (`src/pages/strike/sortie.ts`): the ZSU-23-4 envelope (2.5 km, 2000 m above the site, about 6 s of
   exposure brings the jet down), the terrain-following autopilot, the steering cue, the score weights and the
-  Delete flare key for the Su-25T are trainer values, **not verified**. The 1-minute continuous laser coaching line
+  Delete flare key for the Su-25T are trainer values, **not verified**. The salvo selector follows S1
+  (ПО 1 / ПО 2 / ПО 4 / ВСЕ, LCtrl + Space); the starting ПО 1 and the release all at once are **not verified**. The 1-minute continuous laser coaching line
   follows S1 (printed p. 57).
 
 ### CAS and JTAC

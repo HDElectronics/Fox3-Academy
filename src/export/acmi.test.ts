@@ -192,7 +192,7 @@ describe('Tacview ACMI export', () => {
       { t: 0.4, type: 'ground-kill', targetId: 'g1', by: 'a', weapon: 'kh29l' },
       { t: 0.45, type: 'ag-miss', weaponId: 'r', weapon: 's8', reason: 'ground' },
       { t: 0.7, type: 'mark', markId: 'k', mark: 'smoke', what: 'off', ownerId: 'jt' },
-      { t: 0.8, type: 'mark', markId: 'l', mark: 'laser', what: 'on', ownerId: 'jt' },
+      { t: 0.8, type: 'mark', markId: 'l', mark: 'laser', what: 'on', ownerId: 'jt', code: 1688 },
     ];
     const out = exportAcmi([f0, f1, f2, f3], { events });
     // IDs: a=1, g1=2, g2=3, jt=4, k=5, r=6, w=7. Cannon rounds and laser spots are not objects and take no ID.
@@ -211,7 +211,7 @@ describe('Tacview ACMI export', () => {
     // No kill event for the truck: its recorded death still gives a Destroyed event at the next sample.
     expect(out).toContain('#0.5\n0,Event=Destroyed|3\n-3\n1,T=');
     expect(out).toContain('#0.7\n0,Event=Message|5|4|White smoke mark off\n-5\n#0.75\n1,T=');
-    expect(out).toContain('#0.8\n0,Event=Message|4|Laser mark on\n');
+    expect(out).toContain('#0.8\n0,Event=Message|4|Laser mark 1688 on\n');
     const { removed } = read(out);
     expect(removed.filter(r => r.id === '2')).toEqual([{ id: '2', t: 0.4 }]);
     expect(removed.filter(r => r.id === '5')).toEqual([{ id: '5', t: 0.7 }]);

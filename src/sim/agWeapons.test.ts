@@ -3,6 +3,7 @@ import { World } from './world';
 import type { AgWeapon, SimEvent } from './types';
 import { AG_WEAPONS } from '../data/agWeapons';
 import { AG_MODEL, predictImpact, type AgLaunchCheck } from './agWeapons';
+import { AG_SALVO_ORDER, salvoCount, salvoLabel } from './attack';
 import type { AgWeaponId } from '../data/types';
 
 const isCheck = (r: AgWeapon[] | AgLaunchCheck): r is AgLaunchCheck => !Array.isArray(r);
@@ -269,5 +270,34 @@ describe('CCIP pipper accuracy', () => {
       for (let i = 0; i < 60 * 60 && wp.alive; i++) world.step(1 / 60);
       expect(Math.hypot(wp.pos.x - p.x, wp.pos.z - p.z)).toBeLessThan(4);
     } finally { AG_MODEL[w].dispersionMrad = disp; }
+  });
+});
+
+describe('Rocket and bomb salvo size (S1: ПО 1 / ПО 2 / ПО 4 / ВСЕ)', () => {
+  it('cycles ПО 1 → ПО 2 → ПО 4 → ВСЕ and back, starting at ПО 1', () => {
+    const { world, ag } = setup({ loadout: 'unguided' });
+    expect(ag.salvo).toBe(1);
+    expect([1, 2, 3, 4].map(() => world.cycleAgSalvo('me'))).toEqual([2, 4, 'all', 1]);
+    expect(AG_SALVO_ORDER.map(salvoLabel)).toEqual(['ПО 1', 'ПО 2', 'ПО 4', 'ВСЕ']);
+  });
+  it('releases the salvo in one press and caps it by what is left', () => {
+    const { world, ag } = setup({ loadout: 'unguided', alt: 1500 });
+    world.setAgMaster('me', 'ag'); world.selectAgWeapon('me', 's8');
+    world.cycleAgSalvo('me'); world.cycleAgSalvo('me');
+    const before = ag.stores.s8!;
+    const out = world.agLaunch('me');
+    expect(isCheck(out)).toBe(false);
+    expect((out as AgWeapon[]).length).toBe(4);
+    expect(ag.stores.s8).toBe(before - 4);
+    ag.stores.s8 = 3;
+    expect(salvoCount(ag, 's8')).toBe(3);
+    ag.salvo = 'all';
+    expect(salvoCount(ag, 's8')).toBe(3);
+  });
+  it('leaves the cannon burst and guided weapons alone', () => {
+    const { world, ag } = setup({ loadout: 'unguided', alt: 1500 });
+    ag.salvo = 4;
+    world.setAgMaster('me', 'ag'); world.selectAgWeapon('me', 'gun25t');
+    expect((world.agLaunch('me') as AgWeapon[]).length).toBe(10);
   });
 });

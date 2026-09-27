@@ -290,6 +290,9 @@ export interface ShkvalState {
   laserCoolS: number;
 }
 
+/** Unguided release quantity per trigger press (S1: ПО 1 / ПО 2 / ПО 4 / ВСЕ, cycled with [LCtrl-Space]). */
+export type AgSalvo = 1 | 2 | 4 | 'all';
+
 export interface AttackState {
   master: AgMasterMode;
   /** Rounds left per A-G store (the cannon counts rounds). */
@@ -301,6 +304,8 @@ export interface AttackState {
   station: number | null;
   /** Fire pairs where the weapon allows it (Vikhr). */
   pair: boolean;
+  /** Rockets and bombs released per press, all at once (S1 ЗАЛП). The default ПО 1 is a trainer choice, not verified. */
+  salvo: AgSalvo;
   /** L-081 Fantasmagoria pod carried (needed for the Kh-58). */
   pod: boolean;
   /** Anti-radiation passive detection ([I]) and the emitter (SAM site id) locked for the Kh-58. */
@@ -519,7 +524,7 @@ export type SimEvent =
   /** A ground unit or SAM site destroyed (separate from 'kill', which is for aircraft). */
   | { t: number; type: 'ground-kill'; targetId: EntityId; by: EntityId | null; weapon: AgWeaponId | null }
   /** A target mark put down ('on') or ended ('off': expired, terminated, or its owner died). */
-  | { t: number; type: 'mark'; markId: EntityId; mark: MarkKind; what: 'on' | 'off'; ownerId: EntityId | null }
+  | { t: number; type: 'mark'; markId: EntityId; mark: MarkKind; what: 'on' | 'off'; ownerId: EntityId | null; code?: number | null }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
@@ -575,7 +580,7 @@ export interface RecordFrame {
   groundUnits?: { id: EntityId; kind: GroundUnitKind; side: Side; pos: [number, number, number]; heading: number; alive: boolean }[];
   agWeapons?: { id: EntityId; type: AgWeaponId; side: Side; shooterId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
   /** Target marks (absent in recordings without them). */
-  marks?: { id: EntityId; type: MarkKind; colour: MarkColour | null; side: Side; pos: [number, number, number]; alive: boolean }[];
+  marks?: { id: EntityId; type: MarkKind; colour: MarkColour | null; side: Side; pos: [number, number, number]; alive: boolean; code?: number | null }[];
   /** Shkval per attack jet while the sight is on: ground aim point, locked unit, laser. */
   shkval?: { ownerId: EntityId; point: [number, number, number] | null; locked: EntityId | null; laser: boolean }[];
 }

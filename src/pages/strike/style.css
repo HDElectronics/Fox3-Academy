@@ -24,6 +24,8 @@
 @media (pointer: coarse) { .strk-touch { display: flex; flex-direction: column; } }
 .strk-pad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; justify-content: center; }
 .strk-pad__btn { min-width: 44px; min-height: 44px; padding: 0; font-family: var(--font-mono); touch-action: none; user-select: none; }
+.strk-pad--pitch { grid-template-columns: repeat(3, 44px) 56px; }
+.strk-pad__pitch { font-size: var(--fs-xs); line-height: 1.1; white-space: normal; padding: 0 2px; }
 .strk-pad .ui-btn { min-height: 44px; }
 .strk-pad__row { display: flex; gap: 4px; }
 .strk-pad__row > * { flex: 1 1 0; min-height: 40px; }
