@@ -2,9 +2,10 @@
  * [OWNER: page-radar-lab] Radar Lab (#/radar): the scan volume made physical. Own jet with its live
  * RadarVolume, scripted bandits at chosen ranges / altitudes / aspects, the jet's radar display showing
  * only what was painted, a 2D side view of the bars, a "Why" panel for any clicked jet, the scan console
- * and six guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
+ * and seven guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
  * ?sel=<n> ?cam=34|side|top|behind ?el=<deg> ?azc=<deg> ?w=<±deg> ?bars=<n> ?mode=rws|tws ?cursor=<units> ?pause=1
- * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through)
+ * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through;
+ * iff, iffasked, iffdone: two unknowns, after the interrogation (auto-IFF jets: friend marked), hostile locked)
  * ?view=explain (reading section only).
  */
 import './style.css';
@@ -35,6 +36,7 @@ import {
   type ExerciseId, type Mem, type ScanPreset, type Scene, type Snap,
 } from './exercises';
 import { lockKeyOf } from './jamming';
+import { iffFacts } from './iff';
 import { labKeys, type LabKeys } from './labKeys';
 import { SideView, type SideTarget } from './sideView';
 import { WhyPanel, type WhyData } from './whyPanel';
@@ -75,11 +77,12 @@ const factory: PageFactory = (): Page => {
       const SHOT: Record<string, [string, number]> = {
         '1': ['free', 12], free: ['free', 12], low: ['low', 5], revisit: ['revisit', 5], notch: ['notch', 20], aspect: ['aspect', 25], centre: ['centre', 5],
         jam: ['jam', 8], jamlock: ['jam', 16], jambt: ['jam', 240],
+        iff: ['iff', 8], iffasked: ['iff', 12], iffdone: ['iff', 16],
       };
       const [ex, t] = SHOT[shot] ?? SHOT.free;
       if (!q.has('ex')) q.set('ex', ex);
       if (!q.has('t')) q.set('t', String(t));
-      if (!q.has('sel')) q.set('sel', ex === 'free' ? '3' : '1');
+      if (!q.has('sel') && ex !== 'iff') q.set('sel', ex === 'free' ? '3' : '1');
     }
     // ?ac= and ?units= apply once. Drop them from the URL first, or every later remount (the jet picker, the
     // units switch) would switch straight back to them.
@@ -112,6 +115,9 @@ const factory: PageFactory = (): Page => {
     const lockKey = lockKeyOf(ac);
     // Jam shots: the pilot's clicks are played during the pre-roll (normal lock refused, then the jam lock).
     const jamShot = shot === 'jamlock' || shot === 'jambt' ? shot : null;
+    // IFF shots: the interrogation (interrogating jets) and the lock on the hostile are played during the pre-roll.
+    const iffShot = shot === 'iffasked' || shot === 'iffdone' ? shot : null;
+    const ff = iffFacts(ac);
 
     // ---- state -----------------------------------------------------------------------------------------
     let world = new World(7);
@@ -153,13 +159,17 @@ const factory: PageFactory = (): Page => {
       onClick: () => jamLock(jamStrobeId(true)),
     });
     const jamRow = h('div', { class: 'ui-row rl-notchrow' }, normalLockBtn.el, jamLockBtn.el);
+    const iffBtn = button({ label: ff.key ? 'Interrogate' : 'Interrogate (trainer)', size: 's', id: 'rl-iff', keys: ff.key ?? undefined, title: ff.buttonTitle, onClick: () => interrogateNow() });
+    const unlockBtn = button({ label: 'Unlock', size: 's', id: 'rl-unlock', title: 'Break the lock', onClick: () => { world.unlock(PLAYER); updateUi(true); } });
+    iffBtn.el.hidden = ff.auto;
+    const iffRow = h('div', { class: 'ui-row rl-notchrow' }, iffBtn.el, unlockBtn.el);
     const progressEl = h('span', { class: 'rl-progress' });
     const log = eventLog({ id: 'rl-log', max: 30, empty: 'Paints and losses show here.' });
     log.el.style.setProperty('--log-h', '6.5em');
 
     const exPanel = consolePanel({
       title: 'Exercises', id: 'rl-expanel', actions: progressEl,
-      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
+      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, iffRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
     });
 
     // Radar controls.
@@ -378,6 +388,9 @@ const factory: PageFactory = (): Page => {
           const who = world.get(e.targetId)?.callsign ?? 'target';
           log.push(e.what === 'locked' ? `${who} locked${me?.radar.stt.hoj ? ': jam lock, bearing only' : ''}` : `Lock on ${who} ${e.what}${e.why ? `: ${e.why}` : ''}`, { t: e.t, tone: e.what === 'locked' ? 'ok' : 'caution' });
         }
+        if (e.type === 'iff' && e.ownerId === PLAYER) {
+          log.push(`IFF: ${e.friends} of ${e.asked} answered friendly${e.asked > e.friends ? `, ${e.asked - e.friends} no reply` : ''}`, { t: e.t, tone: e.friends ? 'ok' : 'caution' });
+        }
       });
       if (view) { view.setWorld(world); view.syncNow(); }
       if (selected && !targetIds.includes(selected)) selected = null;
@@ -405,6 +418,7 @@ const factory: PageFactory = (): Page => {
       stepsHost.hidden = !!na;
       notchRow.hidden = id !== 'notch';
       jamRow.hidden = id !== 'jam' || !!na;
+      iffRow.hidden = id !== 'iff' || !!na;
       const st = def.steps(ac, units, {
         elev: keys.elev?.text ?? null, zone: keys.zone?.text ?? null, width: keys.width?.text ?? null,
         cursor: keys.cursor.text, expRange: keys.expRange?.text ?? null, lock: lockKey?.text ?? null,
@@ -472,6 +486,41 @@ const factory: PageFactory = (): Page => {
       normalLockBtn.setDisabled(!st || (st.mode === 'stt' && st.stt.targetId === id && !st.stt.hoj));
       // A jam lock parks the track at the burn-through range as a placeholder: hide 3D track symbols while it holds.
       view?.setLayer('tracks', !hoj);
+    }
+
+    // ---- IFF exercise --------------------------------------------------------------------------------------
+    function interrogateNow(): void {
+      if (!me) return;
+      if (me.radar.mode === 'off') { toast('Radar is off', { within: lab.view, tone: 'caution' }); return; }
+      world.interrogate(PLAYER);
+      updateUi(true);
+    }
+
+    /** Lock a contact (IFF exercise): break any other lock first. The Hornet's lock also interrogates him. */
+    function lockContact(id: EntityId | null): void {
+      if (!me || exId !== 'iff') return;
+      if (!id) { toast('Put the cursor on a contact, or click it', { within: lab.view, tone: 'caution' }); return; }
+      const st = me.radar;
+      if (st.mode === 'stt' && st.stt.targetId === id) return;
+      if (st.mode === 'stt') world.unlock(PLAYER);
+      const c = world.canLock(PLAYER, id);
+      if (!c.ok || !world.lock(PLAYER, id)) toast(`Lock refused: ${c.reason || 'no lock'}`, { within: lab.view, tone: 'caution', ms: 3200 });
+      updateUi(true);
+    }
+
+    /** The contact nearest the cursor azimuth on the scope (bricks and tracks), for the lock key. */
+    function contactNearCursorId(): EntityId | null {
+      if (!me) return null;
+      const pic = buildRadarPicture(world, PLAYER, { units });
+      if (!pic) return null;
+      const list = [...pic.bricks, ...pic.tracks].map(x => ({ targetId: x.targetId, azDeg: x.az * R2D }));
+      return strobeNearCursor(list, me.radar.cursor.az * R2D, 4);
+    }
+
+    function syncIffButtons(): void {
+      const st = me?.radar;
+      unlockBtn.setDisabled(!st || st.mode !== 'stt');
+      iffBtn.setDisabled(!st || st.mode === 'off');
     }
 
     function syncNotchButtons(): void {
@@ -628,6 +677,7 @@ const factory: PageFactory = (): Page => {
         if (exId === 'jam') jamLock(pk.targetId); else select(pk.targetId);
         return;
       }
+      if (pk && exId === 'iff') { select(pk.targetId); lockContact(pk.targetId); return; }
       const id = pk?.targetId ?? null;
       if (id) { select(id); return; }
       const p = radarDisp.toRadar(e.clientX, e.clientY);
@@ -680,7 +730,9 @@ const factory: PageFactory = (): Page => {
       } else keyMap[keys.mode.key] = () => setMode2();
     }
     // The jet's lock key: a jam lock on the strobe under the cursor (jam exercise only).
-    if (lockKey && !keyMap[lockKey.chord]) keyMap[lockKey.chord] = () => { if (exId === 'jam') jamLock(jamStrobeId(false)); };
+    if (lockKey && !keyMap[lockKey.chord]) keyMap[lockKey.chord] = () => { if (exId === 'jam') jamLock(jamStrobeId(false)); else if (exId === 'iff') lockContact(contactNearCursorId()); };
+    // The jet's IFF key (data/iff.ts): interrogate. None on the Hornet (designate or lock interrogates) or the auto-IFF jets.
+    if (ff.chord && !ff.auto && !keyMap[ff.chord]) keyMap[ff.chord] = () => interrogateNow();
     keyMap['Pause'] = () => setTimeScale(timeScale > 0 ? 0 : lastScale);
     keyMap['LShift+Z'] = () => setTimeScale(1);
     keyMap['LCtrl+Z'] = () => setTimeScale(timeScale >= 4 ? 4 : timeScale >= 2 ? 4 : timeScale >= 1 ? 2 : 1);
@@ -777,6 +829,7 @@ const factory: PageFactory = (): Page => {
         steps.setCurrent(ev.current);
       }
       if (exId === 'notch') syncNotchButtons();
+      if (exId === 'iff') syncIffButtons();
       if (exId === 'jam') syncJamButtons();
       else view?.setLayer('tracks', true);
       if (ev.done && exId !== 'free' && !doneSaved) {
@@ -947,6 +1000,7 @@ const factory: PageFactory = (): Page => {
       if (uiClock >= 0.1) {
         uiClock = 0;
         if (jamShot) jamPreroll();
+        if (iffShot) iffPreroll();
         updateUi();
         // Burn-through shot: stop a few seconds after the lock turns into a normal STT.
         if (jamShot === 'jambt' && mem.latched[3]) {
@@ -964,6 +1018,18 @@ const factory: PageFactory = (): Page => {
         const s0 = st.strobes[0];
         world.setScan(PLAYER, { cursor: { az: s0.az, range: st.cursor.range } });
         world.lockJammer(PLAYER, s0.targetId);
+      }
+    }
+    /** Screenshot pre-roll for the IFF shots: interrogate once both contacts paint, then (iffdone) lock the hostile. */
+    function iffPreroll(): void {
+      if (!me || exId !== 'iff') return;
+      const x = buildSnap(world, me, units, scene, targetIds, paint, inspected, selected).iff;
+      // Interrogate late in the pre-roll so a short reply (Viper, 2 s) still shows in the picture.
+      if (!x || !x.friendSeen || !x.hostileSeen || world.t < (iffShot === 'iffasked' ? 11 : 9)) return;
+      if (!ff.auto && !x.hostileAsked) world.interrogate(PLAYER);
+      if (iffShot === 'iffdone' && world.t > 10 && x.stt !== 'hostile') {
+        world.setScan(PLAYER, { cursor: { az: x.hostileAz * D2R, range: me.radar.cursor.range } });
+        world.lock(PLAYER, x.hostileId);
       }
     }
     const sel = num('sel');

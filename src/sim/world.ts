@@ -27,7 +27,7 @@ import { dirFrom } from './math';
 import { stepAircraft } from './flight';
 import { createMissile, stepMissile } from './missile';
 import { dropChaff, dropFlare, stepCountermeasures } from './countermeasures';
-import { canLock, canLockJammer, createRadarState, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
+import { canLock, canLockJammer, createRadarState, interrogate, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
 import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
@@ -46,7 +46,7 @@ import { agLaunch, armLock, canAgLaunch, setArmDetect, setCcrpHold, stepAgWeapon
 function radarOff(): RadarState {
   return {
     mode: 'off', snp2: false, expectedRange: null, azCenter: 0, azHalf: 0, elCenter: 0, bars: 1, rangeScale: 0,
-    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], strobes: [], tracks: [], designated: [],
+    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], strobes: [], iff: [], tracks: [], designated: [],
     stt: { targetId: null, lostFor: 0 }, cursor: { az: 0, range: 0 },
   };
 }
@@ -357,6 +357,10 @@ export class World {
   canLockJammer(id: EntityId, targetId: EntityId): LockCheck {
     const ac = this.aircraft.get(id);
     return ac ? canLockJammer(this, ac, targetId) : { ok: false, reason: 'No aircraft' };
+  }
+  /** IFF interrogation (data/iff.ts): friends in the volume answer. */
+  interrogate(id: EntityId): { friends: number; asked: number } {
+    const ac = this.aircraft.get(id); return ac ? interrogate(this, ac) : { friends: 0, asked: 0 };
   }
   /** Angle-only lock on a jam strobe (HOJ / AOJ / JAT); see radar.ts lockJammer. */
   lockJammer(id: EntityId, targetId: EntityId): boolean {

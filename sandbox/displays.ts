@@ -6,10 +6,12 @@
  *   ?only=f15c        one display (radar: su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c; rwr: rwr-<id>)
  *   ?pause=1          freeze the scenario (blinking continues)
  *   ?jam=strobe       add two jam strobes (bearing only); ?jam=lock: angle-only jam lock on one, the other a strobe
+ *   ?iff=1            add IFF contacts: a friendly track (reply every 4 s), a no-reply track, a friendly and a plain brick
  */
 import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import { AIRCRAFT } from '../src/data/aircraft';
+import { IFF } from '../src/data/iff';
 import { MISSILES } from '../src/data/missiles';
 import { RWRS } from '../src/data/rwr';
 import type { FighterId, DisplayFormat, MissileId, RwrId } from '../src/data/types';
@@ -191,7 +193,8 @@ class FakeRadar {
 
   picture(t: number, launchedCount: number): RadarPicture {
     const pic = this.basePicture(t, launchedCount);
-    return JAM ? jamPicture(pic, t, JAM) : pic;
+    const out = IFF_DEMO ? iffPicture(pic, t) : pic;
+    return JAM ? jamPicture(out, t, JAM) : out;
   }
 
   private basePicture(t: number, launchedCount: number): RadarPicture {
@@ -251,6 +254,32 @@ class FakeRadar {
       cursor: { az: (primRel ? primRel.az + 9 * D2R : 0) + 0.05 * Math.sin(t * 0.3), range: cursorRange * 0.82 },
     };
   }
+}
+
+// ------------------------------------------------------------------ IFF (?iff=1)
+
+const IFF_DEMO = qs.get('iff') === '1';
+
+/**
+ * IFF states for screenshots, on top of the scripted picture: a friend that answered (a new reply every 4 s, so the
+ * Viper's 2 s mark comes and goes), a contact that gave no reply, a brick IFF calls friendly and a plain brick.
+ * `friendly` is own IFF, as the sim gives it: the Viper picture drops the reply after 2 s.
+ */
+function iffPicture(pic: RadarPicture, t: number): RadarPicture {
+  const S = pic.rangeScale;
+  const age = t % 4;
+  const reply = age <= IFF[pic.aircraftType].showS ? { reply: 'friend' as const, age } : undefined;
+  const base = { relHeading: Math.PI, speed: 240, aspectDeg: 10, closure: 480, firm: true, coasting: false,
+    designation: null, designationIndex: -1, locked: false, missiles: [] };
+  const tracks: RadarPicture['tracks'] = [
+    { ...base, label: 'F1', targetId: 'i1', az: -22 * D2R, range: S * 0.42, alt: 7600, friendly: !!reply, iff: reply },
+    { ...base, label: 'U1', targetId: 'i2', az: 26 * D2R, range: S * 0.58, alt: 9100, friendly: false, iff: { reply: 'no-reply', age: 1 } },
+  ];
+  const bricks: RadarPicture['bricks'] = [
+    { key: 'i3', targetId: 'i3', az: -40 * D2R, range: S * 0.7, alt: 8000, age: 0.4, fade: 0.9, friendly: !!reply },
+    { key: 'i4', targetId: 'i4', az: 42 * D2R, range: S * 0.3, alt: 5000, age: 0.4, fade: 0.9 },
+  ];
+  return { ...pic, tracks: [...pic.tracks, ...tracks], bricks: [...pic.bricks, ...bricks] };
 }
 
 // ------------------------------------------------------------------ jamming (?jam=strobe | lock)

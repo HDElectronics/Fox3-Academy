@@ -115,7 +115,7 @@ export function drawTid(f: FrameCtx): Mapping {
     if (b.range > pic.rangeScale * 1.6) continue;
     const p = map(b.az, b.range);
     g.ink(th.sym, 0.7, 0.24, brickAlpha(b));
-    symbol(f, p.x, p.y, 'unknown', 1.3 * u);
+    symbol(f, p.x, p.y, b.friendly ? 'friendly' : 'unknown', 1.3 * u);
     hit(f, p.x, p.y, b.targetId, 'brick');
   }
   g.reset();
@@ -208,6 +208,11 @@ function symbol(f: FrameCtx, x: number, y: number, kind: 'unknown' | 'hostile' |
   else g.poly([x - s, top, x - s, top - s, x + s, top - s, x + s, top], false);
 }
 
+/**
+ * IFF on the TID: a friendly reply (RIO interrogation, I key in the trainer) turns the track into the TID friendly
+ * symbol ∩. The Heatblur manual's two bars above and below the return belong to the DDD, which is not drawn; tried on
+ * the TID, the lower bar crossed the velocity vector and read as a cross, so the TID keeps ∩ only.
+ */
 function drawTidTrack(f: FrameCtx, t: PicTrack, x: number, y: number, rot: number, isPrim: boolean): void {
   const { g, th, u, pic } = f;
   const kind = t.friendly ? 'friendly' : f.opts.nonFriendly;

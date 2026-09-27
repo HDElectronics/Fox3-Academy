@@ -93,7 +93,9 @@ export function drawF15Vsd(f: FrameCtx): Mapping {
     if (b.range > pic.rangeScale || Math.abs(b.az) > gAz) continue;
     const p = map(b.az, b.range);
     g.ink(th.sym, 0.8, 0.2, brickAlpha(b));
-    brick(g, p.x, p.y, 2.8 * u, 1.3 * u, true);
+    // Automatic IFF (ED F-15C manual p. 66): a friendly answer is a circle, everything else (unknown) the hostile brick.
+    if (b.friendly) g.circle(p.x, p.y, 1.1 * u, true);
+    else brick(g, p.x, p.y, 2.8 * u, 1.3 * u, true);
     hit(f, p.x, p.y, b.targetId, 'brick');
   }
   g.reset();
@@ -260,11 +262,15 @@ function drawTrack(f: FrameCtx, t: PicTrack, x: number, y: number, isPrim: boole
   const { g, th, u, units } = f;
   const alt = fmtAltK(t.alt, units);
   if (t.friendly) {
-    g.ink(th.sym, 0.9, 0.26);
+    // IFF friend: circle instead of the rectangle (ED F-15C manual p. 66). A designated or locked friend keeps the
+    // circle, brightened, and the STT ring, so the pilot still sees what the radar is on.
+    const hi = isPrim || t.locked;
+    g.ink(hi ? th.symHi : th.sym, hi ? 1.2 : 0.9, 0.26);
     g.circle(x, y, 1.1 * u, true);
-    stick(g, x, y, t.relHeading, stickLen(f, t.speed), 1.1 * u);
+    if (t.firm) stick(g, x, y, t.relHeading, stickLen(f, t.speed), 1.1 * u);
     g.font(2.4);
     g.text(alt, x, y - 3 * u);
+    if (t.locked && f.pic.mode === 'stt') g.circle(x, y, 3.2 * u);
     return;
   }
   if (isPrim || t.locked) {

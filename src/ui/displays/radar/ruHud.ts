@@ -80,7 +80,7 @@ export function drawRuHud(f: FrameCtx): Mapping {
     if (b.range > pic.rangeScale || Math.abs(b.az) > gAz) continue;
     const p = map(b.az, b.range);
     g.ink(th.sym, 0.9, 0.2, brickAlpha(b));
-    dots(f, p.x, p.y, false);
+    dots(f, p.x, p.y, !!b.friendly);
     hit(f, p.x, p.y, b.targetId, 'brick');
   }
   g.reset();

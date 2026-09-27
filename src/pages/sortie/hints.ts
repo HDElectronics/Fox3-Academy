@@ -36,7 +36,15 @@ export interface HintState {
   ownAlt: number;
   /** Jamming: strobes on the scope, an angle-only jam lock, a home-on-jam missile selected, your burn-through (m). */
   ecm?: { strobes: number; jamLock: boolean; hojWeapon: boolean; burnThrough: number };
+  /**
+   * Own IFF (data/iff.ts), never truth: `primaryUnidentified` = the designated / locked contact has no IFF answer
+   * showing; `recentS` = seconds since you last interrogated (null: never); `wingman` = a friend is in the fight.
+   */
+  iff?: { mode: 'auto' | 'interrogate'; key: string | null; wingman: boolean; primaryUnidentified: boolean; recentS: number | null };
 }
+
+/** Interrogations count as recent for this long (s): the Viper reply shows 2 s, but you asked. */
+export const IFF_RECENT_S = 15;
 
 const k = (keys: string | null) => (keys ? ` (${keys})` : '');
 const deg = (rad: number) => Math.abs(rad / D2R);
@@ -95,6 +103,14 @@ export function flightHint(s: HintState): Hint {
   if (s.missilesLeft === 0) return { text: 'Winchester: nothing left to shoot. Turn cold and extend.', why: 'With no missiles your only job is to survive: keep him behind you and outside his range.', tone: 'caution' };
   if (!s.weapon) return { text: 'Select a missile.', why: 'The launch zone and the shoot cue need a selected weapon.', tone: 'dim' };
 
+  const iff = s.iff;
+  if (iff && iff.mode === 'interrogate' && iff.wingman && s.primary && iff.primaryUnidentified && (iff.recentS === null || iff.recentS > IFF_RECENT_S)) {
+    return {
+      text: `Interrogate before you shoot: an unidentified contact may be your wingman. ${iff.key ? `IFF: ${iff.key}.` : 'Press IFF.'}`,
+      why: 'A friend answers IFF; no reply never proves hostile. The jet lets you fire on a friend it has not identified.',
+      tone: 'caution',
+    };
+  }
   const ecm = s.ecm;
   if (ecm?.jamLock && s.primary) {
     const hold = s.keys.launchHoldS ? ` held ${s.keys.launchHoldS} s` : '';

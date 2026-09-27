@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- IFF as DCS shows it (#12): what the radar calls friendly now comes from the jet's own IFF, automatic on the
+  F-15C and Su-27 family and after an interrogation elsewhere (Viper TMS Left, Hornet on designate, `I`, `S`), with
+  each jet's cue. Radar lab exercise 7, Friend or foe; in the Sortie an IFF button, a hint before shooting an
+  unidentified contact, and blue on blue in the debrief. A player can now fire at an unidentified friend.
+
 - Jamming as DCS shows it (#12): a jammer is a bearing-only strobe until the radar's burn-through range, drawn in
   each jet's own symbol; a jam lock (HOJ / AOJ / JAT) lets home-on-jam missiles (AIM-120, AIM-7M, R-27R/ER,
   AIM-54) fly pure pursuit at it. New radar lab exercise, Jammer and burn-through; the Sortie gets the bandit

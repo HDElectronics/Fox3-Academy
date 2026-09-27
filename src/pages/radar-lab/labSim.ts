@@ -7,11 +7,11 @@ import type { Aircraft, EntityId } from '../../sim/types';
 import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { radarLab } from '../../sim/scenarios';
-import { burnThroughRange, explainDetection, isJammed, revisitTime, scanElevationLimits } from '../../sim/radar';
+import { burnThroughRange, explainDetection, iffReply, isJammed, revisitTime, scanElevationLimits } from '../../sim/radar';
 import { fighterSpec, fighterType } from '../../sim/jet';
 import { D2R, R2D, groundRange } from '../../sim/math';
 import type { Units } from '../../app/format';
-import type { JamSnap, Scene, ScanPreset, Snap, TargetSnap } from './exercises';
+import type { IffSnap, JamSnap, Scene, ScanPreset, Snap, TargetSnap } from './exercises';
 import { coverageAt } from './geometry';
 
 export const PLAYER = 'player';
@@ -29,6 +29,8 @@ export function buildLabWorld(ac: FighterId, units: Units, scene: Scene, preset:
   applyPreset(world, ac, preset);
   // Jammers: the scenario flag (setJamming refuses a jet without a jammer in DCS, so the scene picks one that has it).
   scene.targets.forEach((t, i) => { if (t.jamming) world.setJamming(lab.targetIds[i], true); });
+  // Friends: the scenario spawns every target red; a friendly one flies for the player's side and answers his IFF.
+  scene.targets.forEach((t, i) => { const a = t.friendly ? world.get(lab.targetIds[i]) : undefined; if (a) a.side = me.side; });
   return { world, me, targetIds: lab.targetIds };
 }
 
@@ -139,6 +141,26 @@ export function buildSnap(
     targets: ids.map((id, i) => snapTarget(world, me, id, scene.targets[i]?.role ?? '', paint.get(id), inspected.has(id)))
       .filter((x): x is TargetSnap => !!x),
     jam: jamSnap(world, me, ids.find((_, i) => scene.targets[i]?.jamming)),
+    iff: iffSnap(world, me, ids.find((_, i) => scene.targets[i]?.friendly), ids.find((_, i) => scene.targets[i]?.role === 'hostile'), paint),
+  };
+}
+
+/** What the own IFF holds on the IFF exercise's friend and hostile, and which of them is locked. */
+export function iffSnap(world: World, me: Aircraft, friendId: EntityId | undefined, hostileId: EntityId | undefined, paint: Map<EntityId, PaintRec>): IffSnap | undefined {
+  const fr = friendId ? world.get(friendId) : undefined, ho = hostileId ? world.get(hostileId) : undefined;
+  if (!friendId || !hostileId || !fr?.alive || !ho?.alive) return undefined;
+  const st = me.radar;
+  const raw = (id: EntityId) => st.iff.find(x => x.targetId === id);
+  const fRaw = raw(friendId);
+  const holding = st.mode === 'stt' && st.stt.lostFor === 0 ? st.stt.targetId : null;
+  return {
+    friendId, hostileId,
+    friendSeen: !!paint.get(friendId)?.seen, hostileSeen: !!paint.get(hostileId)?.seen,
+    friendAz: explainDetection(world, me, fr).az * R2D, hostileAz: explainDetection(world, me, ho).az * R2D,
+    friendReply: !!iffReply(world, me, friendId)?.friend,
+    replyAge: fRaw?.friend ? world.t - fRaw.t : null,
+    hostileAsked: !!raw(hostileId),
+    stt: holding === friendId ? 'friend' : holding === hostileId ? 'hostile' : null,
   };
 }
 

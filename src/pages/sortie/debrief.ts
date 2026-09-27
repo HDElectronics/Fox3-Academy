@@ -28,10 +28,10 @@ export interface DebriefOptions {
   startAt?: number;
 }
 
-type Cat = 'launch' | 'pitbull' | 'dl' | 'hit' | 'miss' | 'def' | 'lock' | 'jam';
+type Cat = 'launch' | 'pitbull' | 'dl' | 'hit' | 'miss' | 'def' | 'lock' | 'jam' | 'iff';
 interface Marker { t: number; cat: Cat; tone: string; text: string; focus: EntityId | null }
 
-const CAT_LABEL: Record<Cat, string> = { launch: 'Launch', pitbull: 'Pitbull', dl: 'DL lost', hit: 'Hit', miss: 'Miss', def: 'Defence', lock: 'Lock', jam: 'ECM' };
+const CAT_LABEL: Record<Cat, string> = { launch: 'Launch', pitbull: 'Pitbull', dl: 'DL lost', hit: 'Hit', miss: 'Miss', def: 'Defence', lock: 'Lock', jam: 'ECM', iff: 'IFF' };
 
 export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose(): void } {
   const bag = cleanup();
@@ -93,6 +93,8 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
     } else if (e.type === 'jam') {
       const you = e.ownerId === inp.playerId;
       markers.push({ t: e.t, cat: 'jam', tone: e.on ? 'caution' : 'dim', focus: e.ownerId, text: you ? `Your jammer ${e.on ? 'on' : 'off'}` : `${name(e.ownerId)} ${e.on ? 'jamming: strobe, no range' : 'stops jamming'}` });
+    } else if (e.type === 'iff' && e.ownerId === inp.playerId) {
+      markers.push({ t: e.t, cat: 'iff', tone: e.friends ? 'ok' : 'dim', focus: inp.playerId, text: e.asked ? `You interrogate: ${e.friends} friendly of ${e.asked}` : 'You interrogate: nothing in the IFF scan' });
     } else if (e.type === 'lock' && e.what === 'broken' && e.ownerId === inp.playerId) {
       markers.push({ t: e.t, cat: 'dl', tone: 'caution', focus: e.targetId, text: `Your lock on ${name(e.targetId)} broke: ${e.why ?? ''}` });
     }
@@ -144,8 +146,8 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
       title: `${fmtTime(it.t)} ${it.title}`, 'aria-label': `${fmtTime(it.t)}: ${it.title}`, onclick: () => { jump(it.t ?? t0, it.focus); tabsH.set('coach', true); highlight(it.id); },
     }, it.kind === 'mistake' ? '!' : it.kind === 'good' ? '✓' : 'i'));
   }
-  // The ECM chip shows only in a fight with jamming in it.
-  const cats = (Object.keys(CAT_LABEL) as Cat[]).filter(c => c !== 'jam' || markers.some(m => m.cat === 'jam'));
+  // The ECM and IFF chips show only in a fight with jamming or an interrogation in it.
+  const cats = (Object.keys(CAT_LABEL) as Cat[]).filter(c => (c !== 'jam' && c !== 'iff') || markers.some(m => m.cat === c));
   const filter = chips<Cat>({
     id: 'sortie-mkfilter', ariaLabel: 'Marker types', value: cats,
     options: cats.map(c => ({ value: c, label: h('span', { class: 'sortie-chip' }, h('i', { class: `sortie-sw sortie-mk--${c}` }), CAT_LABEL[c]) })),

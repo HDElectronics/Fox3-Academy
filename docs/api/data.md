@@ -320,6 +320,14 @@ dcsworld.pro. The single `track-to-impact` guidance rule simplifies DCS's mix of
 guidance (SA-10 terminal phase not verified). Missile speed, turn, lock-to-launch delay, notch gate and chaff
 chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 
+### IFF (`src/data/iff.ts`)
+
+Verified: F-15C automatic IFF (circle vs rectangle), Su-27 double row of dots, Viper TMS Left short = SCAN ±60°
+with a green "4" for 2 s, Hornet friendly hemisphere and the two-factor hostile rule, F-14 two bars. **Not
+verified**: the Su-33, J-11A and MiG-29S (Su-27 rule), the JF-17 `I` key and green/red, the M-2000C `S` key and "A",
+the F-14 `I` (a trainer key for the RIO button), the Hornet interrogating on designate (the SCS sequence is not on
+the keyboard), the IFF range (1.2 × head-on detection), every friend answering, AI knowing sides.
+
 ### Jamming (`src/data/ecm.ts`)
 
 Research: `docs/research/ecm-datalink-iff.md`. Verified (ED/Heatblur manuals): F-15C burn-through 15–23 nm

@@ -15,10 +15,11 @@ import {
   minFrame, niceAlt, niceRange, patternHalfDeg, rangeScaleFor, rng, sdeg, seconds, speedText,
 } from './geometry';
 import { jamFacts } from './jamming';
+import { iffFacts } from './iff';
 
-export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre' | 'jam';
+export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre' | 'jam' | 'iff';
 /** Graded exercises in order (Free scan is not graded). */
-export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre', 'jam'];
+export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre', 'jam', 'iff'];
 
 export type Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim';
 
@@ -38,6 +39,8 @@ export interface SceneTarget extends RadarLabTarget {
   role: string;
   /** Spawn with its self-protection jammer on (scenario flag). */
   jamming?: boolean;
+  /** Flies for the player's side (IFF exercise): answers the player's IFF. */
+  friendly?: boolean;
 }
 
 export interface Scene {
@@ -103,6 +106,28 @@ export interface Snap {
   targets: TargetSnap[];
   /** The first jamming scene target, as the own radar holds it (jam exercise). */
   jam?: JamSnap;
+  /** The friend and the hostile of the IFF exercise, as the own IFF holds them. */
+  iff?: IffSnap;
+}
+
+/** What the own IFF and radar hold on the IFF exercise's two contacts. Angles in degrees. */
+export interface IffSnap {
+  friendId: string;
+  hostileId: string;
+  /** On the scope now (painted within the brick life). */
+  friendSeen: boolean;
+  hostileSeen: boolean;
+  /** Bearing off the nose (truth, used only once the friend has answered). */
+  friendAz: number;
+  hostileAz: number;
+  /** Own IFF shows the friend's reply now (Viper: 2 s). */
+  friendReply: boolean;
+  /** Seconds since the friend's last reply, or null if he never answered. */
+  replyAge: number | null;
+  /** The hostile was asked (an interrogation or the auto IFF): no reply. */
+  hostileAsked: boolean;
+  /** Which of the two the radar holds in STT (holding, not in memory). */
+  stt: 'friend' | 'hostile' | null;
 }
 
 /** What the own radar holds on a jammer. Angles in degrees, distances in metres (range is truth, for the coach). */
@@ -765,7 +790,114 @@ const jam: ExerciseDef = {
   },
 };
 
-export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre, jam };
+// ------------------------------------------------------------------------------------------ 7. IFF
+
+/** Friend and hostile: head-on, same altitude, this many degrees either side of the nose. */
+const IFF_SPLIT_DEG = 8;
+
+const iff: ExerciseDef = {
+  id: 'iff', num: 7, title: 'Friend or foe',
+  short: 'Two contacts side by side: find the friend with your IFF, then lock the other one',
+  unavailable(ac) {
+    const rs = r(ac);
+    return rs.modes.includes('stt') ? null : `The ${rs.name} has no single-target track, so there is nothing to lock.`;
+  },
+  scene(ac, u) {
+    const rs = r(ac), hostile = opp(ac);
+    // Both inside detection (the smaller of the two jets) and well inside the IFF range (1.2 × head-on detection).
+    const det = Math.min(detectKm(rs, hostile, 0, false), detectKm(rs, ac, 0, false)) * 1000;
+    const range = niceRange(0.62 * det, u);
+    const own = niceAlt(9000, u);
+    const d = defaultScan(ac);
+    return {
+      playerAlt: own, playerMach: PLAYER_MACH,
+      targets: [
+        { role: 'hostile', callsign: 'Contact-1', type: hostile, range, bearingDeg: -IFF_SPLIT_DEG, alt: own, aspectDeg: 0 },
+        { role: 'friend', callsign: 'Contact-2', type: ac, range, bearingDeg: IFF_SPLIT_DEG, alt: own, aspectDeg: 0, friendly: true },
+      ],
+      scan: { mode: 'rws', azHalfDeg: azNear(ac, 30), bars: d.bars, azCenterDeg: 0, elCenterDeg: 0, rangeScaleM: rangeScaleFor(rs, range * 1.3), cursorM: Math.round(range * 0.6) },
+      maxTime: 150, minRange: 10000,
+    };
+  },
+  steps(ac, _u, k) {
+    const f = iffFacts(ac);
+    const lock = { id: 'lock', text: f.auto ? 'Lock the one that is not friendly: click it on the scope' : 'Lock the hostile: click it on the scope', keys: k.lock ?? undefined };
+    if (f.auto) return [{ id: 'cue', text: `See the friend marked by itself: ${f.cue.charAt(0).toLowerCase()}${f.cue.slice(1)}` }, lock];
+    return [
+      { id: 'unknown', text: 'Both look the same: unknown' },
+      { id: 'ask', text: f.key ? 'Interrogate' : 'Interrogate: designate or lock a contact, or press Interrogate', keys: f.key ?? undefined },
+      lock,
+    ];
+  },
+  evaluate(s, mem) {
+    const x = s.iff;
+    const f = iffFacts(s.ac);
+    const n = f.auto ? 2 : 3;
+    if (!x) return { steps: Array(n).fill(false) as boolean[], current: 0, text: '', why: '', done: false };
+    const spec = AIRCRAFT[s.ac];
+    let steps: boolean[];
+    if (f.auto) {
+      const s0 = latch(mem, 0, x.friendReply);
+      steps = [s0, latch(mem, 1, s0 && x.stt === 'hostile')];
+    } else {
+      const s1 = latch(mem, 1, x.friendReply);
+      const s0 = latch(mem, 0, (x.friendSeen && x.hostileSeen) || s1);
+      steps = [s0, s1, latch(mem, 2, s1 && x.stt === 'hostile')];
+    }
+    const identified = f.auto ? steps[0] : steps[1];
+    // Fratricide record: he locked the friend before any IFF answer said so (not a failure, explained).
+    if (x.stt === 'friend' && !identified) mem.phase = 'blind';
+    const done = steps.every(Boolean);
+    const side = (az: number) => (az < 0 ? 'left' : 'right');
+    let text: string, why: string, tone: Tone | undefined;
+    if (done) {
+      text = f.auto
+        ? `Locked the contact without the friend cue. Your ${spec.radar.name} told them apart by itself.`
+        : 'Locked the contact that did not answer. No reply is still not proof: in a real fight you confirm with GCI, AWACS or your eyes.';
+      why = f.shoot;
+      tone = 'ok';
+    } else if (x.stt === 'friend' && identified) {
+      text = `You are locked on the friend: he answered your IFF (${f.cue.charAt(0).toLowerCase()}${f.cue.slice(1)}). Unlock and lock the other contact.`;
+      why = 'Here the launch is refused once IFF says friend (simplified). ' + f.shoot;
+      tone = 'warning';
+    } else if (x.stt === 'friend') {
+      text = 'You locked the friend (truth) and nothing on your scope said so. In DCS you could have fired on him. Unlock, identify, then lock.';
+      why = `${f.how} ${f.shoot}`;
+      tone = 'warning';
+    } else if (x.stt === 'hostile' && !identified) {
+      text = x.hostileAsked
+        ? `No reply from the one you locked. ${f.noReply} The other contact is still unknown: ${f.key ? `interrogate (${f.key})` : 'press Interrogate, or unlock and lock him to ask'}.`
+        : `Locked before you identified anyone. ${f.how}`;
+      why = f.shoot;
+      tone = 'caution';
+    } else if (!x.friendSeen && !x.hostileSeen) {
+      text = `Two contacts ahead, close together, same altitude, both hot. One is a friend. Wait for the paint.`;
+      why = f.auto ? f.how : `The ${spec.short} does not interrogate by itself. ${f.how}`;
+    } else if (f.auto && !identified) {
+      text = `Watch the two contacts. Your radar asks both by itself; the friend shows: ${f.cue}.`;
+      why = f.noReply;
+      tone = 'hi';
+    } else if (!f.auto && !steps[0]) {
+      text = 'One contact on the scope: wait for the second. Both will look the same.';
+      why = `The ${spec.short} does not interrogate by itself. ${f.how}`;
+    } else if (!f.auto && !identified) {
+      text = `Both contacts look the same: unknown. ${f.ask}`;
+      why = `${f.how} ${f.noReply}`;
+      tone = 'hi';
+    } else {
+      const answered = x.friendReply
+        ? `The ${side(x.friendAz)} contact answered: ${f.cue.charAt(0).toLowerCase()}${f.cue.slice(1)}.`
+        : `The ${side(x.friendAz)} contact answered ${x.replyAge !== null ? `${Math.round(x.replyAge)} s ago` : ''}; the reply is gone. Remember him, or interrogate again.`;
+      text = `${answered} Lock the ${side(x.hostileAz)} one: ${f.auto ? 'no friend cue' : 'no reply'}.`;
+      why = `${f.noReply} ${f.show}`;
+      tone = 'hi';
+    }
+    if (!done && mem.phase === 'blind' && x.stt !== 'friend') why = `Earlier you locked the friend before he was identified: in DCS nothing stops that shot. ${why}`;
+    return { steps, current: done ? null : firstOpen(steps), text, why, tone, done };
+  },
+};
+
+export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre, jam, iff };
 
 /** Exercises this jet can do (graded only). */
 export function availableExercises(ac: FighterId): Exclude<ExerciseId, 'free'>[] {

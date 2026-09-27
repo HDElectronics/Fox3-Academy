@@ -28,7 +28,7 @@ import { D2R, M_PER_NM, R2D, aspectAngle, dirFrom } from './math';
 import type { Vector3 } from 'three';
 import { dlzFor } from './dlz';
 import { createMissile } from './missile';
-import { radarRules, snp2Eligibility, supportedTargets, trackOf } from './radar';
+import { identifiedFriend, radarRules, snp2Eligibility, supportedTargets, trackOf } from './radar';
 
 /**
  * IR seeker launch cone (deg off the nose) and acquisition range (km) when data/missiles.ts gives none.
@@ -140,7 +140,8 @@ function canLaunchSingle(world: World, ac: Aircraft, targetId?: EntityId, missil
   if (!tgt || !tgt.alive || tgt.id === ac.id) return fail('No target');
   const trk = trackOf(st, tid);
   const label = trk?.label ?? 'Target';
-  if (tgt.side === ac.side) return fail(`${label} is friendly (IFF)`);
+  // A player can fire at an unidentified friend, as in DCS: only an IFF friendly answer stops the shot. The AI knows sides.
+  if (tgt.side === ac.side && (ac.controller !== 'player' || identifiedFriend(world, ac, tid))) return fail(`${label} is friendly (IFF)`);
 
   // Jam lock (HOJ / AOJ / JAT): no range, so no launch zone. Only home-on-jam missiles can take the shot.
   if (ms.seeker !== 'ir' && st.mode === 'stt' && st.stt.targetId === tid && st.stt.hoj) {

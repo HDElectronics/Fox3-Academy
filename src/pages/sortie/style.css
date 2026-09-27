@@ -181,6 +181,8 @@
 .sortie-mk--lock { --mk: var(--sym-hi); height: 7px; width: 7px; margin-left: -3.5px; bottom: 6px; transform: rotate(45deg); }
 .sortie-mk--jam { --mk: var(--caution); height: 14px; width: 4px; margin-left: -2px; bottom: 4px; }
 .sortie-mk--jam.tone-dim { --mk: color-mix(in srgb, var(--caution) 45%, var(--screen)); }
+.sortie-mk--iff { --mk: var(--friendly); height: 8px; width: 8px; margin-left: -4px; bottom: 6px; border-radius: 50%; background: transparent; border: 2px solid var(--mk); }
+.sortie-mk--iff.tone-dim { --mk: color-mix(in srgb, var(--friendly) 45%, var(--screen)); }
 .sortie-mk--coach {
   width: 16px; height: 16px; margin-left: -8px; bottom: 2px; border-radius: 50%;
   display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.66rem; font-weight: 700; line-height: 1;
@@ -195,6 +197,7 @@
 .sortie-sw.sortie-mk--hit { --mk: var(--warning); height: 10px; width: 8px; }
 .sortie-sw.sortie-mk--def, .sortie-sw.sortie-mk--lock { height: 8px; width: 8px; }
 .sortie-sw.sortie-mk--jam { width: 4px; height: 12px; }
+.sortie-sw.sortie-mk--iff { --mk: var(--friendly); width: 8px; height: 8px; background: transparent; border: 2px solid var(--mk); border-radius: 50%; }
 
 .sortie-result {
   padding: 10px 12px; background: var(--screen); color: var(--btn-ink); border: 1px solid var(--screen-line);

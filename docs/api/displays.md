@@ -84,7 +84,7 @@ What each format draws (research files in `docs/research/`):
   range and a `<` antenna caret, target altitude `29-9` beside the scale, azimuth scale with scan-limit circles
   and a `V` beam caret, bricks, tentative tracks (thin hollow), firm tracks (filled brick + altitude + aspect
   stick), SDTs (hollow + designation order), PDT / STT (star with long vector, flashes when the shot is valid),
-  friendly circles, TDC bars, ASE circle (dashed TWS, solid STT) with steering dot and angle-off bar, DLZ on the
+  friendly (IFF) circles for tracks and bricks, TDC bars, ASE circle (dashed TWS, solid STT) with steering dot and angle-off bar, DLZ on the
   right (Rmax triangle, Rpi and Rtr (or Rne) bars, Rmin, caret with closure), mode + bar, `G` speed, stores code
   `A4C`, range to PDT, counter `T tta tti` / `M tti` (AMRAAM) or `nn SEC` (SARH/IR).
   Shoot cue: `cueLabel` `'*'` draws a flashing star, `'▲'` a triangle (the F-15C has no SHOOT text).
@@ -129,6 +129,23 @@ own-jammer cues in `OWN_JAMMER` are cockpit lights or panels, not radar symbols.
 | `mfd` JF-17 | generic line along the bearing | line, `HOJ` | not verified |
 | `tid` | line from own aircraft to the rim with `<` at 50 nm (just inside the rim on smaller scales) | bright strobe, `JAT` beside the `<`; replaces the STT line | yes (Heatblur F-14 manual) |
 | `vtb` | dashed line along the bearing | solid bright line, no label, no PSIC block | not verified |
+
+### IFF (`track.friendly`, `track.iff`, `brick.friendly`; `docs/research/ecm-datalink-iff.md` §3, `data/iff.ts` `IFF`)
+
+`friendly` is what the jet's own IFF says (automatic on the F-15C and FC3 jets, after an interrogation elsewhere),
+never truth: an unidentified friend (`friendly: false`) draws as an ordinary contact. `iff.reply` is `'friend'` or
+`'no-reply'`; a missing reply never draws as hostile except where the jet itself does so (JF-17). Tested in
+`radar/iff.test.ts`.
+
+| format | friendly reply | no reply | bricks | verified |
+|---|---|---|---|---|
+| `f15-vsd` | circle instead of the rectangle (a locked friend keeps the circle, brightened, with the STT ring) | rectangle (unknown drawn as hostile) | circle / rectangle | yes (ED F-15C p. 66) |
+| `ru-hud` | second row of dots above the return | two dots | same rule | Su-27 yes (pp. 51–52); Su-33 / J-11A / MiG-29S by family |
+| `mfd` Hornet | green (`ok`, colour on) hemisphere on the HAFU | unknown bracket (hostile needs two factors) | raw hits carry no ID | ID rules yes (pp. 209–210) |
+| `mfd` Viper | `ok` circle with `4`, up-left of the return, only while `iff.age` ≤ 2 s, fading from 1.4 s (`viperIffAlpha`); the track symbol does not change | nothing | the `4` mark on a brick the picture calls friendly | yes (pp. 433–435) |
+| `mfd` JF-17 | symbol in `ok` + thin `ok` ring | symbol in `warning` (red) + ring | `ok` for a friend | community (Chuck's) |
+| `tid` | friendly symbol ∩ | unknown ⊓ | ∩ / ⊓ | ∩ is the TID symbol; the DDD two bars are not drawn |
+| `vtb` | `A` in the STT data block; beside the `V` outside STT | nothing | no cue | community (Chuck's) |
 
 ## RwrDisplay
 
@@ -278,6 +295,11 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
 - Jam symbols: exact shape and size of the Hornet dugout and Viper chevrons are stylised; the Su-27 strobe's
   flashing pattern is a trainer choice; JF-17 and M-2000C strobes and every lock cue marked "not verified"
   above are generic.
+- IFF: the F-14 two bars (above and below the return) are a DDD cue and there is no DDD format; tried on the TID
+  they crossed the velocity vector and read as a cross, so the TID shows its ∩ friendly symbol only. The JF-17 ring
+  around an interrogated contact is a trainer aid (the display's base symbology is green in the US skin, so the
+  green friend colour alone does not read). The M-2000C `A` beside a non-locked track and the Viper mark offset and
+  fade timing are trainer choices; DCS says only "may be offset" and "shown for 2 s".
 - M-2000C VTB contacts show one detection-bar tick (the picture does not say which bar painted them).
 - Scope RWR placement uses the per-RWR rules above; symbol glyphs for the Serval are ED-style codes (per data).
 - SPO-15 signal strength is a column of 15 lamps (the lamp count is not confirmed by research).
@@ -293,11 +315,13 @@ scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-liv
 
 `?only=` takes `su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c rwr-<id> helpers` (comma list), `?pause=1`,
 `?perf=1` logs draw cost, `&sams=1` adds SA-15 / SA-10 / AWACS emitters, `&hl=s1` highlights one emitter,
-`&jam=strobe` adds two jam strobes, `&jam=lock` an angle-only jam lock plus a strobe. Clicking a track in the
+`&jam=strobe` adds two jam strobes, `&jam=lock` an angle-only jam lock plus a strobe, `&iff=1` a friend with an IFF
+reply (a new reply every 4 s, so the Viper mark comes and goes), a no-reply track, a friendly and a plain brick. Clicking a track in the
 sandbox toggles its designation (pick demo); clicking a strobe reports `strobe j1`.
 
 ```
 scripts/shot.sh '/sandbox/displays.html?only=su27,mig29s,f15c,fa18c,f16c,jf17,f14b,f14g,m2000c&jam=lock&pause=1' .shots/jam-lock.png 1440 1500 4000
+scripts/shot.sh '/sandbox/displays.html?only=su27,mig29s,f15c,fa18c,f16c,jf17,f14b,f14g,m2000c&iff=1&t=29&pause=1' .shots/iff-us.png 1440 1500 5000
 ```
 
 ## ACM cues and the IR tone (issue #11)

@@ -3,7 +3,7 @@
  * green B-scope; range (nm) top left, azimuth scan arc at the top; contacts are 'V' (closing) or
  * inverted 'Λ' (opening) with the closing speed in Mach beside tracks; the TDC 'alidade' is a '+'
  * with the beam's top / bottom altitude at the cursor range (thousands of feet); PSIC (STT) data
- * block (Mach, heading, closure kt, altitude in hundreds of feet, aspect, 'H' locked); bars and
+ * block (Mach, heading, closure kt, altitude in hundreds of feet, aspect, 'A' for an IFF friend, 'H' locked); bars and
  * own altitude / speed at the bottom with the heading scale; mode at the bottom right. The Super 530D
  * only guides from STT, so the missile counter is tied to the lock. DLZ as the HUD shows it: two
  * long-range marks (the thick one = Rne) and the short-range mark, with the range caret.
@@ -137,7 +137,7 @@ export function drawVtb(f: FrameCtx): Mapping {
     const hdg = tgt && f.ownHeading != null ? String(Math.round(wrap2Pi(f.ownHeading + tgt.relHeading) * R2D) % 360).padStart(3, '0') : '';
     const altTxt = units === 'metric' ? (alt / 1000).toFixed(1) : String(Math.round(alt / M_PER_FT / 100));
     g.font(2.6);
-    g.text([mn, hdg, String(Math.round(speedVal(clo, units))), altTxt, asp].filter(Boolean).join('  '), X(f, 50), Y(f, 5.5));
+    g.text([mn, hdg, String(Math.round(speedVal(clo, units))), altTxt, asp, tgt?.friendly ? 'A' : ''].filter(Boolean).join('  '), X(f, 50), Y(f, 5.5));
     g.font(3, 700);
     g.text(pic.stt?.lost ? 'V' : 'H', X(f, 96), Y(f, 5.5), 'right');
   }
@@ -182,7 +182,7 @@ function vee(f: FrameCtx, x: number, y: number, closing: boolean): void {
 function drawVtbTrack(f: FrameCtx, t: PicTrack, x: number, y: number): void {
   const { g, th, u } = f;
   const hi = t.locked || t.designation != null;
-  g.ink(hi ? th.symHi : t.friendly ? th.friendly : th.sym, hi ? 1.2 : 0.9, 0.3, t.firm ? 1 : 0.75);
+  g.ink(hi ? th.symHi : th.sym, hi ? 1.2 : 0.9, 0.3, t.firm ? 1 : 0.75);
   vee(f, x, y, t.closure >= 0);
   // Detection-bar tick under the symbol.
   g.line(x - 0.7 * u, y + 1.4 * u, x + 0.7 * u, y + 1.4 * u);
@@ -192,7 +192,9 @@ function drawVtbTrack(f: FrameCtx, t: PicTrack, x: number, y: number): void {
     g.text(Math.abs(t.closure / 340).toFixed(1), x + 1.8 * u, y, 'left');
   }
   if (t.locked) g.rect(x - 2.4 * u, y - 2.4 * u, 4.8 * u, 4.8 * u);
-  if (t.friendly) { g.font(2.2, 700); g.text('A', x - 1.8 * u, y, 'right'); }
+  // IFF friend (own interrogation, S key): 'A' (ami). In STT it goes in the data block (Chuck's M-2000C guide);
+  // beside the symbol outside STT is a trainer aid (not verified).
+  if (t.friendly && !(t.locked && f.pic.mode === 'stt')) { g.font(2.2, 700); g.text('A', x - 1.8 * u, y, 'right'); }
 }
 
 function headingTape(f: FrameCtx, hdg: number, y: number): void {
