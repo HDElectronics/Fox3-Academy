@@ -12,6 +12,7 @@
  */
 import type { FighterId, MissileId, RadarModeId, SeekerKind } from '../../data/types';
 import { MISSILES } from '../../data/missiles';
+import { IFF } from '../../data/iff';
 import type { AiSkill, EntityId, MissReason, SimEvent, Side } from '../../sim/types';
 import { fmtRange, fmtTime, type Units } from '../../app/format';
 
@@ -88,7 +89,7 @@ export interface Sample {
 
 export interface PlayerAction {
   t: number;
-  kind: 'mode' | 'designate' | 'lock' | 'unlock' | 'step' | 'launch' | 'chaff' | 'flare' | 'weapon' | 'radar' | 'jam';
+  kind: 'mode' | 'designate' | 'lock' | 'unlock' | 'step' | 'launch' | 'chaff' | 'flare' | 'weapon' | 'radar' | 'jam' | 'iff';
   detail?: string;
   targetId?: EntityId | null;
 }
@@ -561,13 +562,33 @@ function ruleSilentShot(inp: CoachInput, nm: Namer): CoachItem[] {
   return out;
 }
 
-/** Your missile killed a friendly. */
+/**
+ * Blue on blue. A shot you aimed at a friend: your IFF had not identified him (an identified friend refuses the
+ * shot), so the lesson is to interrogate first. A shot at a bandit whose active seeker took a friend instead: do not
+ * shoot into a fight your wingman is in.
+ */
 function ruleFratricide(inp: CoachInput, nm: Namer): CoachItem[] {
   const out: CoachItem[] = [];
+  const auto = IFF[inp.playerType].mode === 'auto';
+  const seen = new Set<EntityId>();
+  for (const s of inp.shots) {
+    if (s.shooterId !== inp.playerId || !s.targetId || !inp.friends.includes(s.targetId)) continue;
+    seen.add(s.id);
+    const hit = s.outcome === 'hit';
+    const asked = inp.events.filter(e => e.type === 'iff' && e.ownerId === inp.playerId && e.t <= s.t + 0.05).pop();
+    const when = asked ? `your last interrogation was ${secs(s.t - asked.t)} s before the shot` : 'you never interrogated';
+    out.push({
+      id: `frat-${s.id}`, kind: 'mistake', severity: hit ? 3 : 2, t: s.t, focus: s.targetId, title: 'Blue on blue',
+      text: `You fired ${s.label} at ${nm.name(s.targetId)}, your wingman${hit ? ', and it killed him' : s.outcome === 'miss' ? `; it ${reasonText(s.reason)}` : ''}. ` +
+        (auto
+          ? 'You fired on an unidentified friend: let the IFF answer before you shoot.'
+          : `You fired on an unidentified friend (${when}): interrogate first. A friend answers, and an identified friend refuses the shot.`),
+    });
+  }
   for (const e of inp.events) {
     if (e.type !== 'hit') continue;
     const s = inp.shots.find(x => x.id === e.missileId);
-    if (!s || s.shooterId !== inp.playerId || !inp.friends.includes(e.targetId)) continue;
+    if (!s || seen.has(s.id) || s.shooterId !== inp.playerId || !inp.friends.includes(e.targetId)) continue;
     out.push({
       id: `frat-${s.id}`, kind: 'mistake', severity: 3, t: e.t, focus: e.targetId, title: 'Blue on blue',
       text: `${s.label} went active and took ${nm.name(e.targetId)}: an active seeker locks the first jet it finds, friend or foe. Do not shoot into a fight your wingman is in.`,

@@ -7,6 +7,7 @@ import type { FighterId, KeyBind, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
 import { OWN_JAMMER } from '../../data/ecm';
+import { IFF } from '../../data/iff';
 import { parseChord, parseKeyList, splitAlternatives } from '../../ui/keys';
 
 export type ActionId =
@@ -195,6 +196,9 @@ export interface TrainerKeys {
  */
 export function trainerKeys(map: JetKeyMap): TrainerKeys {
   const used = usedChords(map);
+  // The jet's DCS IFF key comes before a trainer convenience (M-2000C: S interrogates, so W/S do not pitch).
+  const iff = IFF[map.aircraft].key;
+  if (iff) for (const c of parseKeyList(iff)) used.add(c.text);
   const free = (...k: string[]) => k.every(x => !used.has(parseChord(x)?.text ?? x));
   const ad = free('A', 'D');
   const ws = free('W', 'S');
@@ -233,4 +237,23 @@ export function jammerKey(map: JetKeyMap): { key: string | null; collidesWith: s
   const tk = trainerKeys(map);
   for (const v of Object.values(tk)) if (v && parseKeyList(v).some(c => c.text === text)) return { key: null, collidesWith: `trainer key ${v}` };
   return { key: own.key, collidesWith: null };
+}
+
+/**
+ * The IFF interrogate key (data/iff.ts IFF): its key when neither the jet's map, a trainer key nor the own-jammer key
+ * uses it, else null with the collision named. Auto-IFF jets (F-15C, FC3) and the Hornet (interrogates on designate,
+ * no keyboard default) get no key and no collision: the page shows a note or a button.
+ */
+export function iffKey(map: JetKeyMap): { key: string | null; collidesWith: string | null } {
+  const spec = IFF[map.aircraft];
+  if (spec.mode === 'auto' || !spec.key) return { key: null, collidesWith: null };
+  const texts = parseKeyList(spec.key).map(c => c.text);
+  const hits = (keys: string | null | undefined) => !!keys && parseKeyList(keys).some(c => texts.includes(c.text));
+  for (const [a, k] of Object.entries(map.keys)) if (k && hits(k.keys)) return { key: null, collidesWith: `${k.dcsName} (${a})` };
+  for (const s of map.selects) if (hits(s.keys)) return { key: null, collidesWith: s.dcsName };
+  const tk = trainerKeys(map);
+  for (const v of Object.values(tk)) if (hits(v)) return { key: null, collidesWith: `trainer key ${v}` };
+  const jam = jammerKey(map).key;
+  if (hits(jam)) return { key: null, collidesWith: `jammer ${jam}` };
+  return { key: spec.key, collidesWith: null };
 }

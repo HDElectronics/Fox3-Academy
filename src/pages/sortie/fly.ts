@@ -16,6 +16,8 @@ import type { Engagement } from '../../sim/scenarios';
 import { buildRadarPicture } from '../../sim/picture';
 import { BURN_THROUGH_M, JAM_CUE, OWN_JAMMER, isHojMissile } from '../../data/ecm';
 import { dlzFor } from '../../sim/dlz';
+import { IFF } from '../../data/iff';
+import { identifiedFriend } from '../../sim/radar';
 import { D2R, R2D, bearingTo, clamp, relBearing, wrap2Pi, M_PER_FT, MPS_PER_KT } from '../../sim/math';
 import { speedFromMach } from '../../sim/atmosphere';
 import { Stage, WorldView, CameraRig } from '../../render';
@@ -29,7 +31,7 @@ import { SortieRecorder, missilesLeft } from './recorder';
 import type { SortieResult } from './coach';
 import { reasonText } from './coach';
 import { flightHint, type HintState } from './hints';
-import { jammerKey, trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
+import { iffKey, jammerKey, trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
 import { ScriptedPilot } from './autopilot';
 import { HoldAction } from './input';
 
@@ -95,6 +97,16 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   const names = (id: EntityId | null | undefined) => (id ? world.get(id)?.callsign ?? world.samSites.get(id)?.callsign ?? id : '--');
   const allIds = () => [eng.playerId, ...eng.friendIds, ...eng.enemyIds];
   const aliveIds = () => allIds().filter(id => world.get(id)?.alive);
+  /**
+   * A radar contact in pilot words. With a wingman in the fight the radar's own label ('T2'), plus "friendly" only
+   * when your IFF says so: a callsign would tell you which contact is the friend without an interrogation.
+   */
+  const contact = (id: EntityId | null | undefined): string => {
+    if (!id || !eng.friendIds.length) return names(id);
+    const tr = me.radar.tracks.find(t => t.targetId === id);
+    const lbl = tr?.label ?? 'the target';
+    return identifiedFriend(world, me, id) ? `${lbl} (friendly)` : lbl;
+  };
 
   let timeScale: TimeScale = setup.timeScale;
   let paused = Stage.prefersReducedMotion();
@@ -182,6 +194,19 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     if (!ownJam) return '';
     return [ownJam.trainerKey ? 'trainer key' : '', ownJam.verified ? '' : 'not verified'].filter(Boolean).join(', ') || 'DCS key';
   }
+  // IFF (data/iff.ts): auto jets get a note; interrogating jets a button, bound to the DCS key when it is free.
+  const iffSpec = IFF[ac];
+  const iffK = iffKey(keymap).key;
+  let lastIffT = -Infinity;
+  const iffNote = [iffSpec.trainerKey ? 'trainer key' : '', iffSpec.verified ? '' : 'not verified'].filter(Boolean).join(', ');
+  const iffBtn = iffSpec.mode === 'interrogate' ? button({
+    id: 'sortie-iff', label: 'IFF', keys: iffK ?? undefined,
+    title: `Interrogate everything within ±${iffSpec.scanHalfDeg}° of the nose. Friend: ${iffSpec.friendCue.toLowerCase()}${iffK && iffNote ? ` (${iffNote})` : ''}`,
+    onClick: () => interrogate(),
+  }) : null;
+  const iffLine = iffSpec.mode === 'auto'
+    ? `IFF is automatic. Friendly reply: ${iffSpec.friendCue}.`
+    : `IFF${iffK ? ` · ${iffK}${iffNote ? `: ${iffNote}` : ''}` : ': click it here'}${iffSpec.onDesignate ? ' · also asks the contact you designate or lock' : ''}. Friendly reply: ${iffSpec.friendCue}. No reply never proves hostile.`;
   const carried = (ids: MissileId[]) => ids.some(m => (me.stores[m] ?? 0) > 0);
   const selectBtns = keymap.selects.filter(s => carried(s.missiles)).map(s => button({ label: s.family, size: 's', keys: s.keys, title: s.dcsName, onClick: () => selectFamily(s.missiles) }));
 
@@ -295,7 +320,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       consolePanel({
         title: `Radar · ${spec.radar.name}`, actions: powerT.el, children: [
           modes.length > 1 ? modeSeg.el : callout({ kind: 'dcs', body: `The ${spec.short} has no TWS: you search in ${spec.radar.modeLabels.rws ?? 'RWS'} and lock (${spec.radar.modeLabels.stt ?? 'STT'}) to shoot.` }),
-          h('div', { class: 'sortie-row' }, desBtn.el, unlockBtn.el, spec.radar.tws && STEP_FN[ac] ? stepBtn.el : null, lockPriBtn?.el ?? null),
+          h('div', { class: 'sortie-row' }, desBtn.el, unlockBtn.el, spec.radar.tws && STEP_FN[ac] ? stepBtn.el : null, lockPriBtn?.el ?? null, iffBtn?.el ?? null),
+          h('p', { class: 'sortie-note', id: 'sortie-iff-note' }, iffLine),
           h('div', { class: 'sortie-adj' }, placard('Range'), rngDown.el, rngOut, rngUp.el, pairKeys(K.rangeIn, K.rangeOut)),
           h('div', { class: 'sortie-adj' }, placard('Antenna'), elDown.el, elOut, elUp.el, pairKeys(K.elevDown, K.elevUp)),
           h('p', { class: 'sortie-note' }, 'Click a contact on the radar to designate it; click empty space to move the cursor.'),
@@ -371,7 +397,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         if (e.shooterId === me.id) {
           const m = MISSILES[e.missile];
           const hoj = world.missiles.get(e.missileId)?.guidance === 'hoj';
-          say(`Fox ${m.fox}: ${mLabel(e.missileId)} ${m.name} at ${names(e.targetId)}, ${hoj ? 'home on jam, no range' : `${e.range ? rng(e.range) : '--'} (${modeName(e.radarMode)})`}`, 'hi');
+          say(`Fox ${m.fox}: ${mLabel(e.missileId)} ${m.name} at ${contact(e.targetId)}, ${hoj ? 'home on jam, no range' : `${e.range ? rng(e.range) : '--'} (${modeName(e.radarMode)})`}`, 'hi');
         }
         break;
       case 'pitbull': if (mine(e.missileId)) say(`${mLabel(e.missileId)} pitbull: its own seeker is on`, 'ok'); break;
@@ -391,9 +417,12 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       case 'lock':
         if (e.ownerId === me.id) {
           if (e.what === 'locked' && me.radar.stt.hoj) say(`Jam lock on ${names(e.targetId)} (${JAM_CUE[ac].lock}): bearing only, no range`, 'hi');
-          else if (e.what === 'locked') say(`Locked ${names(e.targetId)} (STT): he has a lock warning now`, 'hi');
+          else if (e.what === 'locked') say(`Locked ${contact(e.targetId)} (STT): he has a lock warning now`, 'hi');
           else if (e.what === 'broken') say(`Lock on ${names(e.targetId)} broken: ${e.why ?? 'lost'}`, 'caution');
         }
+        break;
+      case 'iff':
+        if (e.ownerId === me.id) say(iffText(e.friends, e.asked), e.friends ? 'ok' : 'dim');
         break;
       case 'jam':
         if (e.ownerId === me.id) say(e.on ? 'Jammer on: you are a strobe to them, and a home-on-jam target' : 'Jammer off: their radars see your range again', e.on ? 'hi' : 'dim');
@@ -421,6 +450,13 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         break;
       default: break;
     }
+  }
+
+  function iffText(friends: number, asked: number): string {
+    if (!asked) return 'IFF: nothing within the IFF scan';
+    const noReply = asked - friends;
+    const f = friends ? `${friends} friendly` : 'no friendly reply';
+    return `IFF: ${f} of ${asked} contact${asked > 1 ? 's' : ''}${noReply ? `, ${noReply} no reply (not proof of hostile)` : ''}`;
   }
 
   function silentShotAtMe(e: Extract<SimEvent, { type: 'ai' }>): boolean {
@@ -469,7 +505,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       say(modeNow === 'tws' && !tr ? 'Not a track yet: wait for a second hit' : why.ok ? 'No change' : why.reason, 'caution');
     } else if (modeNow === 'tws') {
       const i = st.designated.indexOf(id);
-      say(`${names(id)} designated${i === 0 ? ' (primary)' : i > 0 ? ` (#${i + 1})` : ''}`, 'hi');
+      say(`${contact(id)} designated${i === 0 ? ' (primary)' : i > 0 ? ` (#${i + 1})` : ''}`, 'hi');
     }
   }
   function jamLock(id: EntityId): void {
@@ -542,6 +578,13 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     me.selectedWeapon = id;
     rec.action('weapon', id);
     say(`${MISSILES[id].name} selected (${me.stores[id] ?? 0})`, 'dim');
+  }
+  function interrogate(): void {
+    if (!canAct() || !iffBtn) return;
+    if (me.radar.mode === 'off') { say('Radar is off: no IFF here', 'dim'); return; }
+    lastIffT = world.t;
+    world.interrogate(me.id);
+    rec.action('iff');
   }
   function setJam(on: boolean): void {
     if (!canAct()) { jamT?.set(me.jamming); return; }
@@ -683,6 +726,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   if (!K.chaff && K.decoys?.keys) keyMap[K.decoys.keys] = { down: () => dispense('both') };
   for (const s of keymap.selects) keyMap[s.keys] = { down: () => selectFamily(s.missiles) };
   if (jamT && jamKey) keyMap[jamKey] = () => jamT.toggle(true);
+  if (iffBtn && iffK) keyMap[iffK] = () => interrogate();
   const hold = (set: () => void, clear: () => void) => ({ down: set, up: clear });
   if (K.cursorUp?.keys) keyMap[K.cursorUp.keys] = hold(() => { cursorHeld.range = 1; }, () => { cursorHeld.range = 0; });
   if (K.cursorDown?.keys) keyMap[K.cursorDown.keys] = hold(() => { cursorHeld.range = -1; }, () => { cursorHeld.range = 0; });
@@ -820,7 +864,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     if (wasHoj && !hojNow && me.radar.mode === 'stt' && me.radar.stt.targetId) say(`Burn-through: range on ${names(me.radar.stt.targetId)}, ordinary lock now`, 'ok');
     wasHoj = hojNow;
     const dead = !me.alive || !!ending;
-    for (const b of [fireBtn, wpnBtn, chaffBtn, flareBtn, desBtn, unlockBtn, stepBtn, decoyBtn].filter((x): x is ButtonHandle => !!x)) b.setDisabled(dead);
+    for (const b of [fireBtn, wpnBtn, chaffBtn, flareBtn, desBtn, unlockBtn, stepBtn, decoyBtn, iffBtn].filter((x): x is ButtonHandle => !!x)) b.setDisabled(dead);
   }
 
   /** Launch zone against a track: the picture's when it has one, else from the radar's own estimate (FC3 СНП before the lock). */
@@ -837,6 +881,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     const r = me.rwr[0];
     const pm = pic;
     const prim = pm?.stt ?? pm?.tracks.find(t => t.designation === 'primary') ?? null;
+    const primTrack = prim ? pm?.tracks.find(t => t.targetId === prim.targetId) : undefined;
+    const wingmanUp = eng.friendIds.some(id => world.get(id)?.alive);
     const state: HintState = {
       units, alive: me.alive,
       jet: { short: spec.short, hasTws: !!spec.radar.tws, twsLaunch: !!spec.radar.tws?.launchFromTws, autoStt: spec.radar.tws?.autoSttAtRmaxFraction ?? 0, gimbalDeg: spec.radar.gimbalAzDeg },
@@ -846,7 +892,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       missilesLeft: missilesLeft(me),
       shootCue: !!pm?.shootCue, inRange, cueLabel: pm?.cueLabel ?? '', blocked: pm?.launchBlockedReason ?? '',
       contacts: (pm?.tracks.length ?? 0) + (pm?.bricks.length ?? 0),
-      primary: prim && pm ? { label: names(prim.targetId), range: prim.range, ...(pm.stt?.hoj ? { rmax: null, rne: null } : zoneOf(prim.targetId, pm)) } : null,
+      primary: prim && pm ? { label: contact(prim.targetId), range: prim.range, ...(pm.stt?.hoj ? { rmax: null, rne: null } : zoneOf(prim.targetId, pm)) } : null,
       rwr: r ? {
         state: r.state, bearing: r.bearing, elevation: r.elevation,
         emitter: r.emitterType === 'missile' ? 'Missile' : names(r.emitterId),
@@ -855,7 +901,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       } : null,
       own: [...world.missiles.values()].filter((m: Missile) => m.alive && m.shooterId === me.id).map(m => {
         const t = world.get(m.targetId);
-        return { label: mLabel(m.id), guidance: m.guidance, tta: m.timeToActive, tti: m.timeToImpact, target: names(m.targetId), targetOffDeg: t ? Math.abs(relBearing(me.pos, me.heading, t.pos)) * R2D : null };
+        return { label: mLabel(m.id), guidance: m.guidance, tta: m.timeToActive, tti: m.timeToImpact, target: contact(m.targetId), targetOffDeg: t ? Math.abs(relBearing(me.pos, me.heading, t.pos)) * R2D : null };
       }),
       bandits: eng.enemyIds.map(id => world.get(id)).filter((b): b is Aircraft => !!b && b.alive).map(b => {
         const s = rec.samples[rec.samples.length - 1]?.bandits.find(x => x.id === b.id);
@@ -863,6 +909,11 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         return { name: b.callsign, range, bearing: relBearing(me.pos, me.heading, b.pos), alt: b.pos.y, rne: s?.rne ?? null, inRne: !!s?.rne && range < s.rne, hot: Math.abs(relBearing(me.pos, me.heading, b.pos)) < 35 * D2R };
       }),
       ownAlt: me.pos.y,
+      iff: {
+        mode: iffSpec.mode, key: iffK, wingman: wingmanUp,
+        primaryUnidentified: !!prim && !pm?.stt?.hoj && !primTrack?.friendly && !primTrack?.iff,
+        recentS: Number.isFinite(lastIffT) ? world.t - lastIffT : null,
+      },
       ecm: {
         strobes: pm?.strobes.length ?? 0, jamLock: !!pm?.stt?.hoj,
         hojWeapon: !!me.selectedWeapon && isHojMissile(me.selectedWeapon), burnThrough: BURN_THROUGH_M[ac].value,
@@ -938,6 +989,7 @@ function buildKeyHelp(ac: FighterId, map: JetKeyMap): HTMLElement {
     ...map.selects.map(s => keyHint({ label: `Select ${s.family}`, keys: s.keys, note: s.dcsName })),
     row('Chaff', K.chaff), row('Flares', K.flare), row('Countermeasures', K.chaff ? undefined : K.decoys),
     jamHint(ac, map),
+    iffHint(ac, map),
     placard('Trainer keys'),
     keyHint({ label: 'Turn left / right (hold)', keys: `${tk.left} / ${tk.right}` }),
     keyHint({ label: 'Climb / descend (hold)', keys: `${tk.climb} / ${tk.descend}` }),
@@ -964,4 +1016,14 @@ function jamHint(ac: FighterId, map: JetKeyMap): HTMLElement | null {
   if (!jk.key) return keyHint({ label: 'Jammer on / off', keys: 'click', note: `${own.name} · ${own.key} is ${jk.collidesWith ?? 'taken'} here` });
   const note = [own.name, own.trainerKey ? 'trainer key' : '', own.verified ? '' : 'not verified', own.trainerKey ? own.note ?? '' : ''].filter(Boolean).join(' · ');
   return keyHint({ label: 'Jammer on / off', keys: jk.key, note });
+}
+
+/** Key-help row for IFF: the DCS key with its trainer / not-verified notes, a click, or "automatic". */
+function iffHint(ac: FighterId, map: JetKeyMap): HTMLElement | null {
+  const spec = IFF[ac];
+  if (spec.mode === 'auto') return keyHint({ label: 'IFF', keys: 'automatic', note: 'the radar interrogates every contact' });
+  const k = iffKey(map);
+  if (!k.key) return keyHint({ label: 'IFF interrogate', keys: 'click', note: k.collidesWith ? `${spec.key} is ${k.collidesWith} here` : spec.note ?? 'no default key in DCS' });
+  const note = [spec.trainerKey ? 'trainer key' : '', spec.verified ? '' : 'not verified', spec.trainerKey ? spec.note ?? '' : ''].filter(Boolean).join(' · ');
+  return keyHint({ label: 'IFF interrogate', keys: k.key, note: note || undefined });
 }

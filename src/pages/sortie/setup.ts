@@ -15,7 +15,9 @@ import { dlzFor } from '../../sim/dlz';
 import { speedFromMach } from '../../sim/atmosphere';
 import { AI_SKILLS, configureAi } from '../../sim/ai';
 import { BURN_THROUGH_M, ECM_USING, HOJ_MISSILES, JAM_CUE, OWN_JAMMER, type EcmUsing } from '../../data/ecm';
+import { IFF } from '../../data/iff';
 import { fmtAlt, fmtAltFine, fmtRange, type Units } from '../../app/format';
+import { iffKey, jetKeyMap } from './keys';
 import type { ScenarioId, SortieResult } from './coach';
 
 export type { ScenarioId } from './coach';
@@ -135,6 +137,34 @@ export function ecmBriefLines(ac: FighterId, s: Pick<SortieSetup, 'ecm' | 'enemy
   return out;
 }
 
+/**
+ * Brief lines for your IFF (data/iff.ts): automatic or how to interrogate (the key the fly screen binds, labelled
+ * trainer key / not verified, or the button), the friendly cue, and that no reply never proves hostile. With a
+ * wingman, what that means for the shot. `key` is iffKey()'s result (null: button only).
+ */
+export function iffBriefLines(ac: FighterId, scenario: ScenarioId, key: string | null): string[] {
+  const me = AIRCRAFT[ac], spec = IFF[ac];
+  const out: string[] = [];
+  if (spec.mode === 'auto') {
+    out.push(`IFF is automatic on the ${me.short}: the radar interrogates every contact it sees${spec.verified ? '' : ' (same FC3 family, not verified)'}. Friendly reply: ${spec.friendCue}.`);
+  } else {
+    const how = key
+      ? `${key}${spec.trainerKey ? ', trainer key' : ''}${spec.verified ? '' : ', not verified'}, or the IFF button`
+      : 'the IFF button here';
+    const tail = spec.trainerKey && spec.note ? ` ${spec.note}.` : '';
+    if (spec.onDesignate) out.push(`The ${me.short} interrogates the contact you designate or lock (not verified). ${how[0].toUpperCase() + how.slice(1)} asks everything within ±${spec.scanHalfDeg}° of the nose.`);
+    else out.push(`Interrogate (${how}): it asks every contact within ±${spec.scanHalfDeg}° of the nose.${tail}`);
+    out.push(`Friendly reply: ${spec.friendCue}${Number.isFinite(spec.showS) ? `, then it is gone: interrogate again right before the shot` : ''}.${spec.noReplyCue ? ` No reply shows ${spec.noReplyCue.toLowerCase()}.` : ''}`);
+  }
+  out.push('No reply never proves hostile: only a friendly reply identifies a contact.');
+  if (scenario === '2v2') {
+    out.push(spec.mode === 'auto'
+      ? 'Your wingman answers: once the radar has him as a friend, it refuses the shot on him.'
+      : 'Your wingman answers IFF. Until you interrogate, any contact may be him: the jet lets you shoot an unidentified friend, and refuses the shot once IFF says friend.');
+  }
+  return out;
+}
+
 export const enemyCount = (s: ScenarioId) => (s === '1v1' ? 1 : 2);
 
 /**
@@ -175,6 +205,7 @@ export interface BriefFacts {
   edge: string;
   sams: string[];
   ecm: string[];
+  iff: string[];
 }
 
 /** Best radar missile in a loadout (longest ED head-on reference), else the best IR one. */
@@ -222,7 +253,7 @@ export function multiShot(ac: FighterId): string {
   return `the ${spec.short} guides Fox 3s at up to ${cap} targets at once.`;
 }
 
-export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: string | null = null): BriefFacts {
+export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: string | null = null, iffK: string | null = iffKey(jetKeyMap(ac)).key): BriefFacts {
   const me = AIRCRAFT[ac], en = AIRCRAFT[s.enemy];
   const n = enemyCount(s.scenario);
   const R = (m: number) => fmtRange(m, units, 0);
@@ -276,6 +307,7 @@ export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: 
     you: `${me.name}: ${loadoutText(ac)}.`,
     them: `${n}× ${en.name}, ${s.skill}: ${loadoutText(s.enemy)} each.`,
     threats, yourJet, skill, zones, edge, sams: samBriefLines(s, units), ecm: ecmBriefLines(ac, s, units, jamKey),
+    iff: iffBriefLines(ac, s.scenario, iffK),
   };
 }
 
