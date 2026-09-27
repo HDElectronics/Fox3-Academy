@@ -47,8 +47,14 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
   with trainer-chosen timings and odds, because ED does not publish them.
 - **AI skill**: launch range, reaction time and notch accuracy per skill level are this trainer's choices shaped
   by documented DCS behaviour.
-- **Not modelled**: terrain masking, PRF choices (explained, not simulated), fuel, guns, datalink pictures (the
-  Sortie uses a simple GCI picture for AI steering only).
+- **Not modelled**: terrain masking, PRF choices (explained, not simulated), fuel, guns. The Sortie also uses a
+  simple GCI picture (truth) for AI steering and a labelled coach hint.
+- **Datalink**: an AWACS orbit (not an entity) sees every aircraft within 200 nm and updates every 10 s, network
+  members share their radar tracks and positions every 2 s (trainer values), and every track coasts 20 s (Viper
+  manual). Each jet sees its own network: Link 16 on the Hornet and Viper, Link 4 on the F-14 (4A and 4C merged),
+  Link 17 on the JF-17 (community), the AWACS picture on the FC3 jets, none on the F-15C and M-2000C (TAF not
+  modelled). A datalink track cannot be fired on. Hornet own-flight letters, Viper lock lines and donor callsigns are
+  not drawn.
 - **IFF**: automatic on the F-15C and the Su-27 family, an interrogation on the others, as the manuals describe.
   Every friend answers, the IFF reaches 1.2 × the radar's head-on detection range and ±60° around the nose (trainer
   values), the Viper LOS mode is not modelled, and the AI knows every contact's side (commonly assumed for DCS AI,

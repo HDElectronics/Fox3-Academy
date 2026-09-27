@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The datalink picture (#12): an AWACS and network members (Link 16 Hornet and Viper, F-14 Link 4, JF-17) share
+  tracks and positions, which coast 20 s; each jet draws its own symbols (Hornet HAFU halves and PPLI, Viper
+  colours, FC3 AWACS triangles, TID symbols below the dot), and the AWACS hostile call is the Hornet's second ID
+  factor. Radar lab exercise 8, Datalink picture; Sortie AWACS option. A datalink track cannot be fired on.
+
 - IFF as DCS shows it (#12): what the radar calls friendly now comes from the jet's own IFF, automatic on the
   F-15C and Su-27 family and after an interrogation elsewhere (Viper TMS Left, Hornet on designate, `I`, `S`), with
   each jet's cue. Radar lab exercise 7, Friend or foe; in the Sortie an IFF button, a hint before shooting an
