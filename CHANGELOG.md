@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Jamming as DCS shows it (#12): a jammer is a bearing-only strobe until the radar's burn-through range, drawn in
+  each jet's own symbol; a jam lock (HOJ / AOJ / JAT) lets home-on-jam missiles (AIM-120, AIM-7M, R-27R/ER,
+  AIM-54) fly pure pursuit at it. New radar lab exercise, Jammer and burn-through; the Sortie gets the bandit
+  "ECM Using" option, the own jammer on `E` and jam locks. Values and their confidence in `src/data/ecm.ts`.
+
 - AI jets react to SAMs (#34): a site on the jet's RWR keeps it out of the ring (3 km margin), and a SAM launch
   makes it beam the site, descend and drop chaff, then rejoin the fight. A trainer rule, labelled simplified. The
   SAM drills start at most 5 km outside the ring, so the SA-10 locks in about 20 s instead of about 75 s.

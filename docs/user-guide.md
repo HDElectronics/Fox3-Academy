@@ -38,6 +38,13 @@ is not on your scope: outside the azimuth, above or below the bars, beyond detec
 notch. The side view shows the altitude your bars cover at the cursor range, the number that tells you where to
 point the antenna. Five exercises walk through the classic ways to lose a contact.
 
+Exercise 6, **Jammer and burn-through**, puts a jamming bandit in front of you. A jammer shows only a bearing
+(the jet's own jam symbol: the F-15C column of boxes, the Su-27 flashing strobe and АП, the Hornet dugout, the Viper
+chevrons, the Tomcat strobe), and the radar refuses a normal lock. Take a jam lock on the strobe (click it, or put
+the cursor on it and press your lock key) and hold it: inside burn-through (about 19 nm in the F-15C, 25 km in the
+Su-27) the lock turns into a normal STT with range, altitude and aspect. The coach lists which of your missiles
+can home on the jam; a home-on-jam shot flies pure pursuit with no range and no loft (simplified).
+
 ### TWS
 Track-while-scan practice in 3D for every jet. Four bandits come at you. Switch between
 RWS, TWS and STT, build track files, designate and shoot. The panel "What each bandit's RWR says" is the point:
@@ -259,6 +266,12 @@ Under **SAM sites** the brief adds one or two SA-10, SA-11 or SA-15 sites on the
 the 3D view with their rings, the coach calls their lock and launch, and the debrief notes a SAM kill or a
 broken track. Simplified: your AI wingman stays out of a ring once its RWR shows the site, and beams, descends and
 drops chaff against a SAM fired at it (a trainer rule); the sites shoot only at your side.
+
+Under **Bandit ECM** the brief sets the mission editor option for the bandits (Never use, Use if only lock by
+radar, Use if detected by radar, Always use). A jamming bandit is a strobe on your scope until burn-through; lock
+the strobe for a home-on-jam shot or close to burn-through. Your own jammer is on `E` where the jet has one (a
+Jammer button on the F/A-18C, where `E` is chaff; the J-11A has none). The debrief marks jammer on/off and
+home-on-jam shots.
 
 Use **Truth / Your radar** below the playback controls to compare the complete fight with your recorded
 sensor picture. Your radar shows ownship, echo squares and estimated track rings; dashed rings mean a

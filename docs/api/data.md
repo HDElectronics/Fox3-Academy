@@ -328,7 +328,9 @@ jam symbols, the F-15C and Su-27 jammer on `E`. **Not verified**: burn-through f
 (Su-27 value), F-16C 25 nm (ED video via a blog), F-14B 26 nm (community test), M-2000C 22 nm (Chuck's), F/A-18C
 and JF-17 20 nm (no figure); the strobe range factor 1.75 (trainer); the Su-33 and MiG-29S jammers (game files);
 the J-11A having none; the JF-17 and M-2000C jam symbols; the AI "ECM Using" default. The Hornet, Viper and
-Tomcat jammers are panel switches in DCS: `E` is a trainer key there.
+Tomcat jammers are panel switches in DCS: `E` is a trainer key there (in the Sortie the F/A-18C gets a Jammer
+button, since `E` is chaff). Radar lab exercise 6 trainer values: the jammer flies at 170 m/s and a lock key
+takes the strobe within 3° of the cursor.
 
 ### Procedures and binds
 - FC3 `Backspace` unlock: medium confidence (mod copies of the FC3 bindings).

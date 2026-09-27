@@ -47,15 +47,20 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
   with trainer-chosen timings and odds, because ED does not publish them.
 - **AI skill**: launch range, reaction time and notch accuracy per skill level are this trainer's choices shaped
   by documented DCS behaviour.
-- **Not modelled**: jamming and burn-through, terrain masking, PRF choices (explained, not simulated), fuel,
-  guns, IFF and datalink pictures (the Sortie uses a simple GCI picture for AI steering only).
+- **Not modelled**: terrain masking, PRF choices (explained, not simulated), fuel, guns, IFF and datalink
+  pictures (the Sortie uses a simple GCI picture for AI steering only).
+- **Jamming**: modelled the one way DCS does it: a jammer hides its range and leaves a bearing (strobe) until
+  the radar's burn-through range, then it is an ordinary contact. One burn-through range per radar (F-15C 19 nm
+  and Su-27 25 km from the ED manuals; the others community or trainer values), strobes out to 1.75 × detection
+  range, and home-on-jam shots as pure pursuit with no loft. The AI uses the mission editor "ECM Using" option
+  but never takes a jam lock itself (it waits for burn-through). No RWR cue for an enemy jammer.
 - **Phoenix controls**: launch-mode guidance is represented, but TGTS remains NORM; pulse acquisition and
   full cockpit controls are not modelled.
 - **Launch displays**: the Viper ASC/ASEC geometry and Tomcat TID launch-zone vectors remain simplified.
   The trainer no longer invents SHOOT on the Viper or IN RNG on the classic Tomcat.
 - **Free lab inputs**: cursor speed, acquisition gate, and arrow-key heading/altitude commands are trainer
   controls. Optional DCS СНП cursor snap is separate from the manual designation aid.
-- **Jamming constraint**: СНП2 checks a scenario flag; this is not an electronic-warfare model.
+- **Jamming constraint**: СНП2 refuses a jamming target at any range.
 - **SAM sites**: three sites (SA-10, SA-11, SA-15) stand for the long, medium and short range classes. The site
   holds a track and its missile needs that track to impact; notch plus chaff, terrain (the radar horizon plus a
   scenario ridge height) or leaving the ring breaks it. Missile timing is arcade tuning. AI jets keep out of a
@@ -72,6 +77,9 @@ items that still require a current DCS installation. No in-game validation is im
   "ABORT ABORT ABORT, you do not have permission to fire" call. Whether the Su-25T can use a JTAC laser on code
   1113 (community reports, not modelled).
 
+- Jamming: burn-through for every jet except the F-15C and Su-27, the jam symbols of the JF-17 and M-2000C, the
+  Su-33 and MiG-29S jammers, the J-11A having none, which missiles besides the AIM-120, AIM-7M, R-27R/ER and
+  AIM-54 can home on jam, and the AI "ECM Using" default (docs/research/ecm-datalink-iff.md, open questions).
 - Whether an R-77 or AIM-120 fired from STT gives a launch warning or only the lock until pitbull.
 - Whether pressing Enter in the Su-27's СНП forces a lock before 85 % of Rmax (the Su-27 manual says yes; the
   MiG-29 and Su-33 manuals say no). The app follows the Su-27 manual.
