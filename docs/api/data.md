@@ -320,6 +320,15 @@ dcsworld.pro. The single `track-to-impact` guidance rule simplifies DCS's mix of
 guidance (SA-10 terminal phase not verified). Missile speed, turn, lock-to-launch delay, notch gate and chaff
 chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 
+### Datalink (`src/data/datalink.ts`)
+
+Verified: Hornet MIDS F/F, PPLI and SURV on the attack radar and SA page with the HAFU halves; Viper MIDS on the FCR
+and HSD with the 20 s surveillance coast; Su-27 open AWACS triangles once the radar is on; F-15C with no datalink
+display; F-14 Link 4 symbols below the track dot. **Not verified**: Viper colours (blue flight, green donors), the
+Su-33, J-11A and MiG-29S (Su-27 rule), the JF-17 Link 17 (community), the M-2000C having only the TAF ground link
+(not modelled). Trainer values: AWACS reach 200 nm and 10 s updates, donor updates every 2 s, the F-14 merging Link
+4A and 4C, every enemy called hostile by the AWACS.
+
 ### IFF (`src/data/iff.ts`)
 
 Verified: F-15C automatic IFF (circle vs rectangle), Su-27 double row of dots, Viper TMS Left short = SCAN ±60°

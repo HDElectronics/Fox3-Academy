@@ -1,6 +1,7 @@
 export * from './types';
 export { AIRCRAFT, AIRCRAFT_ORDER, FIGHTER_ORDER, ATTACK_ORDER, AIRCRAFT_CAVEATS, isFighter, type JetTable } from './aircraft';
 export { MISSILES, MISSILE_REF_NOTE, FLARE_SUSCEPTIBILITY } from './missiles';
+export { DATALINK, DL_COAST_S, AWACS_UPDATE_S, DONOR_UPDATE_S, AWACS_RANGE_M, DATALINK_CAVEATS, type DatalinkSpec } from './datalink';
 export { IFF, IFF_RANGE_FACTOR, IFF_CAVEATS, type IffSpec } from './iff';
 export { BURN_THROUGH_M, STROBE_RANGE_FACTOR, HOJ_MISSILES, isHojMissile, OWN_JAMMER, JAM_CUE, ECM_USING, ECM_CAVEATS, type EcmUsing, type OwnJammer, type JamCue } from './ecm';
 export { RWRS, RWR_CAVEATS, rwrSymbol } from './rwr';

@@ -246,7 +246,7 @@ class FakeRadar {
       rangeScale: s.rangeScale, gimbalAz: spec.radar.gimbalAzDeg * D2R,
       scan: { azCenter: sc.azCenter, azHalf: sc.azHalf, elCenter: sc.elCenter, bars: sc.bars, beamAz: sc.mode === 'stt' && primRel ? primRel.az : sc.beamAz, beamEl: sc.beamEl, bar: sc.bar, frameTime: sc.frameTime },
       altCoverage: { top: OWN_ALT + cursorRange * Math.tan(sc.elCenter + halfCov), bottom: OWN_ALT + cursorRange * Math.tan(sc.elCenter - halfCov), atRange: cursorRange },
-      ownAlt: OWN_ALT, ownSpeed: OWN_V, bricks, strobes: [], ownJamming: false, tracks,
+      ownAlt: OWN_ALT, ownSpeed: OWN_V, bricks, strobes: [], ownJamming: false, datalink: [], tracks,
       stt: sc.mode === 'stt' && primRel && lockId ? { targetId: lockId, az: primRel.az, range: primRel.range, alt: primRel.alt, aspectDeg: primRel.aspectDeg, closure: primRel.closure, lost: false, hoj: false } : null,
       weapon: w ? { id: w.missile, name: MISSILES[w.missile].name, count: Math.max(0, w.count - launchedCount) } : null,
       dlz, shootCue: shoot, cueLabel: s.cue, launchBlockedReason: shoot ? '' : 'Out of range',

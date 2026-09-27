@@ -337,6 +337,23 @@ DCS models one kind of jamming: it hides range and leaves the bearing (docs/rese
   shot. AI shooters know sides (not verified in DCS) and are always refused.
 - Tested in `src/sim/iff.test.ts`.
 
+## Datalink picture (`datalink.ts`, issue #12 part 3)
+
+Per side, `world.datalink[side]` holds `DatalinkTrack`s (sim/types.ts): `awacs` surveillance, `donor` radar tracks
+from network members, `ppli` member positions. `world.setAwacs(side, pos | null)` puts an AWACS orbit (not an
+entity). `stepDatalink` (every tick): AWACS updates every 10 s within 200 nm (trainer values), calls every enemy
+hostile; donors (jets whose `DATALINK[type].donors` includes their own type: Link 16 Hornet/Viper, F-14 Link 4C,
+JF-17) send their firm tracks and position every 2 s, with their own IFF ID (friendly or unknown); every track is
+extrapolated and dropped 20 s after its last update (Viper manual), or when the target dies.
+- `datalinkFor(world, ac)`: the jet's view, one entry per target (PPLI over donor over AWACS), filtered by
+  `DATALINK[type]` (AWACS, donor types, PPLI), never its own position or its own tracks. FC3 jets need the radar on.
+  F-15C and M-2000C: empty.
+- `datalinkSovereignty`: friendly, hostile (an AWACS call) or unknown; picture tracks carry it as `dl`, the Hornet
+  HAFU bottom half and second ID factor.
+- `RadarPicture.datalink`: az, range, alt, heading, speed, source, `donorLabel` (callsign), sovereignty,
+  `correlated` (own radar also holds it), age. A datalink track cannot be fired on (launches need own-radar tracks).
+- Tested in `src/sim/datalink.test.ts`.
+
 ## Simplified here (say so in the UI)
 
 - Detection is a range test with a linear probability edge, not a signal-to-noise model; no PRF (ППС/ЗПС/АВТ,
