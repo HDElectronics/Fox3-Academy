@@ -248,6 +248,8 @@ callouts.push(...AIRCRAFT_CAVEATS[app.aircraft]);        // "simplified here" no
 ### Air-to-ground (Su-25T)
 
 Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `AG_CAVEATS`.
+- Shkval target frame minimum `FRAME_MIN_FRACTION` = 2 % of the TV width (`src/sim/shkval.ts`): trainer value,
+  **not verified**. At wide zoom a 10 m frame would be a pixel or two; the frame is drawn and locks at this minimum.
 - Every guided-weapon launch band is a community value, **not verified** (S1 gives none): Vikhr 0.8–10 km,
   Kh-25ML 3–10, Kh-29L 3–10, Kh-29T 3–12, KAB-500Kr 1–8, Kh-58 10–70. Rocket, bomb and gun bands only gate the
   trainer ПР cue (S-8 0.8–4, S-13 1–5, FAB-250 0–5, gun 0.3–2 km).

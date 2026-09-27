@@ -7,6 +7,7 @@
  * and the time of flight lower right. Positions of the items follow S1's description; exact glyphs are simplified.
  */
 import { Gfx, Surface, blinkOn } from './surface';
+import { FRAME_MIN_FRACTION } from '../../sim/shkval';
 
 export interface It23mState {
   on: boolean;
@@ -22,8 +23,13 @@ export interface It23mState {
   laserOn: boolean;
   /** The laser tripped its limit and is cooling: ЛД flashes. */
   laserCooling: boolean;
-  /** Slant range to the aim point (m). */
+  /** Slant range to the aim point (m), printed only while the laser ranges. */
   rangeM: number | null;
+  /**
+   * Distance to the aim point (m) used to size the target frame, laser on or off. The frame must cover the same
+   * ground as the lock rule, or a target inside the drawn frame will not lock. Falls back to rangeM.
+   */
+  frameRangeM?: number | null;
   /** Time of flight (before launch) or time to impact (after), s. */
   tofS: number | null;
   pr: boolean;
@@ -49,10 +55,11 @@ export function elToY(elDeg: number, y0: number, y1: number): number {
 }
 
 /**
- * Target frame width (px): the set target size seen at the slant range through the field of view, clamped to
- * [minPx, 0.8 × width]. Without a range the frame takes a fixed 8 % of the width.
+ * Target frame width (px): the set target size seen at the aim-point distance through the field of view, clamped to
+ * [FRAME_MIN_FRACTION × width, 0.8 × width], the same frame the lock rule uses (sim/shkval.ts frameWidthM).
+ * Without a range the frame takes a fixed 8 % of the width.
  */
-export function targetFramePx(sizeM: number, rangeM: number | null, fovHDeg: number, widthPx: number, minPx = 8): number {
+export function targetFramePx(sizeM: number, rangeM: number | null, fovHDeg: number, widthPx: number, minPx = widthPx * FRAME_MIN_FRACTION): number {
   if (!rangeM || rangeM <= 0 || fovHDeg <= 0) return Math.max(minPx, widthPx * 0.08);
   const fovM = 2 * rangeM * Math.tan((fovHDeg * Math.PI) / 360);
   return Math.max(minPx, Math.min(widthPx * 0.8, (sizeM / fovM) * widthPx));
@@ -152,7 +159,7 @@ export class It23mDisplay {
     // Centre: sight cross and the target frame.
     const mx = W / 2, my = H / 2, gap = 2.2 * u, arm = 7 * u;
     g.segs([mx - arm, my, mx - gap, my, mx + gap, my, mx + arm, my, mx, my - arm, mx, my - gap, mx, my + gap, mx, my + arm]);
-    const fw = targetFramePx(s.targetSizeM, s.rangeM, s.fovHDeg, W);
+    const fw = targetFramePx(s.targetSizeM, s.frameRangeM ?? s.rangeM, s.fovHDeg, W);
     const fh = fw * 0.75;
     if (s.mode === 'АС') { g.lw(0.55); g.rect(mx - fw / 2, my - fh / 2, fw, fh); g.lw(0.35); }
     else {
