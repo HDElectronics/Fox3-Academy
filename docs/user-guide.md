@@ -5,6 +5,10 @@ adapts to the jet you pick in the top bar: radar rules, cockpit display, missile
 
 ## Getting started
 
+Fox3 Academy runs in desktop and laptop browsers (tablets also work). Phones show a short panel with a
+Copy link button instead of the app: the lessons fly the jet with a keyboard beside a 3D view, the cockpit
+displays and the lesson steps, which a phone screen cannot show together.
+
 1. Pick your jet in the **Jet** menu (top right). The app repaints itself in that jet's cockpit colour:
    turquoise for Flankers and Fulcrums, grey for Western jets.
 2. Set units with the button next to it (km and m, or nm and ft). Russian jets start metric.
@@ -13,7 +17,7 @@ adapts to the jet you pick in the top bar: radar rules, cockpit display, missile
 4. Open **Practice** for the manual TWS lab and configurable Radar, Missile and Defense experiments.
 5. Open **Fly** for a sortie, or **Reference** for bindings, procedures and aircraft facts.
 
-The 3D world remains the main lab surface. On phones, **World**, **Displays** and **Controls** tabs show
+The 3D world remains the main lab surface. On narrow screens (tablets, small windows), **World**, **Displays** and **Controls** tabs show
 one workspace at a time; switching tabs keeps the current simulation. The bottom action bar keeps the
 main controls available. Expand settings, event logs and accuracy notes when needed.
 
@@ -151,7 +155,7 @@ the envelope and a clean disconnect; 70 or more in Fly mode completes the refuel
 (from the tanker's wing), Receiver (behind your jet, looking at the basket or boom) and Cockpit. The Su-27, J-11A
 and MiG-29S have no refuelling lesson.
 
-On a phone or tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
+On a tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,
 WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on with Show on-screen controls.
@@ -160,7 +164,7 @@ WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on 
 Close-combat basics for all ten jets. You fly an arcade BFM mode:
 the arrow keys roll the lift vector (← →) and pull or unload (↓ ↑, as in DCS), Space holds the trigger, 1 / 2 / 3
 set idle, military or afterburner, B the speedbrake. Hands off the pitch keys, the jet holds a level turn at its
-bank (a trainer aid). On a phone the view shows a touch pad (roll, pull, unload, gun, throttle).
+bank (a trainer aid). On a tablet the view shows a touch pad (roll, pull, unload, gun, throttle).
 Lessons: Corner speed (hold your jet's corner speed in a turn of 3 g or more), Pursuit (lead, pure, then lag
 pursuit for 10 s each against a turning bandit), The merge (lead turn toward his side as he nears your wing line,
 pass close, then go nose high or nose low; scored on angles gained by the second pass), One vs two circle (turn
@@ -203,7 +207,7 @@ impact; scored on kills, misses with their reason, and laser time) and **CCIP pa
 truck column; you fly the dive yourself, as in DCS: Up pushes the nose down, Down pulls it up, Left / Right turn,
 and a released key holds the dive angle. Push over until the pipper reaches the trucks, fire a few rockets inside
 about 2.5 km, and pull out; below 300 m in a dive the coach calls Pull up. A ground ring and a fading trail show
-where the rockets would land now and where that point has been). Tap the TV picture to point the sight; on a phone a slew pad, zoom and
+where the rockets would land now and where that point has been). Tap the TV picture to point the sight; on a tablet a slew pad, zoom and
 size buttons and Fire / Lock / ЛД buttons appear. Launch ranges are community values and marked not verified.
 Three more scored lessons. **Bombs**: select АБ with D, designate the tank platoon with the Shkval (Enter to
 stabilise) and switch the laser on; the HUD shows the director circle and a time-to-release scale. Hold Space,

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Make Fox3 Academy desktop only. Phones (touch-only, shorter screen side under 600 px) see a short panel with a
+  Copy link button instead of the app; tablets, touchscreen laptops and narrow desktop windows keep the full app.
+  Visual checks move from 390 px to 1440 and 820 px.
+
 - Add Learn → CAS & JTAC for the Su-25T (#53). Work the built-in JTAC through a DCS-style radio menu: check-in,
   the 9-line on a kneeboard card, remarks and readback, IP inbound, white smoke inside 10 nm, the talk-on, In,
   cleared hot or abort, Off and BDA. Five lessons score the card, clearance discipline and friendly safety. Adds
