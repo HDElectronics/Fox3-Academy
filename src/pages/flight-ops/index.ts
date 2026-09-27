@@ -60,6 +60,7 @@ import {
   stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
   type FlownPoint, type LessonKind, type NavMilestones, type TakeoffItem,
   ballPicture, ballPrompt, carrierPlannedGates, pointAt, carrierStarts, gradeCard, toLandingOverlay, type CarrierStart,
+  TIME_SCALES, timeHold, timeHoldText, type TimeScale,
 } from './logic';
 import { touchControls, type TouchAction } from './touch';
 import {
@@ -78,6 +79,8 @@ type Shot = typeof SHOTS[number];
 const TRAIL_EVERY = 6;          // steps between trail points (0.1 s)
 const TRACK_MAX = 20000;
 const CALL_SHOW_S = 5;
+/** DCS time keys, as on the sortie page (LCtrl + Z faster, LAlt + Z slower, LShift + Z normal). */
+const TIME_KEYS = { faster: 'LCtrl + Z', slower: 'LAlt + Z', normal: 'LShift + Z' } as const;
 
 const nvTag = (s: Sourced<unknown>) => (s.verified ? null : h('span', { class: 'fo-nv', title: s.note ?? s.source }, 'not verified'));
 
@@ -153,6 +156,8 @@ const factory: PageFactory = (): Page => {
     let toDone = new Set<TakeoffItem>();
     let started = false, paused = false, finished = false, configured = false;
     let acc = 0, steps = 0, onSpeedRun = 0, uiClock = 0, gatesSeen = -1;
+    /** Time acceleration (trainer): drops back to 1× whenever timeHold() says precise flying starts. */
+    let timeScale: TimeScale = 1, timeNote = '', timeNoteAt = -1e9;
     let track: TracePoint[] = [];
     let flown: FlownPoint[] = [];
     let navMs: NavMilestones = { steering: false, intercept: false, onGlideRunS: 0 };
@@ -479,6 +484,7 @@ const factory: PageFactory = (): Page => {
       ...(avoidKey(d) ? [keyHint({ label: avoidKey(d)!.label, keys: avoidKey(d)!.key })] : []),
       ...aarKeys(d).map(k => keyHint({ label: `Refuelling: ${k.label}`, keys: k.key, note: k.tag ?? undefined })),
       ad ? keyHint({ label: 'Station keeping behind the tanker', keys: 'Num+ / Num-, arrows', note: 'throttle sets closure, stick moves the jet' }) : null,
+      keyHint({ label: 'Time faster / slower / normal', keys: `${TIME_KEYS.faster} / ${TIME_KEYS.slower} / ${TIME_KEYS.normal}`, note: 'DCS time keys' }),
       keyHint({ label: 'Pause / restart / camera', keys: 'P / R / C' }));
     const notes = h('div', { class: 'fo-notes' },
       callout({ kind: 'simplified', body: 'Arcade flight model tuned to the manual numbers. The HUD and the nav display are simplified: no wind, no sideslip, one AoA cue per jet. Stick and throttle keys and the on-screen controls are trainer controls, not DCS defaults.' }),
@@ -512,6 +518,11 @@ const factory: PageFactory = (): Page => {
       : c === 'deck' ? (atSea() ? 'lso' : 'tower') : atSea() && c === 'tower' ? 'lso' : !atSea() && c === 'lso' ? 'tower' : c);
     const pauseBtn = button({ id: 'fo-pause', label: 'Pause', size: 's', keys: 'P', onClick: () => togglePause() });
     const restartBtn = button({ id: 'fo-restart', label: 'Restart', size: 's', keys: 'R', onClick: () => reset(true) });
+    const timeSeg = segmented<TimeScale>({
+      id: 'fo-time', ariaLabel: 'Time acceleration', value: 1, size: 's',
+      options: TIME_SCALES.map(v => ({ value: v, label: `${v}×`, title: v === 1 ? 'Normal time' : `${v}× time: back to 1× near the tanker, gear down or low` })),
+      onChange: v => setTimeScale(v),
+    });
 
     const layout = labLayout({
       id: 'fo-lab', class: 'fo-lab',
@@ -528,7 +539,7 @@ const factory: PageFactory = (): Page => {
     });
     layout.overlay('tl', pill);
     layout.overlay('tr', camSeg.el);
-    layout.overlay('bl', pauseBtn.el, restartBtn.el);
+    layout.overlay('bl', pauseBtn.el, restartBtn.el, timeSeg.el);
     layout.overlay('br', callLine);
     ctx.root.append(h('div', { class: 'fo-page' }, layout.el));
     bag.add(() => layout.destroy());
@@ -639,6 +650,7 @@ const factory: PageFactory = (): Page => {
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
       input.pitch = 0; input.roll = 0; input.throttle = s.throttle;
       paused = false; started = autostart;
+      timeScale = 1; timeSeg.set(1); timeNote = ''; timeNoteAt = -1e9;
       sc?.overlay.clearTrail();
       steps_.reset();
       debriefPanel.el.hidden = true;
@@ -671,6 +683,14 @@ const factory: PageFactory = (): Page => {
       paused = !paused;
       pauseBtn.setLabel(paused ? 'Resume' : 'Pause');
       refresh(true);
+    }
+
+    /** Sets the time scale; refused (with the reason on the call line) while precise flying needs 1×. */
+    function setTimeScale(v: TimeScale): void {
+      const why = v > 1 && s ? timeHold(s, hudHeightM(s)) : null;
+      timeScale = why ? 1 : v;
+      timeSeg.set(timeScale);
+      if (why) { timeNote = `Time 1×: ${timeHoldText(why, units())}`; timeNoteAt = s.t; refresh(true); }
     }
 
     function setCam(c: FlightOpsCamera): void {
@@ -792,8 +812,12 @@ const factory: PageFactory = (): Page => {
 
     function frame(dt: number): void {
       if (dt > 0 && started && !paused) {
-        acc = Math.min(acc + dt, 0.25);
-        while (acc >= FLIGHT_OPS_DT) { acc -= FLIGHT_OPS_DT; tick(); }
+        acc = Math.min(acc + dt * timeScale, 0.25 * timeScale);
+        while (acc >= FLIGHT_OPS_DT) {
+          acc -= FLIGHT_OPS_DT; tick();
+          const why = timeScale > 1 ? timeHold(s, hudHeightM(s)) : null;
+          if (why) { timeScale = 1; timeSeg.set(1); acc = Math.min(acc, FLIGHT_OPS_DT); timeNote = `Time back to 1×: ${timeHoldText(why, units())}`; timeNoteAt = s.t; }
+        }
       }
       sc?.update(s);
       if (hudCam && sc) {
@@ -862,8 +886,10 @@ const factory: PageFactory = (): Page => {
       const showCall = !showLso && !!s.nav && lastCall !== null && s.t - callAt < CALL_SHOW_S;
       const aarLast = s.aar?.calls[s.aar.calls.length - 1];
       const showAar = !!aarLast && s.t - aarLast.t < CALL_SHOW_S;
-      callLine.hidden = !showCall && !showLso && !showAar;
-      if (showAar) setText(callLine, `${aarLast!.from === 'tanker' ? 'Tanker' : 'You'}: ${aarLast!.text}`);
+      const showTime = !showCall && !showLso && !showAar && !!timeNote && s.t - timeNoteAt < CALL_SHOW_S;
+      callLine.hidden = !showCall && !showLso && !showAar && !showTime;
+      if (showTime) setText(callLine, timeNote);
+      else if (showAar) setText(callLine, `${aarLast!.from === 'tanker' ? 'Tanker' : 'You'}: ${aarLast!.text}`);
       else if (showLso) setText(callLine, `LSO: ${lsoLast!.text}`);
       else if (showCall) setText(callLine, `Tower: ${lastCall}`);
       callLine.classList.toggle('is-waveoff', !showAar && showLso && (lsoLast!.kind === 'waveoff' || lsoLast!.kind === 'bolter'));
@@ -1232,6 +1258,9 @@ const factory: PageFactory = (): Page => {
       [d.keys.speedbrake]: act(() => applyAction(s, 'speedbrakeToggle', d)),
       'Space': () => { if (!started || finished) go(); else togglePause(); },
       'P': () => togglePause(),
+      [TIME_KEYS.faster]: () => setTimeScale(TIME_SCALES[Math.min(TIME_SCALES.length - 1, TIME_SCALES.indexOf(timeScale) + 1)]!),
+      [TIME_KEYS.slower]: () => setTimeScale(TIME_SCALES[Math.max(0, TIME_SCALES.indexOf(timeScale) - 1)]!),
+      [TIME_KEYS.normal]: () => setTimeScale(1),
       'R': () => reset(true),
       'C': () => { const opts = camOptions().map(o => o.value); camPref = opts[(opts.indexOf(cam) + 1) % opts.length]!; setCam(camPref); },
     };

@@ -157,6 +157,10 @@ the envelope and a clean disconnect; 70 or more in Fly mode completes the refuel
 (from the tanker's wing), Receiver (behind your jet, looking at the basket or boom) and Cockpit. The Su-27, J-11A
 and MiG-29S have no refuelling lesson.
 
+Time acceleration (1×, 2×, 4×, 8×, beside Pause, or the DCS keys LCtrl + Z faster, LAlt + Z slower, LShift + Z
+normal) shortens the long transits: the rejoin to the tanker and the nav leg home. It drops back to 1× on its own
+within 0.5 nm of the tanker, with the gear down, below 500 ft or on the ground, and the call line says why.
+
 On a tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,

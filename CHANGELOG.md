@@ -8,6 +8,9 @@
   camera shows the blast deflector; the carrier draws a wake and the tailhook is a model part; the nav display and
   pattern trace show together on Return to base; PgUp reads as a trainer key on the Western jets; the Su-33
   stopper-release step shows its tag.
+- Pattern & landing has time acceleration (1×, 2×, 4×, 8×, DCS keys LCtrl / LAlt / LShift + Z) for the tanker
+  rejoin and the nav leg home. It drops back to 1× within 0.5 nm of the tanker, gear down, below 500 ft or on the
+  ground.
 
 - AI jets react to SAMs (#34): a site on the jet's RWR keeps it out of the ring (3 km margin), and a SAM launch
   makes it beam the site, descend and drop chaff, then rejoin the fight. A trainer rule, labelled simplified. The
