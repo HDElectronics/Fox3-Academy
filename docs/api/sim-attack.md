@@ -118,7 +118,11 @@ Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(
   Launch needs a spot on the code ahead of the jet in sight; the GBU-12 may also go on the SPI (it takes a spot in its
   ±30° cone on the way). Losing the spot: AGM-65L and APKWS miss (`laser-off`, hold to impact), the GBU-12 flies on
   to the last spot.
-- A-10C II AGM-65D/H: the Maverick lock is the pod's POINT track (simplified; the Maverick page is not modelled).
+- A-10C II AGM-65D/H (`maverick.ts`, `ag.mav` when a D/H is loaded): `world.mavSlaveToSpi` (China Hat Forward Long),
+  `mavPointAt`, `mavSlew`, `mavLock` (TMS Forward Short: the nearest live unit in the gate, max(20 m, 0.4 % of range),
+  inside 8 nm and 60° off the nose, in sight; needs a D/H profile, else "SENSOR"), `mavRecage` (China Hat Aft Short).
+  The lock follows the unit and breaks (`lastBreak`) when it dies, is masked or leaves 60°. Launch needs the lock;
+  each missile takes it with it, so the next one locks again.
 - Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
 - Tested in `tgp.test.ts` and `laserSpot.test.ts`.
 

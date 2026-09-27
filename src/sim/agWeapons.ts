@@ -182,7 +182,7 @@ function unitUnder(world: World, p: Vector3): EntityId | null {
 
 /**
  * Target of the selected guided weapon: the Kh-58 emitter; a laser spot on the store's code ('laser-spot'; the GBU-12
- * may also go on the SPI); the pod's POINT track (A-10C II Maverick, simplified); or the Shkval lock (Su-25T).
+ * may also go on the SPI); the A-10C II Maverick seeker lock (maverick.ts); the pod's POINT track; or the Shkval lock (Su-25T).
  */
 function guidedTarget(world: World, ac: Aircraft, w: AgWeaponId): { id: EntityId | null; pos: Vector3; spotId?: EntityId } | null {
   const ag = ac.ag!;
@@ -192,6 +192,10 @@ function guidedTarget(world: World, ac: Aircraft, w: AgWeaponId): { id: EntityId
     if (spot) return { id: unitUnder(world, spot.pos), pos: spot.pos, spotId: spot.id };
     if (!spec.needsLock && !spec.holdToImpact && ag.spi) return { id: unitUnder(world, ag.spi), pos: ag.spi };
     return null;
+  }
+  if (ag.mav && (w === 'agm65d' || w === 'agm65h')) {
+    const u = ag.mav.lockedUnitId ? world.groundUnits.get(ag.mav.lockedUnitId) : undefined;
+    return u && u.alive ? { id: u.id, pos: u.pos } : null;
   }
   if (ag.tgp) {
     const u = ag.tgp.trackedUnitId ? world.groundUnits.get(ag.tgp.trackedUnitId) : undefined;
@@ -240,9 +244,12 @@ export function canAgLaunch(world: World, ac: Aircraft, weapon?: AgWeaponId): Ag
       if (spec.needsLock || spec.holdToImpact) return fail(`No laser spot on code ${code}: lase with the pod or ask the JTAC`);
       if (!ag.spi) return fail(`No laser spot on code ${code} and no SPI`);
     }
+  } else if (ag.mav && (w === 'agm65d' || w === 'agm65h')) {
+    if (!ag.mav.aim) return fail('Maverick caged: slave it to the SPI (China Hat Forward Long)');
+    if (!ag.mav.lockedUnitId) return fail('No Maverick lock: slew the gate onto the target and lock (TMS Forward Short)');
   } else if (ag.tgp) {
     if (!ag.tgp.on) return fail('Targeting pod is off');
-    if (spec.needsLock && !ag.tgp.trackedUnitId) return fail('No Maverick lock: point track the target with the pod (simplified)');
+    if (spec.needsLock && !ag.tgp.trackedUnitId) return fail('No lock: point track the target with the pod');
   } else {
     const sh = ag.shkval;
     if (!sh.on) return fail('Shkval is off [O]');
@@ -347,6 +354,8 @@ export function agLaunch(world: World, ac: Aircraft, opts: { ccrp?: boolean } = 
       out.push(wp);
     }
   }
+  // A Maverick leaves the rail with the lock; the next one must be locked again.
+  if (ag.mav && (w === 'agm65d' || w === 'agm65h')) ag.mav.lockedUnitId = null;
   for (const wp of out) {
     world.emit({ t: world.t, type: 'ag-launch', weaponId: wp.id, shooterId: ac.id, targetId: wp.targetId, weapon: w, range: check.range, ...(opts.ccrp ? { ccrp: true } : {}) });
   }

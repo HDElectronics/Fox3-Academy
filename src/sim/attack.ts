@@ -9,6 +9,7 @@ import { AG_LOADOUTS, AG_WEAPONS, AG_WEAPON_ORDER, GUN_ROUNDS } from '../data/ag
 import type { AgSalvo, AttackState } from './types';
 import { createShkvalState } from './shkval';
 import { createTgp } from './tgp';
+import { createMav } from './maverick';
 
 /** Each attack jet's cannon store. */
 export const GUN_OF: Record<AttackId, AgWeaponId> = { su25t: 'gun25t', a10c: 'gau8' };
@@ -29,6 +30,7 @@ export function createAttackState(type: AttackId, loadoutId?: string): AttackSta
     pod: stations.some(s => s.weapon === 'l081'), arm: { detecting: false, emitterId: null }, ccrpHeld: false, ccrpReleased: false,
     shkval: createShkvalState(),
     tgp: stations.some(s => s.weapon === 'tgp') ? createTgp(new Vector3()) : null,
+    mav: (stores.agm65d ?? 0) + (stores.agm65h ?? 0) > 0 ? createMav() : null,
     spi: null,
     laserCodes: {},
   };

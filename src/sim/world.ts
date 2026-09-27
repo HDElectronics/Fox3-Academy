@@ -36,6 +36,7 @@ import { createSamSite, stepSams } from './sam';
 import { createGunState, stepGuns } from './guns';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
 import { createMark, endMark, stepMarks } from './marks';
+import { mavLock, mavPointAt, mavRecage, mavSlaveToSpi, setMavSlew, stepMav, type MavResult } from './maverick';
 import { pointTgp, toggleTgpFov, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
 import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
@@ -194,6 +195,12 @@ export class World {
   tgpCode(id: EntityId, which: 'laser' | 'lss', code: number): TgpResult {
     const ac = this.aircraft.get(id); return ac ? setTgpCode(ac, which, code) : { ok: false, reason: 'No aircraft' };
   }
+  // ── A-10C II Maverick seeker (sim/maverick.ts) ──
+  mavSlaveToSpi(id: EntityId): MavResult { const ac = this.aircraft.get(id); return ac ? mavSlaveToSpi(ac) : { ok: false, reason: 'No aircraft' }; }
+  mavPointAt(id: EntityId, p: { x: number; y?: number; z: number }): void { const ac = this.aircraft.get(id); if (ac) mavPointAt(this, ac, p); }
+  mavSlew(id: EntityId, x: number, y: number): void { const ac = this.aircraft.get(id); if (ac) setMavSlew(ac, x, y); }
+  mavLock(id: EntityId): MavResult { const ac = this.aircraft.get(id); return ac ? mavLock(this, ac) : { ok: false, reason: 'No aircraft' }; }
+  mavRecage(id: EntityId): void { const ac = this.aircraft.get(id); if (ac) mavRecage(ac); }
   /** TMS Forward Long: the pod's line of sight becomes the SPI. */
   setSpi(id: EntityId): TgpResult {
     const ac = this.aircraft.get(id); return ac ? setSpiFromTgp(this, ac) : { ok: false, reason: 'No aircraft' };
@@ -233,7 +240,7 @@ export class World {
     for (const ac of this.aircraft.values()) if (ac.alive) stepAircraft(this, ac, h);
     stepGuns(this, h);
     if (this.groundUnits.size) stepGroundUnits(this, h);
-    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); stepTgp(this, ac, h); stepCcrp(this, ac); }
+    for (const ac of this.aircraft.values()) if (ac.ag) { stepShkval(this, ac, h); stepTgp(this, ac, h); stepMav(this, ac, h); stepCcrp(this, ac); }
     stepCountermeasures(this, h);
     for (const ac of this.aircraft.values()) if (ac.alive) stepRadar(this, ac, h);
     for (const m of this.missiles.values()) if (m.alive) stepMissile(this, m, h);

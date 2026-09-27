@@ -65,13 +65,35 @@ describe('laser-spot stores home on any spot with their code (A-10C II)', () => 
     expect(world.groundUnits.get('T')!.alive).toBe(false);
   });
 
-  it('A-10C II Maverick D needs a pod point track (simplified lock)', () => {
-    const { world } = setup('maverick');
+  it('A-10C II Maverick D: caged, slaved to the SPI, locked with the gate, one lock per missile', () => {
+    const { world, ac } = setup('maverick');
     world.selectAgWeapon('hog', 'agm65d');
+    expect(world.canAgLaunch('hog').reason).toMatch(/caged/);
+    expect(world.mavSlaveToSpi('hog').reason).toMatch(/No SPI/);
     world.tgpPower('hog', true);
-    expect(world.canAgLaunch('hog').reason).toMatch(/point track/);
     world.tgpPointAt('hog', { x: 0, z: -7000 });
     world.tgpTrack('hog', 'point');
+    world.setSpi('hog');
+    expect(world.mavSlaveToSpi('hog').ok).toBe(true);
+    expect(world.canAgLaunch('hog').reason).toMatch(/No Maverick lock/);
+    expect(world.mavLock('hog')).toMatchObject({ ok: true, unitId: 'T' });
     expect(world.canAgLaunch('hog').ok).toBe(true);
+    world.agLaunch('hog');
+    expect(ac.ag!.mav!.lockedUnitId).toBeNull();
+    run(world, 40, () => !world.groundUnits.get('T')!.alive);
+    expect(world.groundUnits.get('T')!.alive).toBe(false);
+  });
+
+  it('Maverick lock rules: profile, range, gate', () => {
+    const { world } = setup('maverick', 20_000);
+    world.selectAgWeapon('hog', 'agm65d');
+    world.mavPointAt('hog', { x: 0, z: -20_000 });
+    expect(world.mavLock('hog').reason).toMatch(/Too far/);
+    const near = setup('maverick', 7000);
+    near.world.selectAgWeapon('hog', 'agm65d');
+    near.world.mavPointAt('hog', { x: 400, z: -7000 });
+    expect(near.world.mavLock('hog').reason).toMatch(/Nothing in the gate/);
+    near.world.selectAgWeapon('hog', 'gau8');
+    expect(near.world.mavLock('hog').reason).toMatch(/SENSOR/);
   });
 });

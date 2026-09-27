@@ -351,6 +351,16 @@ export interface TgpState {
   lssSince: number;
 }
 
+/** A-10C II AGM-65D/H seeker (sim/maverick.ts): slaved to the SPI, slewed, locked with TMS Forward Short. */
+export interface MavState {
+  /** Ground point the seeker looks at; null = caged at boresight. */
+  aim: Vector3 | null;
+  slew: { x: number; y: number };
+  lockedUnitId: EntityId | null;
+  /** Last break-lock (crosshairs spread to the edges). */
+  lastBreak: null | { t: number; unitId: EntityId; why: 'target-dead' | 'masked' | 'gimbal' };
+}
+
 /** Unguided release quantity per trigger press (S1: ПО 1 / ПО 2 / ПО 4 / ВСЕ, cycled with [LCtrl-Space]). */
 export type AgSalvo = 1 | 2 | 4 | 'all';
 
@@ -378,6 +388,8 @@ export interface AttackState {
   shkval: ShkvalState;
   /** A-10C II targeting pod; null on the Su-25T. */
   tgp: TgpState | null;
+  /** A-10C II Maverick seeker (AGM-65D/H loaded); null otherwise. */
+  mav: MavState | null;
   /** SPI (A-10C II): the point every sensor and weapon is slaved to; set from the TGP with TMS Forward Long. */
   spi: Vector3 | null;
   /** Laser code each 'laser-spot' store is set to (DSMS INV page), default from AgWeaponSpec.defaultLaserCode. */

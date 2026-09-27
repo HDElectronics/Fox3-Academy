@@ -40,7 +40,7 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
   a briefed target. Danger close is a single 500 m trainer distance. The 9-line grid is a trainer grid.
 - **A-10C II**: the pod, the LSS and the digital 9-line follow the ED A-10C II manual, but the pod's fields of view,
   slew rate, track gates, LSS cone and timings are trainer values; laser-guided stores home on any spot on their code
-  (pod or JTAC); the Maverick lock is the pod's point track (the Maverick page is not modelled); cleared hot needs the
+  (pod or JTAC); the AGM-65D/H seeker slaves to the SPI and locks whatever is in its gate (no contrast model); cleared hot needs the
   pod on a briefed target; the JTAC's replies after Spot, Shift and Terminate are trainer wording; release happens on
   the press (no hold through the CCIP solution cue); CDU coordinates and markpoints are not modelled.
 
