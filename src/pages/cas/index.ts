@@ -380,7 +380,7 @@ const factory: PageFactory = (): Page => {
       ro.set('rng', `${(distM(me.pos, sc.target) / 1000).toFixed(1)} km`);
       ro.set('hdg', `${String(Math.round(hdgDeg()) % 360).padStart(3, '0')} (${String(sc.attackHdgDeg[0]).padStart(3, '0')}–${String(sc.attackHdgDeg[1]).padStart(3, '0')})`);
       ro.setTone('hdg', err === 0 ? 'ok' : null);
-      ro.set('store', ag.selected ? `${ag.selected === 'vikhr' ? 'Vikhr' : ag.selected} ×${ag.stores[ag.selected] ?? 0}` : 'none');
+      ro.set('store', ck.storeText());
       ro.set('tgt', `${alive(sc.targets)} of ${sc.targets.length} up`);
       ck.updateLamps();
       updateNav();

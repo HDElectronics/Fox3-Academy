@@ -11,7 +11,7 @@ import { Vector3 } from 'three';
 import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import type {
-  AgMasterMode, AgWeapon, Aircraft, Countermeasure, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
+  AgMasterMode, AgSalvo, AgWeapon, Aircraft, Countermeasure, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
   RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
 } from './types';
 import type { Vector3 as V3 } from 'three';
@@ -38,7 +38,7 @@ import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
 } from './shkval';
-import { createAttackState, cycleAgWeapon, selectAgWeapon } from './attack';
+import { createAttackState, cycleAgSalvo, cycleAgWeapon, selectAgWeapon } from './attack';
 import { agLaunch, armLock, canAgLaunch, setArmDetect, setCcrpHold, stepAgWeapons, stepCcrp, type AgLaunchCheck } from './agWeapons';
 
 /** Radar state for a jet without an air-to-air radar: permanently off (stepRadar skips attack jets). */
@@ -165,7 +165,7 @@ export class World {
   spawnMark(o: MarkSpawnOptions): GroundMark {
     const m = createMark(this, o);
     this.marks.set(m.id, m);
-    this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId });
+    this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId, code: m.code });
     return m;
   }
 
@@ -268,6 +268,10 @@ export class World {
   }
   setAgPair(id: EntityId, on: boolean): void {
     const ac = this.attackJet(id); if (ac) ac.ag!.pair = on;
+  }
+  /** Cycle the unguided salvo size ПО 1 → ПО 2 → ПО 4 → ВСЕ [LCtrl-Space]. Null for a jet without A-G. */
+  cycleAgSalvo(id: EntityId): AgSalvo | null {
+    const ac = this.attackJet(id); return ac ? cycleAgSalvo(ac.ag!) : null;
   }
   shkvalPower(id: EntityId, on: boolean): void {
     const ac = this.attackJet(id); if (ac) setShkvalPower(this, ac, on);
@@ -427,6 +431,7 @@ export class World {
     if (this.marks.size) {
       f.marks = [...this.marks.values()].map(m => ({
         id: m.id, type: m.type, colour: m.colour, side: m.side, pos: [m.pos.x, m.pos.y, m.pos.z], alive: m.alive,
+        ...(m.code != null ? { code: m.code } : {}),
       }));
     }
     const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);

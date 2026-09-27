@@ -12,6 +12,7 @@ import type { AgWeapon, Aircraft, EntityId } from '../../sim/types';
 import type { World } from '../../sim/world';
 import { D2R, R2D, dirFrom, relBearing } from '../../sim/math';
 import { ALT_GAIN } from '../../sim/flight';
+import { salvoLabel } from '../../sim/attack';
 import { shkvalAimPoint, shkvalDir, shkvalFovDeg } from '../../sim/shkval';
 import { armEmitters, ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import type { ShkvalTv } from '../../render/attack';
@@ -92,6 +93,10 @@ export interface Su25tCockpit {
   toggleArm(): void;
   cycle(): void;
   selectGun(): void;
+  /** Cycle the rocket / bomb salvo size ПО 1 → ПО 2 → ПО 4 → ВСЕ [LCtrl-Space]. */
+  cycleSalvo(): void;
+  /** Store readout: label, rounds left and, for rockets and bombs, the salvo size ("С8 ×40 · ПО 2"). */
+  storeText(): string;
   enter(): void;
   fire(): void;
   fireUp(): void;
@@ -141,14 +146,25 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
     return b;
   };
   const cap = (label: string, aria: string, fn: () => void) => button({ label, size: 's', ariaLabel: aria, onClick: fn, keepCase: true }).el;
+  /** A press-and-hold pad button: `down` on press, `up` on release or when the finger slides off. */
+  const holdBtn = (label: string, aria: string, down: () => void, up: () => void) => {
+    const b = h('button', { type: 'button', class: 'ui-btn strk-pad__btn strk-pad__pitch', 'aria-label': aria }, label);
+    bag.on(b, 'pointerdown', (e: Event) => { e.preventDefault(); down(); });
+    for (const t of ['pointerup', 'pointerleave', 'pointercancel']) bag.on(b, t, up);
+    return b;
+  };
   const fireBtn = button({ label: 'Fire', variant: 'primary', lamp: true, keys: 'Space', onClick: () => { if (me().ag!.ccrpHeld) fireUp(); else fire(); } });
   const lockBtn = button({ label: 'Lock / unlock', keys: 'Enter', onClick: () => enter() });
   const laserBtn = button({ label: 'Laser ЛД', keys: 'RShift+O', lamp: true, onClick: () => toggleLaser(), keepCase: true });
   const touchPad = h('div', { class: 'ui-strip-block strk-touch' }, placard('Shkval'),
-    h('div', { class: 'strk-pad' },
+    // Slew pad (3 × 3) with a fourth column for pitch: nose up on top, nose down at the bottom.
+    h('div', { class: 'strk-pad strk-pad--pitch' },
       h('span'), hold('▲', 'Slew up', v => { slew.up = v; }), h('span'),
+      holdBtn('Nose ▲', 'Nose up (hold; Down arrow)', () => nosePress(1), () => noseRelease()),
       hold('◀', 'Slew left', v => { slew.left = v; }), cap('⏎', 'Stabilise or lock', () => enter()), hold('▶', 'Slew right', v => { slew.right = v; }),
-      h('span'), hold('▼', 'Slew down', v => { slew.down = v; }), h('span')),
+      h('span'),
+      h('span'), hold('▼', 'Slew down', v => { slew.down = v; }), h('span'),
+      holdBtn('Nose ▼', 'Nose down (hold; Up arrow)', () => nosePress(-1), () => noseRelease())),
     h('div', { class: 'strk-pad__row' }, cap('Zoom −', 'Zoom out', () => world().shkvalZoom(me().id, -1)), cap('Zoom +', 'Zoom in', () => world().shkvalZoom(me().id, 1))),
     h('div', { class: 'strk-pad__row' }, cap('Size −', 'Target size smaller', () => world().shkvalTargetSize(me().id, { step: -1 })), cap('Size +', 'Target size larger', () => world().shkvalTargetSize(me().id, { step: 1 }))),
   );
@@ -156,6 +172,7 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
   const controlRows = [
     ctlRow(cap('7 ОПТ-ЗЕМЛЯ', 'Air-to-ground mode', () => setMaster('ag')), cap('O Shkval', 'Shkval on or off', () => toggleShkval())),
     ctlRow(cap('D Weapon', 'Next weapon', () => cycle()), cap('C Cannon', 'Select the cannon', () => selectGun())),
+    ctlRow(cap('ПО Salvo', 'Rocket and bomb salvo size', () => cycleSalvo())),
     ctlRow(lockBtn.el, laserBtn.el),
     ctlRow(cap('I ПРГ', 'Kh-58 passive detection on or off', () => toggleArm())),
     fireBtn.el,
@@ -190,6 +207,7 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
     'RCtrl+]': () => world().shkvalTargetSize(me().id, { step: 1 }),
     'RCtrl+[': () => world().shkvalTargetSize(me().id, { step: -1 }),
     'Space': { down: () => fire(), up: () => fireUp(), inModal: false },
+    'LCtrl+Space': () => cycleSalvo(),
     'I': () => toggleArm(),
     'Delete': () => { if (world().flare(me().id)) log(`Flares: ${me().flares} left`); },
     'Left': { down: () => steer(-2), repeat: true },
@@ -240,6 +258,14 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
   }
   function cycle(): void { const w = world().cycleAgWeapon(me().id); log(w ? `Store: ${AG_WEAPONS[w].hudLabel}` : 'No store left'); }
   function selectGun(): void { world().selectAgWeapon(me().id, 'gun25t'); log('Cannon: ВПУ'); }
+  function cycleSalvo(): void { const s = world().cycleAgSalvo(me().id); if (s) log(`Salvo: ${salvoLabel(s)}`); }
+  function storeText(): string {
+    const ag = me().ag!, sel = ag.selected;
+    if (!sel) return 'none';
+    const spec = AG_WEAPONS[sel];
+    const salvo = spec.guidance === 'ballistic' && sel !== 'gun25t' ? ` · ${salvoLabel(ag.salvo)}` : '';
+    return `${spec.hudLabel} ×${ag.stores[sel] ?? 0}${salvo}`;
+  }
   function steer(deg: number): void { me().cmd.heading = me().cmd.heading + deg * D2R; }
   function enter(): void {
     if (armMode()) { armEnter(); return; }
@@ -333,7 +359,7 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
   return {
     tvCanvas, tv, tvBezel, hudBezel, rwrBezel, touchPad, controlRows, keyList, fireBtn, lockBtn, laserBtn,
     mobileActions: [mFire.el, mLock.el, mLaser.el], keys, armCursor,
-    armMode, armMarks, setMaster, toggleShkval, toggleLaser, toggleArm, cycle, selectGun, enter, fire, fireUp,
+    armMode, armMarks, setMaster, toggleShkval, toggleLaser, toggleArm, cycle, selectGun, cycleSalvo, storeText, enter, fire, fireUp,
     nose: d => { if (d) nosePress(d); else noseRelease(); },
     step(dt) {
       const ac = me();

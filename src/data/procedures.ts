@@ -615,6 +615,7 @@ const SU25T_BINDS: KeyBind[] = [
   { group: 'weapons', keyboard: '8', action: 'Fixed reticle on / off', keys: '8', note: 'Backup sight from any combat mode.' },
   { group: 'weapons', keyboard: 'D / C', action: 'Weapon cycle / cannon', keys: 'D / C', note: 'The HUD shows the store label: АБ, С-8, 9А4172, 25МЛ, 29Л, 29Т, 500Кр, 58; ВПУ for the cannon.' },
   { group: 'weapons', keyboard: 'Space', action: 'Weapon release', keys: 'Space', note: 'CCRP: hold until the bombs release automatically.' },
+  { group: 'weapons', keyboard: 'LCtrl + Space', action: 'Salvo size ПО 1 / ПО 2 / ПО 4 / ВСЕ', keys: 'LCtrl + Space', note: 'Rockets and bombs per press (S1). The trainer starts at ПО 1 (not verified) and releases the salvo at once (ЗАЛП).' },
   { group: 'targeting', keyboard: 'O', action: 'Shkval on / off', keys: 'O', note: 'TV picture on the IT-23M display, laser cursor on the HUD.' },
   { group: 'targeting', keyboard: 'RCtrl + O', action: 'Mercury night pod on / off', keys: 'RCtrl + O' },
   { group: 'targeting', keyboard: '; , . /', action: 'Slew the sight', keys: '; , . /' },

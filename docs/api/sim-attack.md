@@ -36,13 +36,15 @@ Game level only (AGENTS.md rule 1). Rules come from the ED *DCS World Su-25T Fli
   unstabilised; a sight looking above the horizon records a null point.
 - Target marks (`marks.ts`, for the CAS module): `MarkKind` (`'smoke' | 'laser' | 'ir'`) and `MarkColour`
   (`'white' | 'orange' | 'red' | 'green'`) live in `src/data/types.ts`. `world.marks: Map<EntityId, GroundMark>`
-  (`kind: 'mark'`), `world.spawnMark(MarkSpawnOptions)`, `world.endMark(id)`, a `mark` event (`what: 'on' | 'off'`)
-  and `RecordFrame.marks`.
+  (`kind: 'mark'`), `world.spawnMark(MarkSpawnOptions)`, `world.endMark(id)`, a `mark` event (`what: 'on' | 'off'`,
+  `code` for a laser) and `RecordFrame.marks` (with `code` for a laser).
 
 ## AttackState (`ac.ag`)
 
 `master` (`'nav' | 'ag' | 'fixed'`), `stores` by `AgWeaponId` (cannon counts rounds), `stations` (counts go down),
-`selected`, `station` (next pylon; alternates left / right), `pair`, `pod` (L-081), `arm` (passive detection and
+`selected`, `station` (next pylon; alternates left / right), `pair`, `salvo` (`AgSalvo`: `1 | 2 | 4 | 'all'`, S1
+ПО 1 / ПО 2 / ПО 4 / ВСЕ; rockets and bombs per press, released at once; default 1, not verified; `cycleAgSalvo`,
+`salvoCount`, `salvoLabel` in `attack.ts`), `pod` (L-081), `arm` (passive detection and
 locked emitter), `ccrpHeld` (CCRP release held), `ccrpReleased` (automatic release consumed this pass), `shkval`.
 
 `ShkvalState`: `on`, `mode` `'КС' | 'АС'`, `az` / `el` relative to the heading and the horizon (pitch and roll are
@@ -113,7 +115,7 @@ lists live marks nearest first.
 
 ## World delegations (pages talk only to World)
 
-`setAgMaster`, `cycleAgWeapon`, `selectAgWeapon`, `setAgPair`, `shkvalPower`, `shkvalSlew(x, y)`,
+`setAgMaster`, `cycleAgWeapon`, `selectAgWeapon`, `setAgPair`, `cycleAgSalvo`, `shkvalPower`, `shkvalSlew(x, y)`,
 `shkvalStabilise`, `shkvalPointAt(p)`, `shkvalZoom(±1)`, `shkvalTargetSize({ step } | { m })`, `shkvalLock`,
 `shkvalUnlock`, `laser`, `armDetect`, `armLock(siteId?)`, `canAgLaunch(w?)`, `agLaunch`, `ccrpHold(id, on)`, `spawnMark`,
 `endMark`. For displays:

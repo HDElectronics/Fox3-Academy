@@ -665,7 +665,7 @@ const factory: PageFactory = (): Page => {
       ro.set('laser', `${Math.round(sh.laserUsedS)} s / ${LASER_LIMIT_S / 60} min${sh.laserCoolS > 0 ? ' cooling' : ''}`);
       ro.setTone('laser', sh.laserCoolS > 0 ? 'warning' : sh.laserOn ? 'caution' : null);
       const sel = ag.selected;
-      ro.set('store', sel ? `${AG_WEAPONS[sel].hudLabel} ×${ag.stores[sel] ?? 0}` : 'none');
+      ro.set('store', ck.storeText());
       const list = lesson === 'ccip' || (lesson === 'bombs' && bombPhase === 'ccip') ? sc.trucks : sc.tanks;
       const samTxt = sc.sams.map(id => { const s = w.samSites.get(id)!; return `${s.callsign.split(' ')[0]} ${s.alive ? 'up' : 'down'}`; }).join(', ');
       const live = (ids: readonly EntityId[]) => ids.filter(id => w.groundUnits.get(id)?.alive).length;

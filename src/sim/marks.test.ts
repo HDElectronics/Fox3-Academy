@@ -75,4 +75,15 @@ describe('target marks', () => {
     };
     expect(run()).toEqual(run());
   });
+
+  it('carries the laser code in the events and the recording', () => {
+    const w = new World(1);
+    const m = w.spawnMark({ type: 'laser', side: 'blue', pos: { x: 0, z: 0 }, code: 1688 });
+    w.step(0.5);
+    expect(w.events.find(e => e.type === 'mark')).toMatchObject({ code: 1688, what: 'on' });
+    expect(w.recording.at(-1)!.marks![0]).toMatchObject({ id: m.id, code: 1688 });
+    w.spawnMark({ type: 'smoke', side: 'blue', pos: { x: 10, z: 0 } });
+    w.step(0.5);
+    expect(w.recording.at(-1)!.marks!.find(x => x.type === 'smoke')!.code).toBeUndefined();
+  });
 });
