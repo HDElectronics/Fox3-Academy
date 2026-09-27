@@ -9,9 +9,10 @@
  *  - Viper: CRM / sub-mode / NORM / OVRD / CNTL, range with arrows, 'A6', '4B' on the left, T-scales,
  *    two scan-limit lines, cursor with blue upper / white lower altitude, search squares, 'tank'
  *    tracks with nose line, bug circle, AMRAAM tail (flashes when active, X in the last 8 s),
- *    RPI / RTR / RMIN scale, 'A nn' / 'T nn' for the missile of interest, TOI data line.
+ *    RPI / RTR / RMIN scale, 'A nn' / 'T nn' for the missile of interest, TOI data line; IFF reply = green circle
+ *    with '4' beside the return for 2 s (not written into the track symbol).
  *  - JF-17: mode, crossed STBY, IFF, CNTL on top; azimuth and bars left; range and '*' right; HPT
- *    circle; weapon scale with the NEZ as a bar; HPT data block; 'TOA nn' after launch.
+ *    circle; weapon scale with the NEZ as a bar; HPT data block; 'TOA nn' after launch; IFF green friend, red no reply.
  */
 import { D2R, R2D } from '../../../sim/math';
 import { mach } from '../../../sim/atmosphere';
@@ -48,9 +49,13 @@ export function drawMfd(f: FrameCtx): Mapping {
   for (const b of pic.bricks) {
     if (b.range > pic.rangeScale || Math.abs(b.az) > gAz) continue;
     const p = map(b.az, b.range);
-    g.ink(th.sym, 0.8, 0.2, brickAlpha(b));
+    // IFF on raw hits: the Hornet shows ID only on trackfiles (HAFU); the JF-17 colours a friend green.
+    const jfFriend = fam === 'jf17' && color && b.friendly;
+    g.ink(jfFriend ? th.ok : th.sym, 0.8, 0.2, brickAlpha(b));
     if (fam === 'hornet') brick(g, p.x, p.y, 2.6 * u, 1.3 * u, true);
     else g.rect(p.x - 0.8 * u, p.y - 0.8 * u, 1.6 * u, 1.6 * u, true);
+    // Viper: the reply is a mark near the return, not part of it (the picture keeps it 2 s).
+    if (fam === 'viper' && b.friendly) viperIffMark(f, p.x, p.y, 0, brickAlpha(b));
     hit(f, p.x, p.y, b.targetId, 'brick');
   }
   g.reset();
@@ -67,7 +72,7 @@ export function drawMfd(f: FrameCtx): Mapping {
     if (!visibleCoast(f, t)) continue;
     if (fam === 'hornet') drawHafu(f, t, p.x, p.y, rank.get(t.targetId) ?? 0, color);
     else if (fam === 'viper') drawViperTrack(f, t, p.x, p.y, color);
-    else drawJfTrack(f, t, p.x, p.y);
+    else drawJfTrack(f, t, p.x, p.y, color);
   }
   const stt = rangedStt(pic);
   if (stt && !pic.tracks.some(t => t.targetId === stt.targetId) && stt.range <= pic.rangeScale) {
@@ -370,15 +375,41 @@ function drawHafu(f: FrameCtx, t: PicTrack, x: number, y: number, rank: number, 
   if (t.locked && f.pic.mode === 'stt') g.circle(x, cy, r * 1.7);
 }
 
+/** How long the Viper IFF reply shows (ED Viper guide p. 434: 2 s), and when it starts to fade. */
+export const VIPER_IFF_SHOW_S = 2;
+const VIPER_IFF_FADE_S = 1.4;
+
+/** Opacity of the Viper IFF reply mark at `age` seconds: steady, then fading out by 2 s; 0 after. */
+export function viperIffAlpha(age: number): number {
+  if (!(age >= 0) || age > VIPER_IFF_SHOW_S) return 0;
+  if (age <= VIPER_IFF_FADE_S) return 1;
+  return Math.max(0.15, (VIPER_IFF_SHOW_S - age) / (VIPER_IFF_SHOW_S - VIPER_IFF_FADE_S));
+}
+
+/**
+ * Viper Mode 4 reply (ED Viper guide pp. 433–435): a green circle with "4", offset up-left of the return. It is not
+ * written into the track file, so the track symbol itself does not change. No mark for no reply.
+ */
+function viperIffMark(f: FrameCtx, x: number, y: number, age: number, alpha = 1): void {
+  const a = viperIffAlpha(age) * alpha;
+  if (a <= 0) return;
+  const { g, th, u } = f;
+  const cx = x - 2.9 * u, cy = y - 2.7 * u;
+  g.ink(th.ok, 0.9, 0.24, a);
+  g.circle(cx, cy, 1.5 * u);
+  g.font(2.1, 700);
+  g.text('4', cx, cy + 0.1 * u);
+}
+
 /** Viper: search square / 'tank' track rotated to the target's track, bug circle, AMRAAM tail and X. */
 function drawViperTrack(f: FrameCtx, t: PicTrack, x: number, y: number, color: boolean): void {
   const { g, th, u } = f;
-  const col = t.friendly ? (color ? th.friendly : th.sym) : color && f.opts.nonFriendly === 'hostile' ? th.hostile : th.sym;
+  // The IFF answer is not part of the track file (sovereignty colours come from the datalink): see viperIffMark.
+  const col = color && f.opts.nonFriendly === 'hostile' ? th.hostile : th.sym;
   const strong = !!t.designation || t.locked;
+  if (t.iff?.reply === 'friend') viperIffMark(f, x, y, t.iff.age);
   g.ink(col, strong ? 1.2 : 0.9, 0.26, t.firm ? 1 : 0.75);
-  if (t.friendly) {
-    g.circle(x, y, 1.1 * u, true);
-  } else if (t.firm) {
+  if (t.firm) {
     const a = t.relHeading, s = 1.05 * u;
     const ca = Math.cos(a), sa = Math.sin(a);
     const P = (px: number, py: number) => [x + px * ca - py * sa, y + px * sa + py * ca];
@@ -418,14 +449,26 @@ function drawViperTrack(f: FrameCtx, t: PicTrack, x: number, y: number, color: b
   }
 }
 
+/**
+ * JF-17 IFF colour (Chuck's JF-17 guide, community): green = friendly reply, red = no valid reply, plain when not
+ * interrogated. Needs the colour display; a missing reply does not prove hostile.
+ */
+export function jfIffColor(f: FrameCtx, t: Pick<PicTrack, 'friendly' | 'iff'>, color: boolean): string {
+  if (!color) return f.th.sym;
+  if (t.friendly) return f.th.ok;
+  if (t.iff?.reply === 'no-reply') return f.th.warning;
+  return f.th.sym;
+}
+
 /** JF-17: small track symbol with heading vector and altitude beneath; HPT gets a circle. */
-function drawJfTrack(f: FrameCtx, t: PicTrack, x: number, y: number): void {
+function drawJfTrack(f: FrameCtx, t: PicTrack, x: number, y: number, color: boolean): void {
   const { g, th, u } = f;
-  const col = t.friendly ? th.friendly : th.sym;
+  const col = jfIffColor(f, t, color);
   g.ink(col, t.designation ? 1.2 : 0.9, 0.26, t.firm ? 1 : 0.75);
-  if (t.friendly) g.circle(x, y, 1.1 * u, true);
-  else if (t.firm) g.rect(x - 0.9 * u, y - 0.9 * u, 1.8 * u, 1.8 * u, true);
+  if (t.firm) g.rect(x - 0.9 * u, y - 0.9 * u, 1.8 * u, 1.8 * u, true);
   else g.rect(x - 0.9 * u, y - 0.9 * u, 1.8 * u, 1.8 * u, false);
+  // Trainer aid: the base symbology is green too, so a thin ring in the IFF colour makes the answer readable.
+  if (color && (t.friendly || t.iff?.reply === 'no-reply')) g.circle(x, y, 1.9 * u);
   if (t.firm) stick(g, x, y, t.relHeading, stickLen(f, t.speed) * 0.8, 1 * u);
   g.font(2.2);
   g.text(fmtAltK(t.alt, f.units), x, y + 3 * u);
