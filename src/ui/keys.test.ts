@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ariaShortcut, bindKeys, chordText, matchChord, parseChord, parseKeyList, splitAlternatives, type KeyEventLike } from './keys';
+import { ariaShortcut, bindKeys, chordText, isMacPlatform, macKeyLabel, matchChord, parseChord, parseKeyList, splitAlternatives, type KeyEventLike } from './keys';
 
 const ev = (code: string, mods: Partial<Omit<KeyEventLike, 'code'>> = {}): KeyEventLike => ({
   code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...mods,
@@ -167,5 +167,26 @@ describe('bindKeys', () => {
       unbind();
     } finally { console.warn = warn; }
     expect(warned.length).toBe(1);
+  });
+});
+
+describe('Mac keyboards', () => {
+  it('names modifiers the Mac way only on a Mac, without the side', () => {
+    expect(macKeyLabel('RCtrl', true)).toBe('Control');
+    expect(macKeyLabel('LAlt', true)).toBe('Option');
+    expect(macKeyLabel('RShift', true)).toBe('Shift');
+    expect(macKeyLabel('Delete', true)).toBe('fn+Delete');
+    expect(macKeyLabel(']', true)).toBe(']');
+    for (const k of ['RCtrl', 'LAlt', 'RShift', 'Delete', ']']) expect(macKeyLabel(k, false)).toBe(k);
+  });
+  it('detects macOS from the browser platform', () => {
+    expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
+    expect(isMacPlatform({ userAgentData: { platform: 'macOS' } })).toBe(true);
+    expect(isMacPlatform({ platform: 'Win32' })).toBe(false);
+    expect(isMacPlatform({})).toBe(false);
+  });
+  it('fires RCtrl bindings from the left Control key (a MacBook has no right Control)', () => {
+    const e = ev('BracketRight', { ctrlKey: true });
+    expect(matchChord(parseChord('RCtrl+]')!, e, new Set(['ControlLeft']))).toBeGreaterThan(0);
   });
 });

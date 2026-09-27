@@ -381,13 +381,34 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
 
 // ---- display ------------------------------------------------------------------------------------
 
+/** True in a browser on macOS (display only: key matching is the same on every platform). */
+export function isMacPlatform(nav: { platform?: string; userAgentData?: { platform?: string } } | undefined = globalThis.navigator as never): boolean {
+  const p = nav?.userAgentData?.platform ?? nav?.platform ?? '';
+  return /mac/i.test(p);
+}
+
+/**
+ * Key label as a Mac keyboard names it. A MacBook has no right Control and calls Alt Option; bindKeys accepts
+ * either side of a modifier (strictSides is off), so the Mac label drops the side. The forward Delete key is
+ * fn + Delete on a Mac. Every other label, and every label off a Mac, is unchanged.
+ */
+export function macKeyLabel(k: string, mac = isMacPlatform()): string {
+  if (!mac) return k;
+  if (/^[LR]?Ctrl$/.test(k)) return 'Control';
+  if (/^[LR]?Alt$/.test(k)) return 'Option';
+  if (/^[LR]?Shift$/.test(k)) return 'Shift';
+  if (k === 'Delete' || k === 'Del') return 'fn+Delete';
+  return k;
+}
+
 function chordKbd(c: Chord): HTMLElement {
   const parts: Child[] = [];
+  const title = (k: string) => (MOD_TITLE[k] ?? k) + (macKeyLabel(k) !== k ? ' (either side on a Mac)' : '');
   c.mods.forEach(m => {
-    parts.push(h('kbd', { title: MOD_TITLE[m] ?? m }, m));
+    parts.push(h('kbd', { title: title(m) }, macKeyLabel(m)));
     parts.push(h('span', { class: 'ui-keys__plus', 'aria-hidden': 'true' }, '+'));
   });
-  parts.push(h('kbd', MOD_TITLE[c.key] ? { title: MOD_TITLE[c.key] } : null, c.key));
+  parts.push(h('kbd', MOD_TITLE[c.key] || macKeyLabel(c.key) !== c.key ? { title: title(c.key) } : null, macKeyLabel(c.key)));
   return h('span', { class: 'ui-keys__chord' }, parts);
 }
 
