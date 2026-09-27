@@ -47,8 +47,12 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
   with trainer-chosen timings and odds, because ED does not publish them.
 - **AI skill**: launch range, reaction time and notch accuracy per skill level are this trainer's choices shaped
   by documented DCS behaviour.
-- **Not modelled**: terrain masking, PRF choices (explained, not simulated), fuel, guns, IFF and datalink
-  pictures (the Sortie uses a simple GCI picture for AI steering only).
+- **Not modelled**: terrain masking, PRF choices (explained, not simulated), fuel, guns, datalink pictures (the
+  Sortie uses a simple GCI picture for AI steering only).
+- **IFF**: automatic on the F-15C and the Su-27 family, an interrogation on the others, as the manuals describe.
+  Every friend answers, the IFF reaches 1.2 × the radar's head-on detection range and ±60° around the nose (trainer
+  values), the Viper LOS mode is not modelled, and the AI knows every contact's side (commonly assumed for DCS AI,
+  not verified). No Hornet hostile ID: the second factor (NCTR, AWACS) is not modelled yet.
 - **Jamming**: modelled the one way DCS does it: a jammer hides its range and leaves a bearing (strobe) until
   the radar's burn-through range, then it is an ordinary contact. One burn-through range per radar (F-15C 19 nm
   and Su-27 25 km from the ED manuals; the others community or trainer values), strobes out to 1.75 × detection
@@ -77,6 +81,8 @@ items that still require a current DCS installation. No in-game validation is im
   "ABORT ABORT ABORT, you do not have permission to fire" call. Whether the Su-25T can use a JTAC laser on code
   1113 (community reports, not modelled).
 
+- IFF: the JF-17 `I` key and colours, the M-2000C `S` key and "A", the Hornet interrogating on designate (its SCS
+  sequence is not a keyboard key), the Su-33, J-11A and MiG-29S using the Su-27 rule.
 - Jamming: burn-through for every jet except the F-15C and Su-27, the jam symbols of the JF-17 and M-2000C, the
   Su-33 and MiG-29S jammers, the J-11A having none, which missiles besides the AIM-120, AIM-7M, R-27R/ER and
   AIM-54 can home on jam, and the AI "ECM Using" default (docs/research/ecm-datalink-iff.md, open questions).

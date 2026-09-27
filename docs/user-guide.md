@@ -45,6 +45,12 @@ the cursor on it and press your lock key) and hold it: inside burn-through (abou
 Su-27) the lock turns into a normal STT with range, altitude and aspect. The coach lists which of your missiles
 can home on the jam; a home-on-jam shot flies pure pursuit with no range and no loft (simplified).
 
+Exercise 7, **Friend or foe**, puts a friend and a bandit side by side. The F-15C and the Su-27 family identify
+friends by themselves (a circle on the VSD, a second row of dots on the HUD). The other jets show both as unknown
+until you interrogate: TMS Left (`RCtrl + Left`) on the Viper (a green circle with 4 for 2 s), a designate or lock
+on the Hornet, `I` on the JF-17 and F-14 (a trainer key for the RIO button there), `S` on the M-2000C. Then lock the
+one that did not answer. No reply never proves hostile.
+
 ### TWS
 Track-while-scan practice in 3D for every jet. Four bandits come at you. Switch between
 RWS, TWS and STT, build track files, designate and shoot. The panel "What each bandit's RWR says" is the point:
@@ -279,6 +285,12 @@ radar, Use if detected by radar, Always use). A jamming bandit is a strobe on yo
 the strobe for a home-on-jam shot or close to burn-through. Your own jammer is on `E` where the jet has one (a
 Jammer button on the F/A-18C, where `E` is chaff; the J-11A has none). The debrief marks jammer on/off and
 home-on-jam shots.
+
+**IFF** works the same way in the Sortie: an IFF button on the jet's key, or a note on the jets where it is
+automatic. What your radar calls friendly comes from your IFF, not from the game's truth, so with an AI wingman you
+can fire at him if you never interrogated, as in DCS; once IFF says friend the jet refuses the shot. The coach asks
+you to interrogate before shooting an unidentified contact, and the debrief flags a shot at the wingman as blue on
+blue.
 
 Use **Truth / Your radar** below the playback controls to compare the complete fight with your recorded
 sensor picture. Your radar shows ownship, echo squares and estimated track rings; dashed rings mean a
