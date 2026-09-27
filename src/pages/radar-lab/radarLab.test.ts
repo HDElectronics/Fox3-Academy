@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import type { FighterId } from '../../data/types';
-import { setManeuver } from '../../sim/scenarios';
+import { defaultAdversary, setManeuver } from '../../sim/scenarios';
 import { D2R, M_PER_NM } from '../../sim/math';
 import {
   azCenterLimitDeg, beamWindowDeg, clock, coverageAt, frameTime, lookDownCaveat, metresPerDegree, minFrame, niceRange,
@@ -10,8 +10,14 @@ import {
 } from './geometry';
 import { labKeys } from './labKeys';
 import { whySentence, type WhyData } from './whyPanel';
-import { EXERCISE_DEFS, availableExercises, notchButtons, notchPress, type ExerciseId, type Mem, type Snap, type TargetSnap } from './exercises';
-import { PLAYER, buildLabWorld, buildSnap, needsRestart, readScan, updatePaints, type PaintRec } from './labSim';
+import {
+  EXERCISE_DEFS, availableExercises, jammerType, notchButtons, notchPress, recordLockTry, strobeNearCursor,
+  type ExerciseId, type JamSnap, type Mem, type Snap, type TargetSnap,
+} from './exercises';
+import { jamFacts, lockKeyOf } from './jamming';
+import { BURN_THROUGH_M, OWN_JAMMER } from '../../data/ecm';
+import { R2D } from '../../sim/math';
+import { PLAYER, buildLabWorld, buildSnap, lastPaintOf, needsRestart, readScan, updatePaints, type PaintRec } from './labSim';
 import { simplifiedLines } from './explainer';
 
 describe('scan geometry', () => {
@@ -107,6 +113,12 @@ describe('Why sentences', () => {
     expect(w.lead).toMatch(/6\.8° below the scan/);
     expect(w.lead).toMatch(/Tilt the antenna down/);
   });
+  test('a jammer in the scan is a strobe with the burn-through range, not "beyond range"', () => {
+    const w = whySentence({ ...base, inBars: true, el: 0, beyond: true, range: 90000, jammed: { burnThrough: 25000, strobe: true } });
+    expect(w.status).toBe('STROBE');
+    expect(w.lead).toMatch(/burn-through at 25 km/);
+    expect(whySentence({ ...base, jammed: { burnThrough: 25000, strobe: false } }).status).toBe('NOT SEEN');
+  });
   test('several reasons: lead plus the rest', () => {
     const w = whySentence({ ...base, notched: true, radial: 10 });
     expect(w.also).toEqual(['in the notch']);
@@ -163,6 +175,15 @@ function flyExercise(ac: FighterId, id: Exclude<ExerciseId, 'free'>): number | n
     updatePaints(world, me, targetIds, paint);
     const ev = def.evaluate(buildSnap(world, me, units, scene, targetIds, paint, inspected, null), mem);
     if (ev.command) setManeuver(world, targetIds[ev.command.index], ev.command.maneuver, { refId: PLAYER });
+    if (id === 'jam') {
+      // The pilot: normal lock once the strobe shows (refused), then a jam lock with the cursor on the strobe.
+      const st = me.radar;
+      if (st.strobes.length && mem.reason === undefined) recordLockTry(mem, world.canLock(PLAYER, targetIds[0]));
+      if (mem.reason !== undefined && st.mode !== 'stt') {
+        const hit = strobeNearCursor(st.strobes.map(x => ({ targetId: x.targetId, azDeg: x.az * R2D })), st.strobes[0] ? st.strobes[0].az * R2D : 0);
+        if (hit) world.lockJammer(PLAYER, hit);
+      }
+    }
     if (id === 'notch' && mem.phase === 'gone') {
       setManeuver(world, targetIds[0], 'hot', { refId: PLAYER });
       mem.phase = 'hotAgain'; mem.since = world.t;
@@ -177,7 +198,7 @@ describe('exercises on every jet', () => {
   test('availability is data-driven: Flankers cannot trade frame time', () => {
     expect(availableExercises('su27')).not.toContain('revisit');
     expect(availableExercises('mig29s')).not.toContain('revisit');
-    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(5);
+    for (const ac of ['f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'] as FighterId[]) expect(availableExercises(ac)).toHaveLength(6);
     expect(EXERCISE_DEFS.revisit.unavailable('su27')).toMatch(/fixed/);
   });
   test('scenes start with the problem visible: low bandit below the bars, notch bandit painted in the bars', () => {
@@ -336,5 +357,99 @@ describe('review fixes', () => {
     expect(scanCombos('fa18c').some(c => c.tws && c.bars === 1)).toBe(false);
     expect(twsPatternFor('fa18c', { azHalfDeg: 40, bars: 2 }, { bars: 6 })).toEqual({ azHalfDeg: 10, bars: 6 });
     expect(twsPatternFor('f15c', { azHalfDeg: 30, bars: 4 }, {})).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------------------------------ jammer
+
+describe('jammer and burn-through', () => {
+  const jsnap = (j: Partial<JamSnap>): Snap => ({
+    t: 10, ac: 'f15c', units: 'imperial', mode: 'rws', ownAlt: 9000, frame: 2, revisit: 2, bars: 4, azHalfDeg: 30, azCenterDeg: 0,
+    elCenterDeg: 0, cursorRange: 40000, covTop: 12000, covBottom: 6000, selectedId: null, targets: [],
+    jam: { targetId: 'target1', jamming: true, az: 6, range: 70000, burnThrough: 35000, strobe: false, hoj: false, stt: false, ...j },
+  });
+  const ev = (mem: Mem, j: Partial<JamSnap>) => EXERCISE_DEFS.jam.evaluate(jsnap(j), mem);
+
+  test('steps tick in order: strobe, refused lock, jam lock, normal STT at burn-through', () => {
+    const mem: Mem = { latched: [] };
+    expect(ev(mem, {}).steps).toEqual([false, false, false, false]);
+    expect(ev(mem, { strobe: true }).steps).toEqual([true, false, false, false]);
+    recordLockTry(mem, { ok: false, reason: 'Jammer: no range until burn-through. Lock the strobe (jam lock)' });
+    const refused = ev(mem, { strobe: true });
+    expect(refused.steps).toEqual([true, true, false, false]);
+    expect(refused.text).toMatch(/Refused: "Jammer: no range/);
+    expect(ev(mem, { hoj: true }).steps).toEqual([true, true, true, false]);
+    const done = ev(mem, { range: 34000, stt: true });
+    expect(done.steps).toEqual([true, true, true, true]);
+    expect(done.done).toBe(true);
+  });
+  test('a normal STT without a jam lock first does not finish the exercise', () => {
+    const mem: Mem = { latched: [] };
+    recordLockTry(mem, { ok: false, reason: 'x' });
+    const e = ev(mem, { range: 30000, stt: true });
+    expect(e.steps[3]).toBe(false);
+    expect(e.done).toBe(false);
+    expect(e.text).toMatch(/inside burn-through/);
+  });
+  test('an accepted lock records no refusal', () => {
+    const mem: Mem = { latched: [] };
+    recordLockTry(mem, { ok: true, reason: '' });
+    expect(mem.reason).toBeUndefined();
+  });
+  test('cursor picks the nearest strobe within tolerance', () => {
+    const s = [{ targetId: 'a', azDeg: 5 }, { targetId: 'b', azDeg: -10 }];
+    expect(strobeNearCursor(s, 4)).toBe('a');
+    expect(strobeNearCursor(s, -8)).toBe('b');
+    expect(strobeNearCursor(s, 20)).toBeNull();
+  });
+  test('the jammer carries a jammer in DCS and flies for the other side', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const j = jammerType(ac);
+      expect(OWN_JAMMER[j], `${ac} -> ${j}`).not.toBeNull();
+      expect(j === defaultAdversary(ac) || OWN_JAMMER[defaultAdversary(ac)] === null, `${ac} -> ${j}`).toBe(true);
+      expect(j).not.toBe(ac);
+    }
+  });
+  test('every jet: burn-through line, HOJ list, jam cue labels and a lock key', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const f = jamFacts(ac, AIRCRAFT[ac].units);
+      expect(f.burnThroughM).toBe(BURN_THROUGH_M[ac].value);
+      expect(f.burnThrough, ac).toMatch(/^Burn-through \d/);
+      if (!BURN_THROUGH_M[ac].verified) expect(f.burnThrough, ac).toMatch(/not verified/);
+      expect(f.hojLine.length, ac).toBeGreaterThan(10);
+      expect(f.pursuit).toMatch(/pure pursuit.*simplified/);
+      for (const m of f.hoj) expect(AIRCRAFT[ac].missiles).toContain(m);
+      expect(lockKeyOf(ac), ac).not.toBeNull();
+    }
+    expect(jamFacts('f15c', 'imperial').hoj).toEqual(['aim120b', 'aim120c', 'aim7m']);
+    expect(jamFacts('j11a', 'metric').hoj).toEqual(['r27r', 'r27er']);
+    expect(jamFacts('f14b', 'imperial').hoj).toEqual(['aim54a', 'aim54c', 'aim7m']);
+    expect(jamFacts('jf17', 'imperial').hoj).toEqual([]);
+    expect(jamFacts('jf17', 'imperial').hojLine).toMatch(/not verified/);
+    expect(jamFacts('j11a', 'metric').strobe).toMatch(/not verified/);
+    expect(jamFacts('f15c', 'imperial').strobe).not.toMatch(/not verified/);
+    expect(jamFacts('su27', 'metric').burnThrough).toMatch(/^Burn-through 25 km: ED Su-27 manual/);
+    expect(lockKeyOf('f16c')?.text).toBe('RCtrl + Up');
+  });
+  test('a jam lock is not a paint: the target stays off the scope until burn-through', () => {
+    const sc = EXERCISE_DEFS.jam.scene('f15c', 'imperial');
+    const { world, me, targetIds } = buildLabWorld('f15c', 'imperial', sc, sc.scan);
+    while (!me.radar.strobes.length && world.t < 30) world.step(0.1);
+    expect(me.radar.strobes.length).toBeGreaterThan(0);
+    expect(world.canLock(PLAYER, targetIds[0]).ok).toBe(false);
+    expect(world.lockJammer(PLAYER, targetIds[0])).toBe(true);
+    world.step(1);
+    expect(lastPaintOf(me, targetIds[0])).toBeNull();
+    const snap = buildSnap(world, me, 'imperial', sc, targetIds, new Map(), new Set(), null);
+    expect(snap.jam?.hoj).toBe(true);
+    expect(snap.jam?.stt).toBe(false);
+  });
+  test('scene starts outside burn-through and inside strobe range', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const sc = EXERCISE_DEFS.jam.scene(ac, AIRCRAFT[ac].units);
+      const bt = BURN_THROUGH_M[ac].value;
+      expect(sc.targets[0].range, ac).toBeGreaterThan(bt + 10000);
+      expect(sc.targets[0].jamming).toBe(true);
+    }
   });
 });

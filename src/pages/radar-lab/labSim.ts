@@ -7,11 +7,11 @@ import type { Aircraft, EntityId } from '../../sim/types';
 import type { FighterId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { radarLab } from '../../sim/scenarios';
-import { explainDetection, revisitTime, scanElevationLimits } from '../../sim/radar';
+import { burnThroughRange, explainDetection, isJammed, revisitTime, scanElevationLimits } from '../../sim/radar';
 import { fighterSpec, fighterType } from '../../sim/jet';
 import { D2R, R2D, groundRange } from '../../sim/math';
 import type { Units } from '../../app/format';
-import type { Scene, ScanPreset, Snap, TargetSnap } from './exercises';
+import type { JamSnap, Scene, ScanPreset, Snap, TargetSnap } from './exercises';
 import { coverageAt } from './geometry';
 
 export const PLAYER = 'player';
@@ -27,6 +27,8 @@ export function buildLabWorld(ac: FighterId, units: Units, scene: Scene, preset:
   const me = world.get(PLAYER);
   if (!me) throw new Error('radar lab: no player');
   applyPreset(world, ac, preset);
+  // Jammers: the scenario flag (setJamming refuses a jet without a jammer in DCS, so the scene picks one that has it).
+  scene.targets.forEach((t, i) => { if (t.jamming) world.setJamming(lab.targetIds[i], true); });
   return { world, me, targetIds: lab.targetIds };
 }
 
@@ -57,7 +59,9 @@ export function lastPaintOf(me: Aircraft, id: EntityId): number | null {
   let last: number | null = null;
   for (const b of st.bricks) if (b.targetId === id && (last === null || b.t > last)) last = b.t;
   const tr = st.tracks.find(x => x.targetId === id);
-  if (tr && (last === null || tr.lastHit > last)) last = tr.lastHit;
+  // A jam lock's track is a bearing-only placeholder, not a paint.
+  const jamLocked = st.mode === 'stt' && !!st.stt.hoj && st.stt.targetId === id;
+  if (tr && !jamLocked && (last === null || tr.lastHit > last)) last = tr.lastHit;
   return last;
 }
 
@@ -67,6 +71,7 @@ export type PaintEvent = { kind: 'first' | 'lost' | 'back'; target: Aircraft; ra
 export function shortReason(world: World, me: Aircraft, tg: Aircraft): string {
   const ex = explainDetection(world, me, tg);
   if (!ex.inGimbal) return 'outside the gimbal';
+  if (isJammed(me, tg)) return 'jamming: strobe only';
   if (!ex.inAzimuth) return 'outside the azimuth';
   if (!ex.inBars) return 'outside the bars';
   if (ex.range > ex.detectRange) return 'beyond range';
@@ -133,6 +138,22 @@ export function buildSnap(
     cursorRange: st.cursor.range, covTop: cov.top, covBottom: cov.bottom, selectedId: selected,
     targets: ids.map((id, i) => snapTarget(world, me, id, scene.targets[i]?.role ?? '', paint.get(id), inspected.has(id)))
       .filter((x): x is TargetSnap => !!x),
+    jam: jamSnap(world, me, ids.find((_, i) => scene.targets[i]?.jamming)),
+  };
+}
+
+/** What the own radar holds on the scene's jammer (bearing, strobe, jam lock, ordinary lock). */
+export function jamSnap(world: World, me: Aircraft, id: EntityId | undefined): JamSnap | undefined {
+  const tg = id ? world.get(id) : undefined;
+  if (!id || !tg || !tg.alive) return undefined;
+  const st = me.radar;
+  const on = st.mode === 'stt' && st.stt.targetId === id;
+  return {
+    targetId: id, jamming: tg.jamming, az: explainDetection(world, me, tg).az * R2D,
+    range: me.pos.distanceTo(tg.pos), burnThrough: burnThroughRange(me),
+    strobe: st.strobes.some(x => x.targetId === id),
+    hoj: on && !!st.stt.hoj,
+    stt: on && !st.stt.hoj && st.stt.lostFor === 0,
   };
 }
 
