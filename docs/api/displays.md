@@ -2,7 +2,7 @@
 
 Files: `src/ui/displays/**` (import from `src/ui/displays`), tests in `src/ui/displays/displays.test.ts`.
 Harnesses: `sandbox/displays.html` (every format and RWR on a scripted scenario) and
-`sandbox/displays-live.html` (real `World` + `buildRadarPicture`, as pages use it); `sandbox/a10c.html` (A-10C II HUD, TGP, TAD, MSG).
+`sandbox/displays-live.html` (real `World` + `buildRadarPicture`, as pages use it); `sandbox/a10c.html` (A-10C II HUD, TGP, MAV, TAD, MSG).
 
 All displays are canvas 2D, crisp at `devicePixelRatio` (capped at 3), resize-aware (ResizeObserver; they
 redraw themselves on resize and when the mono font finishes loading), coloured only from `readTheme()` tokens,
@@ -282,15 +282,16 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
 
 ## A-10C II displays (`src/ui/displays/a10c/`)
 
-Inputs are the fixed contracts in `a10c/types.ts` (`A10cHudView`, `TgpPageView`, `TadView`, `MsgPageView`); the page
-builds them from the sim, the displays only draw. Facts: `docs/research/a10c.md` §2–5 and `cas-jets.md` §2.
-Harness: `sandbox/a10c.html` (`?only=hud,tgp,tad,msg`, `?t=`, `?pause=1`). Blinking uses the view's `t`
+Inputs are the fixed contracts in `a10c/types.ts` (`A10cHudView` with the optional `mav: HudMavCue`, `TgpPageView`,
+`MavPageView`, `TadView`, `MsgPageView`); the page builds them from the sim, the displays only draw. Facts:
+`docs/research/a10c.md` §2–6 and `cas-jets.md` §2. Harness: `sandbox/a10c.html` (`?only=hud,tgp,mav,tad,msg`, `?t=`, `?pause=1`). Blinking uses the view's `t`
 (the MSG page does not blink), so a paused page and the tests are deterministic.
 
 ```ts
 const hud = new A10cHud(canvas, { overlay: true, fovDeg: 26, boreY: 0.4 }); // overlay: transparent over the 3D view
 hud.draw(view, world?);                   // world: optional picture under the glass when not overlay
 const tgp = new A10cTgpPage(cv); tgp.draw(tgpView);    // square MFCD canvases
+const mav = new A10cMavPage(cv); mav.draw(mavView);
 const tad = new A10cTadPage(cv); tad.draw(tadView);
 const msg = new A10cMsgPage(cv); msg.draw(msgView);
 tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the centred square (for cursor picking)
@@ -304,6 +305,21 @@ tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the c
   the boresight, time to release inside 20 s and the solution cue in the last 6 s (`CCRP_TTR_SHOW_S`,
   `CCRP_CUE_S`). SPI diamond (dashed when clamped to the glass). `belowMinAlt`: X over the reticle.
   `overlay: true` clears the canvas and adds a dark edge (canvas `drop-shadow` in the `--screen` colour).
+  With `view.mav` (a Maverick profile): the wagon-wheel reticle (circle with six spokes) at `mav.los`, dashed when
+  clamped to the glass, nothing when `los` is null (caged); the range (nm) below it; a filled centre when `locked`;
+  an X over the reticle (the boresight without `los`) when `tooClose`; the DLZ staple at the right (see the MAV page).
+  Nothing Maverick is drawn when `mav` is absent or null.
+- **A10cMavPage** (research §6): `profile: null` reads `SENSOR` where the DLZ goes (no staple). With a profile:
+  profile name upper left (`65D` / `65H` / `65L`), status `ALN` / `RDY` / `EMPTY` upper right, `DLZ` and the staple
+  on the right: a vertical scale from 0 at the bottom to the max tick fixed at 15 nm (`MAV_DLZ_SCALE_NM`), the min
+  tick at `dlz.min`, the range caret (filled inside `[dlz.min, dlz.max]`, clamped at the top beyond 15 nm) with the
+  range beside it. `dlz.max` only decides the filled caret; it has no tick of its own. D / H: the seeker video
+  (cropped square) or a dark field with `NO VIDEO`; the crosshair to a gap round the gate; unlocked, the open gate
+  (four corner brackets); `locked`, the gate collapsed to a small box and the pointing cross flashing at 2 Hz; for
+  `MAV_BREAK_SPREAD_S` (2 s) after a break (`sinceBreakS`, only while unlocked) the crosshairs as two pairs of lines
+  spreading from the centre to the edges; `CAGED` low centre while caged. L: no video; a synthetic view with the
+  dashed 15° launch circle, boresight ticks and the gimbal X, a solid square when `spotSeen`, `CODE nnnn` lower
+  left. OSBs 12–15 page legends (TAD, TGP, MAV boxed, DSMS). SOI box, or `NOT SOI`.
 - **A10cTgpPage**: video cropped square to fill the page, `NO VIDEO` on a dark field without an image, `STBY`
   when not on. Crosshair with a gap; a centre box in POINT and in LTRACK; the open gate (corner brackets, lines to
   the edge) while LSS searches, detects or has lost the spot. Track text (AREA / POINT / INR) beside the crosshair,
@@ -320,15 +336,19 @@ tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the c
 - **A10cMsgPage**: title and the 9-line fields (label dim, value shrunk to fit), WILCO at OSB 19 and CNTCO at OSB 7;
   the answer given is a filled legend and the other one dims.
 
-Pure helpers (tested in `a10c/a10c.test.ts`): `tadProject(own, scaleNm, cx, cy, radiusPx, p)`, `bearingRange`,
+Pure helpers (tested in `a10c/a10c.test.ts` and `a10c/mav.test.ts`): `tadProject(own, scaleNm, cx, cy, radiusPx, p)`, `bearingRange`,
 `fmtBrgRng`, `hookedPoint`, `fmtTgpRange(rangeM, source, units)`, `lssText`, `lssOsbLabel`, `fovText`, `trackText`,
-`coverSource`, `fmtTtr`, `ccrpCueFraction`, `headingTapeLabel`, `a10cHudPoint`, `osbAnchor(n, pageSide)`, `msgOsbLabels`.
+`coverSource`, `mavStaple(rangeM, dlz)` (fractions of the 15 nm scale, `inZone`, `beyond`), `mavBreakSpread(sinceBreakS)`
+(0..1 in the first 2 s, else null), `mavProfileLabel`, `fmtMavRange`, `drawMavStaple` (shared with the HUD), `fmtTtr`, `ccrpCueFraction`, `headingTapeLabel`, `a10cHudPoint`, `osbAnchor(n, pageSide)`, `msgOsbLabels`.
 
 Not verified (trainer layout, say "simplified" in the UI where it matters): CNTL on OSB 1; the LSS code under
 OSB 6; positions of NOT SOI, SPI, NEW TASKING and the hook readout; the HUD layout (positions of speed, altitude,
 mode, profile, L) and the ladder; the HUD SPI diamond; the CCRP reticle position and the TTR number format; the
 TAD steerpoint circle and own-ship outline; true north and true bearings on the TAD (DCS uses magnetic); the MSG
-page line layout and how the answer is shown; metric range on the TGP (DCS shows nm).
+page line layout and how the answer is shown; metric range on the TGP (DCS shows nm). Maverick: the gate brackets and
+the locked box size, the shape and flash rate of the pointing cross, how the break-lock spread animates and how long,
+the AGM-65L synthetic view (circle, ticks, X and square sizes), the position of the staple, SENSOR, status and
+profile text, the range text beside the caret, the OSB 12–15 page legends, the wagon-wheel spokes and its range text.
 
 ## Also exported
 

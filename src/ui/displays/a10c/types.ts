@@ -33,6 +33,8 @@ export interface A10cHudView {
   belowMinAlt: boolean;
   /** Own laser firing: flashing L. */
   laserFiring: boolean;
+  /** Maverick cues when a Maverick profile is selected (optional). */
+  mav?: HudMavCue | null;
 }
 
 export interface TgpPageView {
@@ -85,4 +87,41 @@ export interface MsgPageView {
   title: string;
   lines: { label: string; value: string }[];
   state: 'new' | 'wilco' | 'cntco';
+}
+
+/**
+ * MAV page (MFCD) for the AGM-65D/H (research a10c.md §6): SENSOR until a Maverick profile is selected, then the DLZ;
+ * the seeker video with the tracking gate (collapses on lock, pointing cross flashes), break-lock spreads the
+ * crosshairs; status ALN / RDY / EMPTY. The AGM-65L has no video: the page shows its synthetic view and the code.
+ */
+export interface MavPageView {
+  t: number;
+  /** Maverick profile selected (else the page reads SENSOR). */
+  profile: 'agm65d' | 'agm65h' | 'agm65l' | null;
+  /** Seeker video (D: IIR, H: TV), or null (L, caged, or no picture). */
+  image: CanvasImageSource | null;
+  caged: boolean;
+  locked: boolean;
+  /** Seconds since the last break-lock (crosshairs spread while recent), or null. */
+  sinceBreakS: number | null;
+  status: 'ALN' | 'RDY' | 'EMPTY';
+  /** Slant range to the aim (m) and the launch zone band (m), for the DLZ staple. */
+  rangeM: number | null;
+  dlz: { min: number; max: number } | null;
+  /** AGM-65L: laser code and whether a spot on it is seen. */
+  laserCode: number | null;
+  spotSeen: boolean;
+  soi: boolean;
+  units: 'imperial' | 'metric';
+}
+
+/** HUD additions when a Maverick is selected: the wagon-wheel reticle on the seeker line of sight, and the DLZ staple. */
+export interface HudMavCue {
+  /** Seeker line of sight (az, el from the boresight), or null when caged / off the HUD. */
+  los: { az: number; el: number } | null;
+  locked: boolean;
+  rangeM: number | null;
+  dlz: { min: number; max: number } | null;
+  /** Below minimum range: X over the reticle. */
+  tooClose: boolean;
 }

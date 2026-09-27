@@ -1,13 +1,13 @@
 /**
- * A-10C II displays sandbox: the HUD, TGP page, TAD and MSG page (src/ui/displays/a10c) in fixed states.
+ * A-10C II displays sandbox: the HUD, TGP page, MAV page, TAD and MSG page (src/ui/displays/a10c) in fixed states.
  *   ?t=0.1        view time (blink phase) at start
  *   ?pause=1      freeze the time (blinking stops at ?t)
- *   ?only=hud     one group: hud, tgp, tad, msg (comma separated)
- * The TGP video and the world behind the HUD are procedural stand-ins drawn here.
+ *   ?only=hud     one group: hud, tgp, mav, tad, msg (comma separated)
+ * The TGP and Maverick video and the world behind the HUD are procedural stand-ins drawn here.
  */
 import '../src/styles/tokens.css';
 import '../src/styles/base.css';
-import { A10cHud, A10cMsgPage, A10cTadPage, A10cTgpPage, type A10cHudView, type MsgPageView, type TadView, type TgpPageView } from '../src/ui/displays';
+import { A10cHud, A10cMavPage, A10cMsgPage, A10cTadPage, A10cTgpPage, type A10cHudView, type MavPageView, type MsgPageView, type TadView, type TgpPageView } from '../src/ui/displays';
 import { readTheme } from '../src/ui/theme';
 
 const qs = new URLSearchParams(location.search);
@@ -81,7 +81,16 @@ function worldView(): HTMLCanvasElement {
   x.restore();
   return c;
 }
-const video = podVideo(7), video2 = podVideo(19), world = worldView();
+/** IIR (white hot) seeker picture for the AGM-65D: the pod picture inverted. */
+function iirVideo(src: HTMLCanvasElement): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const x = c.getContext('2d')!;
+  x.filter = 'invert(1) contrast(1.3)';
+  x.drawImage(src, 0, 0);
+  return c;
+}
+const video = podVideo(7), video2 = podVideo(19), world = worldView(), iir = iirVideo(podVideo(7));
 
 // ------------------------------------------------------------------ states
 
@@ -93,6 +102,9 @@ const HUDS: { title: string; sub: string; note: string; v: Partial<A10cHudView>;
   { title: 'HUD', sub: 'NAV · SOI', note: 'Asterisk lower left: HUD is SOI. SPI diamond at the steerpoint.', v: {} },
   { title: 'HUD', sub: 'CCIP consent', note: 'Release held: ASL above the pipper, solution cue half way down.', v: { master: 'CCIP', pitch: -15 * D, altFt: 7200, weapon: { id: 'mk82', label: 'MK-82', count: 4 }, pipper: { az: 1 * D, el: -7 * D }, releaseCue: 0.55, spi: { az: 1.2 * D, el: -6.6 * D } } },
   { title: 'HUD', sub: 'CCRP · lasing', note: 'ASL offset by the track error; TTR 4, cue sliding; L flashes.', v: { master: 'CCRP', soi: false, weapon: { id: 'gbu12', label: 'GBU-12', count: 2 }, ccrp: { ttrS: 4, errRad: 1.5 * D }, spi: { az: 1.5 * D, el: -18 * D }, laserFiring: true } },
+  { title: 'HUD', sub: 'MAV · 65D slewing', note: 'Wagon wheel on the seeker, range below; DLZ staple right (max tick 15 nm).', v: { weapon: { id: 'agm65d', label: '65D', count: 2 }, spi: { az: 1 * D, el: -7 * D }, mav: { los: { az: 1.4 * D, el: -6.4 * D }, locked: false, rangeM: 7.6 * NM, dlz: { min: 0.8 * NM, max: 12 * NM }, tooClose: false } } },
+  { title: 'HUD', sub: 'MAV · locked', note: 'Locked: filled centre. Caret inside the staple.', v: { weapon: { id: 'agm65h', label: '65H', count: 1 }, spi: null, mav: { los: { az: -2 * D, el: -8 * D }, locked: true, rangeM: 5.1 * NM, dlz: { min: 0.8 * NM, max: 12 * NM }, tooClose: false } } },
+  { title: 'HUD', sub: 'MAV · too close, off glass', note: 'X below minimum range; line of sight clamped to the edge, dashed.', v: { weapon: { id: 'agm65d', label: '65D', count: 1 }, spi: null, mav: { los: { az: 18 * D, el: -3 * D }, locked: true, rangeM: 0.5 * NM, dlz: { min: 0.8 * NM, max: 12 * NM }, tooClose: true } } },
   { title: 'HUD', sub: 'GUNS · below min', note: 'Gun reticle with an X: below minimum. Overlay over the world.', v: { master: 'GUNS', pitch: -12 * D, altFt: 900, weapon: { id: 'gau8', label: 'GUN', count: 1150 }, pipper: { az: -1 * D, el: -5 * D }, belowMinAlt: true, spi: null }, overlay: true },
 ];
 
@@ -107,6 +119,21 @@ const TGPS: { sub: string; note: string; v: Partial<TgpPageView> }[] = [
   { sub: 'LSS search', note: 'LSRCH, WSCH, open gate.', v: { fov: 'wide', track: 'none', lss: 'search', rangeSource: 'E', rangeM: 7.2 * NM } },
   { sub: 'LSS detect', note: 'DETECT; OSB 6 now LST.', v: { track: 'none', lss: 'detect' } },
   { sub: 'LTRACK · lasing', note: 'Box on the spot, SPI, L flashes, laser range.', v: { lss: 'track', isSpi: true, laserFiring: true, rangeSource: 'L', rangeM: 4.6 * NM } },
+];
+
+const mavBase: MavPageView = {
+  t, profile: 'agm65d', image: iir, caged: false, locked: false, sinceBreakS: null, status: 'RDY',
+  rangeM: 7.4 * NM, dlz: { min: 0.8 * NM, max: 12 * NM }, laserCode: null, spotSeen: false, soi: true, units: 'imperial',
+};
+const MAVS: { sub: string; note: string; v: Partial<MavPageView> }[] = [
+  { sub: 'SENSOR', note: 'No Maverick profile: SENSOR, no DLZ.', v: { profile: null, soi: false } },
+  { sub: '65D · caged · ALN', note: 'Caged, gyros aligning.', v: { caged: true, status: 'ALN' } },
+  { sub: '65D · slewing', note: 'Open gate on the target; DLZ staple and range caret.', v: {} },
+  { sub: '65D · locked', note: 'Gate collapsed; the pointing cross flashes.', v: { locked: true, rangeM: 6.1 * NM } },
+  { sub: '65H · break-lock', note: 'Crosshairs spreading to the edges (first 2 s).', v: { profile: 'agm65h', image: video, sinceBreakS: 0.7 } },
+  { sub: '65H · no video · EMPTY', note: 'Dark field without a picture; rail empty.', v: { profile: 'agm65h', image: null, status: 'EMPTY', rangeM: 16.5 * NM } },
+  { sub: '65L · no spot', note: 'Synthetic view, gimbal X, code.', v: { profile: 'agm65l', image: null, laserCode: 1688 } },
+  { sub: '65L · spot seen', note: 'Solid square on the spot; not SOI.', v: { profile: 'agm65l', image: null, laserCode: 1688, spotSeen: true, locked: true, soi: false } },
 ];
 
 const own = { x: 0, z: 0, heading: 35 * D };
@@ -147,6 +174,15 @@ if (tgpGrid) for (const s of TGPS) {
   tgpGrid.append(c);
   const d = new A10cTgpPage(cv);
   draws.push(tt => d.draw({ ...tgpBase, ...s.v, t: tt }));
+}
+const mavGrid = group('mav', 'MAV page (MFCD)');
+if (mavGrid) for (const s of MAVS) {
+  const { c, cv } = card('MAV', s.sub, s.note);
+  mavGrid.append(c);
+  const d = new A10cMavPage(cv);
+  const sb = s.v.sinceBreakS, t0 = t;
+  // The break spread replays: sinceBreakS runs with the view time and wraps every 3 s.
+  draws.push(tt => d.draw({ ...mavBase, ...s.v, t: tt, sinceBreakS: sb == null ? null : (sb + tt - t0) % 3 }));
 }
 const tadGrid = group('tad', 'TAD (MFCD, heading-up, centred)');
 if (tadGrid) for (const s of TADS) {

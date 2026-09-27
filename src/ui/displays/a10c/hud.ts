@@ -6,13 +6,17 @@
  * own laser fires. CCIP / GUNS: the pipper reticle with the line from the boresight (PBIL); with consent held the
  * attack steering line (ASL) above the pipper and the solution cue running down it. CCRP: the ASL offset by the
  * track error, the reticle at the boresight, time to release inside 20 s and the solution cue in the last 6 s.
- * The SPI as a diamond (dashed at the HUD edge), and an X over the reticle below minimum altitude.
+ * The SPI as a diamond (dashed at the HUD edge), and an X over the reticle below minimum altitude. With `mav`: the
+ * Maverick wagon-wheel reticle on the seeker line of sight (dashed at the edge) with the range below it, a filled
+ * centre on lock, an X below minimum range, and the DLZ staple at the right (max tick fixed at 15 nm).
  * Drawn over the world picture (`draw(view, world)`) or, with `overlay: true`, on a transparent canvas above the
- * 3D view. Layout, the SPI diamond and the TTR number format are simplified (not verified).
+ * 3D view. Layout, the SPI diamond, the TTR number format, the
+ * wagon-wheel spokes and the staple position are simplified (not verified).
  */
 import { alpha } from '../../theme';
 import { Gfx, Surface, blinkOn } from '../surface';
 import type { A10cHudView } from './types';
+import { drawMavStaple, fmtMavRange, mavStaple } from './mavPage';
 
 export interface A10cHudOptions {
   /** Transparent canvas (nothing filled): the page puts the 3D view under it. Default false. */
@@ -213,6 +217,39 @@ export class A10cHud {
       g.dash(p.clipped ? [0.8, 0.8] : null);
       g.poly([p.x, p.y - d, p.x + d, p.y, p.x, p.y + d, p.x - d, p.y], true);
       g.dash(null);
+    }
+
+    // Maverick: wagon-wheel reticle on the seeker line of sight (dashed when clamped), range below it, filled centre
+    // on lock, X below minimum range, and the DLZ staple (max tick fixed at 15 nm, min tick, range caret) at the right.
+    if (v.mav) {
+      const m = v.mav;
+      let q: { x: number; y: number } = { x: cx, y: cy };
+      if (m.los) {
+        const p = hudPoint(m.los.az, m.los.el, cx, cy, ppr, W, H * 0.86, margin);
+        q = p;
+        const r = 3.2 * u;
+        g.dash(p.clipped ? [1.2, 1.2] : null);
+        g.circle(p.x, p.y, r);
+        g.dash(null);
+        const spokes: number[] = [];
+        for (let i = 0; i < 6; i++) {
+          const a = (i * Math.PI) / 3 + Math.PI / 6;
+          spokes.push(p.x + Math.cos(a) * r * 0.45, p.y + Math.sin(a) * r * 0.45, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
+        }
+        g.segs(spokes);
+        g.circle(p.x, p.y, (m.locked ? 0.9 : 0.35) * u, true);
+        const rt = fmtMavRange(m.rangeM, 'imperial');
+        if (rt) { g.font(3.2, 700, 8); g.text(rt, p.x, p.y + r + 2.2 * u); }
+      }
+      if (m.tooClose) {
+        const a = 2.8 * u;
+        g.lw(0.45);
+        g.segs([q.x - a, q.y - a, q.x + a, q.y + a, q.x - a, q.y + a, q.x + a, q.y - a]);
+        g.lw(0.3);
+      }
+      g.font(2.6, 400, 8);
+      drawMavStaple(g, W * 0.9, H * 0.72, H * 0.24, mavStaple(m.rangeM, m.dlz), '');
+      g.lw(0.3);
     }
 
     // Below minimum altitude: X over the reticle.
