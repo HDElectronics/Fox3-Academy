@@ -256,6 +256,18 @@ in plan view: drag the timeline, zoom to the target area, click an event to jump
 result and miss reason, the gimbal margin at each guided launch, laser-on bursts, time inside each SAM ring and the
 gun envelope, a score out of 100 and coaching on each mistake.
 
+### Targeting pod & Mavericks (A-10C II)
+The A-10C II cockpit on its own, like Shkval & Vikhr for the Su-25T (the route takes only the A-10C II). Six
+lessons, each with a checklist and a debrief: **SOI and SPI** (Coolie U / J / H / K moves the SOI between the HUD,
+the TAD and the TGP; TMS Forward Long sets the SPI, China Hat Forward Long slaves everything to it, TMS Aft Long
+resets it), **Targeting pod** (slew with ; . , /, WIDE / NARO, POINT with TMS Forward Short, AREA and INR),
+**Laser and LSS** (lase with Insert on code 1688, then set the LSS code to 1511 and find a friendly unit's spot:
+LSRCH, DETECT, LTRACK, make it the SPI), **Maverick D / H** (select the profile: SENSOR turns into the DLZ; slave to
+the SPI, MAV page as SOI with Coolie Right, lock with TMS Forward Short, fire inside the DLZ, lock again for the second),
+**Laser weapons** (GBU-12 in CCRP on your own laser, APKWS from about 5 nm, AGM-65L, keeping the laser on) and **Gun
+strafe** (GUNS mode, the pipper on a truck inside 2 nm, Space). Weapon release (RAlt + Space) and the gun (Space) are
+community keys, labelled not verified; the pod starts on and the Maverick aligned (trainer shortcuts).
+
 ### CAS & JTAC (Su-25T, A-10C II)
 For the attack jets: pick the Su-25T or the A-10C II. Work the built-in DCS JTAC before you fly it: the radio menu opens with \ (on screen: the
 Radio button), F4 JTACs, then the JTAC (Axeman 1-1). Browsers keep F5, F11 and F12, so the digits 1–0 also pick

@@ -6,6 +6,9 @@
   CAS & JTAC flies it with the targeting pod (slew, point track, SPI, own laser, laser spot search), laser-guided
   stores that home on any spot on their code, and two new lessons: the digital 9-line (TAD triangle, MSG page, WILCO,
   SPI) and the JTAC laser hand-off (Laser On, LSS, Spot, Terminate). Shkval & Vikhr stays Su-25T only.
+- A new tab for the A-10C II, Targeting pod & Mavericks: six lessons (SOI and SPI, Targeting pod, Laser and LSS,
+  Maverick D / H, Laser weapons, Gun strafe) with the MAV page, the HUD Maverick cues and a Maverick seeker that slaves
+  to the SPI and locks on TMS Forward.
 
 - The datalink picture (#12): an AWACS and network members (Link 16 Hornet and Viper, F-14 Link 4, JF-17) share
   tracks and positions, which coast 20 s; each jet draws its own symbols (Hornet HAFU halves and PPLI, Viper

@@ -123,6 +123,10 @@ Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(
   inside 8 nm and 60° off the nose, in sight; needs a D/H profile, else "SENSOR"), `mavRecage` (China Hat Aft Short).
   The lock follows the unit and breaks (`lastBreak`) when it dies, is masked or leaves 60°. Launch needs the lock;
   each missile takes it with it, so the next one locks again.
+- Pages: the A-10C II HOTAS (`src/pages/cas/a10cHotas.ts`, shared by CAS & JTAC and Targeting pod & Mavericks) adds
+  the MAV page as an SOI (Coolie Right Short switches the right MFCD, Right Long makes it SOI): slew moves the Maverick
+  gate, TMS Forward Short locks, China Hat Forward Long slaves the pod and the Maverick to the SPI, China Hat Aft Short
+  recages.
 - Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
 - Tested in `tgp.test.ts` and `laserSpot.test.ts`.
 
