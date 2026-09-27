@@ -16,8 +16,12 @@ import { salvoLabel } from '../../sim/attack';
 import { shkvalAimPoint, shkvalDir, shkvalFovDeg } from '../../sim/shkval';
 import { armEmitters, ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import type { ShkvalTv } from '../../render/attack';
+import { Quaternion, Vector3 } from 'three';
+import { vFovDeg, type ForwardView } from '../../render/forwardView';
+import { UNIT_PER_M, orientationQuaternion } from '../../render/units';
 import { h, screenBezel, button, placard, keyHint, disclosure, mobileAction, type ButtonHandle, type Cleanup, type KeyMap, type Tone } from '../../ui';
 import { RwrDisplay, It23mDisplay, Su25tHud, su25tHudAngles as hudAngles, hudModeLabel, type It23mState, type Su25tHudState } from '../../ui/displays';
+import { HUD_BORE_Y, HUD_FOV_DEG } from '../../ui/displays/su25tHud';
 import { projectArmHudPoint } from '../../ui/displays/su25tHud';
 import { pickArmEmitter } from './targeting';
 
@@ -28,6 +32,7 @@ const ARM_SLEW_DPS = 6;
 /** Trainer estimate of the Vikhr's mean speed for the pre-launch time of flight (not DCS data). */
 const VIKHR_MEAN_MS = 480;
 const STATION_LABEL: Record<string, string> = { r60: '60', r73: '73', l081: 'L-081' };
+const _hudPos = new Vector3(), _hudQ = new Quaternion();
 /** Trainer pitch: commanded height offset (m) grows from NOSE_MIN_M at the key press by NOSE_RATE_M per second held. */
 const NOSE_MIN_M = 150, NOSE_RATE_M = 900, NOSE_MAX_M = 1500;
 
@@ -106,8 +111,11 @@ export interface Su25tCockpit {
   step(dt: number): void;
   /** Clear held inputs, the held pitch angle and the Kh-58 square (after a restart or a scripted reposition). */
   resetInputs(): void;
-  /** Draw the TV (with the Shkval camera image when there is one), the HUD and, when asked, the SPO-15. */
-  draw(tvCam: ShkvalTv | null, showRwr: boolean): void;
+  /**
+   * Draw the TV (with the Shkval camera image when there is one), the HUD (over the world ahead when `hudCam` is
+   * given) and, when asked, the SPO-15.
+   */
+  draw(tvCam: ShkvalTv | null, showRwr: boolean, hudCam?: ForwardView | null): void;
   updateLamps(): void;
   tvState(): It23mState;
   hudState(): Su25tHudState;
@@ -370,11 +378,17 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
       armCursor.y = Math.max(-9, Math.min(4, armCursor.y + (slew.up - slew.down) * ARM_SLEW_DPS * dt));
     },
     resetInputs() { slew.up = slew.down = slew.left = slew.right = 0; armCursor.x = 0; armCursor.y = -4; noseDir = 0; noseHeldS = 0; holdGamma = null; },
-    draw(tvCam, showRwr) {
+    draw(tvCam, showRwr, hudCam = null) {
       const ac = me(), sh = ac.ag!.shkval;
       if (tvCam && sh.on && ac.alive) tvCam.render(ac.pos, shkvalDir(ac), shkvalFovDeg(sh.zoom).v);
       tv.draw(tvState(), tvCam && sh.on ? tvCam.image : null);
-      hud.draw(hudState());
+      if (hudCam && ac.alive) {
+        // The ИЛС draws in heading and pitch only (no roll): the view ahead uses the same frame.
+        const aspect = Math.max(0.2, hudCanvas.clientWidth / Math.max(1, hudCanvas.clientHeight));
+        _hudPos.set(ac.pos.x * UNIT_PER_M, ac.pos.y * UNIT_PER_M, ac.pos.z * UNIT_PER_M);
+        hudCam.render(_hudPos, orientationQuaternion(ac.heading, ac.pitch, 0, _hudQ), vFovDeg(HUD_FOV_DEG, aspect), 0.5, HUD_BORE_Y);
+      }
+      hud.draw(hudState(), hudCam && ac.alive ? hudCam.image : null);
       if (showRwr) rwr.draw(ac.rwr, world().t);
     },
     updateLamps() {

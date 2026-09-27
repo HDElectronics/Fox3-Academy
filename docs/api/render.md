@@ -379,6 +379,29 @@ offset from a centre inside the view).
 
 ---
 
+## ForwardView (`forwardView.ts`, see-through HUDs)
+
+A second camera at the pilot's eye along the HUD boresight, rendered into a small render target (192 × 192 by
+default, every 3rd call), read back and copied in colour into `image`, a 2D canvas a HUD display draws under its
+symbology. Same pipeline as the Shkval TV, in colour. The page gives the pose in the frame its HUD draws in, the
+HUD's vertical field of view and where the boresight sits on the glass; `placeBoresight` puts it there with the
+camera's view offset, exact at any bank.
+
+```ts
+const hudCam = new ForwardView(stage, { width: 224, height: 168, near: 0.0005, hidden: () => scene.hudHidden() });
+hudCam.render(eyePos, quaternion, vFovDeg, boreX, boreY);   // scene units; camera looks down its −z
+hud.draw(state, hudCam.image);
+hudCam.dispose();
+```
+
+| HUD | Pose | Field of view | Boresight | Hidden |
+|---|---|---|---|---|
+| Su-25T ИЛС (Strike, CAS) | heading, pitch, no roll (`orientationQuaternion`) | 26° wide (`vFovDeg`) | 0.42 down | `AttackScene.tvHidden()` + trail |
+| Landing HUD (Pattern & landing) | `FlightOpsScene.cockpitPose` (bank included) | 26° tall | `hudBoresight(state)` | `FlightOpsScene.hudHidden()`, near 0.5 m |
+| Gun sight (Merge & guns strip) | flight path forward, lift vector up (the sight's frame) | 18° tall | 0.32 down | own jet (`TacticalScene.entityObject`), `BfmAids.hudHidden()`, clouds |
+
+The Merge Cockpit camera still draws its overlay sight over the main 3D view.
+
 ## Models (`jets.ts`)
 
 - `new JetMesh(id, side: 'blue' | 'red' | 'neutral', stage.palette)`: a Group built in **metres**

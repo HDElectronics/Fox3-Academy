@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- See the world through the HUDs: the Su-25T ИЛС (Shkval & Vikhr, CAS & JTAC), the landing HUD (Pattern &
+  landing) and the gun sight HUD (Merge & guns). A colour view ahead in each HUD's own frame, lined up with the
+  ladder and the boresight (banked with the jet on the landing and gun HUDs), under a light tint.
+
 - Make Fox3 Academy desktop only. Phones (touch-only, shorter screen side under 600 px) see a short panel with a
   Copy link button instead of the app; tablets, touchscreen laptops and narrow desktop windows keep the full app.
   Visual checks move from 390 px to 1440 and 820 px.

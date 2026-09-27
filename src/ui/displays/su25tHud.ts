@@ -9,6 +9,7 @@
  * a type code under each radar the missile can attack, a circle on the locked emitter, and the slewed square.
  */
 import { Gfx, Surface } from './surface';
+import { alpha } from '../theme';
 import { CCRP_TOL_DEG } from '../../sim/agWeapons';
 
 export interface HudStation { station: number; label: string; count: number; selected: boolean }
@@ -43,6 +44,10 @@ export const CCRP_SCALE_S = 10;
 
 /** HUD field of view across (deg); the trainer's scale for placing angular symbols. */
 export const HUD_FOV_DEG = 26;
+/** Boresight (aircraft datum) height on the HUD, as a fraction of the height from the top. */
+export const HUD_BORE_Y = 0.42;
+/** Tint over the see-through world picture so the symbology stays readable (0 = none, 1 = the display glass). */
+export const HUD_WORLD_TINT = 0.35;
 
 /** Shared Kh-58 symbol/cursor projection, including the HUD edge clamps. */
 export function projectArmHudPoint(p: { xDeg: number; yDeg: number }): { xDeg: number; yDeg: number } {
@@ -84,6 +89,7 @@ export class Su25tHud {
   private surf: Surface;
   private g: Gfx;
   private last: Su25tHudState | null = null;
+  private world: CanvasImageSource | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -92,9 +98,10 @@ export class Su25tHud {
     this.surf.onResize = () => this.render();
   }
 
-  draw(s: Su25tHudState | null): void { this.last = s; this.render(); }
+  /** Draw the HUD; `world` (optional) is the view ahead (render/forwardView.ts) seen through the combiner. */
+  draw(s: Su25tHudState | null, world: CanvasImageSource | null = null): void { this.last = s; this.world = world; this.render(); }
   refreshTheme(): void { this.surf.refreshTheme(); this.render(); }
-  dispose(): void { this.surf.dispose(); this.last = null; }
+  dispose(): void { this.surf.dispose(); this.last = null; this.world = null; }
 
   private render(): void {
     const sf = this.surf;
@@ -105,10 +112,15 @@ export class Su25tHud {
     g.reset();
     ctx.fillStyle = th.screen;
     ctx.fillRect(0, 0, W, H);
+    if (this.world) {
+      ctx.drawImage(this.world, 0, 0, W, H);
+      ctx.fillStyle = alpha(th.screen, HUD_WORLD_TINT);
+      ctx.fillRect(0, 0, W, H);
+    }
     const s = this.last;
     if (!s) return;
     const ppd = W / HUD_FOV_DEG;
-    const cx = W / 2, cy = H * 0.42;
+    const cx = W / 2, cy = H * HUD_BORE_Y;
     const at = (xDeg: number, yDeg: number) => [cx + xDeg * ppd, cy - yDeg * ppd] as const;
     g.ink(th.sym, 1, 0.32, 1);
 

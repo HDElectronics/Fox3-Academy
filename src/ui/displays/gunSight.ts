@@ -16,6 +16,12 @@ import { diamond as diamondGlyph } from './glyphs';
 import type { GunSightPicture } from './gunSightModel';
 import type { SightPoint } from '../../sim/guns';
 import { drawAcm, type AcmPicture } from './acmCues';
+import { alpha } from '../theme';
+
+/** Boresight height of the HUD format (0 top, 1 bottom); the overlay format uses the camera centre. */
+export const GUN_HUD_BORE_Y = 0.32;
+/** Tint over the see-through world so the sight stays readable (fraction of the display glass colour). */
+export const GUN_HUD_WORLD_TINT = 0.35;
 
 const FT = 0.3048;
 
@@ -36,13 +42,14 @@ export class GunSightDisplay {
   private o: Required<GunSightOptions>;
   private last: GunSightPicture | null = null;
   private acm: AcmPicture | null = null;
+  private world: CanvasImageSource | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: GunSightOptions = {}) {
     this.canvas = canvas;
     this.surf = new Surface(canvas);
     this.g = new Gfx(this.surf.ctx, this.surf.theme);
     const overlay = options.overlay ?? false;
-    this.o = { fovDeg: 26, overlay, boreY: overlay ? 0.5 : 0.32, glow: 1, ...options };
+    this.o = { fovDeg: 26, overlay, boreY: overlay ? 0.5 : GUN_HUD_BORE_Y, glow: 1, ...options };
     this.surf.onResize = () => this.render();
   }
 
@@ -55,7 +62,10 @@ export class GunSightDisplay {
   refreshTheme(): void { this.surf.refreshTheme(); this.render(); }
 
   /** Draw the gun sight, plus the close-combat (ACM / IR seeker) cues when given. */
-  draw(pic: GunSightPicture | null, acm: AcmPicture | null = null): void { this.last = pic; this.acm = acm; this.render(); }
+  /** Draw the sight; `world` (HUD format only) is the view through the glass (render/forwardView.ts). */
+  draw(pic: GunSightPicture | null, acm: AcmPicture | null = null, world: CanvasImageSource | null = null): void {
+    this.last = pic; this.acm = acm; this.world = world; this.render();
+  }
 
   redraw(): void { this.render(); }
 
@@ -70,7 +80,13 @@ export class GunSightDisplay {
     g.setup(s.dpr, k, this.o.glow, th);
     g.reset();
     if (this.o.overlay) ctx.clearRect(0, 0, W, H);
-    else { ctx.fillStyle = th.screen; ctx.fillRect(0, 0, W, H); }
+    else {
+      ctx.fillStyle = th.screen; ctx.fillRect(0, 0, W, H);
+      if (this.world) {
+        ctx.drawImage(this.world, 0, 0, W, H);
+        ctx.fillStyle = alpha(th.screen, GUN_HUD_WORLD_TINT); ctx.fillRect(0, 0, W, H);
+      }
+    }
     const p = this.last;
     if (!p) {
       if (!this.o.overlay) { g.ink(th.symDim, 0, 0.3); g.font(3.4); g.text('NO GUN DATA', W / 2, H / 2); }
