@@ -2,6 +2,7 @@
  * [OWNER: displays] Frame context and helpers shared by the radar display formats.
  */
 import type { FighterId, DisplayFormat } from '../../../data/types';
+import { DL_COAST_S } from '../../../data/datalink';
 import type { EntityId, RadarPicture } from '../../../sim/types';
 import type { Theme } from '../../theme';
 import type { Gfx } from '../surface';
@@ -155,6 +156,30 @@ export const rangedStt = (pic: RadarPicture): PicStt | null => (pic.stt && !pic.
 
 /** The angle-only jam lock (HOJ / AOJ / JAT), or null. Only its `az` and `targetId` may be drawn. */
 export const jamLock = (pic: RadarPicture): PicStt | null => (pic.stt?.hoj ? pic.stt : null);
+
+// ------------------------------------------------------------------ datalink (docs/research/ecm-datalink-iff.md §2)
+// Datalink entries are what the network gives this jet. They are drawn but never pickable: a launch needs own radar.
+
+export type PicDatalink = RadarPicture['datalink'][number];
+
+/** Opacity for a datalink entry from its age: steady while fresh, fading toward the 20 s coast, 0 after it. */
+export function dlAlpha(age: number): number {
+  if (!(age >= 0)) return 1;
+  if (age > DL_COAST_S) return 0;
+  const fresh = 3;
+  if (age <= fresh) return 1;
+  return Math.max(0.25, 1 - (0.75 * (age - fresh)) / (DL_COAST_S - fresh));
+}
+
+/**
+ * Datalink entries to draw as symbols of their own: those whose target own radar does not already hold as a track
+ * (a track carries the datalink ID in `dl` and draws it on its own symbol), and not yet past the coast.
+ */
+export function dlOnly(pic: RadarPicture): PicDatalink[] {
+  const own = new Set(pic.tracks.map(t => t.targetId));
+  if (pic.stt) own.add(pic.stt.targetId);
+  return (pic.datalink ?? []).filter(d => !own.has(d.targetId) && dlAlpha(d.age) > 0);
+}
 
 /** Register a strobe as pickable at `n` points along a segment, so a click anywhere on it can jam-lock it. */
 export function hitAlong(f: FrameCtx, x0: number, y0: number, x1: number, y1: number, id: EntityId, n = 4): void {

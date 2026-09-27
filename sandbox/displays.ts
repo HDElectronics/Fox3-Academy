@@ -7,10 +7,13 @@
  *   ?pause=1          freeze the scenario (blinking continues)
  *   ?jam=strobe       add two jam strobes (bearing only); ?jam=lock: angle-only jam lock on one, the other a strobe
  *   ?iff=1            add IFF contacts: a friendly track (reply every 4 s), a no-reply track, a friendly and a plain brick
+ *   ?dl=1             add the datalink picture the jet's network gives (data/datalink.ts): AWACS, donor and PPLI entries,
+ *                     one stale AWACS track, and a datalink ID on the first own track / brick (none on F-15C, M-2000C)
  */
 import '../src/styles/tokens.css';
 import '../src/styles/base.css';
 import { AIRCRAFT } from '../src/data/aircraft';
+import { DATALINK } from '../src/data/datalink';
 import { IFF } from '../src/data/iff';
 import { MISSILES } from '../src/data/missiles';
 import { RWRS } from '../src/data/rwr';
@@ -193,7 +196,8 @@ class FakeRadar {
 
   picture(t: number, launchedCount: number): RadarPicture {
     const pic = this.basePicture(t, launchedCount);
-    const out = IFF_DEMO ? iffPicture(pic, t) : pic;
+    const withIff = IFF_DEMO ? iffPicture(pic, t) : pic;
+    const out = DL_DEMO ? dlPicture(withIff, t) : withIff;
     return JAM ? jamPicture(out, t, JAM) : out;
   }
 
@@ -280,6 +284,36 @@ function iffPicture(pic: RadarPicture, t: number): RadarPicture {
     { key: 'i4', targetId: 'i4', az: 42 * D2R, range: S * 0.3, alt: 5000, age: 0.4, fade: 0.9 },
   ];
   return { ...pic, tracks: [...pic.tracks, ...tracks], bricks: [...pic.bricks, ...bricks] };
+}
+
+// ------------------------------------------------------------------ datalink (?dl=1)
+
+const DL_DEMO = qs.get('dl') === '1';
+
+/**
+ * Datalink states for screenshots, filtered by what the jet's network gives (data/datalink.ts): a hostile AWACS
+ * track, a stale AWACS track fading toward the 20 s coast, an unknown donor track, a PPLI member, and a datalink ID
+ * on the first own track (AWACS hostile, no IFF reply: the Hornet's two factors) or a correlated entry on a brick.
+ */
+function dlPicture(pic: RadarPicture, t: number): RadarPicture {
+  const spec = DATALINK[pic.aircraftType];
+  const S = pic.rangeScale;
+  const e = (key: string, source: 'awacs' | 'donor' | 'ppli', az: number, k: number, patch: Partial<RadarPicture['datalink'][number]> = {}) => ({
+    key: `${source}:${key}`, targetId: key, az: az * D2R, range: S * k, alt: 7500, relHeading: Math.PI * 0.9, speed: 240, source,
+    donorLabel: source === 'donor' ? 'HORN' : null, sovereignty: source === 'ppli' ? 'friendly' as const : source === 'awacs' ? 'hostile' as const : 'unknown' as const,
+    correlated: false, age: (t % 10) * 0.2, ...patch,
+  });
+  const all: RadarPicture['datalink'] = [];
+  if (spec.awacs) all.push(e('dA', 'awacs', -36, 0.66), e('dS', 'awacs', 44, 0.46, { age: 14 }));
+  if (spec.donors.length) all.push(e('dD', 'donor', 30, 0.8), e('dF', 'donor', -48, 0.5, { sovereignty: 'friendly', relHeading: 0.3 }));
+  if (spec.ppli) all.push(e('dP', 'ppli', -12, 0.28, { relHeading: 0.1, speed: 250 }));
+  if (!all.length) return pic;
+  const first = pic.tracks[0];
+  const tracks = pic.tracks.map(tr => (tr === first ? { ...tr, dl: 'hostile' as const, iff: { reply: 'no-reply' as const, age: 1 } } : tr));
+  if (first) all.push(e(first.targetId, 'awacs', first.az / D2R, first.range / S, { correlated: true }));
+  const b = pic.bricks[0];
+  if (b) all.push(e(b.targetId, 'awacs', b.az / D2R, b.range / S, { correlated: true }));
+  return { ...pic, tracks, datalink: all };
 }
 
 // ------------------------------------------------------------------ jamming (?jam=strobe | lock)
