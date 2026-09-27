@@ -13,7 +13,9 @@
  */
 import { Vector3 } from 'three';
 import type { World } from './world';
-import type { Aircraft, AiMemory, AiSkill, Dlz, EntityId, Missile, MissReason, SimEvent } from './types';
+import type { Aircraft, AiMemory, AiSkill, Dlz, EntityId, Missile, MissReason, SamMissile, SamSite, SimEvent } from './types';
+import { SAMS } from '../data/sams';
+import { samRingM } from './sam';
 import { fighterSpec, isFighterAc } from './jet';
 import type { AircraftSpec, MissileId, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
@@ -183,6 +185,9 @@ interface Threat {
   key: string;
   missile: Missile | null;
   emitter: Aircraft | null;
+  /** SAM threat: the site whose track guides the missile (notched, like an SARH shooter's radar) and the missile. */
+  site?: SamSite;
+  samMissile?: SamMissile;
   kind: ThreatKind;
   pos: Vector3;
   range: number;
@@ -435,11 +440,41 @@ function gLimit(ac: Aircraft, extra = 0): number {
 }
 
 function fly(world: World, ac: Aircraft, heading: number, alt: number, speed: number, ab: boolean, maxG: number): void {
+  if (stateOf(ac) !== 'defend') heading = avoidSamRings(world, ac, heading);
   ac.cmd.heading = wrap2Pi(heading);
   ac.cmd.altitude = Math.max(alt, world.groundAlt + 300);
   ac.cmd.speed = speed;
   ac.cmd.afterburner = ab;
   ac.cmd.maxG = maxG;
+}
+
+/** Keep this far outside a known SAM ring (m, trainer value). */
+export const SAM_RING_MARGIN_M = 3000;
+
+/**
+ * Trainer rule (simplified, not documented by ED): a hostile SAM site the jet's RWR shows keeps the jet out of its
+ * threat ring. A heading that would enter the ring bends to the nearer tangent (ring plus SAM_RING_MARGIN_M); inside
+ * the ring the jet turns out, away from the site. Other headings are kept.
+ */
+export function avoidSamRings(world: World, ac: Aircraft, heading: number): number {
+  let h = heading;
+  for (const c of ac.rwr) {
+    const site = world.samSites.get(c.emitterId);
+    if (!site || !site.alive || site.side === ac.side) continue;
+    const R = samRingM(site.type) + SAM_RING_MARGIN_M;
+    const D = Math.hypot(site.pos.x - ac.pos.x, site.pos.z - ac.pos.z);
+    const B = bearingTo(ac.pos, site.pos);
+    if (D <= R) {
+      // Inside: head out, but keep the side of the wanted heading (away from the site, at most beam).
+      const away = B + Math.PI;
+      if (Math.abs(wrapPi(h - B)) < Math.PI / 2) h = Math.abs(wrapPi(h - away)) <= Math.PI / 2 ? h : away + Math.sign(wrapPi(h - away)) * Math.PI / 2;
+      continue;
+    }
+    const half = Math.asin(Math.min(1, R / D));       // half-angle of the ring seen from the jet
+    const off = wrapPi(h - B);
+    if (Math.abs(off) < half) h = B + (off >= 0 ? half : -half);
+  }
+  return h;
 }
 
 /** Contacts are dead-reckoned at most this long; older ones stay where they were last seen. */
@@ -581,6 +616,22 @@ function currentThreat(world: World, ac: Aircraft, b: Brain): Threat | null {
     const closure = closureRate(pos, vel, ac.pos, ac.vel);
     list.push({ key, missile: m, emitter, kind, pos, range, closure, tgo: range / Math.max(closure, 60) });
   };
+  // SAMs: a launch cue from a site means SAMs in flight at us; each one is a radar-guided threat notched against the
+  // site's track radar. Only real missiles count, so the jet never defends against a cue with nothing in flight.
+  for (const c of ac.rwr) {
+    if (c.state !== 'launch') continue;
+    const site = world.samSites.get(c.emitterId);
+    if (!site) continue;
+    for (const sm of world.samMissiles.values()) {
+      if (!sm.alive || sm.siteId !== site.id || sm.targetId !== ac.id) continue;
+      const key = `sam:${sm.id}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const range = ac.pos.distanceTo(sm.pos);
+      const closure = closureRate(sm.pos, sm.vel, ac.pos, ac.vel);
+      list.push({ key, missile: null, emitter: null, site, samMissile: sm, kind: 'sarh', pos: sm.pos, range, closure, tgo: range / Math.max(closure, 60) });
+    }
+  }
   for (const c of ac.rwr) {
     if (c.state === 'missile') {
       const m = world.missiles.get(c.emitterId);
@@ -1293,8 +1344,8 @@ function defend(world: World, ac: Aircraft, b: Brain, th: Threat): void {
   const now = world.t;
   const sk = skillOf(ac);
   const shooter = th.emitter;
-  // SARH: notch the illuminating radar. ARH/IR: notch the missile itself.
-  const threatPos = th.kind === 'sarh' && shooter && shooter.alive ? shooter.pos : th.pos;
+  // SARH and SAMs: notch the illuminating radar (the site's track). ARH/IR: notch the missile itself.
+  const threatPos = th.site ? th.site.pos : th.kind === 'sarh' && shooter && shooter.alive ? shooter.pos : th.pos;
   const B = bearingTo(ac.pos, threatPos);
   const prev = stateOf(ac) === 'defend' ? b.mem.defend : null;
   let d: DefendEpisode;
@@ -1305,7 +1356,7 @@ function defend(world: World, ac: Aircraft, b: Brain, th: Threat): void {
     const side: 1 | -1 = Math.abs(wrapPi(hR - ac.heading)) <= Math.abs(wrapPi(hL - ac.heading)) ? 1 : -1;
     const floor = world.groundAlt + (skillName(ac) === 'ace' ? 900 : 1500);
     d = {
-      key: th.key, missileId: th.missile?.id ?? null, shooterId: shooter?.id ?? null, kind: th.kind, mode, side,
+      key: th.key, missileId: th.missile?.id ?? th.samMissile?.id ?? null, shooterId: shooter?.id ?? th.site?.id ?? null, kind: th.kind, mode, side,
       err: (world.rand() * 2 - 1) * sk.notchErrDeg * D2R,
       alt: Math.max(floor, ac.pos.y - sk.notchDescend),
       startedAt: now, lastSeen: now, burstLeft: 0, nextBurst: now, chaffUsed: 0, flaresUsed: 0,
@@ -1320,8 +1371,8 @@ function defend(world: World, ac: Aircraft, b: Brain, th: Threat): void {
       // Another missile is now the most urgent: keep turning the same way, speak only if the plan changes.
       d.key = th.key;
       d.chaffUsed = 0;
-      d.missileId = th.missile?.id ?? null;
-      d.shooterId = shooter?.id ?? null;
+      d.missileId = th.missile?.id ?? th.samMissile?.id ?? null;
+      d.shooterId = shooter?.id ?? th.site?.id ?? null;
       d.kind = th.kind;
       const mode = pickDefence(world, ac, th, sk);
       if (mode !== d.mode && !(d.mode === 'notch' && mode === 'drag')) {
@@ -1372,10 +1423,12 @@ function defend(world: World, ac: Aircraft, b: Brain, th: Threat): void {
 
 /** Fields for a defend call: the shooter, the missile (when known) and its range. */
 function threatExtra(th: Threat): SayExtra {
-  return { targetId: th.emitter?.id ?? th.missile?.shooterId ?? null, missileId: th.missile?.id ?? null, missile: th.missile?.type ?? null, range: th.range };
+  return { targetId: th.emitter?.id ?? th.missile?.shooterId ?? th.site?.id ?? null, missileId: th.missile?.id ?? th.samMissile?.id ?? null, missile: th.missile?.type ?? null, range: th.range };
 }
 
 function pickDefence(world: World, ac: Aircraft, th: Threat, sk: AiSkillProfile): 'notch' | 'drag' | 'break' {
+  // SAMs: beam the site, descend, chaff while beaming (docs/research/sam-threats.md, "Defences that work").
+  if (th.site) return 'notch';
   if (th.kind === 'ir') return 'break';
   if (th.kind === 'sarh') return th.range > sk.dragKm * 1000 * 1.3 ? 'drag' : 'notch';
   // ARH. Drag while far and not yet active; also when above the missile (no ground behind us:
@@ -1387,15 +1440,16 @@ function pickDefence(world: World, ac: Aircraft, th: Threat, sk: AiSkillProfile)
 }
 
 function defendText(world: World, ac: Aircraft, b: Brain, d: DefendEpisode, th: Threat, B: number, abandoned: boolean): string {
-  const name = th.missile ? mName(th.missile.type) : th.kind === 'sarh' ? 'radar missile' : 'missile';
-  const by = th.missile ? whose(world.get(th.missile.shooterId)) : whose(th.emitter);
+  const sam = th.site ? SAMS[th.site.type].nato.split(' ')[0] : null;
+  const name = sam ? `${sam} missile` : th.missile ? mName(th.missile.type) : th.kind === 'sarh' ? 'radar missile' : 'missile';
+  const by = sam ? 'the' : th.missile ? whose(world.get(th.missile.shooterId)) : whose(th.emitter);
   const r = fmtRange(th.range, b.cfg.units);
   const tail = abandoned ? ', abandoning its own shot' : '';
   if (d.mode === 'break') return `${ac.callsign} breaks against ${by} ${name}, dropping flares${tail}`;
   if (d.mode === 'drag') return `${ac.callsign} turns cold to drag ${by} ${name}, ${r} out${tail}`;
   const dir = compass(B - d.side * Math.PI / 2 + d.err);
   const cm = ac.chaff > 0 ? ', dropping chaff' : ', out of chaff';
-  const against = th.kind === 'sarh' && th.emitter ? `${whose(th.emitter)} radar` : `${by} ${name}`;
+  const against = sam ? `the ${sam} radar` : th.kind === 'sarh' && th.emitter ? `${whose(th.emitter)} radar` : `${by} ${name}`;
   return `${ac.callsign} notches ${dir} against ${against}${cm}${tail}`;
 }
 

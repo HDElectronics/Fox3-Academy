@@ -342,6 +342,18 @@ supporting emits another `support` event with the same state.
 
 ---
 
+## SAMs (trainer rule)
+
+AI jets learn about SAM sites only from their RWR, like aircraft threats.
+- **Rings:** `fly()` passes every heading outside the defence through `avoidSamRings(world, ac, heading)`: a hostile,
+  live site on the RWR bends a heading that would enter its ring (`samRingM` + `SAM_RING_MARGIN_M`) to the nearer
+  tangent; inside the ring the jet turns out, at most to the beam.
+- **Launches:** a site's launch cue adds each SAM in flight at the jet to `currentThreat` as a radar-guided threat
+  that remembers the site. `pickDefence` always notches a SAM; `defend` beams the **site** (its track guides the
+  missile), descends and drops chaff bundles while beaming, per docs/research/sam-threats.md. Only real missiles
+  count, so a cue with nothing in flight never starts a defence.
+- Tested in `src/sim/aiSam.test.ts` (ring geometry, a defended launch, flying round a ring to reach a bandit).
+
 ## Gotchas
 
 - **Fresh World per scenario.** Builders use fixed ids; calling two builders on one World collides.

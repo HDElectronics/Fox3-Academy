@@ -419,10 +419,15 @@ export interface SamDrill {
  * ring): the RWR shows its search radar first, a lock inside the ring and a launch after the acquisition delay.
  * Defend by notch + chaff, terrain (maskAltM), descending under the radar horizon, or turning out of the ring.
  */
+/** How far outside the ring a SAM drill starts at most (m, trainer value). */
+export const SAM_DRILL_LEAD_M = 5000;
+
 export function samDrill(world: World, playerType: FighterId, sam: SamId = 'sa11', opts: SamDrillOptions = {}): SamDrill {
   const player = spawnPlayer(world, playerType, opts);
   const ringM = SAMS[sam].threatRingKm * 1000;
-  const at = place({ x: 0, z: 0 }, (opts.offsetDeg ?? 0) * D2R, opts.range ?? ringM * 1.15, world.groundAlt);
+  // Default start: just outside the ring (the RWR shows the search first), at most 5 km out so even the SA-10
+  // (120 km ring) locks within about 20 s instead of flying 18 km first.
+  const at = place({ x: 0, z: 0 }, (opts.offsetDeg ?? 0) * D2R, opts.range ?? ringM + Math.min(ringM * 0.15, SAM_DRILL_LEAD_M), world.groundAlt);
   const siteId = 'sam1';
   const site = world.spawnSam({
     id: siteId, side: 'red', type: sam, pos: { x: at.x, z: at.z }, maskAltM: opts.maskAltM,
