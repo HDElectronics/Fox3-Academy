@@ -5,6 +5,7 @@
  *   ?t=28             start the 60 s scenario loop at t (default 28, a busy moment)
  *   ?only=f15c        one display (radar: su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c; rwr: rwr-<id>)
  *   ?pause=1          freeze the scenario (blinking continues)
+ *   ?jam=strobe       add two jam strobes (bearing only); ?jam=lock: angle-only jam lock on one, the other a strobe
  */
 import '../src/styles/tokens.css';
 import '../src/styles/base.css';
@@ -189,6 +190,11 @@ class FakeRadar {
   }
 
   picture(t: number, launchedCount: number): RadarPicture {
+    const pic = this.basePicture(t, launchedCount);
+    return JAM ? jamPicture(pic, t, JAM) : pic;
+  }
+
+  private basePicture(t: number, launchedCount: number): RadarPicture {
     const s = this.s, spec = AIRCRAFT[s.type];
     const sc = this.scan(t);
     const lockId = s.lock(t);
@@ -245,6 +251,30 @@ class FakeRadar {
       cursor: { az: (primRel ? primRel.az + 9 * D2R : 0) + 0.05 * Math.sin(t * 0.3), range: cursorRange * 0.82 },
     };
   }
+}
+
+// ------------------------------------------------------------------ jamming (?jam=strobe | lock)
+
+const JAM = qs.get('jam') === 'lock' ? 'lock' : qs.get('jam') ? 'strobe' : null;
+
+/**
+ * Jam states for screenshots: 'strobe' adds two jam strobes (bearing only, one fresh, one fading) to the scripted
+ * picture; 'lock' puts the radar in an angle-only jam lock (stt.hoj) on one jammer with the other still a strobe.
+ * A jam lock's range, altitude, aspect and closure are placeholders; the displays must not show them.
+ */
+function jamPicture(pic: RadarPicture, t: number, jam: 'strobe' | 'lock'): RadarPicture {
+  const sweep = 0.4 * Math.sin(t * 0.2) * D2R;
+  const strobes: RadarPicture['strobes'] = [
+    { key: `j1~${Math.floor(t)}`, targetId: 'j1', az: 22 * D2R + sweep, el: 0, age: 0.3, fade: 0.95 },
+    { key: `j2~${Math.floor(t)}`, targetId: 'j2', az: -16 * D2R - sweep, el: 0, age: 3, fade: 0.45 },
+  ];
+  if (jam === 'strobe') return { ...pic, strobes };
+  return {
+    ...pic, scan: { ...pic.scan, beamAz: strobes[0].az }, mode: 'stt', modeLabel: AIRCRAFT[pic.aircraftType].radar.modeLabels.stt ?? 'STT', tracks: [], bricks: [], dlz: null, shootCue: false,
+    strobes: strobes.filter(s => s.targetId !== 'j1'),
+    stt: { targetId: 'j1', az: strobes[0].az, range: 46000, alt: 8000, aspectDeg: 0, closure: 0, lost: false, hoj: true },
+    missilesInFlight: [],
+  };
 }
 
 // ------------------------------------------------------------------ scripted RWR threats
@@ -356,7 +386,7 @@ if (radarKeys.length) {
       const pick = disp.pickDetail(ev.clientX, ev.clientY);
       const rad = disp.toRadar(ev.clientX, ev.clientY);
       out.textContent = `${key}: ${pick ? pick.kind + ' ' + pick.targetId : 'nothing'}${rad ? ` @ ${(rad.az / D2R).toFixed(0)}° ${(rad.range / 1000).toFixed(0)} km` : ''}`;
-      if (pick && pick.kind !== 'brick') fr.click(pick.targetId);
+      if (pick && pick.kind !== 'brick' && pick.kind !== 'strobe') fr.click(pick.targetId);
     });
     radars.push({ key, s, fr, disp, perf: [] });
   }

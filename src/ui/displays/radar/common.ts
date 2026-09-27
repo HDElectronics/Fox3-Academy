@@ -115,7 +115,7 @@ export const brickAlpha = (b: PicBrick): number => Math.max(0, Math.min(1, 0.12 
 
 /** Push a hit-test item. */
 export function hit(f: FrameCtx, x: number, y: number, id: EntityId, kind: HitItem['kind'], rU = 3.2): void {
-  f.hits.push({ x, y, r: Math.max(12, rU * f.u), id, kind, prio: kind === 'stt' ? 0 : kind === 'track' ? 1 : 2 });
+  f.hits.push({ x, y, r: Math.max(12, rU * f.u), id, kind, prio: kind === 'stt' ? 0 : kind === 'track' ? 1 : kind === 'strobe' ? 3 : 2 });
 }
 
 /** Stick length for an aspect/velocity vector: grows with speed. */
@@ -139,4 +139,27 @@ export interface DlzMarks {
 export function rangeY(m: DlzMarks, r: number): number {
   const k = Math.max(0, Math.min(1.02, r / (m.rangeScale || 1)));
   return m.yBottom - (m.yBottom - m.yTop) * k;
+}
+
+// ------------------------------------------------------------------ jamming (docs/research/ecm-datalink-iff.md)
+// A strobe and a jam lock carry a bearing only: never draw a range, altitude, aspect or closure for them.
+
+export type PicStrobe = RadarPicture['strobes'][number];
+export type PicStt = NonNullable<RadarPicture['stt']>;
+
+/** Opacity for a jam strobe from its fade (1 fresh .. 0 gone). */
+export const strobeAlpha = (s: PicStrobe): number => Math.max(0, Math.min(1, 0.15 + 0.85 * s.fade));
+
+/** The STT when it has a real range (not a jam lock). Use it for every range, altitude, aspect or closure readout. */
+export const rangedStt = (pic: RadarPicture): PicStt | null => (pic.stt && !pic.stt.hoj ? pic.stt : null);
+
+/** The angle-only jam lock (HOJ / AOJ / JAT), or null. Only its `az` and `targetId` may be drawn. */
+export const jamLock = (pic: RadarPicture): PicStt | null => (pic.stt?.hoj ? pic.stt : null);
+
+/** Register a strobe as pickable at `n` points along a segment, so a click anywhere on it can jam-lock it. */
+export function hitAlong(f: FrameCtx, x0: number, y0: number, x1: number, y1: number, id: EntityId, n = 4): void {
+  for (let k = 0; k < n; k++) {
+    const t = (k + 0.5) / n;
+    hit(f, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, id, 'strobe', 2.4);
+  }
 }

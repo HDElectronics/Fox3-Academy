@@ -5,7 +5,7 @@
  * caret, azimuth scale at the bottom with scan-limit circles and a 'V' caret, LRS bricks, TWS tracks
  * (filled brick + altitude + aspect stick; SDT hollow; PDT star), DLZ on the right (Raero triangle,
  * Rpi / Rtr bars, Rmin, range caret with closure), stores code 'A4C' and the HUD-style 'T tta tti'
- * / 'M tti' missile counter.
+ * / 'M tti' missile counter. Jam strobe = column of hollow rectangles; HOJ lock = solid line + 'HOJ', no range.
  */
 import { D2R, R2D, wrap2Pi } from '../../../sim/math';
 import { blinkOn } from '../surface';
@@ -16,8 +16,8 @@ import {
 } from '../geometry';
 import { AIRCRAFT } from '../../../data/aircraft';
 import {
-  X, Y, brickAlpha, hit, missilePhase, missilesAt, primaryTrack, rangeY, stickLen, visibleCoast, type DlzMarks, type FrameCtx, type Mapping,
-  type PicTrack,
+  X, Y, brickAlpha, hit, hitAlong, jamLock, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen, strobeAlpha, visibleCoast,
+  type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
 export function drawF15Vsd(f: FrameCtx): Mapping {
@@ -85,6 +85,9 @@ export function drawF15Vsd(f: FrameCtx): Mapping {
   g.ink(th.sym, 1.1, 0.34);
   caretDown(g, map(pic.scan.beamAz, 0).x, ay - 0.4 * u, 1.6 * u);
 
+  // ---- jam strobes: a column of hollow rectangles along the jammer's azimuth, full height (no range)
+  drawF15Strobes(f, plot, gAz, map);
+
   // ---- contacts
   for (const b of pic.bricks) {
     if (b.range > pic.rangeScale || Math.abs(b.az) > gAz) continue;
@@ -106,16 +109,30 @@ export function drawF15Vsd(f: FrameCtx): Mapping {
     drawTrack(f, t, p.x, p.y, t === prim, shooting);
   }
   // STT target not in the track list (radar builds only the lock).
-  if (pic.stt && !pic.tracks.some(t => t.targetId === pic.stt?.targetId) && pic.stt.range <= pic.rangeScale) {
-    const p = map(pic.stt.az, pic.stt.range);
-    const on = !pic.stt.lost || blinkOn(2, f.now);
+  const stt = rangedStt(pic);
+  if (stt && !pic.tracks.some(t => t.targetId === stt.targetId) && stt.range <= pic.rangeScale) {
+    const p = map(stt.az, stt.range);
+    const on = !stt.lost || blinkOn(2, f.now);
     if (on) {
       g.ink(th.symHi, 1.2, 0.34);
       asterisk(g, p.x, p.y, 2.3 * u);
       g.font(2.5);
-      g.text(fmtAltK(pic.stt.alt, units), p.x, p.y - 3.4 * u);
+      g.text(fmtAltK(stt.alt, units), p.x, p.y - 3.4 * u);
     }
-    hit(f, p.x, p.y, pic.stt.targetId, 'stt');
+    hit(f, p.x, p.y, stt.targetId, 'stt');
+  }
+  // HOJ lock (ED F-15C manual p. 70): a solid line through the rectangles and HOJ; azimuth only, no range, alt or aspect.
+  const jl = jamLock(pic);
+  if (jl && Math.abs(jl.az) <= gAz) {
+    const x = map(jl.az, 0).x;
+    if (!jl.lost || blinkOn(2, f.now)) {
+      g.ink(th.symHi, 1.2, 0.34);
+      g.line(x, plot.y, x, plot.y + plot.h);
+      column(f, x, plot);
+      g.font(2.8, 700);
+      g.text('HOJ', x, plot.y - 2.2 * u, 'center');
+    }
+    hit(f, x, plot.y + plot.h / 2, jl.targetId, 'stt');
   }
 
   // ---- TDC: two short vertical bars
@@ -139,7 +156,7 @@ export function drawF15Vsd(f: FrameCtx): Mapping {
 
   // ---- DLZ (right edge, on the display range scale)
   const dm: DlzMarks = { x: X(f, 90.5), side: -1, yBottom: plot.y + plot.h, yTop: plot.y, rangeScale: pic.rangeScale };
-  if (pic.dlz) drawF15Dlz(f, dm, pic.dlz, tgt?.closure ?? pic.stt?.closure ?? null);
+  if (pic.dlz) drawF15Dlz(f, dm, pic.dlz, tgt?.closure ?? rangedStt(pic)?.closure ?? null);
 
   // ---- text: top row
   g.ink(th.sym, 0.7, 0.3);
@@ -213,6 +230,26 @@ export function drawF15Vsd(f: FrameCtx): Mapping {
     toScreen: map,
     toRadar: (x, y) => screenToBscope(plot, gAz, pic.rangeScale, x, y),
   };
+}
+
+/** A vertical series of hollow rectangles at x, spanning the range axis. */
+function column(f: FrameCtx, x: number, plot: Rect): void {
+  const { g, u } = f;
+  const step = 4.2 * u;
+  for (let y = plot.y + step / 2; y < plot.y + plot.h; y += step) brick(g, x, y, 2.4 * u, 1.1 * u, false);
+}
+
+function drawF15Strobes(f: FrameCtx, plot: Rect, gAz: number, map: (az: number, r: number) => { x: number; y: number }): void {
+  const { g, th, pic } = f;
+  const jl = jamLock(pic);
+  for (const s of pic.strobes) {
+    if (Math.abs(s.az) > gAz || (jl && jl.targetId === s.targetId)) continue;
+    const x = map(s.az, 0).x;
+    g.ink(th.sym, 0.8, 0.24, strobeAlpha(s));
+    column(f, x, plot);
+    hitAlong(f, x, plot.y, x, plot.y + plot.h, s.targetId);
+  }
+  g.reset();
 }
 
 function rankOf(t: PicTrack): number {

@@ -6,7 +6,8 @@
  * the dot (1,800 kt ≈ 0.36 R), altitude digit on the left (tens of thousands of feet), Phoenix
  * firing-order digit 1-6 on the right, replaced by TTI after launch, which blinks once the active
  * command has gone. Extrapolated track = small X over the dot. Scan limits = two dashed lines from
- * own aircraft (dash + gap = 20 nm), one strobe in STT.
+ * own aircraft (dash + gap = 20 nm), one strobe in STT. Jam strobe = line to the rim with '<' at 50 nm; JAT lock
+ * = bright jam strobe + 'JAT', no range.
  */
 import { M_PER_NM } from '../../../sim/math';
 import { blinkOn } from '../surface';
@@ -14,7 +15,9 @@ import { cross, xMark } from '../glyphs';
 import {
   fmtAltK, fmtClosure, fmtRangeShort, fmtScale, planToScreen, screenToPlan, secs, tidAltDigit, tomcatWeapon, type Pt,
 } from '../geometry';
-import { X, Y, brickAlpha, hit, missilePhase, primaryTrack, type FrameCtx, type Mapping, type PicTrack } from './common';
+import {
+  X, Y, brickAlpha, hit, jamLock, missilePhase, primaryTrack, rangedStt, strobeAlpha, type FrameCtx, type Mapping, type PicTrack,
+} from './common';
 
 export function drawTid(f: FrameCtx): Mapping {
   const { g, th, pic, u, units } = f;
@@ -52,7 +55,9 @@ export function drawTid(f: FrameCtx): Mapping {
   // ---- scan limits: dashed lines, dash + gap = 20 nm; one strobe in STT
   const dashPx = 10 * M_PER_NM * pxPerM;
   const rayEnd = (az: number) => map(az, pic.rangeScale * 2);
-  if (pic.mode === 'stt' && pic.stt) {
+  if (pic.mode === 'stt' && pic.stt?.hoj) {
+    // JAT: drawn below with the jam strobes.
+  } else if (pic.mode === 'stt' && pic.stt) {
     const e = rayEnd(pic.stt.az);
     g.ink(th.sym, 0.6, 0.24, 0.8);
     g.line(origin.x, origin.y, e.x, e.y);
@@ -80,6 +85,31 @@ export function drawTid(f: FrameCtx): Mapping {
   const hx = Math.sin(rot) * 4 * u, hy = -Math.cos(rot) * 4 * u;
   g.line(origin.x + hx * 0.35, origin.y + hy * 0.35, origin.x + hx, origin.y + hy);
 
+  // ---- jam strobes: a line from own aircraft toward the jammer with '<' at 50 nm (Heatblur F-14 manual, ECM)
+  const jl = jamLock(pic);
+  for (const s of pic.strobes) {
+    if (jl && jl.targetId === s.targetId) continue;
+    g.ink(th.sym, 0.7, 0.24, strobeAlpha(s));
+    const p = jamStrobe(f, origin, cx, cy, R, map, s.az, rot);
+    if (p) hit(f, p.x, p.y, s.targetId, 'strobe', 2.4);
+    const mid = map(s.az, Math.min(pic.rangeScale, 50 * M_PER_NM) * 0.5);
+    hit(f, mid.x, mid.y, s.targetId, 'strobe', 2.4);
+  }
+  g.reset();
+  // JAT: the jam lock, a bright strobe with JAT beside the '<'; angle only (no range, altitude or aspect).
+  if (jl && (!jl.lost || blinkOn(2, f.now))) {
+    g.ink(th.symHi, 1.2, 0.32);
+    const p = jamStrobe(f, origin, cx, cy, R, map, jl.az, rot);
+    if (p) {
+      g.font(2.6, 700);
+      // Label on the side facing the centre of the scope, so it is not clipped by the rim.
+      const left = p.x > cx;
+      g.text('JAT', p.x + (left ? -2.4 : 2.4) * u, p.y + 1.6 * u, left ? 'right' : 'left');
+      hit(f, p.x, p.y, jl.targetId, 'stt');
+    }
+  }
+  g.reset();
+
   // ---- RWS momentary tracks (bricks)
   for (const b of pic.bricks) {
     if (b.range > pic.rangeScale * 1.6) continue;
@@ -98,14 +128,15 @@ export function drawTid(f: FrameCtx): Mapping {
     hit(f, p.x, p.y, t.targetId, t.locked ? 'stt' : 'track');
     drawTidTrack(f, t, p.x, p.y, rot, t === prim);
   }
-  if (pic.stt && !pic.tracks.some(t => t.targetId === pic.stt?.targetId)) {
-    const p = map(pic.stt.az, pic.stt.range);
-    if (!pic.stt.lost || blinkOn(2, f.now)) {
+  const stt = rangedStt(pic);
+  if (stt && !pic.tracks.some(t => t.targetId === stt.targetId)) {
+    const p = map(stt.az, stt.range);
+    if (!stt.lost || blinkOn(2, f.now)) {
       g.ink(th.symHi, 1.2, 0.3);
       symbol(f, p.x, p.y, f.opts.nonFriendly, 1.5 * u);
       g.circle(p.x, p.y, 2.6 * u);
     }
-    hit(f, p.x, p.y, pic.stt.targetId, 'stt');
+    hit(f, p.x, p.y, stt.targetId, 'stt');
   }
 
   // Classic TID has no textual IN RNG / SHOOT cue. Geometric launch-zone detail is simplified.
@@ -135,6 +166,25 @@ export function drawTid(f: FrameCtx): Mapping {
     toScreen: map,
     toRadar: (x, y) => (Math.hypot(x - cx, y - cy) > R ? null : screenToPlan(origin, pxPerM, rot, x, y)),
   };
+}
+
+/**
+ * A TID jam strobe along bearing `az`: a line from own aircraft to the rim and the angle symbol '<' at 50 nm
+ * (or just inside the rim when the scale is smaller). Returns the '<' position.
+ */
+function jamStrobe(f: FrameCtx, o: Pt, cx: number, cy: number, R: number, map: (az: number, r: number) => Pt, az: number, rot: number): Pt | null {
+  const { g, u } = f;
+  const ang = az + rot;
+  const dx = Math.sin(ang), dy = -Math.cos(ang);
+  const rim = rimPoint(o, cx, cy, R, ang);
+  if (!rim) return null;
+  g.line(o.x, o.y, rim.x, rim.y);
+  let p = map(az, 50 * M_PER_NM);
+  const maxD = Math.hypot(rim.x - o.x, rim.y - o.y) - 3.5 * u;
+  if (Math.hypot(p.x - o.x, p.y - o.y) > maxD) p = { x: o.x + dx * maxD, y: o.y + dy * maxD };
+  // The angle symbol '<', upright on the screen, centred on the strobe.
+  g.poly([p.x + 0.9 * u, p.y - 1.2 * u, p.x - 0.9 * u, p.y, p.x + 0.9 * u, p.y + 1.2 * u], false);
+  return p;
 }
 
 /** Intersection of a ray from `o` (screen angle `ang`, clockwise from up) with the CRT circle. */

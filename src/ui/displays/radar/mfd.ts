@@ -22,8 +22,8 @@ import {
   screenToBscope, secs, speedVal, viperAzLegend, viperWeapon, type MfdFamily, type Rect,
 } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, missileOfInterest, missilePhase, missilesAt, primaryTrack, rangeY, stickLen, visibleCoast, type DlzMarks,
-  type FrameCtx, type Mapping, type PicTrack,
+  X, Y, brickAlpha, hit, hitAlong, jamLock, missileOfInterest, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen,
+  strobeAlpha, visibleCoast, type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
 const OSB_POS = [20, 35, 50, 65, 80];
@@ -40,6 +40,9 @@ export function drawMfd(f: FrameCtx): Mapping {
 
   drawOsbs(f, fam);
   drawScales(f, fam, plot, map);
+
+  // ---- jam strobes (azimuth only)
+  drawMfdStrobes(f, fam, plot, gAz, map);
 
   // ---- contacts
   for (const b of pic.bricks) {
@@ -66,14 +69,16 @@ export function drawMfd(f: FrameCtx): Mapping {
     else if (fam === 'viper') drawViperTrack(f, t, p.x, p.y, color);
     else drawJfTrack(f, t, p.x, p.y);
   }
-  if (pic.stt && !pic.tracks.some(t => t.targetId === pic.stt?.targetId) && pic.stt.range <= pic.rangeScale) {
-    const p = map(pic.stt.az, pic.stt.range);
-    if (!pic.stt.lost || blinkOn(2, f.now)) {
+  const stt = rangedStt(pic);
+  if (stt && !pic.tracks.some(t => t.targetId === stt.targetId) && stt.range <= pic.rangeScale) {
+    const p = map(stt.az, stt.range);
+    if (!stt.lost || blinkOn(2, f.now)) {
       g.ink(th.symHi, 1.2, 0.34);
       if (fam === 'hornet') { star(g, p.x, p.y, 1.6 * u); g.circle(p.x, p.y, 2.8 * u); } else g.circle(p.x, p.y, 2.6 * u);
     }
-    hit(f, p.x, p.y, pic.stt.targetId, 'stt');
+    hit(f, p.x, p.y, stt.targetId, 'stt');
   }
+  drawMfdJamLock(f, fam, plot, gAz, map);
 
   // ---- fly-out cues (missiles in flight at tracks)
   for (const t of pic.tracks) {
@@ -119,13 +124,69 @@ export function drawMfd(f: FrameCtx): Mapping {
 
   // ---- DLZ on the right edge, on the display range scale
   const dm: DlzMarks = { x: X(f, 88.2), side: -1, yBottom: plot.y + plot.h, yTop: plot.y, rangeScale: pic.rangeScale };
-  const closure = prim?.closure ?? pic.stt?.closure ?? null;
+  const closure = prim?.closure ?? rangedStt(pic)?.closure ?? null;
   if (pic.dlz) drawMfdDlz(f, fam, dm, closure);
 
   // ---- data lines
   drawTexts(f, fam, plot, prim);
   g.reset();
   return { toScreen: map, toRadar: (x, y) => screenToBscope(plot, gAz, pic.rangeScale, x, y) };
+}
+
+// ------------------------------------------------------------------ jamming
+
+type MapFn = (az: number, r: number) => { x: number; y: number };
+
+/** Hornet AOJ "dugout": a small U at the top edge of the B-scope (ED Hornet guide p. 157). */
+function dugout(f: FrameCtx, x: number, top: number): void {
+  const { g, u } = f;
+  const w = 1.3 * u, h = 2.2 * u;
+  g.poly([x - w, top + 0.4 * u, x - w, top + h, x + w, top + h, x + w, top + 0.4 * u], false);
+}
+
+/** Viper jam cue: a pair of chevrons at the top of the FCR (ED Viper guide pp. 392–393). */
+function chevrons(f: FrameCtx, x: number, top: number): void {
+  const { g, u } = f;
+  const w = 1.6 * u, h = 1.4 * u, y = top + 0.6 * u;
+  for (const dx of [-1 * u, 1 * u]) g.poly([x + dx - w / 2, y + h, x + dx, y, x + dx + w / 2, y + h], false);
+}
+
+function strobeMark(f: FrameCtx, fam: MfdFamily, x: number, plot: Rect): void {
+  if (fam === 'hornet') dugout(f, x, plot.y);
+  else if (fam === 'viper') chevrons(f, x, plot.y);
+  else f.g.line(x, plot.y, x, plot.y + plot.h); // JF-17: no symbol found, generic strobe line (not verified)
+}
+
+function drawMfdStrobes(f: FrameCtx, fam: MfdFamily, plot: Rect, gAz: number, map: MapFn): void {
+  const { g, th, pic } = f;
+  const jl = jamLock(pic);
+  for (const s of pic.strobes) {
+    if (Math.abs(s.az) > gAz || (jl && jl.targetId === s.targetId)) continue;
+    const x = map(s.az, 0).x;
+    g.ink(fam === 'viper' ? th.caution : th.sym, 0.9, 0.3, strobeAlpha(s));
+    strobeMark(f, fam, x, plot);
+    if (fam === 'jf17') hitAlong(f, x, plot.y, x, plot.y + plot.h, s.targetId);
+    else hit(f, x, plot.y + 1.4 * f.u, s.targetId, 'strobe', 2.4);
+  }
+  g.reset();
+}
+
+/** Jam lock: a line along the bearing and AOJ (Hornet) / HOJ, azimuth only. The Viper and JF-17 lock cue is not verified. */
+function drawMfdJamLock(f: FrameCtx, fam: MfdFamily, plot: Rect, gAz: number, map: MapFn): void {
+  const { g, th, u, pic } = f;
+  const jl = jamLock(pic);
+  if (!jl || Math.abs(jl.az) > gAz) return;
+  const x = map(jl.az, 0).x;
+  if (!jl.lost || blinkOn(2, f.now)) {
+    g.ink(fam === 'viper' ? th.caution : th.symHi, 1.2, 0.34);
+    if (fam !== 'jf17') strobeMark(f, fam, x, plot);
+    g.ink(th.symHi, 1.2, 0.34);
+    g.line(x, plot.y + 2.8 * u, x, plot.y + plot.h);
+    g.font(2.6, 700);
+    const lx = x > plot.x + plot.w - 8 * u ? x - 1.4 * u : x + 1.4 * u;
+    g.text(fam === 'hornet' ? 'AOJ' : 'HOJ', lx, plot.y + 5 * u, lx < x ? 'right' : 'left');
+  }
+  hit(f, x, plot.y + 1.4 * u, jl.targetId, 'stt');
 }
 
 function weight(t: PicTrack): number {
