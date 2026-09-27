@@ -15,8 +15,9 @@ import { Vector3 } from 'three';
 import type { World } from './world';
 import type { AgWeaponId } from '../data/types';
 import { AG_WEAPONS } from '../data/agWeapons';
+import { AIRCRAFT } from '../data/aircraft';
 import type { AgMissReason, AgWeapon, Aircraft, AttackState, EntityId, GroundMark } from './types';
-import { D2R, G0, clamp, dirFrom, relBearing } from './math';
+import { D2R, G0, M_PER_NM, clamp, dirFrom, relBearing } from './math';
 import { cycleAgWeapon, salvoCount, stationsWith } from './attack';
 import { damageGround, groundHeight, groundUnitVel, lineOfSight } from './ground';
 import { shkvalAimPoint } from './shkval';
@@ -142,7 +143,7 @@ export interface AgLaunchCheck {
   band: { min: number; max: number } | null;
 }
 
-const kmS = (m: number) => `${(m / 1000).toFixed(1)} km`;
+const kmOut = (m: number) => `${(m / 1000).toFixed(1)} km`;
 
 /** Half angle (deg) of the cone a 'laser-spot' store sees a spot in, around its flight path. Trainer value. */
 const SPOT_CONE_DEG = 30;
@@ -215,6 +216,8 @@ export function canAgLaunch(world: World, ac: Aircraft, weapon?: AgWeaponId): Ag
   const w = weapon ?? ag?.selected ?? null;
   const out: AgLaunchCheck = { ok: false, pr: false, reason: '', weapon: w, targetId: null, range: null, band: null };
   const fail = (reason: string) => ({ ...out, reason });
+  // Reasons in the jet's own units: km in the Su-25T, nm in the A-10C II.
+  const kmS = (m: number) => (AIRCRAFT[ac.type].units === 'imperial' ? `${(m / M_PER_NM).toFixed(1)} nm` : kmOut(m));
   if (!ag || !ac.alive) return fail('No air-to-ground system');
   if (ag.master === 'nav') return fail('Select air-to-ground mode [7]');
   if (!w) return fail('Select a weapon [D]');
