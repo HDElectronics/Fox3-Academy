@@ -72,7 +72,7 @@ describe('flightHint', () => {
   });
 
   test('no contacts: the AWACS picture', () => {
-    expect(flightHint(state()).text).toMatch(/^AWACS: Bandit-1 on the nose, 90 km/);
+    expect(flightHint(state()).text).toMatch(/^GCI \(trainer picture\): Bandit-1 on the nose, 90 km/);
   });
 
   test('dead', () => {

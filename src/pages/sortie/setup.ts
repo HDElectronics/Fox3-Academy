@@ -16,6 +16,7 @@ import { speedFromMach } from '../../sim/atmosphere';
 import { AI_SKILLS, configureAi } from '../../sim/ai';
 import { BURN_THROUGH_M, ECM_USING, HOJ_MISSILES, JAM_CUE, OWN_JAMMER, type EcmUsing } from '../../data/ecm';
 import { IFF } from '../../data/iff';
+import { AWACS_UPDATE_S, DATALINK, DATALINK_CAVEATS, DL_COAST_S, DONOR_UPDATE_S } from '../../data/datalink';
 import { fmtAlt, fmtAltFine, fmtRange, type Units } from '../../app/format';
 import { iffKey, jetKeyMap } from './keys';
 import type { ScenarioId, SortieResult } from './coach';
@@ -44,6 +45,8 @@ export interface SortieSetup {
   samType: SamId;
   /** Mission editor "ECM Using" for every bandit (data/ecm.ts ECM_USING). */
   ecm: EcmUsing;
+  /** A friendly AWACS orbits behind you and feeds your side's datalink (sim/datalink.ts). */
+  awacs: boolean;
 }
 
 export type SamCount = 0 | 1 | 2;
@@ -53,7 +56,7 @@ export function defaultSetup(ac: FighterId): SortieSetup {
   const enemy = defaultAdversary(ac);
   return {
     scenario: '1v1', enemy, skill: 'regular', range: 100_000,
-    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1, sams: 0, samType: 'sa11', ecm: 'never',
+    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1, sams: 0, samType: 'sa11', ecm: 'never', awacs: false,
   };
 }
 
@@ -76,6 +79,7 @@ export function parseSetup(ac: FighterId, raw: unknown): SortieSetup {
       sams: o.sams === 1 || o.sams === 2 ? o.sams : 0,
       samType: o.samType && SAM_ORDER.includes(o.samType) ? o.samType : d.samType,
       ecm: parseEcm(o.ecm) ?? d.ecm,
+      awacs: o.awacs === true,
     };
   } catch { return d; }
 }
@@ -85,14 +89,65 @@ export function parseEcm(v: unknown): EcmUsing | null {
   return ECM_USING.find(x => x.id === v)?.id ?? null;
 }
 
-/** Spawn the fight into a fresh World. Every bandit gets the setup's "ECM Using" option. */
+/** A URL / stored AWACS flag: '1' / 'on' / true is on, '0' / 'off' / false is off, anything else null. */
+export function parseAwacs(v: unknown): boolean | null {
+  if (v === true || v === '1' || v === 'on') return true;
+  if (v === false || v === '0' || v === 'off') return false;
+  return null;
+}
+
+/** The friendly AWACS orbit: this far behind your start position, at this altitude (trainer values). */
+export const AWACS_BEHIND_M = 80_000;
+export const AWACS_ALT_M = 9_000;
+
+/**
+ * Spawn the fight into a fresh World. Every bandit gets the setup's "ECM Using" option; with the AWACS option on,
+ * your side gets an AWACS orbit behind you (an orbit point, not an aircraft).
+ */
 export function buildSortie(world: World, ac: FighterId, s: SortieSetup, units: Units): Engagement {
   const opts = { range: s.range, playerAlt: s.playerAlt, enemyAlt: s.enemyAlt, units, sams: samPlacements(s) };
   const eng = s.scenario === '1v2' ? pair(world, ac, s.enemy, s.skill, opts)
     : s.scenario === '2v2' ? twoVTwo(world, ac, s.enemy, s.skill, opts)
       : duel(world, ac, s.enemy, s.skill, opts);
   for (const id of eng.enemyIds) configureAi(world, id, { ecmUsing: s.ecm ?? 'never' });
+  const me = world.get(eng.playerId);
+  if (s.awacs && me) {
+    // Forward is (sin h, 0, -cos h) in the sim frame (x east, z south).
+    world.setAwacs(me.side, {
+      x: me.pos.x - Math.sin(me.heading) * AWACS_BEHIND_M, y: AWACS_ALT_M, z: me.pos.z + Math.cos(me.heading) * AWACS_BEHIND_M,
+    });
+  }
   return eng;
+}
+
+/**
+ * Brief lines for the datalink picture (data/datalink.ts): what your jet gets and where it shows, the symbols
+ * (labelled when not verified), the AWACS update and coast times, that a datalink track cannot be fired on, and in
+ * 2v2 whether your wingman shares his tracks.
+ */
+export function datalinkBriefLines(ac: FighterId, s: Pick<SortieSetup, 'awacs' | 'scenario'>): string[] {
+  const me = AIRCRAFT[ac], dl = DATALINK[ac];
+  const nv = dl.verified ? '' : ' (not verified)';
+  if (!dl.name) {
+    if (ac === 'f15c') return [`No datalink display on the ${me.short} (ED manual): in DCS you call AWACS by radio for bearing and range. Radio calls are not modelled here, so the AWACS option adds nothing to your scope.`];
+    return [`No air-to-air datalink on the ${me.short}: ${dl.where}${nv}. The AWACS option adds nothing to your scope.`];
+  }
+  const out: string[] = [];
+  const note = dl.note && !/community/i.test(dl.note) ? ` ${dl.note}.` : '';
+  out.push(`${dl.name}: shows on the ${dl.where}${nv}.${note}`);
+  out.push(`${dl.symbol}${nv}.`);
+  if (dl.awacs) {
+    out.push(s.awacs
+      ? `AWACS on: it calls every bandit hostile and updates every ${AWACS_UPDATE_S} s (trainer value); a track coasts ${DL_COAST_S} s after its last update, then drops (Viper manual).`
+      : 'AWACS off: no surveillance tracks. Set AWACS On in the mission to get them.');
+  }
+  out.push(DATALINK_CAVEATS[2]);
+  if (s.scenario === '2v2') {
+    out.push(dl.donors.includes(ac)
+      ? `Your wingman is on the same ${dl.name} network: his radar tracks${dl.ppli ? ' and his position' : ''} show on your picture every ${DONOR_UPDATE_S} s (trainer value).`
+      : `Your wingman shares no tracks: the ${me.short} gets only the AWACS picture.`);
+  }
+  return out;
 }
 
 /** How the burn-through figure is sourced, for the brief ("ED manual" or the data note). */
@@ -206,6 +261,7 @@ export interface BriefFacts {
   sams: string[];
   ecm: string[];
   iff: string[];
+  datalink: string[];
 }
 
 /** Best radar missile in a loadout (longest ED head-on reference), else the best IR one. */
@@ -308,6 +364,7 @@ export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: 
     them: `${n}× ${en.name}, ${s.skill}: ${loadoutText(s.enemy)} each.`,
     threats, yourJet, skill, zones, edge, sams: samBriefLines(s, units), ecm: ecmBriefLines(ac, s, units, jamKey),
     iff: iffBriefLines(ac, s.scenario, iffK),
+    datalink: datalinkBriefLines(ac, s),
   };
 }
 

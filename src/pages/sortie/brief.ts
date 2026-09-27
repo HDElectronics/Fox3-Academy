@@ -99,6 +99,11 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
     options: ECM_USING.map(x => ({ value: x.id, label: `${x.label}${x.id === 'never' ? ' (default)' : ''}` })),
     onChange: v => { s.ecm = v; refresh(); },
   });
+  const awacs = segmented<'off' | 'on'>({
+    id: 'sortie-awacs', label: 'AWACS', value: s.awacs ? 'on' : 'off', fill: true,
+    options: [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On', sub: 'datalink' }],
+    onChange: v => { s.awacs = v === 'on'; refresh(); },
+  });
   const jamKey = jammerKey(jetKeyMap(ac)).key;
   const iffK = iffKey(jetKeyMap(ac)).key;
   const fly = button({ id: 'sortie-go', label: 'Fly the sortie', variant: 'primary', size: 'l', block: true, keys: 'Enter', onClick: () => o.onFly({ ...s }) });
@@ -131,6 +136,8 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       h('ul', { class: 'sortie-list', id: 'sortie-ecm-brief' }, f.ecm.map(t => h('li', null, t))),
       placard('IFF'),
       h('ul', { class: 'sortie-list', id: 'sortie-iff-brief' }, f.iff.map(t => h('li', null, t))),
+      placard('Datalink'),
+      h('ul', { class: 'sortie-list', id: 'sortie-dl-brief' }, f.datalink.map(t => h('li', null, t))),
     );
     samType.el.hidden = !s.sams;
     drawZones(f.zones, f.edge);
@@ -208,7 +215,7 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       lede: 'Fly a full BVR fight against AI that shoots back, then debrief it like Tacview: every shot, every warning, what you did about it.',
     }),
     h('div', { class: 'sortie-brief__grid' },
-      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, samCount.el, samType.el, ecm.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
+      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, samCount.el, samType.el, ecm.el, awacs.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
       consolePanel({ title: 'Brief', class: 'sortie-brief__text', children: [title, h('div', { class: 'sortie-brief__cols' }, h('div', null, lines), h('div', { class: 'sortie-brief__side' }, picture, zonesEl))] }).el,
     ),
     h('div', { class: 'sortie-brief__foot' },
