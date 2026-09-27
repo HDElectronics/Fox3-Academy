@@ -1,7 +1,7 @@
 /** Flight-ops render kit: runway, carrier, approach overlay and the pattern/approach scene (metres, scaled by `root`). */
 export { RunwayMesh, runwayMarkings } from './runway';
 export type { RunwayOptions } from './runway';
-export { CarrierMesh, deckOutline, landingLocal, landingPaint, lensCell, shipLocal, shipToLanding } from './carrier';
+export { CarrierMesh, WAKE, deckOutline, landingLocal, landingPaint, lensCell, shipLocal, shipToLanding, wakeStrip } from './carrier';
 export type { DeckStrip } from './carrier';
 export { LaunchDeck, CAT_TRACK_M, JBD, catTracks, jbdRaise, launchPositions, skiJumpHeight, skiJumpProfile, stoppersUp } from './launchDeck';
 export { ApproachOverlay, glidePoint } from './approach';

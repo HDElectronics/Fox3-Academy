@@ -31,6 +31,18 @@ export function flapControl(d: FlightOpsJetData): FlapControl {
   return noFlapControl(d) ? 'none' : d.flapsWithGear ? 'with-gear' : 'selector';
 }
 
+/**
+ * The key that sets MIL (or full afterburner) and how to tag it: a sourced key, a key the data lists but
+ * has not verified (FC3 default), or a trainer key (`trainer: true` in the data: the jets whose DCS default
+ * is not in the sources).
+ */
+export function throttleMaxKey(d: FlightOpsJetData): { key: string; tag: 'trainer key' | 'not verified' | null; note?: string } {
+  const k = d.takeoff.keys.throttleMax as FlightOpsJetData['takeoff']['keys']['throttleMax'] | undefined;
+  if (!k) return { key: 'PgUp', tag: 'trainer key', note: 'Trainer key: the DCS default for this jet is not in the sources.' };
+  if (k.trainer) return { key: k.value, tag: 'trainer key', note: k.note };
+  return { key: k.value, tag: k.verified ? null : 'not verified', note: k.note };
+}
+
 /** Landing configuration for the lesson: gear down and locked, landing flaps where the jet has flap control. */
 export function landingConfigured(d: FlightOpsJetData, s: FlightOpsState): boolean {
   if (!s.gearDown || s.gearPos < 0.99) return false;
@@ -329,6 +341,36 @@ export const spdVal = (ms: number, u: Units) => (u === 'metric' ? Math.round(ms 
 export const altVal = (m: number, u: Units) => (u === 'metric' ? Math.round(m) : ftOf(m));
 export const spdUnit = (u: Units) => (u === 'metric' ? 'KM/H' : 'KT');
 export const altUnit = (u: Units) => (u === 'metric' ? 'M' : 'FT');
+
+// ------------------------------------------------------------------ time acceleration
+
+export type TimeScale = 1 | 2 | 4 | 8;
+export const TIME_SCALES: readonly TimeScale[] = [1, 2, 4, 8];
+/** Below this height above the ground or deck, time runs at 1× (takeoff climb, low pattern). Trainer value. */
+export const TIME_HOLD_FT = 500;
+/** Inside this range of the tanker, time runs at 1× (the demo slows its closure there). Trainer value. */
+export const TIME_HOLD_TANKER_NM = 0.5;
+export type TimeHold = 'ground' | 'tanker' | 'gear' | 'low';
+
+/**
+ * Why time must run at 1× now, or null when 2× to 8× is allowed. A trainer rule: acceleration only shortens the
+ * transits (the rejoin to the tanker, the nav leg home). On the ground or deck, within 0.5 nm of the tanker (or in
+ * pre-contact), gear down, or below 500 ft the jet flies at 1×.
+ */
+export function timeHold(s: Pick<FlightOpsState, 'phase' | 'gearDown' | 'aar'>, heightM: number): TimeHold | null {
+  if (s.phase !== 'air') return 'ground';
+  const a = s.aar;
+  if (a && (a.stage !== 'rejoin' || Math.hypot(a.rel.aft, a.rel.right, a.rel.up) < TIME_HOLD_TANKER_NM * M_PER_NM)) return 'tanker';
+  if (s.gearDown) return 'gear';
+  if (heightM < TIME_HOLD_FT * M_PER_FT) return 'low';
+  return null;
+}
+
+/** The pilot-facing reason for a drop back to 1×. */
+export function timeHoldText(why: TimeHold, u: Units): string {
+  return why === 'ground' ? 'on the ground' : why === 'tanker' ? `tanker within ${u === 'metric' ? `${Math.round((TIME_HOLD_TANKER_NM * M_PER_NM) / 100) * 100} m` : `${TIME_HOLD_TANKER_NM} nm`}`
+    : why === 'gear' ? 'gear down' : `below ${altFtText(TIME_HOLD_FT, u)}`;
+}
 
 // ------------------------------------------------------------------ nav display
 

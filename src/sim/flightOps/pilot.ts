@@ -477,7 +477,8 @@ const ALIGN_M = 0.3;
 const BACK_OUT_MS = 1;
 
 /**
- * Air-to-air refuelling (#28): call the tanker and open the probe or door on the rejoin, fly the closure profile
+ * Air-to-air refuelling (#28): call the tanker, open the probe or door and switch the refuelling lights on (jets whose
+ * data lists a lights key) on the rejoin, fly the closure profile
  * to pre-contact, stabilise until cleared contact, close at the jet's closure target (aligned first), hold the
  * basket in the green band (or the boom at the nominal point) until the fuel target, then back out slowly
  * (drogue) or wait for the boom operator's disconnect and return to pre-contact.
@@ -488,6 +489,7 @@ function aarPilot(s: FlightOpsState, d: FlightOpsJetData, m: Memory, actions: Fl
   const T = tankerData(a.tanker);
   if (!a.called && s.t > 1) actions.push('callTanker');
   if (r.kind === 'probe' && r.keys.probe && !a.probeOut) actions.push('probeToggle');
+  if (r.keys.lights && !a.lights) actions.push('refuelLights');
   if (r.kind === 'boom' && !a.doorOpen && (!r.doorLimit || s.speed / MPS_PER_KT < r.doorLimit.operateKt.value)) actions.push('doorToggle');
 
   if (!a.station) return rejoinFlight(s, d, m, actions);

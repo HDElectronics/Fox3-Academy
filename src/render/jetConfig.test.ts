@@ -25,11 +25,11 @@ function visibleBounds(j: JetMesh): Box3 {
 }
 
 describe('jet configuration parts', () => {
-  it('gives every jet gear, flaps (not the M-2000C) and a speedbrake, all hidden by default', () => {
+  it('gives every jet gear, flaps (not the M-2000C), a speedbrake and the carrier jets a hook, all hidden by default', () => {
     for (const id of AIRCRAFT_ORDER) {
       const j = new JetMesh(id, 'blue', palette);
-      expect(j.config).toEqual({ gear: 0, flaps: 0, speedbrake: 0 });
-      expect(j.configParts).toEqual({ gear: true, flaps: id !== 'm2000c', speedbrake: true });
+      expect(j.config).toEqual({ gear: 0, flaps: 0, speedbrake: 0, hook: 0 });
+      expect(j.configParts).toEqual({ gear: true, flaps: id !== 'm2000c', speedbrake: true, hook: ['fa18c', 'f14b', 'su33'].includes(id) });
       expect(j.groundClearanceM).toBeGreaterThan(1);
       for (const c of j.children) if (c.name.startsWith('part:')) expect(c.visible).toBe(false);
     }
@@ -39,11 +39,31 @@ describe('jet configuration parts', () => {
     for (const id of AIRCRAFT_ORDER) {
       const j = new JetMesh(id, 'blue', palette);
       j.setConfig({ gear: 2, flaps: -1, speedbrake: 0.5 });
-      expect(j.config).toEqual({ gear: 1, flaps: 0, speedbrake: 0.5 });
+      expect(j.config).toEqual({ gear: 1, flaps: 0, speedbrake: 0.5, hook: 0 });
       j.setConfig({ gear: Number.NaN, speedbrake: Infinity });
-      expect(j.config).toEqual({ gear: 1, flaps: 0, speedbrake: 0.5 });
+      expect(j.config).toEqual({ gear: 1, flaps: 0, speedbrake: 0.5, hook: 0 });
       j.setConfig({ flaps: 0.25 });
-      expect(j.config).toEqual({ gear: 1, flaps: 0.25, speedbrake: 0.5 });
+      expect(j.config).toEqual({ gear: 1, flaps: 0.25, speedbrake: 0.5, hook: 0 });
+    }
+  });
+
+  it('swings the tailhook down under the tail on the carrier jets', () => {
+    for (const id of ['fa18c', 'f14b', 'su33'] as const) {
+      const j = new JetMesh(id, 'blue', palette);
+      const [hook] = parts(j, 'hook');
+      expect(hook, id).toBeDefined();
+      expect(hook!.visible).toBe(false);
+      j.setConfig({ hook: 1 });
+      expect(hook!.visible).toBe(true);
+      const b = visibleBounds(j);
+      // The tip hangs below the fuselage and aft of the centre.
+      hook!.geometry.computeBoundingBox();
+      const tip = hook!.geometry.boundingBox!.clone().applyMatrix4(hook!.matrixWorld);
+      expect(tip.min.y, id).toBeLessThan(hook!.position.y - 1);
+      expect(tip.max.z, id).toBeGreaterThan(j.lengthM * 0.3);
+      expect(b.min.y).toBeLessThanOrEqual(tip.min.y);
+      j.setConfig({ hook: 0 });
+      expect(hook!.visible).toBe(false);
     }
   });
 

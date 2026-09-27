@@ -23,12 +23,12 @@ export interface JetModel {
   spanM: number;
   /** Swing wing (F-14): right outer panel, pivot in model metres (centred frame), reference sweep. */
   swing?: { geometry: BufferGeometry; pivot: [number, number, number]; refSweepDeg: number };
-  /** Configurable parts (gear, flaps, speedbrake) for flight ops; every jet has them (the M-2000C has no flaps). */
+  /** Configurable parts (gear, flaps, speedbrake, tailhook) for flight ops; every jet has them (the M-2000C has no flaps; only the carrier jets have a hook). */
   parts?: JetParts;
 }
 
-/** What drives a configurable part: gear position (leg or door), flap position or speedbrake position. */
-export type JetPartDrive = 'gearLeg' | 'gearDoor' | 'flaps' | 'brake';
+/** What drives a configurable part: gear position (leg or door), flap position, speedbrake position or tailhook position. */
+export type JetPartDrive = 'gearLeg' | 'gearDoor' | 'flaps' | 'brake' | 'hook';
 
 /**
  * One hinged part. Geometry is in metres around its hinge; `pivot` is the hinge in the centred model
@@ -52,8 +52,8 @@ export interface JetParts {
   groundClearanceM: number;
 }
 
-/** Gear, flap and speedbrake positions, each 0..1 (0 = gear up, flaps up, speedbrake in). */
-export interface JetConfig { gear: number; flaps: number; speedbrake: number }
+/** Gear, flap, speedbrake and tailhook positions, each 0..1 (0 = gear up, flaps up, speedbrake in, hook stowed). */
+export interface JetConfig { gear: number; flaps: number; speedbrake: number; hook: number }
 
 /** Real overall lengths / spans (m) used for sizing and camera distances. */
 export const JET_DIMENSIONS: Record<AircraftId, { length: number; span: number }> = {
@@ -332,14 +332,19 @@ interface PartsSpec {
   flap?: { xi: number; zi: number; xo: number; zo: number; chord: number; y: number; maxDeg: number; swing?: boolean };
   /** Speedbrake plates hinged at their front edge (z0); `up` plates rise, the others drop, side plates swing out. */
   brake: { plates: BrakePlate[]; maxDeg: number };
+  /** Tailhook (carrier jets): an arm under the tail, hinged at its front end, that swings down HOOK_DOWN_DEG. */
+  hook?: boolean;
 }
+
+/** Tailhook down angle (deg). Drawing value: it shows the hook is down, not the real geometry. */
+export const HOOK_DOWN_DEG = 35;
 
 /*
  * Positions are simplified, eyeballed on these low-poly airframes: they show which parts move, not
  * where every hinge sits on the real jet.
  */
-const flankerParts = (L: number): PartsSpec => ({
-  L, groundY: -2.5,
+const flankerParts = (L: number, hook = false): PartsSpec => ({
+  L, groundY: -2.5, hook,
   nose: { x: 0, y: -0.55, z: 6.2, wheelR: 0.33 },
   // Mains out of the wing roots outboard of the nacelles.
   main: { x: 2.2, y: -0.42, z: 12.6, wheelR: 0.45 },
@@ -352,7 +357,7 @@ const flankerParts = (L: number): PartsSpec => ({
 const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
   su27: flankerParts(21.9),
   j11a: flankerParts(21.9),
-  su33: flankerParts(21.2),
+  su33: flankerParts(21.2, true),
   mig29s: {
     L: 17.3, groundY: -2.15,
     nose: { x: 0, y: -0.42, z: 5.2, wheelR: 0.26 },
@@ -368,7 +373,7 @@ const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
     },
   },
   f14b: {
-    L: 19.1, groundY: -2.0,
+    L: 19.1, groundY: -2.0, hook: true,
     nose: { x: 0, y: -0.34, z: 4.2, wheelR: 0.3 },
     main: { x: 2.55, y: 0.0, z: 11.9, wheelR: 0.45 },
     // Flaps on the outer wing panel, drawn at 20° sweep (hidden when the wings sweep back).
@@ -405,7 +410,7 @@ const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
     },
   },
   fa18c: {
-    L: 17.07, groundY: -2.35,
+    L: 17.07, groundY: -2.35, hook: true,
     nose: { x: 0, y: -0.45, z: 3.4, wheelR: 0.3 },
     main: { x: 1.55, y: -0.7, z: 9.9, wheelR: 0.4 },
     flap: { xi: 1.95, zi: 12.58, xo: 4.4, zo: 11.95, chord: 0.8, y: 0.06, maxDeg: 40 },
@@ -512,6 +517,13 @@ function buildParts(s: PartsSpec): JetParts {
     b.plate([[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]], { t: 0.08, y: p.y, mirror: false });
     list.push(part(b, L, [p.x0, p.y, p.z0], 'brake', [1, 0, 0], (p.up ? -1 : 1) * s.brake.maxDeg * DEG, p.mirror));
   }
+  if (s.hook) {
+    // Under the tail, 84 % of the length back, a third of the way down to the wheels; points aft when stowed.
+    const b = new ModelBuilder();
+    const y = s.groundY * 0.3, z = L * 0.84, len = Math.max(1.5, -s.groundY);
+    b.box(0, y, z + len / 2, 0.16, 0.16, len, Slot.dark);
+    list.push(part(b, L, [0, y, z], 'hook', [1, 0, 0], HOOK_DOWN_DEG * DEG, false));
+  }
   return { list, groundClearanceM: -s.groundY };
 }
 
@@ -586,7 +598,7 @@ export class JetMesh extends Group {
   private disposed = false;
   private sweep = 20;
   private partMeshes: { part: JetPart; mesh: Mesh; left: boolean }[] = [];
-  private cfg: JetConfig = { gear: 0, flaps: 0, speedbrake: 0 };
+  private cfg: JetConfig = { gear: 0, flaps: 0, speedbrake: 0, hook: 0 };
 
   constructor(id: AircraftId, side: VisualSide, palette: Palette, opts: { onReady?: () => void } = {}) {
     super();
@@ -667,33 +679,37 @@ export class JetMesh extends Group {
   }
 
   /** Which configurable parts this model has (setConfig is a no-op for the others). */
-  get configParts(): { gear: boolean; flaps: boolean; speedbrake: boolean } {
+  get configParts(): { gear: boolean; flaps: boolean; speedbrake: boolean; hook: boolean } {
     const has = (d: JetPartDrive) => this.partMeshes.some(p => p.part.drive === d);
-    return { gear: has('gearLeg'), flaps: has('flaps'), speedbrake: has('brake') };
+    return { gear: has('gearLeg'), flaps: has('flaps'), speedbrake: has('brake'), hook: has('hook') };
   }
 
-  /** Current configuration (0..1 each). Default: gear up, flaps up, speedbrake in. */
+  /** Current configuration (0..1 each). Default: gear up, flaps up, speedbrake in, hook stowed. */
   get config(): Readonly<JetConfig> { return this.cfg; }
 
   /** Wheel contact line below the model origin with the gear down (m); 0 without gear parts. */
   get groundClearanceM(): number { return this.model.parts?.groundClearanceM ?? 0; }
 
   /**
-   * Gear, flap and speedbrake positions, 0..1 each (clamped; missing or non-finite values keep the
+   * Gear, flap, speedbrake and hook positions, 0..1 each (clamped; missing or non-finite values keep the
    * previous one). Parts at 0 are hidden, so a clean jet is exactly the BVR model. No-op without parts.
    */
   setConfig(c: Partial<JetConfig>): void {
     const clamp = (v: number | undefined, old: number) => (v === undefined || !Number.isFinite(v) ? old : Math.max(0, Math.min(1, v)));
-    this.cfg = { gear: clamp(c.gear, this.cfg.gear), flaps: clamp(c.flaps, this.cfg.flaps), speedbrake: clamp(c.speedbrake, this.cfg.speedbrake) };
+    this.cfg = {
+      gear: clamp(c.gear, this.cfg.gear), flaps: clamp(c.flaps, this.cfg.flaps), speedbrake: clamp(c.speedbrake, this.cfg.speedbrake),
+      hook: clamp(c.hook, this.cfg.hook),
+    };
     this.applyConfig();
   }
 
   private applyConfig(): void {
-    const { gear, flaps, speedbrake } = this.cfg;
+    const { gear, flaps, speedbrake, hook } = this.cfg;
     // Review exteriors contain no matching rigged gear, flaps or brakes. Keep these operations coherent
     // by changing the entire airframe instead of attaching mismatched procedural parts to the asset.
     const supported = this.configParts;
-    const deployed = (supported.gear && gear > 0.001) || (supported.flaps && flaps > 0.001) || (supported.speedbrake && speedbrake > 0.001);
+    const deployed = (supported.gear && gear > 0.001) || (supported.flaps && flaps > 0.001) || (supported.speedbrake && speedbrake > 0.001)
+      || (supported.hook && hook > 0.02);
     const useAsset = !this.disposed && this.asset.ready && !deployed && (!this.hasSwingWing || this.assetWings.length === 2);
     this.asset.visible = useAsset;
     this.body.visible = !useAsset;
@@ -705,6 +721,7 @@ export class JetMesh extends Group {
         case 'gearDoor': k = Math.min(1, gear * 3); visible = gear > 0.001; break;
         case 'flaps': k = flaps; visible = flaps > 0.001 && !(p.swing && this.sweep > (this.model.swing?.refSweepDeg ?? 20) + 0.5); break;
         case 'brake': k = speedbrake; visible = speedbrake > 0.001; break;
+        case 'hook': k = hook; visible = hook > 0.02; break;
       }
       mesh.visible = !useAsset && visible;
       // Left copies are mirrored in x: mirror the hinge axis and reverse the angle.

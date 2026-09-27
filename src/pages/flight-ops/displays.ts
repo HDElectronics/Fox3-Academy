@@ -5,7 +5,7 @@
 import { Surface } from '../../ui/displays/surface';
 import { alpha } from '../../ui/theme';
 import {
-  IFLOLS_RED_CELL, INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, landingToWorld, shipData, shipToWorld, type FlightOpsJetData, type FlightOpsState,
+  IFLOLS_RED_CELL, INTERCEPT_NAME, RUNWAY, approachGeometry, aoaCue, landingToWorld, shipData, shipFrame, shipToWorld, type FlightOpsJetData, type FlightOpsState,
 } from '../../sim/flightOps';
 import { deckOutline } from '../../render/flightOps/carrier';
 import { SHIPS } from '../../data/ships';
@@ -114,6 +114,39 @@ export const HUD_WORLD_TINT = 0.35;
 export const HUD_FPM_Y = 0.52;
 
 /**
+ * Height the HUD altitude box shows (m): above the flight deck while the jet is over the ship's deck (deck starts,
+ * the catapult or ski-jump run, a trap), else above the sea or the runway. The trainer's HUD reads like a radar
+ * altimeter here (simplified): on the deck it reads 0, not the deck's height above the water.
+ */
+export function hudHeightM(st: Pick<FlightOpsState, 'pos' | 'ship'>): number {
+  if (!st.ship) return st.pos.y;
+  const f = shipFrame(st as FlightOpsState);
+  const out = deckOutline(st.ship.id);
+  let a0 = Infinity, a1 = -Infinity, c0 = Infinity, c1 = -Infinity;
+  for (const [a, c] of out) { a0 = Math.min(a0, a); a1 = Math.max(a1, a); c0 = Math.min(c0, c); c1 = Math.max(c1, c); }
+  const over = f.a >= a0 && f.a <= a1 && f.c >= c0 && f.c <= c1;
+  return over ? f.h : st.pos.y;
+}
+
+/**
+ * Where the takeoff speed-tape labels go: left of the tape (in the speed box column) when the bug is clear of the
+ * box band [bandTop, bandBot], else right of the tape beside the box, so VR and PULL stay readable at rotation.
+ * Labels on the right are pushed apart to at least `gap` px.
+ */
+export function tapeLabels(bugs: readonly { label: string; y: number }[], bandTop: number, bandBot: number, gap: number): { label: string; y: number; side: 'left' | 'right' }[] {
+  const out = bugs.map(b => ({ label: b.label, y: b.y, side: (b.y < bandTop || b.y > bandBot ? 'left' : 'right') as 'left' | 'right' }));
+  const right = out.filter(l => l.side === 'right').sort((a, b) => a.y - b.y);
+  for (let i = 1; i < right.length; i++) {
+    const prev = right[i - 1]!, cur = right[i]!;
+    if (cur.y - prev.y < gap) {
+      const mid = (cur.y + prev.y) / 2;
+      prev.y = mid - gap / 2; cur.y = mid + gap / 2;
+    }
+  }
+  return out;
+}
+
+/**
  * Boresight height on the HUD (0 top, 1 bottom). The flight path marker is kept near the middle (0.52 down), since
  * it is what the pilot flies on the approach; the boresight sits the pitch-minus-flight-path angle above it.
  */
@@ -124,7 +157,7 @@ export function hudBoresight(st: Pick<FlightOpsState, 'pitch' | 'gamma'>): numbe
 /**
  * Simplified HUD: horizon and pitch ladder, the glide line (−glideDeg), the flight path marker, the jet's
  * AoA cue (E-bracket on the F/A-18C, AoA bracket on the F-16C, GSUP/GSDN text on the F-15C), speed,
- * altitude AGL and the gear/flap state.
+ * height (above the deck over the ship, see hudHeightM) and the gear/flap state.
  */
 export class HudDisplay {
   private readonly s: Surface;
@@ -281,7 +314,7 @@ export class HudDisplay {
     ctx.textAlign = 'center';
     const u = this.units();
     ctx.fillText(String(spdVal(st.speed, u)), 8 + bw / 2, by0 + bh / 2);
-    ctx.fillText(String(Math.max(0, altVal(st.pos.y, u))), w - 8 - bw / 2, by0 + bh / 2);
+    ctx.fillText(String(Math.max(0, altVal(hudHeightM(st), u))), w - 8 - bw / 2, by0 + bh / 2);
     if (toCues) {
       // Speed tape along the box's right edge with the Vr bug and the pull mark (display unit).
       const cur = spdVal(st.speed, u), bcy = by0 + bh / 2;
@@ -299,16 +332,31 @@ export class HudDisplay {
       }
       ctx.stroke();
       const sp = takeoffSpeeds(d, u);
-      const bug = (v: number, label: string, col: string) => {
-        const y = tapeY(v, cur, bcy, ppu);
-        ctx.fillStyle = col; ctx.strokeStyle = col;
+      const bugs: { v: number; label: string; col: string }[] = [{ v: sp.vr, label: 'VR', col: th.symHi }];
+      if (sp.pull !== null) bugs.unshift({ v: sp.pull, label: 'PULL', col: th.sym });
+      for (const b of bugs) {
+        const y = tapeY(b.v, cur, bcy, ppu);
+        ctx.fillStyle = b.col;
         ctx.beginPath(); ctx.moveTo(tx + 1, y); ctx.lineTo(tx + 9, y - 5); ctx.lineTo(tx + 9, y + 5); ctx.closePath(); ctx.fill();
-        // Label left of the tape, in the box column; hidden where the speed box and its unit sit.
-        if (y < by0 - fs * 0.6 || y > by0 + bh + fs * 1.3) { ctx.textAlign = 'right'; ctx.fillText(label, tx - 3, y); }
-      };
-      ctx.font = `${Math.round(fs * 0.75)}px ${th.fontMono}`;
-      if (sp.pull !== null) bug(sp.pull, 'PULL', th.sym);
-      bug(sp.vr, 'VR', th.symHi);
+      }
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, top, w / 2, bot - top); ctx.clip();
+      const lf = Math.round(fs * 0.75);
+      ctx.font = `${lf}px ${th.fontMono}`;
+      for (const l of tapeLabels(bugs.map(b => ({ label: b.label, y: tapeY(b.v, cur, bcy, ppu) })), by0 - fs * 0.6, by0 + bh + fs * 1.3, lf * 1.15)) {
+        const b = bugs.find(x => x.label === l.label)!;
+        ctx.fillStyle = b.col;
+        if (l.side === 'left') { ctx.textAlign = 'right'; ctx.fillText(l.label, tx - 3, l.y); continue; }
+        // Beside the box: right of the bug, on a backing so the ladder and the world stay behind it.
+        const x = tx + 12, tw = ctx.measureText(l.label).width;
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = alpha(th.screen, 0.7);
+        ctx.fillRect(x - 2, l.y - lf * 0.6, tw + 4, lf * 1.2);
+        ctx.restore();
+        ctx.textAlign = 'left'; ctx.fillText(l.label, x, l.y);
+      }
       ctx.restore();
     }
     ctx.font = `${Math.round(fs * 0.8)}px ${th.fontMono}`;

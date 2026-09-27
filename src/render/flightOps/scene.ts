@@ -9,7 +9,7 @@
  * The Stage camera near plane is lowered to 0.5 m for the cockpit view and restored on dispose; the far
  * plane (2000 km) and the Environment haze (130 km) already cover an RTB start 40 km out at 4000 m.
  */
-import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3 } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3 } from 'three';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { basketRest, boomPoint } from '../../sim/flightOps/aar';
 import { SHIPS } from '../../data/ships';
@@ -53,9 +53,8 @@ export const CARRIER_CORRIDOR_M = 1.5 * 1852;
 const LSO_FRAME_M = 90;
 const LSO_FOV_MIN = 6;
 /** Deck (shooter) view: eye ahead of and beside the held jet, ship frame metres; framed sky around the jet (m). Display choices. */
-export const DECK_EYE = { ahead: 22, beside: 17, h: 1.8 } as const;
+export const DECK_EYE = { ahead: 8, beside: 26, h: 3 } as const;
 const DECK_FRAME_M = 45;
-const HOOK_DOWN_RAD = 35 * Math.PI / 180;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const _aim = new Vector3();
 
@@ -108,8 +107,6 @@ export class FlightOpsScene {
   launchDeck: LaunchDeck | null = null;
   /** Ship-frame spot where the jet was held for the launch (the deck camera and the side view key on it). */
   private hold: { a: number; c: number } | null = null;
-  private hook: Mesh | null = null;
-  private hookMat: MeshStandardMaterial | null = null;
   private readonly runwayApproach: ApproachGeometryOptions;
   /** The tanker on a refuelling start (null otherwise). */
   tanker: TankerMesh | null = null;
@@ -215,8 +212,6 @@ export class FlightOpsScene {
     this.jet.dispose();
     this.jet = new JetMesh(id, this.side, this.stage.palette, { onReady: () => this.stage.requestRender() });
     this.stage.scene.add(this.jet);
-    this.hook?.geometry.dispose();
-    this.hook = null;
     if (this.state) this.update(this.state);
   }
 
@@ -269,7 +264,8 @@ export class FlightOpsScene {
   update(state: FlightOpsState): void {
     this.state = state;
     if (state.aircraft !== this.jet.aircraft) this.setAircraft(state.aircraft);
-    this.jet.setConfig({ gear: state.gearPos, flaps: state.flapPos, speedbrake: state.speedbrakePos });
+    // The tailhook is a JetMesh part (carrier jets): down by `hookPos` once the state has a hook.
+    this.jet.setConfig({ gear: state.gearPos, flaps: state.flapPos, speedbrake: state.speedbrakePos, hook: state.hookPos ?? 0 });
     this.jet.quaternion.copy(orientationQuaternion(state.heading, state.pitch, state.bank, _q));
     if (state.ship && this.carrier) {
       this.carrier.place(state.ship);
@@ -282,7 +278,6 @@ export class FlightOpsScene {
       if (!L) this.hold = null;
       this.launchDeck?.update(L, f, this.jet.lengthM, state.t);
     }
-    this.updateHook(state.hookPos);
     this.placeJet(this.jet.scale.x || UNIT_PER_M);
     this.updateAar(state);
     this.stage.requestRender();
@@ -326,27 +321,6 @@ export class FlightOpsScene {
     if (!a || !T) return null;
     if (a.connected) return a.tip;
     return T.tanker.drogue ? basketRest(T.tanker) : boomPoint(T.tanker);
-  }
-
-  /**
-   * Tail hook: a simple arm under the tail (model frame, metres), shown once the state has a hook and swung
-   * down by `hookPos` (0 stowed and hidden, 1 down). Drawn by the scene, not a JetMesh part; display geometry.
-   */
-  private updateHook(pos: number | undefined): void {
-    if (pos === undefined) { if (this.hook) this.hook.visible = false; return; }
-    if (!this.hook) {
-      const gc = this.jet.groundClearanceM || 2;
-      const len = Math.max(1.5, gc);
-      const g = new BoxGeometry(0.16, 0.16, len);
-      g.translate(0, 0, len / 2);
-      this.hookMat ??= new MeshStandardMaterial({ color: this.stage.palette.dark.clone(), roughness: 0.8 });
-      this.hook = new Mesh(g, this.hookMat);
-      this.hook.name = 'flightOps:hook';
-      this.hook.position.set(0, -gc * 0.3, this.jet.lengthM * 0.34);
-      this.jet.add(this.hook);
-    }
-    this.hook.visible = pos > 0.02;
-    this.hook.rotation.x = pos * HOOK_DOWN_RAD;
   }
 
   /** Approach reference: the aim point (units) and the landing heading. Airfield: aim point north of the threshold. */
@@ -544,8 +518,6 @@ export class FlightOpsScene {
     this.runway.dispose();
     this.launchDeck?.dispose();
     this.carrier?.dispose();
-    this.hook?.geometry.dispose();
-    this.hookMat?.dispose();
     this.tanker?.dispose();
     this.probe?.geometry.dispose();
     this.probeMat?.dispose();

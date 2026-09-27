@@ -7,7 +7,8 @@
  * What the pilot meets: hull and flight deck, the island, the angled landing area with edge lines and a
  * dashed centreline, four wires (the target wire drawn in the ok token), the optical landing aid on the port
  * side (IFLOLS lens with the amber ball and green datum bars, or the Luna-3 colour light on the Kuznetsov,
- * both driven by `setBall`) and, on the Kuznetsov, the ski-jump bow (the sim's RAMP_M / RAMP_DEG curve). Drawing values, not ship plans.
+ * both driven by `setBall`) and, on the Kuznetsov, the ski-jump bow (the sim's RAMP_M / RAMP_DEG curve). Behind the stern a
+ * foam wake on the sea (`wakeStrip`) fades astern, so the ship reads as under way. Drawing values, not ship plans.
  */
 import {
   BoxGeometry, BufferAttribute, BufferGeometry, Color, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial,
@@ -21,6 +22,54 @@ import { RAMP_M, STATION_C } from '../../sim/flightOps/launch';
 import { skiJumpProfile } from './launchDeck';
 
 const D2R = Math.PI / 180;
+
+/**
+ * Ship wake (drawing values): length astern, half-width at the stern and at the far end (fractions of the beam),
+ * peak opacity at the stern and the height above the sea (metres; lifted a little and polygon-offset so it
+ * never fights the sea surface).
+ */
+export const WAKE = { lengthM: 1200, halfStart: 0.3, halfEnd: 0.8, alpha: 0.45, yM: 0.4, segments: 24 } as const;
+
+/**
+ * Wake cross-sections astern of the ramp, ship frame: `a` (negative, astern), half-width `hw` and opacity `alpha`,
+ * from the stern (t = 0) to the far end. The foam widens and fades astern.
+ */
+export function wakeStrip(id: ShipId, n: number = WAKE.segments): { a: number; hw: number; alpha: number }[] {
+  const beam = SHIP_HULL[id].beamM;
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const t = i / n;
+    return {
+      a: -t * WAKE.lengthM,
+      hw: beam * (WAKE.halfStart + (WAKE.halfEnd - WAKE.halfStart) * Math.sqrt(t)),
+      alpha: WAKE.alpha * (1 - t) ** 1.6,
+    };
+  });
+}
+
+/** Wake geometry, ship-local metres: a centre band and two edge ribbons, per-vertex RGBA (colour × fade). */
+function wakeGeometry(id: ShipId, foam: Color): BufferGeometry {
+  const pos: number[] = [], col: number[] = [];
+  const rows = wakeStrip(id);
+  // Across the wake: edge, the brighter churned centre, edge (alpha weights per column).
+  const cols = [{ f: -1, w: 0 }, { f: -0.55, w: 0.55 }, { f: 0, w: 1 }, { f: 0.55, w: 0.55 }, { f: 1, w: 0 }];
+  const vert = (r: typeof rows[number], k: typeof cols[number]) => {
+    const p = shipLocal(r.a, k.f * r.hw);
+    pos.push(p.x, WAKE.yM, p.z);
+    col.push(foam.r, foam.g, foam.b, r.alpha * k.w);
+  };
+  for (let i = 0; i + 1 < rows.length; i++) {
+    for (let j = 0; j + 1 < cols.length; j++) {
+      const a = rows[i]!, b = rows[i + 1]!, c0 = cols[j]!, c1 = cols[j + 1]!;
+      vert(a, c0); vert(b, c0); vert(b, c1);
+      vert(a, c0); vert(b, c1); vert(a, c1);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new BufferAttribute(new Float32Array(col), 4));
+  g.computeBoundingSphere();
+  return g;
+}
 
 /** Ship-local point (x starboard, z aft) of a ship-frame point (a forward of the ramp, c to starboard). */
 export const shipLocal = (a: number, c: number) => ({ x: c, z: -a });
@@ -145,6 +194,17 @@ export class CarrierMesh extends Group {
     hullGeo.rotateX(-Math.PI / 2);   // shape (c, a), depth → (x = c, y = depth, z = −a)
     this.geoms.push(hullGeo);
     this.add(new Mesh(hullGeo, [deckMat, hullMat]));
+
+    // Wake astern: sea colour pulled toward the light missile token, fading with distance. No depth write.
+    const wakeGeo = wakeGeometry(id, palette.sea.clone().lerp(palette.missile, 0.75));
+    this.geoms.push(wakeGeo);
+    const wake = new Mesh(wakeGeo, this.mat(new MeshBasicMaterial({
+      vertexColors: true, transparent: true, depthWrite: false, side: DoubleSide, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    })));
+    wake.name = 'flightOps:wake';
+    wake.renderOrder = -1;
+    this.add(wake);
 
     // Paint on the landing area.
     const strips = landingPaint(ship, targetWire);

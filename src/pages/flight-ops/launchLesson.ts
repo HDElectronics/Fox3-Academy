@@ -11,7 +11,7 @@ import {
   type LaunchScore, type LaunchStepId, type Sourced,
 } from '../../sim/flightOps';
 import { MPS_PER_KT } from '../../sim/math';
-import { altFtText, ktText } from './logic';
+import { altFtText, ktText, throttleMaxKey } from './logic';
 
 export type LaunchStart = 'catapult' | 'skiJump';
 
@@ -43,6 +43,28 @@ export function keyTag(k: Sourced<string> | null | undefined): KeyTag {
   if (!k) return null;
   if (!k.verified) return 'not verified';
   return /conflict/i.test(k.note ?? '') ? 'key conflict' : null;
+}
+
+/**
+ * The tag on a launch strip step, or null (never an empty string): the power step carries the throttle key's
+ * tag (trainer key or not verified); a step with a key carries the key's tag; a keyless step whose note says
+ * it is not verified (the Su-33 stopper release) is tagged "not verified".
+ */
+export function launchStepTag(d: FlightOpsJetData, id: string): KeyTag | 'trainer key' {
+  const st = d.launch?.steps.find(x => x.id === id);
+  if (!st) return null;
+  if (id === 'power') {
+    const t = throttleMaxKey(d).tag;
+    if (t) return t;
+  }
+  return keyTag(st.key) ?? (/not verified/i.test(st.note ?? '') ? 'not verified' : null);
+}
+
+/** The key shown on a launch strip step: the trim keys, the throttle key for power, or the step's own key. */
+export function launchStepKey(d: FlightOpsJetData, id: string): string | null {
+  if (id === 'trim') return `${TRIM_KEYS.up} / ${TRIM_KEYS.down}`;
+  if (id === 'power') return throttleMaxKey(d).key;
+  return d.launch?.steps.find(x => x.id === id)?.key?.value || null;
 }
 
 export interface LaunchKey {
@@ -145,8 +167,10 @@ export function launchLessonSteps(d: FlightOpsJetData, u: Units, station: number
   const weight = heavy ? l.weights.heavy : l.weights.normal;
   const steps: LaunchLessonStep[] = l.steps.map(st => {
     const tag = keyTag(st.key);
-    const keys = st.id === 'trim' ? `${TRIM_KEYS.up} / ${TRIM_KEYS.down}` : st.id === 'power' ? (d.takeoff.keys.throttleMax?.value ?? 'PgUp') : st.key?.value;
-    const note = st.id === 'trim' ? `Trainer keys. ${trimTable(l) ?? ''}` : [st.note, tag ? st.key?.note : null].filter(Boolean).join(' ');
+    const keys = launchStepKey(d, st.id) ?? undefined;
+    const thr = st.id === 'power' ? throttleMaxKey(d) : null;
+    const note = st.id === 'trim' ? `Trainer keys. ${trimTable(l) ?? ''}`
+      : [thr?.tag === 'trainer key' ? `${thr.key} is a trainer key.` : null, st.note, tag ? st.key?.note : null].filter(Boolean).join(' ');
     return { id: st.id, text: stepText(d, st.id, weight), keys, note: note || undefined };
   });
   const gearKt = ktText(d.takeoff.gearUpMaxKt.value, u);

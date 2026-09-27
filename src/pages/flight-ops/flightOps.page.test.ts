@@ -10,10 +10,10 @@ import {
   FLIGHT_OPS_JETS, NAV_STEP_ORDER, STEP_ORDER, currentStep, flapControl, gateState, gatesForStart, indexerLamps, isFlightOpsJet, lampToken,
   lessonPassed, navMilestones, navPicture, placeGates, plannedGates, pointAt, stepsDone, type FlownPoint,
   PASS_SCORE, TAKEOFF_STEP_ORDER, landingConfigured, overspeedTitle, progressKey, showTakeoffCues, stepOrder, takeoffChecklist,
-  takeoffItems, takeoffItemsNow, takeoffSpeeds, tapeY, type TakeoffItem,
+  takeoffItems, takeoffItemsNow, takeoffSpeeds, tapeY, throttleMaxKey, type TakeoffItem,
 } from './logic';
 import { legCaption, lessonSteps } from './lesson';
-import { stickFromPoint } from './touch';
+import { stickFromPoint, touchRows } from './touch';
 
 const gate = (id: GateResult['id'], ok = true): GateResult => ({ id, label: id, passedAt: 0, ok, notes: [] });
 
@@ -157,6 +157,24 @@ describe('flight-ops page logic', () => {
     expect(p.y).toBeCloseTo(1);
     const c = stickFromPoint(200, 200, rect);
     expect(Math.hypot(c.x, c.y)).toBeCloseTo(1);
+  });
+
+  it('shows only the refuelling buttons on tanker starts (#33)', () => {
+    const has = { launch: 5, aar: 3 };
+    expect(touchRows({ carrier: false, launch: false, aar: true }, has)).toEqual({ base: false, carrier: false, launch: false, aar: true });
+    expect(touchRows({ carrier: false, launch: false, aar: false }, has)).toEqual({ base: true, carrier: false, launch: false, aar: false });
+    expect(touchRows({ carrier: true, launch: false, aar: false }, has)).toMatchObject({ base: true, carrier: true });
+    expect(touchRows({ carrier: false, launch: true, aar: false }, has)).toMatchObject({ base: true, launch: true });
+    // A jet with no refuelling buttons keeps its configuration row.
+    expect(touchRows({ carrier: false, launch: false, aar: true }, { launch: 0, aar: 0 })).toMatchObject({ base: true, aar: false });
+  });
+
+  it('tags the throttle key as a trainer key on the jets without a sourced DCS default (#33)', () => {
+    for (const id of ['fa18c', 'f16c', 'f14b'] as const) expect(throttleMaxKey(FLIGHT_OPS[id]).tag, id).toBe('trainer key');
+    expect(throttleMaxKey(FLIGHT_OPS.su27).tag).toBe('not verified');
+    const power = lessonSteps(FLIGHT_OPS.fa18c, 'imperial', 'takeoff').find(s => s.id === 'power')!;
+    expect(power.keys).toMatch(/^PgUp/);
+    expect(power.note).toMatch(/trainer key/);
   });
 
   it('passes the lesson at 70 or more', () => {

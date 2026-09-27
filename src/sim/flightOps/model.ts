@@ -221,8 +221,7 @@ export function createFlightOpsState(id: FlightOpsJetId, start: FlightOpsStart, 
     case 'aarRejoin':
     case 'aarPrecontact':
       if (!d.aar) throw new Error(`No refuelling for ${id}`);
-      placeAarStart(s, d, start, launch);
-      trim(s, d);
+      placeAarStart(s, d, start, launch, st => trim(st, d));
       return s;
     case 'takeoff':
       s.gearDown = true; s.gearPos = 1;

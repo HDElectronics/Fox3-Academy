@@ -363,7 +363,8 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
   F-14B (145), M-2000C (150), Su-27 / J-11A (140), Su-33 and MiG-29S (135); pitch bands for the F-15C, F-14B,
   JF-17, M-2000C (10–12.5°) and Russian jets; every other tail-strike attitude (12–15°); gear-up limits for
   the Hornet, F-15C, F-14B (250) and Russian jets (270); MIL or afterburner choice except F-16C and M-2000C;
-  brake key `W` for every jet but the F-15C; `PgUp` throttle key for the FC3 jets. The whole F-14B takeoff
+  brake key `W` for every jet but the F-15C; `PgUp` throttle key for the FC3 jets. The other jets have no
+  sourced throttle key: `takeoff.keys.throttleMax` is `PgUp` with `trainer: true` (trainer key). The whole F-14B takeoff
   (Heatblur's takeoff page is a work in progress).
 - Carrier (#26; `carrier` on fa18c, f14b, su33; `SHIPS`, `SHIP_HULL`, `SHIP_CAVEATS` in `src/data/ships.ts`).
   Sourced: Hornet hook `H`, 350 KIAS initial, gear and FULL flaps below 150 KIAS; Supercarrier 800 ft initial
@@ -382,14 +383,15 @@ chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 - Launch (#27; `launch` on fa18c, f14b catapult and su33 ski-jump). Sourced: Hornet NWS HI `S`, hook up `U`,
   T/O trim 16° below 44000 lb, 17° at 45000–48000 lb, 19° at 49000 lb and above with afterburner, MIL, wipe
   out, salute and hands off, gear up and flaps AUTO after the stroke; clearing turn right from catapults 1–2,
-  left from 3–4; Tomcat hook up `U` and salute `LShift+U` (Heatblur lesson text only); Su-33 positions 1–2 a
+  left from 3–4 (the trainer offers all four CVN catapults, `stations: [1, 2, 3, 4]`); Tomcat hook up `U` and salute `LShift+U` (Heatblur lesson text only); Su-33 positions 1–2 a
   90 m run and 3 a 180 m run (heavy), deck stoppers during the run-up, full then special afterburner
   `LShift+E` (10-minute limit), FOD screens `LAlt+I` cost 12 % thrust. Not verified: the Hornet salute key
   (`LCtrl+LShift+LAlt+S` or the radio menu, against `LShift+U` in the Heatblur lesson), the launch bar `L` and
   wipe-out `K` trainer keys, Tomcat MIL without afterburner and hands off, the stopper release (the trainer
   lets go 3 s after full afterburner), the 29000 kg short-run limit, the trainer launch weights (Hornet 42000 /
   50000 lb, Tomcat 60000 / 70000 lb, Su-33 26000 / 32000 kg), the gaps in the Hornet trim table (put in the 17°
-  band). Trainer rules, not DCS numbers: shooter delay 2 s, stroke 2.5 s to the approach speed + 15 kt, cold
+  band), which catapults DCS assigns to each jet, the waist catapult positions (drawn parallel to the bow
+  catapults). Trainer rules, not DCS numbers: shooter delay 2 s, stroke 2.5 s to the approach speed + 15 kt, cold
   cat × 0.85, settle 3 s, ski-jump run 15 m/s², 12° ramp over 25 m, minimum ramp speed 0.85 × approach speed,
   catapult and position offsets across the deck.
 - Refuelling (#28; `aar` on every jet but the su27, j11a and mig29s; `TANKERS`, `TANKER_CAVEATS`,
