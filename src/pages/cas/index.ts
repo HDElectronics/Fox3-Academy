@@ -350,7 +350,9 @@ const factory: PageFactory = (): Page => {
     function updateNav(): void {
       const s = jtac.state;
       const before = s === 'idle' || s === 'checked-in' || s === 'nine-line' || s === 'remarks-ready' || s === 'remarks' || s === 'readback' || s === 'await-ip';
-      const sp = s === 'complete' || s === 'checked-out' ? sc.egress : before ? sc.ip : { name: 'TGT', ...sc.target };
+      // Lessons that start inside the IP (talk-on, danger close) steer to the target, never back to the IP.
+      const pastIp = distM(me.pos, sc.target) < distM(sc.ip, sc.target);
+      const sp = s === 'complete' || s === 'checked-out' ? sc.egress : before && !pastIp ? sc.ip : { name: 'TGT', ...sc.target };
       const brg = bearingDeg(me.pos, sp), turn = ((brg - hdgDeg() + 540) % 360) - 180;
       const agl = me.pos.y - sc.world.groundHeight(me.pos.x, me.pos.z);
       const row = (k: string, v: string, cls?: string) => h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, k), h('span', { class: cls }, v));
