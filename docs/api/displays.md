@@ -2,7 +2,7 @@
 
 Files: `src/ui/displays/**` (import from `src/ui/displays`), tests in `src/ui/displays/displays.test.ts`.
 Harnesses: `sandbox/displays.html` (every format and RWR on a scripted scenario) and
-`sandbox/displays-live.html` (real `World` + `buildRadarPicture`, as pages use it).
+`sandbox/displays-live.html` (real `World` + `buildRadarPicture`, as pages use it); `sandbox/a10c.html` (A-10C II HUD, TGP, TAD, MSG).
 
 All displays are canvas 2D, crisp at `devicePixelRatio` (capped at 3), resize-aware (ResizeObserver; they
 redraw themselves on resize and when the mono font finishes loading), coloured only from `readTheme()` tokens,
@@ -280,6 +280,56 @@ The CCRP director radius uses `CCRP_TOL_DEG` with the same pixels-per-degree sca
 (`ccrpDirectorGeometry`), so keel containment matches the simulation tolerance. Kh-58 drawing and
 strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevation clamp.
 
+## A-10C II displays (`src/ui/displays/a10c/`)
+
+Inputs are the fixed contracts in `a10c/types.ts` (`A10cHudView`, `TgpPageView`, `TadView`, `MsgPageView`); the page
+builds them from the sim, the displays only draw. Facts: `docs/research/a10c.md` §2–5 and `cas-jets.md` §2.
+Harness: `sandbox/a10c.html` (`?only=hud,tgp,tad,msg`, `?t=`, `?pause=1`). Blinking uses the view's `t`
+(the MSG page does not blink), so a paused page and the tests are deterministic.
+
+```ts
+const hud = new A10cHud(canvas, { overlay: true, fovDeg: 26, boreY: 0.4 }); // overlay: transparent over the 3D view
+hud.draw(view, world?);                   // world: optional picture under the glass when not overlay
+const tgp = new A10cTgpPage(cv); tgp.draw(tgpView);    // square MFCD canvases
+const tad = new A10cTadPage(cv); tad.draw(tadView);
+const msg = new A10cMsgPage(cv); msg.draw(msgView);
+tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the centred square (for cursor picking)
+```
+
+- **A10cHud**: pitch ladder (5° rungs, dashed below the horizon, rolled), heading tape at the bottom (tens of
+  degrees), airspeed left, altitude right, gun cross, master mode name low centre, profile label and count, SOI
+  asterisk and the flashing L (2 Hz, laser firing) lower left. CCIP / GUNS: pipper reticle (GUNS adds the moving
+  target ticks); CCIP without consent draws the bomb-fall line from the boresight, with `releaseCue` the ASL above
+  the pipper and the solution cue `releaseCue` of the way down. CCRP: ASL offset by `errRad`, the reticle below
+  the boresight, time to release inside 20 s and the solution cue in the last 6 s (`CCRP_TTR_SHOW_S`,
+  `CCRP_CUE_S`). SPI diamond (dashed when clamped to the glass). `belowMinAlt`: X over the reticle.
+  `overlay: true` clears the canvas and adds a dark edge (canvas `drop-shadow` in the `--screen` colour).
+- **A10cTgpPage**: video cropped square to fill the page, `NO VIDEO` on a dark field without an image, `STBY`
+  when not on. Crosshair with a gap; a centre box in POINT and in LTRACK; the open gate (corner brackets, lines to
+  the edge) while LSS searches, detects or has lost the spot. Track text (AREA / POINT / INR) beside the crosshair,
+  WIDE / NARO (WSCH / NSCH in LSS search) upper left, CCD upper right, LSS state lower centre (LSRCH, DETECT,
+  LTRACK, NO LSR), `L` (2 Hz while firing) and the laser code lower left, SPI above them when `isSpi`, the range
+  field `L / T / E x.x` (nm; km with a KM suffix in metric) lower right. OSBs: 1 CNTL, 2 A-G, 3 STBY, 4 A-A,
+  6 LSS / LST (boxed while LSS runs) with the LSS code under it, 7 LSR. SOI box, or `NOT SOI` near the top.
+- **A10cTadPage**: heading-up, own ship centred (CEN). Outer ring = `scaleNm` at `TAD_RING` (40 %) of the page,
+  dashed inner ring at half, north tick on the outer ring, scale number, solid own-ship symbol, steerpoint circle
+  with its name, SPI wedding cake, friendlies as green crosses (label optional), tasking as a red (`--hostile`)
+  triangle with a dot that flashes with `ATTACK` at the top until `accepted`, `NEW TASKING` banner when set, the
+  cursor, the hooked symbol boxed in `--sym-hi` with an OWN hook line and `OWN` / `brg/rng` lower left, OSB 10 NET,
+  SOI box. The hooked friendly is the one nearest the cursor.
+- **A10cMsgPage**: title and the 9-line fields (label dim, value shrunk to fit), WILCO at OSB 19 and CNTCO at OSB 7;
+  the answer given is a filled legend and the other one dims.
+
+Pure helpers (tested in `a10c/a10c.test.ts`): `tadProject(own, scaleNm, cx, cy, radiusPx, p)`, `bearingRange`,
+`fmtBrgRng`, `hookedPoint`, `fmtTgpRange(rangeM, source, units)`, `lssText`, `lssOsbLabel`, `fovText`, `trackText`,
+`coverSource`, `fmtTtr`, `ccrpCueFraction`, `headingTapeLabel`, `a10cHudPoint`, `osbAnchor(n, pageSide)`, `msgOsbLabels`.
+
+Not verified (trainer layout, say "simplified" in the UI where it matters): CNTL on OSB 1; the LSS code under
+OSB 6; positions of NOT SOI, SPI, NEW TASKING and the hook readout; the HUD layout (positions of speed, altitude,
+mode, profile, L) and the ladder; the HUD SPI diamond; the CCRP reticle position and the TTR number format; the
+TAD steerpoint circle and own-ship outline; true north and true bearings on the TAD (DCS uses magnetic); the MSG
+page line layout and how the answer is shown; metric range on the TGP (DCS shows nm).
+
 ## Also exported
 
 `rwrPriority`, `rwrTypeRank(contact)`, `isAirborne(contact)`, `rwrSymbolFor(spec, contact)`, `scopeRadius(rwrId, contact, rank)`, `spoLamps(bearing)`,
@@ -333,6 +383,7 @@ scripts/shot.sh '/sandbox/displays.html?t=28' .shots/displays-us-1440.png 1440 2
 scripts/shot.sh '/sandbox/displays.html?t=28&skin=ru' .shots/displays-ru-1440.png 1440 2150 6000
 scripts/shot.sh '/sandbox/displays.html?t=28&only=f15c&w=390' .shots/displays-f15c-390.png 500 600 3000
 scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-live-fa18c.png 1440 900 3000
+scripts/shot.sh '/sandbox/a10c.html?pause=1&t=0.1' .shots/a10c-displays-1440.png 1440 2400 5000
 ```
 
 `?only=` takes `su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c rwr-<id> helpers` (comma list), `?pause=1`,
