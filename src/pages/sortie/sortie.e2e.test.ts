@@ -5,7 +5,10 @@
 import { describe, expect, test } from 'vitest';
 import { FIGHTER_ORDER } from '../../data/aircraft';
 import { simulateSortie } from './headless';
-import { defaultSetup, SORTIE_LIMIT_S } from './setup';
+import { buildSortie, defaultSetup, sortieWorld, SORTIE_LIMIT_S } from './setup';
+import { SortieRecorder } from './recorder';
+import { canLockJammer } from '../../sim/radar';
+import { bearingTo } from '../../sim/math';
 import { coachSortie, describeShot, scoreSortie } from './coach';
 
 describe('sortie end to end', () => {
@@ -41,6 +44,38 @@ describe('sortie end to end', () => {
     expect(inp.enemies.length).toBe(2);
     expect(inp.samples[0].bandits.length).toBe(2);
     expect(coachSortie(inp).every(i => !/undefined|NaN/.test(i.text))).toBe(true);
+  });
+
+  test('bandit ECM "always": the jam event is recorded, the strobe takes a jam lock and an HOJ shot', () => {
+    const setup = { ...defaultSetup('f15c'), ecm: 'always' as const };
+    const o = simulateSortie('f15c', setup, 'imperial');
+    const inp = o.recorder.input();
+    expect(inp.events.some(e => e.type === 'jam' && e.on && inp.enemies.includes(e.ownerId))).toBe(true);
+    expect(coachSortie(inp).every(i => !/undefined|NaN/.test(i.text))).toBe(true);
+
+    // The page path: a strobe on the scope → lockJammer → canLaunch on the jam lock → a 'hoj' missile, recorded.
+    const w = sortieWorld('f15c', setup);
+    const eng = buildSortie(w, 'f15c', setup, 'imperial');
+    const rec = new SortieRecorder(w, eng, 'f15c', 'imperial');
+    const me = w.get(eng.playerId)!;
+    const bandit = eng.enemyIds[0];
+    let locked = false;
+    for (let i = 0; i < 400 && !locked; i++) {
+      me.cmd.heading = bearingTo(me.pos, w.get(bandit)!.pos);
+      w.step(0.25);
+      if (me.radar.strobes.some(x => x.targetId === bandit) && canLockJammer(w, me, bandit).ok) locked = w.lockJammer(me.id, bandit);
+    }
+    expect(locked).toBe(true);
+    expect(w.canLock(me.id, bandit).ok).toBe(false);
+    expect(me.radar.stt.hoj).toBe(true);
+    me.selectedWeapon = 'aim120c';
+    const check = w.canLaunch(me.id);
+    expect(check.ok).toBe(true);
+    expect(check.range).toBeNull();
+    const m = w.launch(me.id);
+    expect('kind' in m && m.guidance).toBe('hoj');
+    expect(rec.shots[0]?.hoj).toBe(true);
+    rec.dispose();
   });
 
   test('the same setup gives the same fight (Fly again)', () => {

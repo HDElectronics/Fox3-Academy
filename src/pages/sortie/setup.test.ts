@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { article, briefFacts, buildSortie, defaultSetup, multiShot, parseSetup } from './setup';
+import { article, briefFacts, buildSortie, burnThroughLabel, defaultSetup, ecmBriefLines, multiShot, parseEcm, parseSetup } from './setup';
+import { applyParams } from './index';
+import { jammerKey, jetKeyMap } from './keys';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
+import { BURN_THROUGH_M, ECM_USING, OWN_JAMMER } from '../../data/ecm';
+import { fmtRange } from '../../app/format';
 import { World } from '../../sim/world';
 import { simulateSortie } from './headless';
 
@@ -47,6 +52,69 @@ describe('parseSetup', () => {
     expect(s.range).toBe(170_000);
     expect(s.playerAlt).toBe(2_000);
     expect(s.skill).toBe(d.skill);
+  });
+});
+
+describe('bandit ECM', () => {
+  test('defaults to Never and survives storage; junk falls back', () => {
+    expect(defaultSetup('f15c').ecm).toBe('never');
+    expect(parseSetup('f15c', JSON.stringify({ ecm: 'always' })).ecm).toBe('always');
+    expect(parseSetup('f15c', JSON.stringify({ ecm: 'sometimes' })).ecm).toBe('never');
+    expect(parseSetup('f15c', JSON.stringify({})).ecm).toBe('never');
+    for (const x of ECM_USING) expect(parseEcm(x.id)).toBe(x.id);
+    expect(parseEcm('constructor')).toBeNull();
+  });
+
+  test('URL ?ecm= sets the option, anything else keeps it', () => {
+    const d = defaultSetup('su27');
+    expect(applyParams(d, new URLSearchParams('ecm=detected')).ecm).toBe('detected');
+    expect(applyParams({ ...d, ecm: 'locked' }, new URLSearchParams('ecm=bogus')).ecm).toBe('locked');
+  });
+
+  test('every bandit gets the option: "always" jams, "never" does not', () => {
+    for (const [ecm, want] of [['always', true], ['never', false]] as const) {
+      const s = { ...defaultSetup('f15c'), scenario: '1v2' as const, ecm };
+      const w = new World(3);
+      const eng = buildSortie(w, 'f15c', s, 'imperial');
+      for (let i = 0; i < 20; i++) w.step(0.25);
+      for (const id of eng.enemyIds) expect(w.get(id)?.jamming, `${ecm} ${id}`).toBe(want);
+      expect(w.get(eng.playerId)?.jamming).toBe(false);
+    }
+  });
+
+  test('a bandit without a jammer never jams, and the brief says so', () => {
+    const s = { ...defaultSetup('f15c'), enemy: 'j11a' as const, ecm: 'always' as const };
+    const w = new World(3);
+    const eng = buildSortie(w, 'f15c', s, 'imperial');
+    for (let i = 0; i < 20; i++) w.step(0.25);
+    expect(w.get(eng.enemyIds[0])?.jamming).toBe(false);
+    expect(ecmBriefLines('f15c', s, 'imperial', 'E')[0]).toMatch(/J-11A has no jammer.*never jams/);
+  });
+
+  test('brief line per jet: burn-through in your units, labelled by source; own jammer key notes', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const units = AIRCRAFT[ac].nation === 'ru' ? 'metric' : 'imperial';
+      const enemy = ac === 'f15c' ? 'su27' : 'f15c';
+      const key = jammerKey(jetKeyMap(ac)).key;
+      const lines = ecmBriefLines(ac, { ecm: 'always', enemy }, units, key);
+      const burn = fmtRange(BURN_THROUGH_M[ac].value, units, 0);
+      expect(lines[0], ac).toContain(`burn-through at about ${burn} (${burnThroughLabel(ac)})`);
+      expect(lines[0], ac).toMatch(/strobe: bearing, no range/);
+      const own = OWN_JAMMER[ac];
+      const last = lines[lines.length - 1];
+      if (!own) expect(last, ac).toMatch(/No jammer/);
+      else if (!key) expect(last, ac).toMatch(/a button here/);
+      else {
+        expect(last, ac).toContain(`(${own.key}`);
+        expect(last.includes('trainer key'), ac).toBe(own.trainerKey);
+        expect(last.includes('not verified'), ac).toBe(!own.verified);
+      }
+    }
+    expect(burnThroughLabel('f15c')).toBe('ED manual');
+    expect(burnThroughLabel('f16c')).toBe('community');
+    expect(ecmBriefLines('su27', { ecm: 'always', enemy: 'f15c' }, 'metric', 'E')[0]).toContain('25 km');
+    expect(ecmBriefLines('m2000c', { ecm: 'never', enemy: 'su27' }, 'imperial', 'E')[0]).toMatch(/no jamming/);
+    expect(ecmBriefLines('f15c', { ecm: 'always', enemy: 'su27' }, 'imperial', 'E')[1]).toMatch(/AIM-120C.*can home on the jam/);
   });
 });
 

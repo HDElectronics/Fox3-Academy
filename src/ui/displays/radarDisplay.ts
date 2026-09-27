@@ -34,7 +34,8 @@ export interface RadarDrawExtra {
 
 export interface RadarPick {
   targetId: EntityId;
-  kind: 'track' | 'brick' | 'stt';
+  /** 'strobe': a jam strobe (bearing only); lock it with world.lockJammer, not lock. */
+  kind: 'track' | 'brick' | 'stt' | 'strobe';
 }
 
 export class RadarDisplay {
@@ -176,7 +177,7 @@ export class RadarDisplay {
   }
 }
 
-const kindOf = (h: HitItem): RadarPick['kind'] => (h.kind === 'stt' ? 'stt' : h.kind === 'brick' ? 'brick' : 'track');
+const kindOf = (h: HitItem): RadarPick['kind'] => (h.kind === 'stt' ? 'stt' : h.kind === 'brick' ? 'brick' : h.kind === 'strobe' ? 'strobe' : 'track');
 
 function resolve(o: RadarDisplayOptions): ResolvedOptions {
   return {

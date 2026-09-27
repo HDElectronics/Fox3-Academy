@@ -60,7 +60,7 @@ new RadarDisplay(canvas: HTMLCanvasElement, options: RadarDisplayOptions)
 |---|---|
 | `draw(picture: RadarPicture \| null, extra?: { ownHeading?: number })` | Draw one frame. `null` = no picture (empty glass); `picture.mode === 'off'` = standby legend. `ownHeading` (rad, true) enables TID ground stabilisation, target heading readouts (VSD, Viper, VTB) and the VTB heading tape. |
 | `pick(clientX, clientY, slopPx = 0) → EntityId \| null` | Target under a pointer: locked target first, then tracks, then bricks. Use ~10 px slop for touch. |
-| `pickDetail(clientX, clientY, slopPx?) → { targetId, kind: 'track' \| 'brick' \| 'stt' } \| null` | Same, with what was hit. |
+| `pickDetail(clientX, clientY, slopPx?) → { targetId, kind: 'track' \| 'brick' \| 'stt' \| 'strobe' } \| null` | Same, with what was hit. `'strobe'` is a jam strobe (lowest priority): lock it with `world.lockJammer`, not `lock`. |
 | `pickables() → { targetId, kind, x, y }[]` | Everything pickable in the last frame, left to right (keyboard cycling of designations). |
 | `toRadar(clientX, clientY) → { az, range } \| null` | Radar coordinates under a pointer (rad rel nose, m); null outside the plot. For cursor slewing / scan centring. |
 | `toScreen(az, range) → { x, y } \| null` | Canvas CSS px of a radar point (for HTML overlays). |
@@ -111,6 +111,24 @@ What each format draws (research files in `docs/research/`):
 
 Every format: bricks fade with `fade`, coasting tracks blink, designation order, locked target, scan limits and
 beam caret, missile counters from the picture's `timeToActive` / `timeToImpact`.
+
+### Jamming (`picture.strobes`, `picture.stt.hoj`; `docs/research/ecm-datalink-iff.md`, `data/ecm.ts` `JAM_CUE`)
+
+A strobe and a jam lock have a bearing only. The displays draw no range, altitude, aspect or closure for them
+(`rangedStt(pic)` in `radar/common.ts` is the STT with a real range; `jamLock(pic)` the angle-only lock). Strobes
+fade with `fade`, sit behind contacts, are skipped outside the gimbal on B-scopes, and register `'strobe'` hits
+along their length (or on the top marker); the jam lock registers an `'stt'` hit. `ownJamming` is not drawn: the
+own-jammer cues in `OWN_JAMMER` are cockpit lights or panels, not radar symbols.
+
+| format | strobe | jam lock | verified |
+|---|---|---|---|
+| `f15-vsd` | column of hollow rectangles along the azimuth, full range height | solid line through the rectangles, `HOJ` above | yes (ED F-15C p. 70) |
+| `ru-hud` | column of dot-row marks flashing at 4 Hz in a pseudo-random pattern (keyed on `picture.t`), `АП` top right | steady line, lock circle (Su) / diamond (MiG) at its top, no range arrow, `АП` | Su-27 yes; Su-33 / J-11A / MiG-29S by family |
+| `mfd` Hornet | AOJ dugout (small U) at the top of the B-scope | dugout + line, `AOJ` | strobe yes (ED Hornet p. 157); lock label by the guide's wording |
+| `mfd` Viper | pair of chevrons in `caution` (yellow) at the top of the FCR | chevrons + line, `HOJ` | strobe yes (ED Viper pp. 392–393); lock not verified |
+| `mfd` JF-17 | generic line along the bearing | line, `HOJ` | not verified |
+| `tid` | line from own aircraft to the rim with `<` at 50 nm (just inside the rim on smaller scales) | bright strobe, `JAT` beside the `<`; replaces the STT line | yes (Heatblur F-14 manual) |
+| `vtb` | dashed line along the bearing | solid bright line, no label, no PSIC block | not verified |
 
 ## RwrDisplay
 
@@ -255,7 +273,11 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
 - F-15C VSD shows the HUD's post-launch `T tta tti` / `M tti` counter (in DCS it is HUD-only); no NCTR print,
   no bearing to the PDT (the picture has no own heading unless you pass `ownHeading`).
 - Hornet threat rank is by range; Hornet / Viper / JF-17 OSB legends are placed plausibly, not verified per button.
-- F-14 TID has no launch-zone vectors, datalink tracks or jam strobes; the steering centroid is not drawn.
+- F-14 TID has no launch-zone vectors or datalink tracks; the steering centroid is not drawn. The DDD `JET`
+  strobe is not drawn (no DDD format).
+- Jam symbols: exact shape and size of the Hornet dugout and Viper chevrons are stylised; the Su-27 strobe's
+  flashing pattern is a trainer choice; JF-17 and M-2000C strobes and every lock cue marked "not verified"
+  above are generic.
 - M-2000C VTB contacts show one detection-bar tick (the picture does not say which bar painted them).
 - Scope RWR placement uses the per-RWR rules above; symbol glyphs for the Serval are ED-style codes (per data).
 - SPO-15 signal strength is a column of 15 lamps (the lamp count is not confirmed by research).
@@ -270,7 +292,13 @@ scripts/shot.sh '/sandbox/displays-live.html?jet=fa18c&t=78' .shots/displays-liv
 ```
 
 `?only=` takes `su27 mig29s f15c fa18c f16c jf17 f14b f14g m2000c rwr-<id> helpers` (comma list), `?pause=1`,
-`?perf=1` logs draw cost, `&sams=1` adds SA-15 / SA-10 / AWACS emitters, `&hl=s1` highlights one emitter. Clicking a track in the sandbox toggles its designation (pick demo).
+`?perf=1` logs draw cost, `&sams=1` adds SA-15 / SA-10 / AWACS emitters, `&hl=s1` highlights one emitter,
+`&jam=strobe` adds two jam strobes, `&jam=lock` an angle-only jam lock plus a strobe. Clicking a track in the
+sandbox toggles its designation (pick demo); clicking a strobe reports `strobe j1`.
+
+```
+scripts/shot.sh '/sandbox/displays.html?only=su27,mig29s,f15c,fa18c,f16c,jf17,f14b,f14g,m2000c&jam=lock&pause=1' .shots/jam-lock.png 1440 1500 4000
+```
 
 ## ACM cues and the IR tone (issue #11)
 

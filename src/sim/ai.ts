@@ -15,6 +15,7 @@ import { Vector3 } from 'three';
 import type { World } from './world';
 import type { Aircraft, AiMemory, AiSkill, Dlz, EntityId, Missile, MissReason, SamMissile, SamSite, SimEvent } from './types';
 import { SAMS } from '../data/sams';
+import type { EcmUsing } from '../data/ecm';
 import { samRingM } from './sam';
 import { fighterSpec, isFighterAc } from './jet';
 import type { AircraftSpec, MissileId, RadarModeId } from '../data/types';
@@ -86,9 +87,13 @@ export interface AiConfig {
   script: AiScript | null;
   /** Radar mode while scripted ('off' for silent targets). */
   scriptRadar: RadarModeId;
+  /** DCS mission editor "ECM Using" (data/ecm.ts). null = leave `jamming` as spawned (scenario flag). The DCS
+   *  default and whether the AI stops jamming inside burn-through are not verified. */
+  ecmUsing: EcmUsing | null;
 }
 
 export const DEFAULT_AI_CONFIG: Readonly<AiConfig> = Object.freeze({
+  ecmUsing: null,
   holdFire: false,
   evade: true,
   gci: false,
@@ -318,6 +323,21 @@ export function thinkAi(world: World, ac: Aircraft, dt: number): void {
   const step = b.mem.acc;
   b.mem.acc = 0;
   decide(world, ac, b, step);
+  useEcm(world, ac, b.cfg.ecmUsing);
+}
+
+/** Should the AI's jammer be on under the mission editor "ECM Using" option? Emitters come from its own RWR. */
+export function ecmWanted(ac: Aircraft, using: EcmUsing): boolean {
+  if (using === 'always') return true;
+  if (using === 'never') return false;
+  const emitters = ac.rwr.filter(c => c.emitterType !== 'missile');
+  return using === 'detected' ? emitters.length > 0 : emitters.some(c => c.state === 'lock' || c.state === 'launch');
+}
+
+function useEcm(world: World, ac: Aircraft, using: EcmUsing | null): void {
+  if (using === null || !ac.alive) return;
+  const want = ecmWanted(ac, using);
+  if (want !== ac.jamming) world.setJamming(ac.id, want);
 }
 
 // ───────────────────────────────────────────────────────────── brain setup

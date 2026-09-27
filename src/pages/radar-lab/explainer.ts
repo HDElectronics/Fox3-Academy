@@ -14,17 +14,19 @@ import {
   twsPatterns,
 } from './geometry';
 import { JET_NOTES } from './notes';
+import { jamFacts, lockKeyOf } from './jamming';
 
 /** "Simplified here" lines for this page: the sim's radar model plus the jet's scan/detection caveats. */
 export function simplifiedLines(ac: FighterId): string[] {
   const spec = AIRCRAFT[ac];
   const lines = [
-    'Detection is a range test with a short probability edge, not a signal-to-noise model: no PRF, jamming, burn-through or terrain masking.',
+    'Detection is a range test with a short probability edge, not a signal-to-noise model: no PRF effects or terrain masking.',
     spec.radar.notchNeedsLookDown
       ? 'The notch is a flat radial-speed gate from the data, applied only in look-down. No zero-Doppler tail-chase gate, and a notched contact is dropped at once instead of coasting on range and angle.'
       : 'The notch is a flat radial-speed gate from the AI table, applied at any look angle here. No zero-Doppler tail-chase gate, and a notched contact is dropped at once.',
     'The scan is horizon-stabilised and ignores bank. Coverage numbers use a flat earth (range × tan angle).',
     'The 3D view and the side view show the truth. The radar display shows only what the radar has painted.',
+    'Jamming is one burn-through range per radar; a jammer shows as a strobe out to 1.75 × the head-on detection range (trainer value). Home-on-jam missiles fly pure pursuit.',
   ];
   const ld = lookDownCaveat(ac);
   if (ld) lines.push(ld.replace(/^Simplified: /, ''));
@@ -158,6 +160,16 @@ export function buildExplainer(ac: FighterId, u: Units): HTMLElement {
     }),
     lookDownCaveat(ac) ? h('p', null, lookDownCaveat(ac)) : null,
     h('p', null, 'Range scales with the fourth root of radar cross-section: a 3 m² fighter is seen at 88 % of the range of a 5 m² one. In the last 20 % of detection range only some looks paint him here, so a faint contact flickers before it holds.'),
+  );
+
+  const jf = jamFacts(ac, u);
+  const lk = lockKeyOf(ac);
+  sec('jam', 'Jamming: a bearing without a range',
+    h('p', null, 'DCS models one kind of jamming. A jammer hides his range and leaves his bearing, so your radar shows a strobe along his azimuth: no range, altitude, aspect or closure, and no launch zone. A normal lock is refused because the radar has no range to lock.'),
+    h('p', null, `In the ${spec.short}: ${jf.strobe.charAt(0).toLowerCase()}${jf.strobe.slice(1)}. You can lock the strobe itself (${jf.lock}${lk ? `; cursor on it and ${lk.text}${lk.page ? ', this trainer\'s stand-in key' : ''}` : ''}). That lock is angle only.`),
+    h('p', null, `${jf.burnThrough} Inside that range the radar measures his range again and the jam lock becomes a normal lock.`),
+    h('p', null, `${jf.hojLine} ${jf.pursuit}`),
+    h('p', null, jf.ownJammer ?? ''),
   );
 
   const notes = JET_NOTES[ac];

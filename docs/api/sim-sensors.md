@@ -303,14 +303,34 @@ Also exported: `launchTarget(world, ac, missile?)`, `launchConeDeg(missile)`, `i
   do not replace `ac.radar` with a copy.
 - The radar uses `world.rand()` (deterministic per seed); calling it from a page changes later detections.
 
+## Jamming (`radar.ts`, issue #12)
+
+DCS models one kind of jamming: it hides range and leaves the bearing (docs/research/ecm-datalink-iff.md).
+- `isJammed(obs, tgt, range?)`: `tgt.jamming` and range > `burnThroughRange(obs)` (data/ecm.ts `BURN_THROUGH_M`).
+  A jammed target is never detected: in every search mode the beam crossing it inside `strobeRange(obs)`
+  (1.75 × head-on detection, trainer value) adds a `JamStrobe` (`st.strobes`: az, el, no range), aged like bricks.
+- `canLock` refuses a jammer ("Lock the strobe"); `canLockJammer` / `lockJammer` (also `world.lockJammer`) take an
+  angle-only STT (`st.stt.hoj`) on a fresh strobe inside the gimbal. The track sits on the line of sight at the
+  burn-through range as a placeholder. Inside burn-through (or when the jamming stops) it turns into an ordinary
+  STT. A normal STT on a target that starts jamming degrades (`'jammed'`) and breaks after the STT memory.
+- `guidanceSupport` gives nothing on a jam lock. `canLaunch` on a jam lock accepts only `HOJ_MISSILES` (AIM-120B/C,
+  AIM-7M, R-27R/ER, AIM-54A/C), inside the launch cone, with `range: null, dlz: null`.
+- A missile fired from a jam lock has guidance `'hoj'`: pure pursuit on the jammer, no loft, no pitbull countdown.
+  When the jamming stops an ARH goes inertial to the last point, a SARH goes ballistic (`seeker-lost`).
+- `world.setJamming(id, on)` switches the own jammer (refused for jets without `OWN_JAMMER`) and emits `jam`.
+- `RadarPicture.strobes`, `ownJamming` and `stt.hoj` carry it to the displays; the jam-locked target is left
+  out of `tracks` and its `stt` range, alt, aspect and closure are placeholders a display must not show.
+- Tested in `src/sim/ecm.test.ts`.
+
 ## Simplified here (say so in the UI)
 
 - Detection is a range test with a linear probability edge, not a signal-to-noise model; no PRF (ППС/ЗПС/АВТ,
-  HI/MED/INTL) effects, no ECM or burn-through, no terrain masking, no IFF delay.
+  HI/MED/INTL) effects, no terrain masking, no IFF delay. Jamming is one burn-through range per radar and a
+  strobe out to 1.75 × detection range; home-on-jam missiles fly pure pursuit.
 - The notch is the ground-referenced radial-speed gate from the data (`notchKts`), with no tail-chase
   (zero-Doppler) gate and no range/angle coasting through the notch.
 - The scan is horizon-stabilised and ignores bank; RWRs have no elevation blind zones.
-- SAM/DTT (F-16, JF-17 in RWS) are simplified to a straight lock; F-14 pulse acquisition and PAL/PLM/VSL are not modelled. СНП2 checks the scenario `jamming` flag; this does not simulate ECM or burn-through.
+- SAM/DTT (F-16, JF-17 in RWS) are simplified to a straight lock; F-14 pulse acquisition and PAL/PLM/VSL are not modelled. СНП2 refuses a jamming target at any range.
 - STT memory is 3 s where research gives no number.
 - ACM is one generic 10 nm strip for all jets.
 - VS bricks carry a range the real mode does not have.

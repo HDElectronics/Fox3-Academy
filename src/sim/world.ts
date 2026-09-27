@@ -9,7 +9,8 @@
  */
 import { Vector3 } from 'three';
 import type { AgWeaponId, MissileId, RadarModeId } from '../data/types';
-import { AIRCRAFT } from '../data/aircraft';
+import { AIRCRAFT, isFighter } from '../data/aircraft';
+import { OWN_JAMMER } from '../data/ecm';
 import type {
   AgMasterMode, AgSalvo, AgWeapon, Aircraft, Countermeasure, EntityId, GroundMark, GroundUnit, GroundUnitSpawnOptions, LaunchCheck, MarkSpawnOptions, Missile,
   RadarState, RecordFrame, SamMissile, SamSite, SamSpawnOptions, SimEvent, SpawnOptions, TerrainHook, XYZ,
@@ -26,7 +27,7 @@ import { dirFrom } from './math';
 import { stepAircraft } from './flight';
 import { createMissile, stepMissile } from './missile';
 import { dropChaff, dropFlare, stepCountermeasures } from './countermeasures';
-import { canLock, createRadarState, cycleDesignation, designate, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
+import { canLock, canLockJammer, createRadarState, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
 import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
@@ -45,7 +46,7 @@ import { agLaunch, armLock, canAgLaunch, setArmDetect, setCcrpHold, stepAgWeapon
 function radarOff(): RadarState {
   return {
     mode: 'off', snp2: false, expectedRange: null, azCenter: 0, azHalf: 0, elCenter: 0, bars: 1, rangeScale: 0,
-    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], tracks: [], designated: [],
+    beamAz: 0, beamEl: 0, sweepDir: 1, bar: 0, frameTime: 0, bricks: [], strobes: [], tracks: [], designated: [],
     stt: { targetId: null, lostFor: 0 }, cursor: { az: 0, range: 0 },
   };
 }
@@ -351,6 +352,22 @@ export class World {
   }
   unlock(id: EntityId): void {
     const ac = this.aircraft.get(id); if (ac) unlock(this, ac);
+  }
+  /** Can this jet take an angle-only lock on a jam strobe on `targetId`? Reason in pilot words when not. */
+  canLockJammer(id: EntityId, targetId: EntityId): LockCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? canLockJammer(this, ac, targetId) : { ok: false, reason: 'No aircraft' };
+  }
+  /** Angle-only lock on a jam strobe (HOJ / AOJ / JAT); see radar.ts lockJammer. */
+  lockJammer(id: EntityId, targetId: EntityId): boolean {
+    const ac = this.aircraft.get(id); return !!ac && lockJammer(this, ac, targetId);
+  }
+  /** Own self-protection jammer on or off (jets without one, data/ecm.ts OWN_JAMMER, refuse). */
+  setJamming(id: EntityId, on: boolean): boolean {
+    const ac = this.aircraft.get(id);
+    if (!ac || !ac.alive || !isFighter(ac.type) || !OWN_JAMMER[ac.type]) return false;
+    if (ac.jamming !== on) { ac.jamming = on; this.emit({ t: this.t, type: 'jam', ownerId: id, on }); }
+    return true;
   }
   /** Remove one TWS designation. */
   undesignate(id: EntityId, targetId: EntityId): void {

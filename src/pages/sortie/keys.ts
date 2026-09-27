@@ -6,6 +6,7 @@
 import type { FighterId, KeyBind, MissileId } from '../../data/types';
 import { AIRCRAFT } from '../../data/aircraft';
 import { PROCEDURES } from '../../data/procedures';
+import { OWN_JAMMER } from '../../data/ecm';
 import { parseChord, parseKeyList, splitAlternatives } from '../../ui/keys';
 
 export type ActionId =
@@ -215,4 +216,21 @@ export function trainerKeys(map: JetKeyMap): TrainerKeys {
     map: fk('F10'),
     weaponView: fk('F6'),
   };
+}
+
+/**
+ * The own-jammer key (data/ecm.ts OWN_JAMMER): its key when neither the jet's map nor a trainer key uses it, else
+ * null with the collision named (F/A-18C: E is chaff), so the page offers a button instead of inventing a key.
+ */
+export function jammerKey(map: JetKeyMap): { key: string | null; collidesWith: string | null } {
+  const own = OWN_JAMMER[map.aircraft];
+  if (!own) return { key: null, collidesWith: null };
+  const text = parseChord(own.key)?.text ?? own.key;
+  for (const [a, k] of Object.entries(map.keys)) {
+    if (k?.keys && parseKeyList(k.keys).some(c => c.text === text)) return { key: null, collidesWith: `${k.dcsName} (${a})` };
+  }
+  for (const s of map.selects) if (parseKeyList(s.keys).some(c => c.text === text)) return { key: null, collidesWith: s.dcsName };
+  const tk = trainerKeys(map);
+  for (const v of Object.values(tk)) if (v && parseKeyList(v).some(c => c.text === text)) return { key: null, collidesWith: `trainer key ${v}` };
+  return { key: own.key, collidesWith: null };
 }

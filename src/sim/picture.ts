@@ -75,7 +75,18 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
     }
   }
 
-  const tracks: RadarPicture['tracks'] = st.tracks.map(tr => {
+  const strobes: RadarPicture['strobes'] = [];
+  if (st.mode !== 'off' && st.mode !== 'acm') {
+    for (const x of st.strobes) {
+      if (st.mode === 'stt' && st.stt.hoj && st.stt.targetId === x.targetId) continue; // the jam lock line replaces it
+      const age = t - x.t;
+      strobes.push({ key: `${x.targetId}~${x.t.toFixed(3)}`, targetId: x.targetId, az: x.az, el: x.el, age, fade: Math.max(0, Math.min(1, 1 - age / life)) });
+    }
+  }
+  // A jam lock has no range: its placeholder track is not a contact, only the stt line (hoj) shows it.
+  const jamLockId = st.mode === 'stt' && st.stt.hoj ? st.stt.targetId : null;
+
+  const tracks: RadarPicture['tracks'] = st.tracks.filter(tr => tr.targetId !== jamLockId).map(tr => {
     const speed = tr.vel.length();
     const moving = tr.firm && speed > 1;
     const d = st.designated.indexOf(tr.targetId);
@@ -99,9 +110,12 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
   });
 
   let stt: RadarPicture['stt'] = null;
-  if (st.mode === 'stt' && st.stt.targetId) {
+  if (jamLockId) {
+    const tr = st.tracks.find(x => x.targetId === jamLockId);
+    if (tr) stt = { targetId: jamLockId, az: relBearing(ac.pos, ac.heading, tr.pos), range: ac.pos.distanceTo(tr.pos), alt: tr.pos.y, aspectDeg: 0, closure: 0, lost: st.stt.lostFor > 0, hoj: true };
+  } else if (st.mode === 'stt' && st.stt.targetId) {
     const p = tracks.find(tr => tr.targetId === st.stt.targetId);
-    if (p) stt = { targetId: p.targetId, az: p.az, range: p.range, alt: p.alt, aspectDeg: p.aspectDeg, closure: p.closure, lost: st.stt.lostFor > 0 };
+    if (p) stt = { targetId: p.targetId, az: p.az, range: p.range, alt: p.alt, aspectDeg: p.aspectDeg, closure: p.closure, lost: st.stt.lostFor > 0, hoj: false };
   }
 
   const weaponId = ac.selectedWeapon;
@@ -132,7 +146,7 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
     scan: { azCenter: st.azCenter, azHalf: st.azHalf, elCenter: st.elCenter, bars: st.bars, beamAz: st.beamAz, beamEl: st.beamEl, bar: st.bar, frameTime: st.frameTime },
     altCoverage,
     ownAlt: ac.pos.y, ownSpeed: ac.vel.length(),
-    bricks, tracks, stt, weapon, dlz,
+    bricks, strobes, ownJamming: ac.jamming, tracks, stt, weapon, dlz,
     shootCue, cueLabel: cueLabelFor(ac.type, weaponId), launchBlockedReason,
     missilesInFlight,
     cursor: { ...st.cursor },

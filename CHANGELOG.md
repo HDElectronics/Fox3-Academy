@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Jamming as DCS shows it (#12): a jammer is a bearing-only strobe until the radar's burn-through range, drawn in
+  each jet's own symbol; a jam lock (HOJ / AOJ / JAT) lets home-on-jam missiles (AIM-120, AIM-7M, R-27R/ER,
+  AIM-54) fly pure pursuit at it. New radar lab exercise, Jammer and burn-through; the Sortie gets the bandit
+  "ECM Using" option, the own jammer on `E` and jam locks. Values and their confidence in `src/data/ecm.ts`.
+
 - Flight-ops polish (#33): tanker starts show only the refuelling touch buttons; the Su-33 demo turns the
   refuelling lights on; the probe contact follows pitch and bank; the F/A-18C and F-14B launch from all four
   catapults; the HUD reads height above the deck on a carrier and keeps VR / PULL readable at rotation; the deck

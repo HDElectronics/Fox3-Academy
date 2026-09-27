@@ -291,7 +291,7 @@ export interface HitItem {
   /** Hit radius, CSS px. */
   r: number;
   id: EntityId;
-  kind: 'track' | 'brick' | 'stt' | 'contact' | 'lamp';
+  kind: 'track' | 'brick' | 'stt' | 'contact' | 'lamp' | 'strobe';
   /** Lower wins when two overlap (tracks beat bricks). */
   prio: number;
 }

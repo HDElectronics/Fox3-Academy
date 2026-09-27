@@ -2,9 +2,10 @@
  * [OWNER: page-radar-lab] Radar Lab (#/radar): the scan volume made physical. Own jet with its live
  * RadarVolume, scripted bandits at chosen ranges / altitudes / aspects, the jet's radar display showing
  * only what was painted, a 2D side view of the bars, a "Why" panel for any clicked jet, the scan console
- * and five guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
+ * and six guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
  * ?sel=<n> ?cam=34|side|top|behind ?el=<deg> ?azc=<deg> ?w=<±deg> ?bars=<n> ?mode=rws|tws ?cursor=<units> ?pause=1
- * ?shot=<exercise|1> (jump to an interesting moment) ?view=explain (reading section only).
+ * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through)
+ * ?view=explain (reading section only).
  */
 import './style.css';
 import { mobileAction } from '../../ui/mobileAction';
@@ -14,7 +15,7 @@ import type { FighterId, AircraftSpec, RadarModeId } from '../../data/types';
 import { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import { setManeuver as scriptManeuver } from '../../sim/scenarios';
-import { barBand, explainDetection, scanElevationLimits } from '../../sim/radar';
+import { barBand, burnThroughRange, canLockJammer, explainDetection, isJammed, scanElevationLimits } from '../../sim/radar';
 import { buildRadarPicture } from '../../sim/picture';
 import { D2R, MPS_PER_KT, R2D, aspectAngle, groundRange, headingOf } from '../../sim/math';
 import { fmtAltShort, fmtSpeed, type Units } from '../../app/format';
@@ -30,8 +31,10 @@ import {
   patternHalfDeg, revisitTime, rng, rngToM, rngUnit, rngValue, scanFreedom, sdeg, seconds, twsPatterns,
 } from './geometry';
 import {
-  EXERCISES, EXERCISE_DEFS, availableExercises, notchButtons, notchPress, type ExerciseId, type Mem, type ScanPreset, type Scene, type Snap,
+  EXERCISES, EXERCISE_DEFS, availableExercises, notchButtons, notchPress, recordLockTry, strobeNearCursor,
+  type ExerciseId, type Mem, type ScanPreset, type Scene, type Snap,
 } from './exercises';
+import { lockKeyOf } from './jamming';
 import { labKeys, type LabKeys } from './labKeys';
 import { SideView, type SideTarget } from './sideView';
 import { WhyPanel, type WhyData } from './whyPanel';
@@ -69,7 +72,10 @@ const factory: PageFactory = (): Page => {
     // ?shot=<exercise> jumps to an interesting moment of that exercise (screenshots); ?shot=1 is the free scan.
     const shot = q.get('shot');
     if (shot) {
-      const SHOT: Record<string, [string, number]> = { '1': ['free', 12], free: ['free', 12], low: ['low', 5], revisit: ['revisit', 5], notch: ['notch', 20], aspect: ['aspect', 25], centre: ['centre', 5] };
+      const SHOT: Record<string, [string, number]> = {
+        '1': ['free', 12], free: ['free', 12], low: ['low', 5], revisit: ['revisit', 5], notch: ['notch', 20], aspect: ['aspect', 25], centre: ['centre', 5],
+        jam: ['jam', 8], jamlock: ['jam', 16], jambt: ['jam', 240],
+      };
       const [ex, t] = SHOT[shot] ?? SHOT.free;
       if (!q.has('ex')) q.set('ex', ex);
       if (!q.has('t')) q.set('t', String(t));
@@ -103,6 +109,9 @@ const factory: PageFactory = (): Page => {
     const bug = bugOnlyOptions(ac);
     const pats = twsPatterns(ac);
     const reduced = Stage.prefersReducedMotion();
+    const lockKey = lockKeyOf(ac);
+    // Jam shots: the pilot's clicks are played during the pre-roll (normal lock refused, then the jam lock).
+    const jamShot = shot === 'jamlock' || shot === 'jambt' ? shot : null;
 
     // ---- state -----------------------------------------------------------------------------------------
     let world = new World(7);
@@ -137,13 +146,20 @@ const factory: PageFactory = (): Page => {
     const beamBtn = button({ label: 'Bandit: beam', size: 's', id: 'rl-beam', onClick: () => notchCommand('beam') });
     const hotBtn = button({ label: 'Bandit: turn hot', size: 's', id: 'rl-hot', lamp: true, onClick: () => notchCommand('hot') });
     const notchRow = h('div', { class: 'ui-row rl-notchrow' }, beamBtn.el, hotBtn.el);
+    const normalLockBtn = button({ label: 'Normal lock', size: 's', id: 'rl-lock', title: 'Try an ordinary STT on the jammer', onClick: () => tryNormalLock() });
+    const jamLockBtn = button({
+      label: 'Jam lock', size: 's', id: 'rl-jamlock', keys: lockKey?.text,
+      title: 'Lock the strobe under the cursor, or click the strobe',
+      onClick: () => jamLock(jamStrobeId(true)),
+    });
+    const jamRow = h('div', { class: 'ui-row rl-notchrow' }, normalLockBtn.el, jamLockBtn.el);
     const progressEl = h('span', { class: 'rl-progress' });
     const log = eventLog({ id: 'rl-log', max: 30, empty: 'Paints and losses show here.' });
     log.el.style.setProperty('--log-h', '6.5em');
 
     const exPanel = consolePanel({
       title: 'Exercises', id: 'rl-expanel', actions: progressEl,
-      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
+      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
     });
 
     // Radar controls.
@@ -330,8 +346,8 @@ const factory: PageFactory = (): Page => {
         label: (a, u) => a.id === PLAYER
           ? { title: 'You', type: narrow ? '' : spec.short, sub: narrow ? fmtAltShort(a.pos.y, u) : `${fmtAltShort(a.pos.y, u)} · ${fmtSpeed(a.vel.length(), u)}` }
           : narrow
-            ? { title: a.callsign, type: '', sub: paint.get(a.id)?.seen ? 'ON SCOPE' : 'OFF SCOPE' }
-            : { title: a.callsign, type: AIRCRAFT[a.type].short, sub: `${fmtAltShort(a.pos.y, u)} · ${paint.get(a.id)?.seen ? 'ON SCOPE' : 'OFF SCOPE'}` },
+            ? { title: a.callsign, type: '', sub: scopeWord(a.id) }
+            : { title: a.callsign, type: AIRCRAFT[a.type].short, sub: `${fmtAltShort(a.pos.y, u)} · ${scopeWord(a.id)}` },
       });
       rig = new CameraRig(st, { source: view });
       overlay = new LineBatch(st.shared, { capacity: 48 });
@@ -358,6 +374,10 @@ const factory: PageFactory = (): Page => {
       paint.clear();
       offWorld = world.on(e => {
         if (e.type === 'ai' && targetIds.includes(e.ownerId)) log.push(e.text, { t: e.t, tone: 'caution' });
+        if (e.type === 'lock' && e.ownerId === PLAYER) {
+          const who = world.get(e.targetId)?.callsign ?? 'target';
+          log.push(e.what === 'locked' ? `${who} locked${me?.radar.stt.hoj ? ': jam lock, bearing only' : ''}` : `Lock on ${who} ${e.what}${e.why ? `: ${e.why}` : ''}`, { t: e.t, tone: e.what === 'locked' ? 'ok' : 'caution' });
+        }
       });
       if (view) { view.setWorld(world); view.syncNow(); }
       if (selected && !targetIds.includes(selected)) selected = null;
@@ -384,9 +404,10 @@ const factory: PageFactory = (): Page => {
       // An exercise the jet cannot do: the coach says why, no steps to tick.
       stepsHost.hidden = !!na;
       notchRow.hidden = id !== 'notch';
+      jamRow.hidden = id !== 'jam' || !!na;
       const st = def.steps(ac, units, {
         elev: keys.elev?.text ?? null, zone: keys.zone?.text ?? null, width: keys.width?.text ?? null,
-        cursor: keys.cursor.text, expRange: keys.expRange?.text ?? null,
+        cursor: keys.cursor.text, expRange: keys.expRange?.text ?? null, lock: lockKey?.text ?? null,
       });
       steps = checklist({ id: 'rl-steps-' + id, steps: st.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(steps.el);
@@ -402,6 +423,55 @@ const factory: PageFactory = (): Page => {
       if (!id || exId !== 'notch') return;
       if (notchPress(mem, m, world.t)) scriptManeuver(world, id, m, { refId: PLAYER });
       updateUi(true);
+    }
+
+    // ---- jammer exercise ---------------------------------------------------------------------------------
+    /** ON SCOPE / STROBE / OFF SCOPE for the 3D tags. */
+    function scopeWord(id: EntityId): string {
+      if (paint.get(id)?.seen) return 'ON SCOPE';
+      const st = me?.radar;
+      if (st && (st.strobes.some(x => x.targetId === id) || (st.mode === 'stt' && st.stt.hoj && st.stt.targetId === id))) return 'STROBE';
+      return 'OFF SCOPE';
+    }
+
+    /** The strobe the lock acts on: under the cursor, else (button) the only one on the scope. */
+    function jamStrobeId(anyIfOne: boolean): EntityId | null {
+      const st = me?.radar;
+      if (!st) return null;
+      const list = st.strobes.map(x => ({ targetId: x.targetId, azDeg: x.az * R2D }));
+      return strobeNearCursor(list, st.cursor.az * R2D) ?? (anyIfOne && list.length === 1 ? list[0].targetId : null);
+    }
+
+    function jamLock(id: EntityId | null): void {
+      if (!me || exId !== 'jam') return;
+      if (!id) {
+        toast(me.radar.strobes.length ? 'Put the cursor on the strobe, or click it' : 'No strobe on the scope yet', { within: lab.view, tone: 'caution' });
+        return;
+      }
+      const c = canLockJammer(world, me, id);
+      if (!world.lockJammer(PLAYER, id)) toast(c.reason || 'No jam lock', { within: lab.view, tone: 'caution' });
+      updateUi(true);
+    }
+
+    function tryNormalLock(): void {
+      const id = targetIds[0];
+      if (!me || !id || exId !== 'jam') return;
+      const c = world.canLock(PLAYER, id);
+      recordLockTry(mem, c);
+      if (c.ok) world.lock(PLAYER, id);
+      else toast(`Lock refused: ${c.reason}`, { within: lab.view, tone: 'caution', ms: 3200 });
+      updateUi(true);
+    }
+
+    function syncJamButtons(): void {
+      const st = me?.radar;
+      const id = targetIds[0];
+      const hoj = !!st && st.mode === 'stt' && !!st.stt.hoj;
+      jamLockBtn.setDisabled(!st || hoj || !st.strobes.length);
+      jamLockBtn.el.title = hoj ? 'Jam lock held' : !st?.strobes.length ? 'No strobe on the scope yet' : 'Lock the strobe under the cursor, or click it';
+      normalLockBtn.setDisabled(!st || (st.mode === 'stt' && st.stt.targetId === id && !st.stt.hoj));
+      // A jam lock parks the track at the burn-through range as a placeholder: hide 3D track symbols while it holds.
+      view?.setLayer('tracks', !hoj);
     }
 
     function syncNotchButtons(): void {
@@ -553,7 +623,12 @@ const factory: PageFactory = (): Page => {
     }
 
     radarCv.addEventListener('click', e => {
-      const id = radarDisp.pick(e.clientX, e.clientY, 10);
+      const pk = radarDisp.pickDetail(e.clientX, e.clientY, 10);
+      if (pk && pk.kind === 'strobe') {
+        if (exId === 'jam') jamLock(pk.targetId); else select(pk.targetId);
+        return;
+      }
+      const id = pk?.targetId ?? null;
       if (id) { select(id); return; }
       const p = radarDisp.toRadar(e.clientX, e.clientY);
       if (p && me) applyScan({ cursor: { az: p.az, range: Math.max(500, p.range) } });
@@ -604,6 +679,8 @@ const factory: PageFactory = (): Page => {
         bag.add(() => { if (tm) clearTimeout(tm); });
       } else keyMap[keys.mode.key] = () => setMode2();
     }
+    // The jet's lock key: a jam lock on the strobe under the cursor (jam exercise only).
+    if (lockKey && !keyMap[lockKey.chord]) keyMap[lockKey.chord] = () => { if (exId === 'jam') jamLock(jamStrobeId(false)); };
     keyMap['Pause'] = () => setTimeScale(timeScale > 0 ? 0 : lastScale);
     keyMap['LShift+Z'] = () => setTimeScale(1);
     keyMap['LCtrl+Z'] = () => setTimeScale(timeScale >= 4 ? 4 : timeScale >= 2 ? 4 : timeScale >= 1 ? 2 : 1);
@@ -636,6 +713,9 @@ const factory: PageFactory = (): Page => {
         gimbalAz: r.gimbalAzDeg, top: lim.top * R2D, bottom: lim.bottom * R2D,
         inGimbal: ex.inGimbal, inAz: ex.inAzimuth, inBars: ex.inBars, detectRange: ex.detectRange, beyond: ex.range > ex.detectRange,
         lookDown: ex.lookDown, radial: ex.radialSpeed, gate: ex.notchGate, notched: ex.notched, notchNeedsLookDown: r.notchNeedsLookDown,
+        jammed: isJammed(me, tg)
+          ? { burnThrough: burnThroughRange(me), strobe: st.strobes.some(x => x.targetId === id), jamLock: st.mode === 'stt' && !!st.stt.hoj && st.stt.targetId === id }
+          : undefined,
         seenNow: !!rec?.seen, lastPaintAgo: rec?.last != null ? world.t - rec.last : null, frame: st.frameTime, radarOff: st.mode === 'off',
         rcs: AIRCRAFT[tg.type].rcsM2,
         vsOpening: st.mode === 'vs' && ex.reasons.some(x => /^VS only/.test(x)),
@@ -697,6 +777,8 @@ const factory: PageFactory = (): Page => {
         steps.setCurrent(ev.current);
       }
       if (exId === 'notch') syncNotchButtons();
+      if (exId === 'jam') syncJamButtons();
+      else view?.setLayer('tracks', true);
       if (ev.done && exId !== 'free' && !doneSaved) {
         doneSaved = true;
         ctx.app.setProgress(`radar:${ac}:${exId}`, true);
@@ -862,7 +944,27 @@ const factory: PageFactory = (): Page => {
       world.step(1 / 30);
       view?.syncNow();
       uiClock += 1 / 30;
-      if (uiClock >= 0.1) { uiClock = 0; updateUi(); }
+      if (uiClock >= 0.1) {
+        uiClock = 0;
+        if (jamShot) jamPreroll();
+        updateUi();
+        // Burn-through shot: stop a few seconds after the lock turns into a normal STT.
+        if (jamShot === 'jambt' && mem.latched[3]) {
+          if (mem.okSince == null) mem.okSince = world.t;
+          else if (world.t - mem.okSince > 3) break;
+        }
+      }
+    }
+    /** Screenshot pre-roll for the jam shots: the pilot's normal lock (refused), then the jam lock on the strobe. */
+    function jamPreroll(): void {
+      const st = me?.radar;
+      if (!st || !st.strobes.length || exId !== 'jam') return;
+      if (mem.reason === undefined) recordLockTry(mem, world.canLock(PLAYER, targetIds[0]));
+      if (world.t > 10 && st.mode !== 'stt') {
+        const s0 = st.strobes[0];
+        world.setScan(PLAYER, { cursor: { az: s0.az, range: st.cursor.range } });
+        world.lockJammer(PLAYER, s0.targetId);
+      }
     }
     const sel = num('sel');
     if (sel !== null && targetIds[sel - 1]) select(targetIds[sel - 1]);

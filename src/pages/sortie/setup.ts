@@ -13,7 +13,8 @@ import { World } from '../../sim/world';
 import { cruiseFor, defaultAdversary, duel, pair, twoVTwo, type Engagement, type SamPlacement } from '../../sim/scenarios';
 import { dlzFor } from '../../sim/dlz';
 import { speedFromMach } from '../../sim/atmosphere';
-import { AI_SKILLS } from '../../sim/ai';
+import { AI_SKILLS, configureAi } from '../../sim/ai';
+import { BURN_THROUGH_M, ECM_USING, HOJ_MISSILES, JAM_CUE, OWN_JAMMER, type EcmUsing } from '../../data/ecm';
 import { fmtAlt, fmtAltFine, fmtRange, type Units } from '../../app/format';
 import type { ScenarioId, SortieResult } from './coach';
 
@@ -39,6 +40,8 @@ export interface SortieSetup {
   /** SAM sites on the bandits' side (0 = none) and their class. */
   sams: SamCount;
   samType: SamId;
+  /** Mission editor "ECM Using" for every bandit (data/ecm.ts ECM_USING). */
+  ecm: EcmUsing;
 }
 
 export type SamCount = 0 | 1 | 2;
@@ -48,7 +51,7 @@ export function defaultSetup(ac: FighterId): SortieSetup {
   const enemy = defaultAdversary(ac);
   return {
     scenario: '1v1', enemy, skill: 'regular', range: 100_000,
-    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1, sams: 0, samType: 'sa11',
+    playerAlt: cruiseFor(ac).alt, enemyAlt: cruiseFor(enemy).alt, timeScale: 2, seed: 1, sams: 0, samType: 'sa11', ecm: 'never',
   };
 }
 
@@ -70,16 +73,66 @@ export function parseSetup(ac: FighterId, raw: unknown): SortieSetup {
       seed: 1,
       sams: o.sams === 1 || o.sams === 2 ? o.sams : 0,
       samType: o.samType && SAM_ORDER.includes(o.samType) ? o.samType : d.samType,
+      ecm: parseEcm(o.ecm) ?? d.ecm,
     };
   } catch { return d; }
 }
 
-/** Spawn the fight into a fresh World. */
+/** A mission editor "ECM Using" id, or null for anything else (URL param or stored setup). */
+export function parseEcm(v: unknown): EcmUsing | null {
+  return ECM_USING.find(x => x.id === v)?.id ?? null;
+}
+
+/** Spawn the fight into a fresh World. Every bandit gets the setup's "ECM Using" option. */
 export function buildSortie(world: World, ac: FighterId, s: SortieSetup, units: Units): Engagement {
   const opts = { range: s.range, playerAlt: s.playerAlt, enemyAlt: s.enemyAlt, units, sams: samPlacements(s) };
-  if (s.scenario === '1v2') return pair(world, ac, s.enemy, s.skill, opts);
-  if (s.scenario === '2v2') return twoVTwo(world, ac, s.enemy, s.skill, opts);
-  return duel(world, ac, s.enemy, s.skill, opts);
+  const eng = s.scenario === '1v2' ? pair(world, ac, s.enemy, s.skill, opts)
+    : s.scenario === '2v2' ? twoVTwo(world, ac, s.enemy, s.skill, opts)
+      : duel(world, ac, s.enemy, s.skill, opts);
+  for (const id of eng.enemyIds) configureAi(world, id, { ecmUsing: s.ecm ?? 'never' });
+  return eng;
+}
+
+/** How the burn-through figure is sourced, for the brief ("ED manual" or the data note). */
+export function burnThroughLabel(ac: FighterId): string {
+  const f = BURN_THROUGH_M[ac];
+  return f.verified ? 'ED manual' : f.note ?? 'not verified';
+}
+
+const ECM_WHEN: Record<EcmUsing, string> = {
+  never: 'never jams',
+  locked: 'jams once a radar locks him (his RWR shows the lock)',
+  detected: 'jams as soon as his RWR sees any radar',
+  always: 'jams from the start',
+};
+
+/**
+ * Brief lines for bandit jamming and your own jammer: what the mission editor option means, the strobe until
+ * burn-through for your radar (in your units, labelled by source), the jam lock and which of your missiles home on
+ * the jam. `jamKey` is the key the fly screen binds for your jammer (null: button only).
+ */
+export function ecmBriefLines(ac: FighterId, s: Pick<SortieSetup, 'ecm' | 'enemy'>, units: Units, jamKey: string | null): string[] {
+  const me = AIRCRAFT[ac], en = AIRCRAFT[s.enemy];
+  const opt = ECM_USING.find(x => x.id === s.ecm) ?? ECM_USING[0];
+  const out: string[] = [];
+  const burn = `${fmtRange(BURN_THROUGH_M[ac].value, units, 0)} (${burnThroughLabel(ac)})`;
+  if (s.ecm === 'never') out.push(`Bandit ECM "${opt.label}": no jamming, every contact shows range.`);
+  else if (!OWN_JAMMER[s.enemy]) out.push(`Bandit ECM "${opt.label}": the ${en.short} has no jammer in the DCS game files (not verified in game), so he never jams.`);
+  else {
+    out.push(`Bandit ECM "${opt.label}": the ${en.short} ${ECM_WHEN[s.ecm]}. A jammer is a strobe: bearing, no range, until burn-through at about ${burn} for your ${me.radar.name}. He keeps jamming inside it (not verified).`);
+    const hoj = [...new Set(me.loadout.map(l => l.missile))].filter(m => HOJ_MISSILES[m]).map(m => MISSILES[m].name);
+    const cue = JAM_CUE[ac];
+    out.push(hoj.length
+      ? `Lock the strobe for a jam lock (${cue.lock}${cue.verified ? '' : ', not verified'}): ${hoj.join(', ')} can home on the jam, with no launch zone.`
+      : `None of your missiles homes on jam: wait for burn-through, then lock and shoot as usual.`);
+  }
+  const own = OWN_JAMMER[ac];
+  if (!own) out.push(`No jammer on the ${me.short} in the DCS game files.`);
+  else {
+    const how = jamKey ? `${jamKey}${own.trainerKey ? ', trainer key' : ''}${own.verified ? '' : ', not verified'}` : 'a button here';
+    out.push(`Your ${own.name} (${how}): switch it on and you are a strobe to them, and a home-on-jam target.`);
+  }
+  return out;
 }
 
 export const enemyCount = (s: ScenarioId) => (s === '1v1' ? 1 : 2);
@@ -121,6 +174,7 @@ export interface BriefFacts {
   zones: ZoneBar[];
   edge: string;
   sams: string[];
+  ecm: string[];
 }
 
 /** Best radar missile in a loadout (longest ED head-on reference), else the best IR one. */
@@ -168,7 +222,7 @@ export function multiShot(ac: FighterId): string {
   return `the ${spec.short} guides Fox 3s at up to ${cap} targets at once.`;
 }
 
-export function briefFacts(ac: FighterId, s: SortieSetup, units: Units): BriefFacts {
+export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: string | null = null): BriefFacts {
   const me = AIRCRAFT[ac], en = AIRCRAFT[s.enemy];
   const n = enemyCount(s.scenario);
   const R = (m: number) => fmtRange(m, units, 0);
@@ -221,7 +275,7 @@ export function briefFacts(ac: FighterId, s: SortieSetup, units: Units): BriefFa
     radar,
     you: `${me.name}: ${loadoutText(ac)}.`,
     them: `${n}× ${en.name}, ${s.skill}: ${loadoutText(s.enemy)} each.`,
-    threats, yourJet, skill, zones, edge, sams: samBriefLines(s, units),
+    threats, yourJet, skill, zones, edge, sams: samBriefLines(s, units), ecm: ecmBriefLines(ac, s, units, jamKey),
   };
 }
 

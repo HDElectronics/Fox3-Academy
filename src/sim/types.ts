@@ -73,6 +73,14 @@ export interface RadarBrick {
   closure: number;      // m/s, positive = closing
 }
 
+/** A jammer outside burn-through: bearing and elevation only, no range (DCS jam strobe). */
+export interface JamStrobe {
+  targetId: EntityId;   // ground truth (UI must only use it for picking)
+  t: number;            // time the beam last crossed the jammer
+  az: number;           // rad relative to nose
+  el: number;           // rad relative to horizon
+}
+
 export interface TrackFile {
   /** Stable display label, e.g. 'T1'. */
   label: string;
@@ -107,11 +115,14 @@ export interface RadarState {
   bar: number;          // 0..bars-1
   frameTime: number;    // s, time to cover the whole pattern once (revisit time)
   bricks: RadarBrick[]; // RWS returns, aged out by the radar module
+  /** Jammers outside burn-through (all search modes), aged like bricks. */
+  strobes: JamStrobe[];
   tracks: TrackFile[];  // TWS / STT track files
   /** TWS designations, target ids in priority order. [0] is the primary (L&S / hot target). */
   designated: EntityId[];
-  /** STT: the locked target, and how long the lock has been degraded (notch, gimbal, range). */
-  stt: { targetId: EntityId | null; lostFor: number };
+  /** STT: the locked target, and how long the lock has been degraded (notch, gimbal, range). `hoj`: an
+   *  angle-only lock on a jammer outside burn-through (F-15C HOJ, FC3 AOJ, F-14 JAT): no range. */
+  stt: { targetId: EntityId | null; lostFor: number; hoj?: boolean };
   /** Cursor on the display (for picking and for scan-centre-follows-cursor jets). */
   cursor: { az: number; range: number };
 }
@@ -350,6 +361,7 @@ export type MissileGuidance =
   | 'active'     // ARH seeker on (pitbull) and tracking
   | 'sarh'       // semi-active, homing on shooter's illumination (needs STT)
   | 'ir'         // infrared homing
+  | 'hoj'        // home-on-jam: pure pursuit on a jammer, no shooter support (docs/research/ecm-datalink-iff.md)
   | 'ballistic'; // no guidance at all
 
 export type MissReason =
@@ -509,6 +521,8 @@ export type SimEvent =
   | { t: number; type: 'lock'; ownerId: EntityId; targetId: EntityId; what: 'locked' | 'unlocked' | 'broken'; why?: string }
   | { t: number; type: 'rwr'; ownerId: EntityId; emitterId: EntityId; state: RwrContact['state'] }
   | { t: number; type: 'cm'; ownerId: EntityId; what: 'chaff' | 'flare' }
+  /** Own self-protection jammer switched on or off. */
+  | { t: number; type: 'jam'; ownerId: EntityId; on: boolean }
   | { t: number; type: 'ai'; ownerId: EntityId; state: AiMemory['state']; text: string; targetId?: EntityId; missileId?: EntityId; missile?: MissileId; range?: number }
   | { t: number; type: 'sam'; siteId: EntityId; what: 'track' | 'launch' | 'lost'; targetId: EntityId; missileId?: EntityId; why?: SamLostReason; range?: number }
   | { t: number; type: 'gun'; shooterId: EntityId; what: 'burst' | 'cease' | 'empty' }
@@ -607,6 +621,10 @@ export interface RadarPicture {
   ownAlt: number;
   ownSpeed: number;                  // m/s
   bricks: { key: string; targetId: EntityId; az: number; range: number; alt: number; age: number; fade: number }[];
+  /** Jam strobes: bearing (and elevation) only. Displays draw them in the jet's own jam symbol (data/ecm.ts JAM_CUE). */
+  strobes: { key: string; targetId: EntityId; az: number; el: number; age: number; fade: number }[];
+  /** Own jammer transmitting. */
+  ownJamming: boolean;
   tracks: {
     label: string;
     targetId: EntityId;
@@ -624,7 +642,8 @@ export interface RadarPicture {
     friendly: boolean;
     missiles: { missileId: EntityId; label: string; guidance: MissileGuidance; timeToActive: number | null; timeToImpact: number | null }[];
   }[];
-  stt: null | { targetId: EntityId; az: number; range: number; alt: number; aspectDeg: number; closure: number; lost: boolean };
+  /** `hoj`: angle-only jam lock; range, alt, aspect and closure are then estimates the display must not show. */
+  stt: null | { targetId: EntityId; az: number; range: number; alt: number; aspectDeg: number; closure: number; lost: boolean; hoj: boolean };
   weapon: null | { id: MissileId; name: string; count: number };
   /** Launch zone for the selected weapon against the primary / locked target. */
   dlz: null | (Dlz & { targetRange: number });

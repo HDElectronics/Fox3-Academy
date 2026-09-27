@@ -18,8 +18,8 @@ import { blinkOn } from '../surface';
 import { caretDown, caretLeft, cross, diamond, missileIcon, stick } from '../glyphs';
 import { bscopeToScreen, fmtScale, ruWeaponLabel, screenToBscope, secs, speedVal, type Rect } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, missilePhase, missilesAt, primaryTrack, rangeY, stickLen, visibleCoast, type DlzMarks, type FrameCtx, type Mapping,
-  type PicTrack,
+  X, Y, brickAlpha, hit, hitAlong, jamLock, missilePhase, missilesAt, primaryTrack, rangeY, rangedStt, stickLen, strobeAlpha, visibleCoast,
+  type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
 export function drawRuHud(f: FrameCtx): Mapping {
@@ -49,7 +49,7 @@ export function drawRuHud(f: FrameCtx): Mapping {
     g.ink(th.symHi, 1.2, 0.34);
     caretLeft(g, rx + 3.4 * u, yr, 1.6 * u);
     g.line(rx + 3.4 * u, yr, rx + 5.4 * u, yr);
-    const clo = prim?.closure ?? pic.stt?.closure ?? null;
+    const clo = prim?.closure ?? rangedStt(pic)?.closure ?? null;
     if (clo != null) {
       g.font(2.3);
       g.text(String(Math.round(speedVal(clo, units))), rx + 6 * u, yr, 'left');
@@ -63,6 +63,17 @@ export function drawRuHud(f: FrameCtx): Mapping {
   const bk = 1.8 * u;
   g.segs([pl, y0, pl + bk, y0, pl, y0, pl, y0 + bk, pr, y0, pr - bk, y0, pr, y0, pr, y0 + bk,
     pl, y1, pl + bk, y1, pl, y1, pl, y1 - bk, pr, y1, pr - bk, y1, pr, y1, pr, y1 - bk]);
+
+  // ---- jam strobes: vertical strobe of randomly flashing marks at the jammer's azimuth (ED Su-27 manual p. 58)
+  const jl = jamLock(pic);
+  for (const s of pic.strobes) {
+    if (Math.abs(s.az) > gAz || (jl && jl.targetId === s.targetId)) continue;
+    const x = map(s.az, 0).x;
+    g.ink(th.sym, 0.9, 0.24, strobeAlpha(s));
+    flashingStrobe(f, x, y0, y1, s.key);
+    hitAlong(f, x, y0, x, y1, s.targetId);
+  }
+  g.reset();
 
   // ---- contacts: rows of dots
   for (const b of pic.bricks) {
@@ -81,15 +92,26 @@ export function drawRuHud(f: FrameCtx): Mapping {
     if (!visibleCoast(f, t)) continue;
     drawRuTrack(f, t, p.x, p.y, mig);
   }
-  if (pic.stt && !pic.tracks.some(t => t.targetId === pic.stt?.targetId) && pic.stt.range <= pic.rangeScale) {
-    const p = map(pic.stt.az, pic.stt.range);
-    const fired = missilesAt(pic, pic.stt.targetId).length > 0;
-    if ((!pic.stt.lost && !fired) || blinkOn(2, f.now)) {
+  const stt = rangedStt(pic);
+  if (stt && !pic.tracks.some(t => t.targetId === stt.targetId) && stt.range <= pic.rangeScale) {
+    const p = map(stt.az, stt.range);
+    const fired = missilesAt(pic, stt.targetId).length > 0;
+    if ((!stt.lost && !fired) || blinkOn(2, f.now)) {
       g.ink(th.symHi, 1.2, 0.34);
       if (mig) diamond(g, p.x, p.y, 2.6 * u); else g.circle(p.x, p.y, 2.4 * u);
       dots(f, p.x, p.y, false);
     }
-    hit(f, p.x, p.y, pic.stt.targetId, 'stt');
+    hit(f, p.x, p.y, stt.targetId, 'stt');
+  }
+  // AOJ lock: a steady strobe line with the lock mark at its top. No range mark: in DCS the range is set by hand.
+  if (jl && Math.abs(jl.az) <= gAz) {
+    const x = map(jl.az, 0).x;
+    if (!jl.lost || blinkOn(2, f.now)) {
+      g.ink(th.symHi, 1.2, 0.34);
+      g.line(x, y0 + 2.6 * u, x, y1);
+      if (mig) diamond(g, x, y0, 2.6 * u); else g.circle(x, y0, 2.4 * u);
+    }
+    hit(f, x, y0, jl.targetId, 'stt');
   }
 
   // ---- radar cursor: two short vertical bars (snaps onto the designated track)
@@ -114,8 +136,8 @@ export function drawRuHud(f: FrameCtx): Mapping {
   g.line(ex + 1.9 * u, elY(pic.scan.elCenter + halfCov), ex + 1.9 * u, elY(pic.scan.elCenter - halfCov));
   // Target altitude (km) beside the scale, at the target's elevation.
   const tgt = prim ?? null;
-  const tAlt = tgt?.alt ?? pic.stt?.alt ?? null;
-  const tRange = tgt?.range ?? pic.stt?.range ?? null;
+  const tAlt = tgt?.alt ?? stt?.alt ?? null;
+  const tRange = tgt?.range ?? stt?.range ?? null;
   if (tAlt != null && tRange != null) {
     const el = Math.atan2(tAlt - pic.ownAlt, Math.max(1, tRange));
     g.ink(th.symHi, 0.9, 0.3);
@@ -152,6 +174,13 @@ export function drawRuHud(f: FrameCtx): Mapping {
     g.text(String(pic.weapon.count), X(f, 97), Y(f, 86.5), 'right');
   }
 
+  // АП ("ECM detected") at the right of the HUD while a jammer shows (ED Su-27 manual p. 58).
+  if (pic.strobes.length || jl) {
+    g.ink(th.symHi, 1.1, 0.3);
+    g.font(3.1, 700);
+    g.text('АП', X(f, 97), Y(f, 9.8), 'right');
+  }
+
   // ПР (launch authorised); Ц1 / Ц2 in СНП2.
   const twoTgt = mig && pic.tracks.filter(t => t.designation).length >= 2;
   if (pic.shootCue) {
@@ -186,6 +215,30 @@ export function ruModeLabel(label: string, mode: string): string {
   const l = label || mode.toUpperCase();
   if ((mode === 'rws' || mode === 'tws' || mode === 'stt') && !/ДВБ/.test(l)) return `${l} ДВБ`;
   return l;
+}
+
+/**
+ * Jam strobe: a column of target marks (dot rows) along the plot height, each flashing on and off at 4 Hz in a
+ * pseudo-random pattern keyed on picture time, so a screenshot of the same picture is the same.
+ */
+function flashingStrobe(f: FrameCtx, x: number, y0: number, y1: number, key: string): void {
+  const step = 3.4 * f.u;
+  const tick = Math.floor(f.pic.t * 4);
+  let seed = 0;
+  for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) | 0;
+  let i = 0;
+  for (let y = y0 + step / 2; y < y1; y += step, i++) {
+    if (hash01(seed, i, tick) < 0.45) continue;
+    dots(f, x, y, false);
+  }
+}
+
+/** Deterministic 0..1 from three integers. */
+function hash01(a: number, b: number, c: number): number {
+  let h = (a ^ Math.imul(b + 1, 0x9e3779b1) ^ Math.imul(c + 7, 0x85ebca6b)) | 0;
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
 
 /** A contact as a row of two dots (fighter-size RCS); `friendly` adds the IFF row above. */

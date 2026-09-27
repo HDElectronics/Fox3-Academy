@@ -17,6 +17,8 @@ import {
 import { briefFacts, enemyCount, samPlacements, SAM_COUNTS, SKILLS, TIME_SCALES, type SamCount, type SortieSetup, type ScenarioId, type TimeScale } from './setup';
 import type { SamId } from '../../data/types';
 import { SAMS, SAM_ORDER } from '../../data/sams';
+import { ECM_USING, type EcmUsing } from '../../data/ecm';
+import { jammerKey, jetKeyMap } from './keys';
 
 export interface BriefOptions {
   ctx: PageContext;
@@ -92,6 +94,12 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
     options: SAM_ORDER.map(id => ({ value: id, label: SAMS[id].nato.split(' ')[0], sub: `${fmtRange(SAMS[id].threatRingKm * 1000, units, 0)} ring` })),
     onChange: v => { s.samType = v; refresh(); },
   });
+  const ecm = select<EcmUsing>({
+    id: 'sortie-ecm', label: 'Bandit ECM', value: s.ecm,
+    options: ECM_USING.map(x => ({ value: x.id, label: `${x.label}${x.id === 'never' ? ' (default)' : ''}` })),
+    onChange: v => { s.ecm = v; refresh(); },
+  });
+  const jamKey = jammerKey(jetKeyMap(ac)).key;
   const fly = button({ id: 'sortie-go', label: 'Fly the sortie', variant: 'primary', size: 'l', block: true, keys: 'Enter', onClick: () => o.onFly({ ...s }) });
 
   // Brief text (rebuilt on every change: small).
@@ -103,7 +111,7 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
   const done = ctx.app.getProgress(`sortie:${ac}:done`);
 
   function refresh(): void {
-    const f = briefFacts(ac, s, units);
+    const f = briefFacts(ac, s, units, jamKey);
     const n = enemyCount(s.scenario);
     setText(title, `${spec.short} vs ${n > 1 ? '2× ' : ''}${AIRCRAFT[s.enemy].short}${s.scenario === '2v2' ? ', with a wingman' : ''}`);
     lines.replaceChildren(
@@ -118,6 +126,8 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       placard('Your jet'),
       h('ul', { class: 'sortie-list' }, f.yourJet.map(t => h('li', null, t))),
       ...(f.sams.length ? [placard('SAM sites'), h('ul', { class: 'sortie-list' }, f.sams.map(t => h('li', null, t)))] : []),
+      placard('Jamming'),
+      h('ul', { class: 'sortie-list', id: 'sortie-ecm-brief' }, f.ecm.map(t => h('li', null, t))),
     );
     samType.el.hidden = !s.sams;
     drawZones(f.zones, f.edge);
@@ -195,7 +205,7 @@ export function mountBrief(host: HTMLElement, o: BriefOptions): { dispose(): voi
       lede: 'Fly a full BVR fight against AI that shoots back, then debrief it like Tacview: every shot, every warning, what you did about it.',
     }),
     h('div', { class: 'sortie-brief__grid' },
-      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, samCount.el, samType.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
+      consolePanel({ title: 'Mission', class: 'sortie-brief__form', children: [scen.el, enemySel.el, skill.el, range.el, myAlt.el, enemyAlt.el, samCount.el, samType.el, ecm.el, time.el, fly.el, h('p', { class: 'sortie-note' }, bestLine)] }).el,
       consolePanel({ title: 'Brief', class: 'sortie-brief__text', children: [title, h('div', { class: 'sortie-brief__cols' }, h('div', null, lines), h('div', { class: 'sortie-brief__side' }, picture, zonesEl))] }).el,
     ),
     h('div', { class: 'sortie-brief__foot' },

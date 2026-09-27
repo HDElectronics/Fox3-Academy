@@ -16,7 +16,8 @@ import {
   aspectSide, aspectTens, bscopeToScreen, fmtAltK, fmtScale, screenToBscope, secs, speedVal, type Rect,
 } from '../geometry';
 import {
-  X, Y, brickAlpha, hit, missilesAt, primaryTrack, rangeY, visibleCoast, type DlzMarks, type FrameCtx, type Mapping, type PicTrack,
+  X, Y, brickAlpha, hit, hitAlong, jamLock, missilesAt, primaryTrack, rangeY, rangedStt, strobeAlpha, visibleCoast, type DlzMarks,
+  type FrameCtx, type Mapping, type PicTrack,
 } from './common';
 
 export function drawVtb(f: FrameCtx): Mapping {
@@ -46,6 +47,26 @@ export function drawVtb(f: FrameCtx): Mapping {
   g.ink(th.sym, 1.1, 0.5);
   g.line(bx, ya - 1.4 * u, bx, ya + 1.4 * u);
 
+  // ---- jam strobes: no M-2000C symbol found, generic line along the bearing (not verified)
+  const jl = jamLock(pic);
+  for (const s of pic.strobes) {
+    if (Math.abs(s.az) > gAz || (jl && jl.targetId === s.targetId)) continue;
+    const x = map(s.az, 0).x;
+    g.ink(th.sym, 0.7, 0.24, strobeAlpha(s)).dash([1.2, 0.8]);
+    g.line(x, y0, x, y1);
+    g.dash(null);
+    hitAlong(f, x, y0, x, y1, s.targetId);
+  }
+  g.reset();
+  if (jl && Math.abs(jl.az) <= gAz) {
+    const x = map(jl.az, 0).x;
+    if (!jl.lost || blinkOn(2, f.now)) {
+      g.ink(th.symHi, 1.2, 0.34);
+      g.line(x, y0, x, y1);
+    }
+    hit(f, x, (y0 + y1) / 2, jl.targetId, 'stt');
+  }
+
   // ---- contacts
   const trackById = new Map(pic.tracks.map(t => [t.targetId, t]));
   for (const b of pic.bricks) {
@@ -65,14 +86,15 @@ export function drawVtb(f: FrameCtx): Mapping {
     if (!visibleCoast(f, t)) continue;
     drawVtbTrack(f, t, p.x, p.y);
   }
-  if (pic.stt && !pic.tracks.some(t => t.targetId === pic.stt?.targetId) && pic.stt.range <= pic.rangeScale) {
-    const p = map(pic.stt.az, pic.stt.range);
-    if (!pic.stt.lost || blinkOn(2, f.now)) {
+  const stt = rangedStt(pic);
+  if (stt && !pic.tracks.some(t => t.targetId === stt.targetId) && stt.range <= pic.rangeScale) {
+    const p = map(stt.az, stt.range);
+    if (!stt.lost || blinkOn(2, f.now)) {
       g.ink(th.symHi, 1.2, 0.32);
-      vee(f, p.x, p.y, pic.stt.closure >= 0);
+      vee(f, p.x, p.y, stt.closure >= 0);
       g.rect(p.x - 2.4 * u, p.y - 2.4 * u, 4.8 * u, 4.8 * u);
     }
-    hit(f, p.x, p.y, pic.stt.targetId, 'stt');
+    hit(f, p.x, p.y, stt.targetId, 'stt');
   }
 
   // ---- TDC alidade '+' with beam top / bottom altitude at the cursor range
@@ -107,10 +129,10 @@ export function drawVtb(f: FrameCtx): Mapping {
   g.font(3);
   g.text(fmtScale(pic.rangeScale, units), X(f, 4), Y(f, 5.5), 'left');
   const tgt = prim ?? null;
-  if (pic.mode === 'stt' && (tgt || pic.stt)) {
-    const alt = tgt?.alt ?? pic.stt?.alt ?? 0;
-    const clo = tgt?.closure ?? pic.stt?.closure ?? 0;
-    const asp = tgt ? aspectTens(tgt.aspectDeg, aspectSide(tgt.az, tgt.relHeading)) : String(Math.round((180 - (pic.stt?.aspectDeg ?? 0)) / 10));
+  if (pic.mode === 'stt' && (tgt || stt)) {
+    const alt = tgt?.alt ?? stt?.alt ?? 0;
+    const clo = tgt?.closure ?? stt?.closure ?? 0;
+    const asp = tgt ? aspectTens(tgt.aspectDeg, aspectSide(tgt.az, tgt.relHeading)) : String(Math.round((180 - (stt?.aspectDeg ?? 0)) / 10));
     const mn = tgt ? mach(tgt.speed, alt).toFixed(1) : '';
     const hdg = tgt && f.ownHeading != null ? String(Math.round(wrap2Pi(f.ownHeading + tgt.relHeading) * R2D) % 360).padStart(3, '0') : '';
     const altTxt = units === 'metric' ? (alt / 1000).toFixed(1) : String(Math.round(alt / M_PER_FT / 100));

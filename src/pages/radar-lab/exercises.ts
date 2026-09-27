@@ -6,17 +6,19 @@
 import { AIRCRAFT } from '../../data/aircraft';
 import type { FighterId, RadarModeId } from '../../data/types';
 import type { RadarLabTarget } from '../../sim/scenarios';
-import { defaultAdversary } from '../../sim/scenarios';
+import { blocOf, defaultAdversary } from '../../sim/scenarios';
+import { BURN_THROUGH_M, OWN_JAMMER, STROBE_RANGE_FACTOR } from '../../data/ecm';
 import { M_PER_FT, MPS_PER_KT, R2D } from '../../sim/math';
 import type { Units } from '../../app/format';
 import {
   alt, beamWindowDeg, bugOnlyOptions, clock, dAlt, detectKm, frameTime, gateText, lookDownCaveat, metresPerDegree,
   minFrame, niceAlt, niceRange, patternHalfDeg, rangeScaleFor, rng, sdeg, seconds, speedText,
 } from './geometry';
+import { jamFacts } from './jamming';
 
-export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre';
+export type ExerciseId = 'free' | 'low' | 'revisit' | 'notch' | 'aspect' | 'centre' | 'jam';
 /** Graded exercises in order (Free scan is not graded). */
-export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre'];
+export const EXERCISES: Exclude<ExerciseId, 'free'>[] = ['low', 'revisit', 'notch', 'aspect', 'centre', 'jam'];
 
 export type Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim';
 
@@ -32,7 +34,11 @@ export interface ScanPreset {
   expectedRangeM?: number;
 }
 
-export interface SceneTarget extends RadarLabTarget { role: string }
+export interface SceneTarget extends RadarLabTarget {
+  role: string;
+  /** Spawn with its self-protection jammer on (scenario flag). */
+  jamming?: boolean;
+}
 
 export interface Scene {
   playerAlt: number;
@@ -95,6 +101,24 @@ export interface Snap {
   covBottom: number;
   selectedId: string | null;
   targets: TargetSnap[];
+  /** The first jamming scene target, as the own radar holds it (jam exercise). */
+  jam?: JamSnap;
+}
+
+/** What the own radar holds on a jammer. Angles in degrees, distances in metres (range is truth, for the coach). */
+export interface JamSnap {
+  targetId: string;
+  jamming: boolean;
+  /** Bearing off the nose. */
+  az: number;
+  range: number;
+  burnThrough: number;
+  /** A fresh strobe on him in the radar state. */
+  strobe: boolean;
+  /** Angle-only jam lock on him. */
+  hoj: boolean;
+  /** Ordinary STT on him, holding (range, altitude and aspect known). */
+  stt: boolean;
 }
 
 export interface Eval {
@@ -116,6 +140,8 @@ export interface Mem {
   phase?: string;
   since?: number;
   okSince?: number | null;
+  /** Jam exercise: the reason the radar gave when a normal lock was refused. */
+  reason?: string;
 }
 
 export interface ExerciseDef {
@@ -132,7 +158,7 @@ export interface ExerciseDef {
 }
 
 /** Key texts the steps can show (from labKeys), null when the jet has none. */
-export interface StepKeys { elev: string | null; zone: string | null; width: string | null; cursor: string | null; expRange: string | null }
+export interface StepKeys { elev: string | null; zone: string | null; width: string | null; cursor: string | null; expRange: string | null; lock?: string | null }
 
 // ------------------------------------------------------------------------------------------ helpers
 
@@ -638,7 +664,108 @@ const centre: ExerciseDef = {
   },
 };
 
-export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre };
+// ------------------------------------------------------------------------------------------ 6. jammer
+
+/** The jammer: the usual adversary when it carries a jammer in DCS, else a Flanker (vs West) or an Eagle (vs East). */
+export function jammerType(ac: FighterId): FighterId {
+  const adv = opp(ac);
+  if (OWN_JAMMER[adv]) return adv;
+  return blocOf(ac) === 'west' ? 'su27' : 'f15c';
+}
+
+/** The strobe nearest the cursor azimuth (degrees off the nose) within `tolDeg`, or null. */
+export function strobeNearCursor(strobes: readonly { targetId: string; azDeg: number }[], cursorAzDeg: number, tolDeg = 3): string | null {
+  let best: string | null = null, bestD = tolDeg + 1e-9;
+  for (const s of strobes) {
+    const d = Math.abs(s.azDeg - cursorAzDeg);
+    if (d <= bestD) { bestD = d; best = s.targetId; }
+  }
+  return best;
+}
+
+/** Record a normal lock attempt on the jammer: a refusal keeps the radar's reason for the coach. */
+export function recordLockTry(mem: Mem, check: { ok: boolean; reason: string }): void {
+  if (!check.ok) mem.reason = check.reason;
+}
+
+/** Jammer speed (m/s): a slow closure leaves time for each step before burn-through. */
+const JAM_SPEED = 170;
+
+const jam: ExerciseDef = {
+  id: 'jam', num: 6, title: 'Jammer and burn-through',
+  short: 'A jammer shows a bearing, not a range: jam lock the strobe and hold it to burn-through',
+  unavailable(ac) {
+    const rs = r(ac);
+    return rs.modes.includes('stt') ? null : `The ${rs.name} has no single-target track, so it cannot take a jam lock.`;
+  },
+  scene(ac, u) {
+    const rs = r(ac);
+    const f = jamFacts(ac, u);
+    const strobeR = STROBE_RANGE_FACTOR * rs.detectKm.headOn * 1000;
+    const range = niceRange(Math.min(f.burnThroughM + 24000, 0.9 * strobeR), u);
+    const own = niceAlt(9000, u);
+    const d = defaultScan(ac);
+    return {
+      playerAlt: own, playerMach: 0.7,
+      targets: [{ role: 'jammer', callsign: 'Bandit', type: jammerType(ac), range, bearingDeg: 6, alt: own + 300, aspectDeg: 0, speed: JAM_SPEED, jamming: true }],
+      scan: { mode: 'rws', azHalfDeg: azNear(ac, 30), bars: d.bars, azCenterDeg: 0, elCenterDeg: 0, rangeScaleM: rangeScaleFor(rs, range * 1.3), cursorM: Math.round(range * 0.6) },
+      maxTime: 240, minRange: 0.4 * f.burnThroughM,
+    };
+  },
+  steps(ac, u, k) {
+    const f = jamFacts(ac, u);
+    return [
+      { id: 'strobe', text: 'See the strobe: a bearing, no range' },
+      { id: 'refused', text: 'Try a normal lock: the radar refuses' },
+      { id: 'jamlock', text: `Jam lock: click the strobe${k.lock ? ', or put the cursor on it and lock' : ''}`, keys: k.lock ?? undefined },
+      { id: 'burn', text: `Hold it to burn-through, ${rng(f.burnThroughM, u)}${BURN_THROUGH_M[ac].verified ? '' : ' (simplified)'}: range, altitude and aspect appear` },
+    ];
+  },
+  evaluate(s, mem) {
+    const u = s.units, j = s.jam;
+    if (!j) return { steps: [false, false, false, false], current: 0, text: '', why: '', done: false };
+    const f = jamFacts(s.ac, u);
+    const rs = r(s.ac);
+    const s0 = latch(mem, 0, j.strobe || j.hoj);
+    const s1 = latch(mem, 1, mem.reason !== undefined);
+    const s2 = latch(mem, 2, j.hoj);
+    const s3 = latch(mem, 3, s2 && j.stt);
+    const steps = [s0, s1, s2, s3];
+    const done = steps.every(Boolean);
+    let text: string, why: string, tone: Tone | undefined;
+    if (done) {
+      text = `Burn-through at ${rng(j.burnThrough, u)}: the jam lock is now a normal lock. Range, altitude, aspect and your launch zone are back.`;
+      why = `${f.hojLine} ${f.pursuit}`;
+      tone = 'ok';
+    } else if (!s2 && j.range <= j.burnThrough) {
+      text = `He is inside burn-through (${rng(j.range, u)} out, burn-through ${rng(j.burnThrough, u)}): your radar has his range and he is a normal contact. Reset the exercise to try the jam lock.`;
+      why = 'Inside burn-through the jammer no longer hides his range.';
+      tone = 'caution';
+    } else if (!s0) {
+      text = `One bandit ahead, jamming. Your ${rs.name} gets his bearing but not his range. Watch for the jam cue: ${f.strobe}.`;
+      why = 'DCS models one kind of jamming: it hides range and leaves the bearing.';
+    } else if (!s1) {
+      text = `Strobe at ${sdeg(j.az, 0)}: a bearing and nothing else. Press Normal lock and read what the radar says.`;
+      why = `A normal lock needs a range. ${f.burnThrough}`;
+      tone = 'hi';
+    } else if (!s2) {
+      text = `Refused: "${mem.reason ?? ''}". Take a jam lock on the strobe instead.`;
+      why = `Jam lock in the ${AIRCRAFT[s.ac].short}: ${f.lock}.`;
+      tone = 'hi';
+    } else if (j.hoj) {
+      text = `Jam lock held: bearing only, no range on your display. He is ${rng(j.range, u)} out (truth, not on your scope); burn-through at ${rng(j.burnThrough, u)}.`;
+      why = `${f.hojLine} ${f.pursuit}`;
+      tone = 'hi';
+    } else {
+      text = 'Jam lock lost. Click the strobe again, or wait for burn-through and lock him normally.';
+      why = f.burnThrough;
+      tone = 'caution';
+    }
+    return { steps, current: done ? null : firstOpen(steps), text, why, tone, done };
+  },
+};
+
+export const EXERCISE_DEFS: Record<ExerciseId, ExerciseDef> = { free, low, revisit, notch, aspect, centre, jam };
 
 /** Exercises this jet can do (graded only). */
 export function availableExercises(ac: FighterId): Exclude<ExerciseId, 'free'>[] {

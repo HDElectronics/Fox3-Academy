@@ -43,6 +43,8 @@ export interface WhyData {
   rcs: number;
   /** VS (velocity search) is selected and he is not closing fast enough to show. */
   vsOpening?: boolean;
+  /** He jams outside burn-through: bearing only (strobe), no range. */
+  jammed?: { burnThrough: number; strobe: boolean; jamLock?: boolean };
 }
 
 export type WhyTone = 'ok' | 'caution' | 'warning';
@@ -82,6 +84,13 @@ export function whySentence(d: WhyData): { status: string; tone: WhyTone; lead: 
   }
   if (d.vsOpening) {
     reasons.push({ short: 'not closing (VS)', long: 'Not closing: VS plots closure only, so a target that is not flying toward you never shows. Go back to RWS to see him.' });
+  }
+  if (d.jammed && d.inGimbal && d.inAz && d.inBars) {
+    const bt = rng(d.jammed.burnThrough, u);
+    if (d.jammed.jamLock) return { status: 'JAM LOCK', tone: 'caution', lead: `Jam lock: the radar follows his bearing, with no range, altitude or aspect until burn-through at ${bt}.`, also };
+    return d.jammed.strobe
+      ? { status: 'STROBE', tone: 'caution', lead: `Jamming: your radar has his bearing, not his range. He shows as a strobe until burn-through at ${bt}.`, also }
+      : { status: 'JAMMING', tone: 'caution', lead: `Jamming: no range until burn-through at ${bt}. Wait for the beam to cross him: he shows as a strobe.`, also };
   }
   if (reasons.length) {
     for (const r of reasons.slice(1)) also.push(r.short);

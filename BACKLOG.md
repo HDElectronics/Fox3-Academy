@@ -40,7 +40,8 @@ Nothing open. Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (
 
 ## P4 — Ideas
 
-- Jamming and burn-through, a datalink picture (Link 16 on the Hornet and Viper), IFF.
+- A datalink picture (Link 16 on the Hornet and Viper, the FC3 AWACS triangles) and IFF, from
+  [ecm-datalink-iff.md](docs/research/ecm-datalink-iff.md) ([#12](https://github.com/HDElectronics/Fox3-Academy/issues/12)); jamming shipped.
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
 - A-10C II as the next CAS jet ([#62](https://github.com/HDElectronics/Fox3-Academy/issues/62)): laser spot search, the
   digital 9-line on the TAD, coordinates and markpoints (research in [cas-jets.md](docs/research/cas-jets.md)).
