@@ -11,6 +11,7 @@ import type { AgWeaponId } from '../../data/types';
 import type { AgWeapon, Aircraft, EntityId } from '../../sim/types';
 import type { World } from '../../sim/world';
 import { D2R, R2D, dirFrom, relBearing } from '../../sim/math';
+import { ALT_GAIN } from '../../sim/flight';
 import { shkvalAimPoint, shkvalDir, shkvalFovDeg } from '../../sim/shkval';
 import { armEmitters, ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import type { ShkvalTv } from '../../render/attack';
@@ -26,6 +27,21 @@ const ARM_SLEW_DPS = 6;
 /** Trainer estimate of the Vikhr's mean speed for the pre-launch time of flight (not DCS data). */
 const VIKHR_MEAN_MS = 480;
 const STATION_LABEL: Record<string, string> = { r60: '60', r73: '73', l081: 'L-081' };
+/** Trainer pitch: commanded height offset (m) grows from NOSE_MIN_M at the key press by NOSE_RATE_M per second held. */
+const NOSE_MIN_M = 150, NOSE_RATE_M = 900, NOSE_MAX_M = 1500;
+
+/** Height offset (m) the pitch keys command after `heldS` seconds (the autopilot turns it into a dive or climb angle). */
+export function noseOffsetM(heldS: number): number { return Math.min(NOSE_MAX_M, NOSE_MIN_M + NOSE_RATE_M * heldS); }
+/** Below this flight-path angle a released key holds the height instead of the angle. */
+const LEVEL_HOLD_RAD = 2 * D2R;
+
+/**
+ * Commanded height (m) that keeps the flight-path angle `gamma` (rad) at `speed` (m/s) through the autopilot's
+ * height loop (demanded climb rate = ALT_GAIN × height error). Near-level angles hold the current height.
+ */
+export function holdAngleAltitude(y: number, speed: number, gamma: number): number {
+  return Math.abs(gamma) < LEVEL_HOLD_RAD ? y : y + (speed * Math.sin(gamma)) / ALT_GAIN;
+}
 
 export interface CockpitHost {
   bag: Cleanup;
@@ -34,8 +50,12 @@ export interface CockpitHost {
   log(text: string, opts?: { t?: number; tone?: Tone }): void;
   /** False ignores the release key (the lesson has ended). */
   canFire(): boolean;
-  /** Up / Down trainer keys: the page decides what a climb means (altitude or terrain-following height). */
-  climb(m: number): void;
+  /**
+   * Up / Down arrows, DCS style: Up pushes the nose down (-1), Down pulls it up (+1), release is 0. Return true
+   * when the page handles it itself (e.g. the terrain-following height in the sortie); otherwise the cockpit flies
+   * the pitch: the longer the key is held the steeper the dive or climb, and release holds the height.
+   */
+  nose?(dir: -1 | 0 | 1): boolean;
   /** Weapons released by the pilot (not CCRP automatic releases, which arrive as ag-launch events). */
   onRelease?(out: AgWeapon[]): void;
   /** A Shkval lock attempt failed; `reason` is in pilot words. */
@@ -75,9 +95,11 @@ export interface Su25tCockpit {
   enter(): void;
   fire(): void;
   fireUp(): void;
-  /** Per-frame input integration (Kh-58 square slew). */
+  /** Pitch as the Up / Down arrows do it: -1 nose down, 1 nose up (held), 0 release (scripted demos). */
+  nose(dir: -1 | 0 | 1): void;
+  /** Per-frame input integration (pitch keys, Kh-58 square slew). */
   step(dt: number): void;
-  /** Clear held inputs and the Kh-58 square after a restart. */
+  /** Clear held inputs, the held pitch angle and the Kh-58 square (after a restart or a scripted reposition). */
   resetInputs(): void;
   /** Draw the TV (with the Shkval camera image when there is one), the HUD and, when asked, the SPO-15. */
   draw(tvCam: ShkvalTv | null, showRwr: boolean): void;
@@ -93,6 +115,10 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
   const binds = PROCEDURES.su25t.binds;
   const slew = { up: 0, down: 0, left: 0, right: 0 };
   const armCursor = { x: 0, y: -4 };
+  // Pitch keys: while held, the dive or climb steepens; on release the jet keeps its angle, as a released stick does.
+  let noseDir: -1 | 0 | 1 = 0, noseHeldS = 0, holdGamma: number | null = null;
+  const nosePress = (d: -1 | 1) => { if (host.nose?.(d)) return; if (noseDir !== d) { noseDir = d; noseHeldS = 0; holdGamma = null; } };
+  const noseRelease = () => { if (host.nose?.(0)) return; if (noseDir) { noseDir = 0; holdGamma = me().pitch; } };
 
   // ------------------------------------------------------------------ displays
   const tvCanvas = h('canvas', { class: 'strk-canvas', 'aria-label': 'Shkval TV picture on the IT-23M. Tap to point the sight.' });
@@ -138,7 +164,8 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
     title: 'Su-25T keys', id: 'strk-keys',
     content: h('div', { class: 'strk-keys' },
       binds.filter(b => b.group !== 'defence').map(b => keyHint({ label: b.action, keys: b.keys, note: b.note })),
-      keyHint({ label: 'Trainer steering (not a DCS key)', keys: 'Left / Right, Up / Down' })),
+      keyHint({ label: 'Turn left / right (trainer steering)', keys: 'Left / Right' }),
+      keyHint({ label: 'Nose down / nose up, as in DCS (trainer pitch)', keys: 'Up / Down' })),
   });
   const mFire = mobileAction(fireBtn.el), mLock = mobileAction(lockBtn.el, 'Lock'), mLaser = mobileAction(laserBtn.el, 'ЛД');
   bag.add(() => { mFire.destroy(); mLock.destroy(); mLaser.destroy(); });
@@ -167,8 +194,8 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
     'Delete': () => { if (world().flare(me().id)) log(`Flares: ${me().flares} left`); },
     'Left': { down: () => steer(-2), repeat: true },
     'Right': { down: () => steer(2), repeat: true },
-    'Up': { down: () => host.climb(60), repeat: true },
-    'Down': { down: () => host.climb(-60), repeat: true },
+    'Up': { down: () => nosePress(-1), up: () => noseRelease(), repeat: true },
+    'Down': { down: () => nosePress(1), up: () => noseRelease(), repeat: true },
   };
 
   // ------------------------------------------------------------------ actions
@@ -306,12 +333,16 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
     tvCanvas, tv, tvBezel, hudBezel, rwrBezel, touchPad, controlRows, keyList, fireBtn, lockBtn, laserBtn,
     mobileActions: [mFire.el, mLock.el, mLaser.el], keys, armCursor,
     armMode, armMarks, setMaster, toggleShkval, toggleLaser, toggleArm, cycle, selectGun, enter, fire, fireUp,
+    nose: d => { if (d) nosePress(d); else noseRelease(); },
     step(dt) {
+      const ac = me();
+      if (noseDir) { noseHeldS += dt; ac.cmd.altitude = ac.pos.y + noseDir * noseOffsetM(noseHeldS); }
+      else if (holdGamma != null && ac.alive) ac.cmd.altitude = holdAngleAltitude(ac.pos.y, ac.vel.length(), holdGamma);
       if (!armMode()) return;
       armCursor.x = Math.max(-ARM_HUD_DEG, Math.min(ARM_HUD_DEG, armCursor.x + (slew.right - slew.left) * ARM_SLEW_DPS * dt));
       armCursor.y = Math.max(-9, Math.min(4, armCursor.y + (slew.up - slew.down) * ARM_SLEW_DPS * dt));
     },
-    resetInputs() { slew.up = slew.down = slew.left = slew.right = 0; armCursor.x = 0; armCursor.y = -4; },
+    resetInputs() { slew.up = slew.down = slew.left = slew.right = 0; armCursor.x = 0; armCursor.y = -4; noseDir = 0; noseHeldS = 0; holdGamma = null; },
     draw(tvCam, showRwr) {
       const ac = me(), sh = ac.ag!.shkval;
       if (tvCam && sh.on && ac.alive) tvCam.render(ac.pos, shkvalDir(ac), shkvalFovDeg(sh.zoom).v);

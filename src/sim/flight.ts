@@ -33,7 +33,8 @@ const RAM_MIL = 0.2;
 const IDLE_ACCEL = -1.5;        // idle + speed brake, m/s²
 const ROLL_RATE = 150 * D2R;
 const HEADING_GAIN = 1.0;       // rad/s of turn demanded per rad of heading error
-const ALT_GAIN = 0.12;          // m/s of climb demanded per m of altitude error
+/** m/s of climb demanded per m of altitude error (pages that hold a dive angle need it). */
+export const ALT_GAIN = 0.12;
 const MAX_CLIMB_AB = 25 * D2R;
 const MAX_CLIMB_MIL = 18 * D2R;
 const MAX_DIVE = 45 * D2R;

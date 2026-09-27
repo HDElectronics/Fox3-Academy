@@ -488,8 +488,9 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   }
   put('Left', labInput.binding('turnLeft'));
   put('Right', labInput.binding('turnRight'));
-  put('Up', labInput.binding('climb'));
-  put('Down', labInput.binding('descend'));
+  // DCS keyboard pitch: Down pulls the nose up, Up pushes it down.
+  put('Down', labInput.binding('climb'));
+  put('Up', labInput.binding('descend'));
   bag.add(bindKeys(km, window, { enabled: () => !endModal?.isOpen }));
 
   // ------------------------------------------------------------------ helpers
