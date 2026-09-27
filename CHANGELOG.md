@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- See the world through the Su-25T HUD (ИЛС) on Shkval & Vikhr and CAS & JTAC: a colour view ahead, lined up
-  with the pitch ladder and the boresight, under a light tint so the symbology stays readable.
+- See the world through the HUDs: the Su-25T ИЛС (Shkval & Vikhr, CAS & JTAC), the landing HUD (Pattern &
+  landing) and the gun sight HUD (Merge & guns). A colour view ahead in each HUD's own frame, lined up with the
+  ladder and the boresight (banked with the jet on the landing and gun HUDs), under a light tint.
 
 - Make Fox3 Academy desktop only. Phones (touch-only, shorter screen side under 600 px) see a short panel with a
   Copy link button instead of the app; tablets, touchscreen laptops and narrow desktop windows keep the full app.

@@ -206,6 +206,7 @@ in km, ПР above it and the time of flight lower right. Off: dark glass with "S
 ```ts
 const hud = new Su25tHud(canvas);                    // square canvas
 hud.draw(state: Su25tHudState | null, world?: CanvasImageSource | null);   // world: ForwardView.image, seen through the glass
+// GunSightDisplay.draw(pic, acm, world?) does the same in its HUD format (not the overlay).
 ```
 
 `Su25tHudState`: `master`, `modeLabel` (`hudModeLabel(master, shkvalOn)`: ОПТ-ЗЕМЛЯ, ЗЕМЛЯ), `weaponLabel`

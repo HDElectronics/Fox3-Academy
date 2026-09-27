@@ -46,12 +46,13 @@ import {
 } from './aarLesson';
 import { AarGaugeDisplay, PositionDisplay } from './aarDisplays';
 import { SHIPS } from '../../data/ships';
-import { FlightOpsScene, Stage, isWebGLAvailable, type FlightOpsCamera } from '../../render';
+import { FlightOpsScene, ForwardView, Stage, isWebGLAvailable, type FlightOpsCamera } from '../../render';
+import { Quaternion, Vector3 } from 'three';
 import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, readouts, callout, placard, lamp,
   bindKeys, keyHint, disclosure, setText, toggle, parseChord, type ChecklistHandle,
 } from '../../ui';
-import { BallDisplay, HudDisplay, IndexerDisplay, NavDisplay, TraceDisplay, type TracePoint } from './displays';
+import { BallDisplay, HudDisplay, HUD_VFOV_DEG, IndexerDisplay, NavDisplay, TraceDisplay, hudBoresight, type TracePoint } from './displays';
 import { carrierCaption, lessonSteps, legCaption } from './lesson';
 import {
   FLIGHT_OPS_JETS, GLIDE_TOL_DEG, LINEUP_TOL_DEG, PASS_SCORE, altFtText, altVal, aoaText, currentStep, errLevel, flapControl,
@@ -587,8 +588,11 @@ const factory: PageFactory = (): Page => {
     }
     if (!stage) viewport.append(h('p', { class: 'fo-no3d' }, 'The 3D view needs WebGL. The HUD, indexer and pattern trace still run.'));
     const st = stage, sc = scene;
+    // See-through HUD: the view from the cockpit (4:3 like the HUD glass), runway close under the jet (0.5 m near).
+    const hudCam = st && sc ? new ForwardView(st, { width: 224, height: 168, near: 0.0005, hidden: () => sc.hudHidden() }) : null;
+    const hudPos = new Vector3(), hudQ = new Quaternion();
     if (st && sc) {
-      bag.add(() => { sc.dispose(); st.dispose(); });
+      bag.add(() => { hudCam?.dispose(); sc.dispose(); st.dispose(); });
       st.onFrame(frame);
     } else {
       let raf = 0, last = performance.now();
@@ -788,7 +792,11 @@ const factory: PageFactory = (): Page => {
         while (acc >= FLIGHT_OPS_DT) { acc -= FLIGHT_OPS_DT; tick(); }
       }
       sc?.update(s);
-      hud.draw(s);
+      if (hudCam && sc) {
+        sc.cockpitPose(s, hudPos, hudQ);
+        hudCam.render(hudPos, hudQ, HUD_VFOV_DEG, 0.5, hudBoresight(s));
+      }
+      hud.draw(s, hudCam?.image ?? null);
       indexer.draw(s);
       uiClock += dt;
       if (uiClock >= 0.1 || dt === 0) { uiClock = 0; refresh(false); }

@@ -106,6 +106,21 @@ export class BallDisplay {
 
 // ------------------------------------------------------------------ HUD
 
+/** Vertical field of view the HUD glass spans (deg): the ladder scale and the see-through view's field of view. */
+export const HUD_VFOV_DEG = 26;
+/** Tint over the see-through world so the symbology stays readable (fraction of the display glass colour). */
+export const HUD_WORLD_TINT = 0.35;
+/** Flight path marker height on the HUD (0 top, 1 bottom). */
+export const HUD_FPM_Y = 0.52;
+
+/**
+ * Boresight height on the HUD (0 top, 1 bottom). The flight path marker is kept near the middle (0.52 down), since
+ * it is what the pilot flies on the approach; the boresight sits the pitch-minus-flight-path angle above it.
+ */
+export function hudBoresight(st: Pick<FlightOpsState, 'pitch' | 'gamma'>): number {
+  return HUD_FPM_Y - ((st.pitch - st.gamma) * R2D) / HUD_VFOV_DEG;
+}
+
 /**
  * Simplified HUD: horizon and pitch ladder, the glide line (−glideDeg), the flight path marker, the jet's
  * AoA cue (E-bracket on the F/A-18C, AoA bracket on the F-16C, GSUP/GSDN text on the F-15C), speed,
@@ -114,24 +129,31 @@ export class BallDisplay {
 export class HudDisplay {
   private readonly s: Surface;
   private last: FlightOpsState | null = null;
+  private world: CanvasImageSource | null = null;
   constructor(canvas: HTMLCanvasElement, private readonly d: FlightOpsJetData, private readonly units: () => Units = () => 'imperial') {
     this.s = new Surface(canvas);
     this.s.onResize = () => { if (this.last) this.draw(this.last); };
   }
 
-  draw(st: FlightOpsState): void {
+  /** Draw the HUD; `world` (optional) is the view through the glass (render/forwardView.ts, see hudBoresight). */
+  draw(st: FlightOpsState, world: CanvasImageSource | null = this.world): void {
     this.last = st;
+    this.world = world;
     const s = this.s;
     if (!s.begin()) return;
     const { ctx, w, h, theme: th } = s;
     const d = this.d;
     ctx.fillStyle = th.screen;
     ctx.fillRect(0, 0, w, h);
-    const k = h / 26;                       // px per degree
+    if (world) {
+      ctx.drawImage(world, 0, 0, w, h);
+      ctx.fillStyle = alpha(th.screen, HUD_WORLD_TINT);
+      ctx.fillRect(0, 0, w, h);
+    }
+    const k = h / HUD_VFOV_DEG;             // px per degree
     const cx = w / 2;
-    // Keep the flight path marker near the middle: it is what the pilot flies on the approach.
-    const fy = h * 0.52;
-    const cy = fy - (st.pitch - st.gamma) * R2D * k;   // boresight
+    const fy = h * HUD_FPM_Y;               // flight path marker, kept near the middle
+    const cy = hudBoresight(st) * h;        // boresight
     const pitchD = st.pitch * R2D;
     const fs = Math.max(10, Math.round(h / 17));
     ctx.font = `${fs}px ${th.fontMono}`;

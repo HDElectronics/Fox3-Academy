@@ -1,19 +1,23 @@
 /**
- * Forward view for see-through HUDs: a second camera at the jet looking along its heading and pitch (no roll, the
- * frame the trainer HUDs draw in), rendered into a small WebGLRenderTarget, read back and copied in colour into a 2D
- * canvas (`image`) that a HUD display draws under its symbology. Same pipeline as the Shkval TV (shkvalTv.ts), in
- * colour. One render every `every` calls; the objects from `hidden` (symbology, own jet, clouds) are hidden.
+ * Forward view for see-through HUDs: a second camera at the pilot's eye looking along the HUD boresight, rendered
+ * into a small WebGLRenderTarget, read back and copied in colour into a 2D canvas (`image`) that a HUD display draws
+ * under its symbology. Same pipeline as the Shkval TV (attack/shkvalTv.ts), in colour.
+ *
+ * Each page gives the pose in the frame its HUD draws in (the Su-25T ИЛС: heading and pitch, no roll; the landing and
+ * gun HUDs: with bank), the HUD's vertical field of view, and where the boresight sits on the HUD. The boresight is
+ * placed with the camera's view offset, so it is exact at any bank and anywhere on the glass.
  */
-import { PerspectiveCamera, Vector3, WebGLRenderTarget, type Object3D } from 'three';
+import { PerspectiveCamera, Vector3, WebGLRenderTarget, type Object3D, type Quaternion } from 'three';
 import type { Stage } from './stage';
-import { UNIT_PER_M, type XYZ } from './units';
 
 export interface ForwardViewOptions {
-  /** Picture size (default 192 × 192: the HUD glass is small and tinted, so a low-resolution world reads fine). */
+  /** Picture size (default 192 × 192; give the HUD's aspect, e.g. 224 × 168 for a 4:3 HUD). Small is enough: the glass is tinted. */
   width?: number;
   height?: number;
   /** Render every n-th call (default 3). */
   every?: number;
+  /** Near plane in scene units (default 0.02 = 20 m; landing HUDs need about 0.5 m, 0.0005). */
+  near?: number;
   /** Objects hidden during the pass (symbology overlays, the own jet, clouds). */
   hidden?: () => Object3D[];
 }
@@ -39,20 +43,17 @@ export function toColourImage(src: ArrayLike<number>, w: number, h: number, lut:
   }
 }
 
-/**
- * Vertical field of view (deg) of a picture `aspect` = width / height wide that spans `hFovDeg` horizontally.
- */
+/** Vertical field of view (deg) of a picture `aspect` = width / height wide that spans `hFovDeg` horizontally. */
 export function vFovDeg(hFovDeg: number, aspect: number): number {
   return (2 * Math.atan(Math.tan((hFovDeg * Math.PI) / 360) / aspect) * 180) / Math.PI;
 }
 
 /**
- * Angle (deg) the camera must look below the boresight so the boresight lands `boreY` (0 = top, 1 = bottom) down a
- * picture with horizontal field of view `hFovDeg` and aspect width / height.
+ * Point `cam` so its boresight (the camera axis) lands at (`boreX`, `boreY`) of the picture (0..1 from the top left):
+ * a view offset of the full frame. Pure camera setup, for tests and for ForwardView.render.
  */
-export function aimBelowBoresightDeg(boreY: number, hFovDeg: number, aspect: number): number {
-  const f = 0.5 / Math.tan((hFovDeg * Math.PI) / 360);        // focal length in picture widths
-  return (Math.atan(((0.5 - boreY) / aspect) / f) * 180) / Math.PI;
+export function placeBoresight(cam: PerspectiveCamera, w: number, h: number, boreX: number, boreY: number): void {
+  cam.setViewOffset(w, h, w * (0.5 - boreX), h * (0.5 - boreY), w, h);
 }
 
 export class ForwardView {
@@ -70,7 +71,6 @@ export class ForwardView {
   private readonly h: number;
   private readonly every: number;
   private n = 0;
-  private readonly look = new Vector3();
   private readonly skyPos = new Vector3();
 
   constructor(private readonly stage: Stage, private readonly opts: ForwardViewOptions = {}) {
@@ -83,24 +83,22 @@ export class ForwardView {
     this.image.width = this.w; this.image.height = this.h;
     this.ctx = this.image.getContext('2d')!;
     this.img = this.ctx.createImageData(this.w, this.h);
-    this.camera = new PerspectiveCamera(20, this.w / this.h, 0.02, 90);
+    this.camera = new PerspectiveCamera(20, this.w / this.h, opts.near ?? 0.02, 90);
   }
 
   /**
-   * Render from `pos` (sim metres) along `heading` / `pitch` (rad, no roll), horizontal field of view `hFovDeg`,
-   * looking `aimDownDeg` below that line (so an off-centre boresight lines up). Returns true on a new picture.
+   * Render from `position` (scene units) with orientation `quaternion` (the camera looks down its −z), vertical field
+   * of view `fovVDeg`, boresight at (`boreX`, `boreY`) of the picture. Returns true on a new picture.
    */
-  render(pos: XYZ, heading: number, pitch: number, hFovDeg: number, aimDownDeg = 0, force = false): boolean {
+  render(position: Vector3, quaternion: Quaternion, fovVDeg: number, boreX = 0.5, boreY = 0.5, force = false): boolean {
     if (!force && (this.n++ % this.every) !== 0) return false;
     const cam = this.camera;
     cam.aspect = this.w / this.h;
-    cam.fov = vFovDeg(hFovDeg, cam.aspect);
+    cam.fov = fovVDeg;
+    placeBoresight(cam, this.w, this.h, boreX, boreY);
     cam.updateProjectionMatrix();
-    cam.position.set(pos.x * UNIT_PER_M, pos.y * UNIT_PER_M, pos.z * UNIT_PER_M);
-    cam.up.set(0, 1, 0);
-    const p = pitch - (aimDownDeg * Math.PI) / 180;
-    const cp = Math.cos(p);
-    cam.lookAt(this.look.set(cam.position.x + Math.sin(heading) * cp, cam.position.y + Math.sin(p), cam.position.z - Math.cos(heading) * cp));
+    cam.position.copy(position);
+    cam.quaternion.copy(quaternion);
     cam.updateMatrixWorld();
 
     const r = this.stage.renderer;

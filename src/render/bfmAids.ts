@@ -5,7 +5,7 @@
  * line of sight and the player's velocity vector coloured lead / pure / lag, and sparks on `gun-hit`.
  * Every layer toggles at runtime. Positions in, like the rest of the kit, are sim metres.
  */
-import { CircleGeometry, Color, DoubleSide, Mesh, MeshBasicMaterial, Quaternion, Vector3 } from 'three';
+import { CircleGeometry, Color, DoubleSide, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
 import type { Stage } from './stage';
 import { FramePriority } from './stage';
 import { LineBatch } from './lines';
@@ -79,6 +79,8 @@ export function turnCircle(ac: Aircraft, g0 = 9.80665): { centre: Vector3; radiu
 
 export class BfmAids {
   readonly layers: BfmAidLayers;
+  /** The aid objects, for passes that must not show them (the see-through gun HUD). */
+  hudHidden(): Object3D[] { return [this.lines, this.overlayLines, this.glow, this.disc]; }
   private world: World;
   private opts: BfmAidsOptions;
   private lines: LineBatch;

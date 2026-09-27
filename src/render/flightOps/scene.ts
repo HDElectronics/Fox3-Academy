@@ -67,6 +67,7 @@ export interface FlightOpsSceneOptions extends ApproachGeometryOptions {
 }
 
 const _q = new Quaternion();
+const _hp = new Vector3();
 const _v = new Vector3();
 const _w = new Vector3();
 const _t = new Vector3();
@@ -380,6 +381,22 @@ export class FlightOpsScene {
   }
 
   /** Jet reference point (units), for the camera. */
+  /**
+   * The pilot's eye in scene units and the jet's orientation (heading, pitch, bank): the cockpit camera's pose, for
+   * a see-through HUD pass (render/forwardView.ts).
+   */
+  cockpitPose(s: FlightOpsState, pos: Vector3, q: Quaternion): void {
+    orientationQuaternion(s.heading, s.pitch, s.bank, q);
+    this.jetPoint(pos).add(_hp.set(0, (this.jet.groundClearanceM + 1.2) * UNIT_PER_M, -0.3 * this.jet.lengthM * UNIT_PER_M).applyQuaternion(q));
+  }
+
+  /** Scene objects a see-through HUD must not show: the own jet, the approach guides and the clouds. */
+  hudHidden(): Object3D[] {
+    const out: Object3D[] = [this.jet, this.overlay];
+    if (this.stage.env) out.push(this.stage.env.clouds);
+    return out;
+  }
+
   private jetPoint(out: Vector3): Vector3 {
     const s = this.state;
     return s ? out.set(s.pos.x, s.pos.y, s.pos.z).multiplyScalar(UNIT_PER_M) : out.set(0, 0.2, 3);

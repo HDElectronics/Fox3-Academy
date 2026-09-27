@@ -9,6 +9,7 @@ import {
   Color, ConeGeometry, DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial,
   NotEqualStencilFunc, Quaternion, ReplaceStencilOp, ShaderMaterial, Vector2, Vector3,
 } from 'three';
+import type { Object3D } from 'three';
 import type { AircraftId, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
@@ -348,6 +349,11 @@ export abstract class TacticalScene implements EntitySource {
     this.stage.requestRender();
   }
   get selection(): EntityId | null { return this.selected; }
+
+  /** The 3D model of one aircraft or missile (null when not shown), e.g. to hide the own jet in a HUD pass. */
+  entityObject(id: EntityId): Object3D | null {
+    return this.jets.get(id)?.mesh ?? this.missiles.get(id)?.mesh ?? null;
+  }
 
   /** Hide / show one entity's visuals (e.g. own jet in the cockpit camera). */
   setHidden(id: EntityId, hidden: boolean): void {

@@ -24,12 +24,16 @@ import { acmPressLock, acmUnlock, irShotCheck, modeSpec, toggleUncage } from '..
 import { fmtAlt, fmtAltShort, fmtSpeed, type Units } from '../../app/format';
 import { MPS_PER_KT, M_PER_FT } from '../../sim/math';
 import type { BfmThrottle } from '../../sim/types';
-import { Stage, WorldView, CameraRig, BfmAids, isWebGLAvailable, type BfmAidLayers } from '../../render';
+import { Stage, WorldView, CameraRig, BfmAids, ForwardView, isWebGLAvailable, type BfmAidLayers } from '../../render';
+import { Matrix4, Quaternion, Vector3, type Object3D } from 'three';
+import { UNIT_PER_M } from '../../render/units';
+import { liftVector } from '../../sim/flight';
 import {
   h, cleanup, labLayout, disclosure, consolePanel, screenBezel, segmented, select, button, toggle,
   coachBox, eventLog, readouts, callout, modal, bindKeys, keyHint, kbd, type ModalHandle, type Tone,
 } from '../../ui';
 import { GunSightDisplay, buildAcmPicture, buildGunSight, noLockOptions, sightStyleFor, SIGHT_NAME } from '../../ui/displays';
+import { GUN_HUD_BORE_Y } from '../../ui/displays/gunSight';
 import { BANDIT_LABEL, isAiMode, type BanditMode } from './bandit';
 import { autoLock, eas } from './bfm';
 import { CIRCLE_EVAL_S, IR_LESSONS, LESSONS, LESSON_ORDER, SCORED_LESSONS, PURSUIT_HOLD_S, debrief, type Debrief, type LessonId } from './lessons';
@@ -40,6 +44,8 @@ import { MergeAudio } from './audio';
 import { growlCoach, setMergeMode, setMergeWeapon, UNCAGE_KEY, type Weapon } from './controls';
 
 type Cam = 'chase' | 'bandit' | 'top' | 'cockpit';
+/** Vertical field of view of the strip gun HUD (deg): the sight's scale and the see-through view's field of view. */
+const HUD_FOV_DEG = 18;
 const CAMS: Cam[] = ['chase', 'bandit', 'top', 'cockpit'];
 const SHOTS = ['corner', 'pursuit', 'merge', 'circles', 'yoyo', 'tracking', 'defence', 'ir', 'fight', 'debrief'] as const;
 
@@ -296,7 +302,7 @@ const factory: PageFactory = (): Page => {
     lab.overlay('br', pad);
     ctx.root.append(h('div', { class: 'mrg-page' }, lab.el));
 
-    const hud = new GunSightDisplay(hudCanvas, { fovDeg: 18 });
+    const hud = new GunSightDisplay(hudCanvas, { fovDeg: HUD_FOV_DEG });
     bag.add(() => hud.dispose());
     const over = new GunSightDisplay(overCanvas, { overlay: true, fovDeg: 50 });
     bag.add(() => over.dispose());
@@ -306,6 +312,10 @@ const factory: PageFactory = (): Page => {
     let view: WorldView | null = null;
     let rig: CameraRig | null = null;
     let aids: BfmAids | null = null;
+    // See-through gun HUD: the view along the flight path with the lift vector up (the sight's own frame).
+    let hudCam: ForwardView | null = null;
+    const hudPos = new Vector3(), hudQ = new Quaternion(), hudM = new Matrix4();
+    const hudFwd = new Vector3(), hudUp = new Vector3(), hudRight = new Vector3(), hudBack = new Vector3();
     if (isWebGLAvailable()) {
       try { st = new Stage(viewport, { autoPause: 'render', ariaLabel: '3D view of the fight' }); } catch (e) { console.warn('Merge: 3D view unavailable', e); st = null; }
     }
@@ -339,6 +349,11 @@ const factory: PageFactory = (): Page => {
           });
           rig = new CameraRig(stage, { source: view });
           aids = new BfmAids(stage, run.world, { me: run.me.id, bandit: run.bandit.id, pursuit: () => (run.me.alive && run.bandit.alive ? run.pursuit.kind : null) });
+          const st = stage;
+          hudCam = new ForwardView(st, {
+            hidden: () => [view?.entityObject(run.me.id), ...(aids?.hudHidden() ?? []), st.env?.clouds].filter((o): o is Object3D => !!o),
+          });
+          bag.add(() => hudCam?.dispose());
           stage.onFrame(frame);
         } else {
           view.setWorld(run.world);
@@ -586,7 +601,18 @@ const factory: PageFactory = (): Page => {
       shoot = pic?.shoot ?? false;
       const acmPic = acm && me.alive && (acm.mode || weapon === 'ir') ? buildAcmPicture(run.world, me, acm) : null;
       tone.setTone(toneOn && weapon === 'ir' && run.phase === 'run' && !paused && acm ? acm.seeker.tone : 'none');
-      hud.draw(pic, acmPic);
+      let world: HTMLCanvasElement | null = null;
+      if (hudCam && me.alive && me.vel.lengthSq() > 1) {
+        hudFwd.copy(me.vel).normalize();
+        liftVector(me, hudUp);
+        hudRight.crossVectors(hudFwd, hudUp).normalize();
+        hudUp.crossVectors(hudRight, hudFwd).normalize();
+        hudQ.setFromRotationMatrix(hudM.makeBasis(hudRight, hudUp, hudBack.copy(hudFwd).negate()));
+        hudPos.set(me.pos.x * UNIT_PER_M, me.pos.y * UNIT_PER_M, me.pos.z * UNIT_PER_M);
+        hudCam.render(hudPos, hudQ, HUD_FOV_DEG, 0.5, GUN_HUD_BORE_Y);
+        world = hudCam.image;
+      }
+      hud.draw(pic, acmPic, world);
       if (pic) {
         const st2 = sightStyleFor(ac, locked, pick);
         hudBezel.setStatus(`${pic.style.name}${st2 && !st2.verified ? ' · not verified' : ''}`);

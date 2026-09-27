@@ -15,7 +15,7 @@ export type { Layers, TacticalOptions, PickOptions, EntitySource, AircraftLike, 
 export { RadarVolume, altitudeCoverage, scanElevationLimits, barElevation, stepSyntheticScan, coverageText } from './radarVolume';
 export type { RadarVolumeOptions, ScanStateLike } from './radarVolume';
 export { CameraRig, orbitBasis, fitDistance } from './cameras';
-export { ForwardView, aimBelowBoresightDeg, vFovDeg, srgbLut, toColourImage } from './forwardView';
+export { ForwardView, placeBoresight, vFovDeg, srgbLut, toColourImage } from './forwardView';
 export type { ForwardViewOptions } from './forwardView';
 export type { CameraMode, CameraRigOptions, FocusTarget, ModeOptions, FrameOptions as CameraFrameOptions } from './cameras';
 export {
