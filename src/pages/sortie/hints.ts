@@ -34,6 +34,8 @@ export interface HintState {
   /** Bandits as the AWACS picture gives them (truth). bearing rad rel nose. */
   bandits: { name: string; range: number; bearing: number; alt: number; inRne: boolean; rne: number | null; hot: boolean }[];
   ownAlt: number;
+  /** Jamming: strobes on the scope, an angle-only jam lock, a home-on-jam missile selected, your burn-through (m). */
+  ecm?: { strobes: number; jamLock: boolean; hojWeapon: boolean; burnThrough: number };
 }
 
 const k = (keys: string | null) => (keys ? ` (${keys})` : '');
@@ -93,6 +95,12 @@ export function flightHint(s: HintState): Hint {
   if (s.missilesLeft === 0) return { text: 'Winchester: nothing left to shoot. Turn cold and extend.', why: 'With no missiles your only job is to survive: keep him behind you and outside his range.', tone: 'caution' };
   if (!s.weapon) return { text: 'Select a missile.', why: 'The launch zone and the shoot cue need a selected weapon.', tone: 'dim' };
 
+  const ecm = s.ecm;
+  if (ecm?.jamLock && s.primary) {
+    const hold = s.keys.launchHoldS ? ` held ${s.keys.launchHoldS} s` : '';
+    if (s.shootCue) return { text: `Jam lock on ${s.primary.label}: fire${s.keys.launch ? ` (${s.keys.launch}${hold})` : ''}. It homes on his jammer.`, why: `No range and no launch zone on a jam lock. Inside about ${R(ecm.burnThrough)} you burn through and get range back.`, tone: 'hi' };
+    return { text: `Jam lock on ${s.primary.label}, no shot: ${s.blocked || 'wait'}.`, why: `Keep closing: inside about ${R(ecm.burnThrough)} the lock turns into an ordinary STT with range.`, tone: 'dim' };
+  }
   if (s.shootCue && s.primary) {
     const fox1 = s.weapon.seeker === 'sarh';
     const hold = s.keys.launchHoldS ? ` held ${s.keys.launchHoldS} s` : '';
@@ -118,6 +126,11 @@ export function flightHint(s: HintState): Hint {
     if (/lock|STT/i.test(s.blocked) && !s.jet.autoStt) return { text: `Lock ${s.primary.label} for the ${s.weapon.name}: designate again${k(s.keys.designate)}.`, why: s.blocked, tone: 'hi' };
     if (s.primary.rmax && s.primary.range > s.primary.rmax) return { text: `${s.primary.label} at ${R(s.primary.range)}, Rmax ${R(s.primary.rmax)}: keep closing, climb and speed up.`, why: 'Shoot high and fast: altitude and Mach at launch stretch every missile in DCS.', tone: 'dim' };
     return { text: `${s.primary.label} designated. Wait for the shoot cue.`, why: s.blocked || 'The cue lights when the launch rules allow the shot.', tone: 'dim' };
+  }
+  if (ecm && ecm.strobes > 0 && s.contacts === 0) {
+    return ecm.hojWeapon
+      ? { text: `Strobe on the scope: he is jamming. Lock the strobe${k(s.keys.designate)} for a home-on-jam shot, or close to burn-through.`, why: `A jammer shows bearing only. Your radar gets range back inside about ${R(ecm.burnThrough)}.`, tone: 'hi' }
+      : { text: `Strobe on the scope: he is jamming. Your ${s.weapon.name} cannot home on jam: close to burn-through.`, why: `A jammer shows bearing only. Your radar gets range back inside about ${R(ecm.burnThrough)}.`, tone: 'dim' };
   }
   if (s.contacts > 0) {
     if (s.jet.hasTws && s.radarMode === 'rws') return { text: `Contacts on the scope. Go TWS${k(s.keys.mode)} and designate the nearest${k(s.keys.designate)}.`, why: s.jet.twsLaunch ? 'TWS tracks them without a lock warning, and your Fox 3 can leave from TWS silently.' : 'In TWS you track him without a lock warning until the radar locks for the shot.', tone: 'hi' };

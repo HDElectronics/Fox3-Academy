@@ -21,7 +21,7 @@ import type { BanditSample, CoachInput, PlayerAction, Sample, ShotRecord, Threat
 
 const SAMPLE_EVERY = 0.5;
 /** Event types kept for the debrief (the World's own list is capped). */
-const KEEP = new Set<SimEvent['type']>(['launch', 'pitbull', 'datalink-lost', 'seeker-lost', 'hit', 'miss', 'kill', 'lock', 'cm', 'ai', 'rwr', 'note', 'sam']);
+const KEEP = new Set<SimEvent['type']>(['launch', 'pitbull', 'datalink-lost', 'seeker-lost', 'hit', 'miss', 'kill', 'lock', 'cm', 'ai', 'rwr', 'note', 'sam', 'jam']);
 
 /** Best missile a jet still carries (radar first, longest head-on reference range). */
 export function bestMissile(ac: Aircraft): MissileId | null {
@@ -96,6 +96,7 @@ export class SortieRecorder {
           shooterAlt: shooter.pos.y, targetAlt: target?.pos.y ?? null, shooterMach: mach(shooter.vel.length(), shooter.pos.y),
           endT: null, outcome: 'flying', reason: null, fPole: null, warnedAt: null, warnKind: null,
           pitbullAt: null, datalinkLost: null, seekerLost: null, support: null,
+          hoj: m?.guidance === 'hoj' || undefined,
         };
         this.shots.push(rec);
         this.byId.set(rec.id, rec);

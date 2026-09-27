@@ -1,7 +1,28 @@
 import { describe, expect, test } from 'vitest';
 import { FIGHTER_ORDER } from '../../data/aircraft';
 import { parseKeyList } from '../../ui/keys';
-import { jetKeyMap, trainerKeys, usedChords } from './keys';
+import { OWN_JAMMER } from '../../data/ecm';
+import { jammerKey, jetKeyMap, trainerKeys, usedChords } from './keys';
+
+describe('own jammer key', () => {
+  test('every fighter: the DCS jammer key never collides; F/A-18C (E = chaff) and J-11A (no jammer) get none', () => {
+    for (const ac of FIGHTER_ORDER) {
+      const m = jetKeyMap(ac);
+      const jk = jammerKey(m);
+      const own = OWN_JAMMER[ac];
+      if (ac === 'fa18c') { expect(jk.key).toBeNull(); expect(jk.collidesWith).toMatch(/chaff/i); continue; }
+      if (!own) { expect(jk.key, ac).toBeNull(); continue; }
+      expect(jk.key, ac).toBe(own.key);
+      const used = usedChords(m);
+      const t = trainerKeys(m);
+      const trainer = new Set(Object.values(t).flatMap(v => (v ? parseKeyList(v).map(c => c.text) : [])));
+      for (const c of parseKeyList(own.key)) {
+        expect(used.has(c.text), `${ac} ${c.text}`).toBe(false);
+        expect(trainer.has(c.text), `${ac} trainer ${c.text}`).toBe(false);
+      }
+    }
+  });
+});
 
 describe('jetKeyMap', () => {
   test('retains the known DCS key when another trainer action owns that chord', () => {

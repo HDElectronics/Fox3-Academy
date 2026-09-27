@@ -15,6 +15,23 @@ function state(p: Partial<HintState> = {}): HintState {
   };
 }
 
+describe('flightHint: jamming', () => {
+  const ecm = { strobes: 1, jamLock: false, hojWeapon: true, burnThrough: 25000 };
+  test('a strobe and no contacts: lock the strobe or close to burn-through', () => {
+    expect(flightHint(state({ ecm })).text).toMatch(/Strobe on the scope.*Lock the strobe \(Enter\)/);
+    const noHoj = flightHint(state({ ecm: { ...ecm, hojWeapon: false }, weapon: { name: 'R-77', seeker: 'arh', count: 4 } }));
+    expect(noHoj.text).toMatch(/R-77 cannot home on jam: close to burn-through/);
+    expect(noHoj.why).toMatch(/25 km/);
+  });
+  test('a jam lock never quotes a range; it gives the launch rule reason', () => {
+    const primary = { label: 'Bandit-1', range: 25000, rmax: null, rne: null };
+    const ok = flightHint(state({ ecm: { ...ecm, jamLock: true }, primary, shootCue: true }));
+    expect(ok.text).toBe('Jam lock on Bandit-1: fire (RAlt + Space). It homes on his jammer.');
+    const no = flightHint(state({ ecm: { ...ecm, jamLock: true }, primary, blocked: 'R-77 cannot home on jam: wait for burn-through' }));
+    expect(no.text).toMatch(/no shot: R-77 cannot home on jam: wait for burn-through/);
+  });
+});
+
 describe('flightHint', () => {
   test('cockpits without textual shoot cues get a clear trainer launch hint', () => {
     const h = flightHint(state({ shootCue: true, cueLabel: '', primary: { label: 'Bandit-1', range: 30000, rmax: 50000, rne: 20000 } }));

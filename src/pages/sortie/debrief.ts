@@ -28,10 +28,10 @@ export interface DebriefOptions {
   startAt?: number;
 }
 
-type Cat = 'launch' | 'pitbull' | 'dl' | 'hit' | 'miss' | 'def' | 'lock';
+type Cat = 'launch' | 'pitbull' | 'dl' | 'hit' | 'miss' | 'def' | 'lock' | 'jam';
 interface Marker { t: number; cat: Cat; tone: string; text: string; focus: EntityId | null }
 
-const CAT_LABEL: Record<Cat, string> = { launch: 'Launch', pitbull: 'Pitbull', dl: 'DL lost', hit: 'Hit', miss: 'Miss', def: 'Defence', lock: 'Lock' };
+const CAT_LABEL: Record<Cat, string> = { launch: 'Launch', pitbull: 'Pitbull', dl: 'DL lost', hit: 'Hit', miss: 'Miss', def: 'Defence', lock: 'Lock', jam: 'ECM' };
 
 export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose(): void } {
   const bag = cleanup();
@@ -70,7 +70,7 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
   const who = (s: ShotRecord) => (s.shooterId === inp.playerId ? s.label : `${name(s.shooterId)} ${MISSILES[s.missile].name}`);
   for (const s of inp.shots) {
     const blue = s.side === 'blue';
-    markers.push({ t: s.t, cat: 'launch', tone: blue ? 'blue' : 'red', focus: s.id, text: `${who(s)} launched at ${name(s.targetId)}${s.range !== null ? `, ${R(s.range)}` : ''} (${s.radarMode.toUpperCase()})` });
+    markers.push({ t: s.t, cat: 'launch', tone: blue ? 'blue' : 'red', focus: s.id, text: `${who(s)} launched at ${name(s.targetId)}${s.hoj ? ': home on jam, no range' : `${s.range !== null ? `, ${R(s.range)}` : ''} (${s.radarMode.toUpperCase()})`}` });
     if (s.pitbullAt !== null) markers.push({ t: s.pitbullAt, cat: 'pitbull', tone: 'dl', focus: s.id, text: `${who(s)} pitbull` });
     if (s.datalinkLost) markers.push({ t: s.datalinkLost.t, cat: 'dl', tone: 'caution', focus: s.id, text: `${who(s)} lost datalink: ${s.datalinkLost.why}` });
     else if (s.seekerLost?.why === 'lost-guidance' && MISSILES[s.missile].seeker === 'sarh') markers.push({ t: s.seekerLost.t, cat: 'dl', tone: 'caution', focus: s.id, text: `${who(s)} lost its lock (Fox 1)` });
@@ -90,6 +90,9 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
       markers.push({ t: e.t, cat: 'def', tone: 'sym', focus: e.ownerId, text: e.text });
     } else if (e.type === 'lock' && e.what === 'locked' && (e.ownerId === inp.playerId || e.targetId === inp.playerId)) {
       markers.push({ t: e.t, cat: 'lock', tone: 'hi', focus: e.ownerId === inp.playerId ? e.targetId : e.ownerId, text: e.ownerId === inp.playerId ? `You lock ${name(e.targetId)}` : `${name(e.ownerId)} locks you` });
+    } else if (e.type === 'jam') {
+      const you = e.ownerId === inp.playerId;
+      markers.push({ t: e.t, cat: 'jam', tone: e.on ? 'caution' : 'dim', focus: e.ownerId, text: you ? `Your jammer ${e.on ? 'on' : 'off'}` : `${name(e.ownerId)} ${e.on ? 'jamming: strobe, no range' : 'stops jamming'}` });
     } else if (e.type === 'lock' && e.what === 'broken' && e.ownerId === inp.playerId) {
       markers.push({ t: e.t, cat: 'dl', tone: 'caution', focus: e.targetId, text: `Your lock on ${name(e.targetId)} broke: ${e.why ?? ''}` });
     }
@@ -141,7 +144,8 @@ export function mountDebrief(host: HTMLElement, o: DebriefOptions): { dispose():
       title: `${fmtTime(it.t)} ${it.title}`, 'aria-label': `${fmtTime(it.t)}: ${it.title}`, onclick: () => { jump(it.t ?? t0, it.focus); tabsH.set('coach', true); highlight(it.id); },
     }, it.kind === 'mistake' ? '!' : it.kind === 'good' ? '✓' : 'i'));
   }
-  const cats = Object.keys(CAT_LABEL) as Cat[];
+  // The ECM chip shows only in a fight with jamming in it.
+  const cats = (Object.keys(CAT_LABEL) as Cat[]).filter(c => c !== 'jam' || markers.some(m => m.cat === 'jam'));
   const filter = chips<Cat>({
     id: 'sortie-mkfilter', ariaLabel: 'Marker types', value: cats,
     options: cats.map(c => ({ value: c, label: h('span', { class: 'sortie-chip' }, h('i', { class: `sortie-sw sortie-mk--${c}` }), CAT_LABEL[c]) })),

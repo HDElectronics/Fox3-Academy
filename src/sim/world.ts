@@ -27,7 +27,7 @@ import { dirFrom } from './math';
 import { stepAircraft } from './flight';
 import { createMissile, stepMissile } from './missile';
 import { dropChaff, dropFlare, stepCountermeasures } from './countermeasures';
-import { canLock, createRadarState, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
+import { canLock, canLockJammer, createRadarState, cycleDesignation, designate, lockJammer, lockTarget, setRadarMode, setScan, setSnp2, stepRadar, undesignate, unlock, type LockCheck, type LockFrame, type ScanChange } from './radar';
 import { updateRwr } from './rwr';
 import { thinkAi } from './ai';
 import { canLaunch, canLaunchSnp2, launchSnp2 } from './launch';
@@ -352,6 +352,11 @@ export class World {
   }
   unlock(id: EntityId): void {
     const ac = this.aircraft.get(id); if (ac) unlock(this, ac);
+  }
+  /** Can this jet take an angle-only lock on a jam strobe on `targetId`? Reason in pilot words when not. */
+  canLockJammer(id: EntityId, targetId: EntityId): LockCheck {
+    const ac = this.aircraft.get(id);
+    return ac ? canLockJammer(this, ac, targetId) : { ok: false, reason: 'No aircraft' };
   }
   /** Angle-only lock on a jam strobe (HOJ / AOJ / JAT); see radar.ts lockJammer. */
   lockJammer(id: EntityId, targetId: EntityId): boolean {

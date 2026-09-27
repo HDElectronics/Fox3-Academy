@@ -47,6 +47,8 @@ export interface ShotRecord {
   seekerLost: { t: number; why: MissReason } | null;
   /** How far off the shooter's nose the target sat while the shooter guided it (launch → pitbull, or impact for SARH). */
   support: { meanOffNoseDeg: number; maxOffNoseDeg: number; seconds: number } | null;
+  /** Fired from a jam lock: home on jam, no range at launch for the shooter. */
+  hoj?: boolean;
 }
 
 export interface BanditSample {
@@ -86,7 +88,7 @@ export interface Sample {
 
 export interface PlayerAction {
   t: number;
-  kind: 'mode' | 'designate' | 'lock' | 'unlock' | 'step' | 'launch' | 'chaff' | 'flare' | 'weapon' | 'radar';
+  kind: 'mode' | 'designate' | 'lock' | 'unlock' | 'step' | 'launch' | 'chaff' | 'flare' | 'weapon' | 'radar' | 'jam';
   detail?: string;
   targetId?: EntityId | null;
 }
@@ -697,7 +699,7 @@ export function describeShot(s: ShotRecord, inp: Pick<CoachInput, 'names' | 'pla
   else warning = `launch warning ${secs(s.warnedAt - s.t)} s after launch, ${secs(end - s.warnedAt)} s of warning`;
   return {
     id: s.id, title, outcome, tone, launch,
-    mode: modeLabel(s.shooterId, s.radarMode),
+    mode: s.hoj ? `${modeLabel(s.shooterId, s.radarMode)} · home on jam` : modeLabel(s.shooterId, s.radarMode),
     aspect: s.targetAspectDeg === null ? '--' : `${aspectWord(s.targetAspectDeg)} (${Math.round(s.targetAspectDeg)}°)`,
     fPole: s.outcome === 'flying' ? '--' : nm.range(s.fPole),
     warning,

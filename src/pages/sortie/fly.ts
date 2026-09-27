@@ -14,6 +14,7 @@ import { World } from '../../sim/world';
 import type { Aircraft, EntityId, Missile, RadarPicture, SimEvent } from '../../sim/types';
 import type { Engagement } from '../../sim/scenarios';
 import { buildRadarPicture } from '../../sim/picture';
+import { BURN_THROUGH_M, JAM_CUE, OWN_JAMMER, isHojMissile } from '../../data/ecm';
 import { dlzFor } from '../../sim/dlz';
 import { D2R, R2D, bearingTo, clamp, relBearing, wrap2Pi, M_PER_FT, MPS_PER_KT } from '../../sim/math';
 import { speedFromMach } from '../../sim/atmosphere';
@@ -28,7 +29,7 @@ import { SortieRecorder, missilesLeft } from './recorder';
 import type { SortieResult } from './coach';
 import { reasonText } from './coach';
 import { flightHint, type HintState } from './hints';
-import { trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
+import { jammerKey, trainerKeys, type ActionId, type JetKey, type JetKeyMap } from './keys';
 import { ScriptedPilot } from './autopilot';
 import { HoldAction } from './input';
 
@@ -118,6 +119,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   bag.on(window, 'blur', clearHeldInputs);
   bag.add(clearHeldInputs);
   let pic: RadarPicture | null = null;
+  let wasHoj = false;
   /** Launch allowed although the cue is not lit (see updateUi). */
   let inRange = false;
 
@@ -168,6 +170,18 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   const flareBtn = button({ label: 'Flare', keys: K.flare?.keys ?? undefined, title: K.flare?.keys ? K.flare.dcsName : noKey(K.flare ?? K.decoys), onClick: () => dispense('flare') });
   // Jets whose only countermeasure key is a program (M-2000C decoy program: chaff and flare together).
   const decoyBtn = !K.chaff && K.decoys?.keys ? button({ label: 'Program', keys: K.decoys.keys, title: `${K.decoys.dcsName}: chaff and flare together`, onClick: () => dispense('both') }) : null;
+  // Own jammer (data/ecm.ts OWN_JAMMER): its DCS key, or a button only when that key is taken by the jet's map.
+  const ownJam = OWN_JAMMER[ac];
+  const jamKey = jammerKey(keymap).key;
+  const jamT = ownJam ? toggle({
+    id: 'sortie-jam', label: 'Jammer', size: 's', keys: jamKey ?? undefined,
+    title: `${ownJam.name}: ${ownJam.cue}${jamKey ? ` (${jamKeyNote()})` : ''}`,
+    onChange: v => setJam(v),
+  }) : null;
+  function jamKeyNote(): string {
+    if (!ownJam) return '';
+    return [ownJam.trainerKey ? 'trainer key' : '', ownJam.verified ? '' : 'not verified'].filter(Boolean).join(', ') || 'DCS key';
+  }
   const carried = (ids: MissileId[]) => ids.some(m => (me.stores[m] ?? 0) > 0);
   const selectBtns = keymap.selects.filter(s => carried(s.missiles)).map(s => button({ label: s.family, size: 's', keys: s.keys, title: s.dcsName, onClick: () => selectFamily(s.missiles) }));
 
@@ -274,7 +288,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         title: 'Weapons', children: [
           fireBtn.el, fireWhy,
           h('div', { class: 'sortie-row' }, wpnBtn.el, ...selectBtns.map(b => b.el)),
-          h('div', { class: 'sortie-row' }, chaffBtn.el, flareBtn.el, decoyBtn?.el ?? null),
+          h('div', { class: 'sortie-row' }, chaffBtn.el, flareBtn.el, decoyBtn?.el ?? null, jamT?.el ?? null),
+          ownJam ? h('p', { class: 'sortie-note' }, `${ownJam.name}${jamKey ? ` · ${jamKey}: ${jamKeyNote()}` : ': click it here'}${ownJam.note && ownJam.trainerKey ? ` · ${ownJam.note}` : ''}`) : null,
         ],
       }).el,
       consolePanel({
@@ -337,8 +352,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   bag.add(() => { radar.dispose(); rwr.dispose(); timeline.dispose(); });
   bag.on(radarCv, 'click', (e: MouseEvent) => {
     if (!me.alive) return;
-    const id = radar.pick(e.clientX, e.clientY, 12);
-    if (id) doDesignate(id);
+    const pk = radar.pickDetail(e.clientX, e.clientY, 12);
+    if (pk) doDesignate(pk.targetId, pk.kind === 'strobe');
     else {
       const p = radar.toRadar(e.clientX, e.clientY);
       if (p) world.setScan(me.id, { cursor: p });
@@ -355,7 +370,8 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       case 'launch':
         if (e.shooterId === me.id) {
           const m = MISSILES[e.missile];
-          say(`Fox ${m.fox}: ${mLabel(e.missileId)} ${m.name} at ${names(e.targetId)}, ${e.range ? rng(e.range) : '--'} (${modeName(e.radarMode)})`, 'hi');
+          const hoj = world.missiles.get(e.missileId)?.guidance === 'hoj';
+          say(`Fox ${m.fox}: ${mLabel(e.missileId)} ${m.name} at ${names(e.targetId)}, ${hoj ? 'home on jam, no range' : `${e.range ? rng(e.range) : '--'} (${modeName(e.radarMode)})`}`, 'hi');
         }
         break;
       case 'pitbull': if (mine(e.missileId)) say(`${mLabel(e.missileId)} pitbull: its own seeker is on`, 'ok'); break;
@@ -374,9 +390,14 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       case 'miss': if (mine(e.missileId)) say(`${mLabel(e.missileId)} missed: it ${reasonText(e.reason)}`); break;
       case 'lock':
         if (e.ownerId === me.id) {
-          if (e.what === 'locked') say(`Locked ${names(e.targetId)} (STT): he has a lock warning now`, 'hi');
+          if (e.what === 'locked' && me.radar.stt.hoj) say(`Jam lock on ${names(e.targetId)} (${JAM_CUE[ac].lock}): bearing only, no range`, 'hi');
+          else if (e.what === 'locked') say(`Locked ${names(e.targetId)} (STT): he has a lock warning now`, 'hi');
           else if (e.what === 'broken') say(`Lock on ${names(e.targetId)} broken: ${e.why ?? 'lost'}`, 'caution');
         }
+        break;
+      case 'jam':
+        if (e.ownerId === me.id) say(e.on ? 'Jammer on: you are a strobe to them, and a home-on-jam target' : 'Jammer off: their radars see your range again', e.on ? 'hi' : 'dim');
+        else if (eng.enemyIds.includes(e.ownerId)) say(e.on ? `${names(e.ownerId)} jamming: a strobe, no range until burn-through` : `${names(e.ownerId)} stops jamming`, e.on ? 'caution' : 'dim');
         break;
       case 'sam':
         if (e.targetId === me.id && e.what === 'lost' && e.why && e.why !== 'target-dead') say(`${names(e.siteId)} lost its track on you (${e.why}): its missiles go ballistic`, 'ok');
@@ -427,9 +448,14 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     const next = me.radar.mode === 'tws' ? 'rws' : 'tws';
     setMode(next);
   }
-  function doDesignate(id: EntityId): void {
+  function doDesignate(id: EntityId, strobe = false): void {
     if (!canAct()) return;
     const st = me.radar;
+    // A jam strobe (or a jammed contact the radar will not lock) takes an angle-only jam lock instead.
+    if ((strobe || !world.canLock(me.id, id).ok) && st.mode !== 'stt' && st.mode !== 'off' && (strobe || world.canLockJammer(me.id, id).ok)) {
+      jamLock(id);
+      return;
+    }
     const before = `${st.mode}|${st.designated.join(',')}`;
     if (st.mode === 'stt' || st.mode === 'off') { say(st.mode === 'off' ? 'Radar is off' : 'Already locked: unlock first to change target', 'dim'); return; }
     world.designate(me.id, id);
@@ -446,6 +472,10 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       say(`${names(id)} designated${i === 0 ? ' (primary)' : i > 0 ? ` (#${i + 1})` : ''}`, 'hi');
     }
   }
+  function jamLock(id: EntityId): void {
+    if (world.lockJammer(me.id, id)) { rec.action('lock', 'jam', id); return; }
+    say(world.canLockJammer(me.id, id).reason || 'No jam lock', 'caution');
+  }
   function designateAtCursor(): void {
     if (!canAct()) return;
     const picks = radar.pickables();
@@ -456,7 +486,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       let bd = Infinity;
       for (const p of picks) { const d = Math.hypot(p.x - c.x, p.y - c.y); if (d < bd) { bd = d; best = p; } }
     }
-    doDesignate(best.targetId);
+    doDesignate(best.targetId, best.kind === 'strobe');
   }
   function unlock(): void {
     if (!canAct()) return;
@@ -474,7 +504,9 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   function lockPrimary(): void {
     const id = me.radar.designated[0];
     if (!canAct() || me.radar.mode !== 'tws' || !id) return;
-    if (!world.lock(me.id, id)) say(world.canLock(me.id, id).reason, 'caution');
+    if (world.lock(me.id, id)) return;
+    if (world.canLockJammer(me.id, id).ok) jamLock(id);
+    else say(world.canLock(me.id, id).reason, 'caution');
   }
   function radarPower(on: boolean): void {
     if (!canAct()) return;
@@ -510,6 +542,11 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     me.selectedWeapon = id;
     rec.action('weapon', id);
     say(`${MISSILES[id].name} selected (${me.stores[id] ?? 0})`, 'dim');
+  }
+  function setJam(on: boolean): void {
+    if (!canAct()) { jamT?.set(me.jamming); return; }
+    if (!world.setJamming(me.id, on)) { jamT?.set(me.jamming); say(`No jammer on the ${spec.short}`, 'dim'); return; }
+    rec.action('jam', on ? 'on' : 'off');
   }
   function dispense(what: 'chaff' | 'flare' | 'both'): void {
     if (!canAct()) return;
@@ -645,6 +682,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
   bindJet('flare', () => dispense('flare'));
   if (!K.chaff && K.decoys?.keys) keyMap[K.decoys.keys] = { down: () => dispense('both') };
   for (const s of keymap.selects) keyMap[s.keys] = { down: () => selectFamily(s.missiles) };
+  if (jamT && jamKey) keyMap[jamKey] = () => jamT.toggle(true);
   const hold = (set: () => void, clear: () => void) => ({ down: set, up: clear });
   if (K.cursorUp?.keys) keyMap[K.cursorUp.keys] = hold(() => { cursorHeld.range = 1; }, () => { cursorHeld.range = 0; });
   if (K.cursorDown?.keys) keyMap[K.cursorDown.keys] = hold(() => { cursorHeld.range = -1; }, () => { cursorHeld.range = 0; });
@@ -757,13 +795,15 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     own.set('cm', `${me.chaff} / ${me.flares}`);
     own.setTone('cm', me.chaff < 10 ? 'caution' : null);
     const inAir = pic?.missilesInFlight ?? [];
-    setText(mslText, inAir.length ? inAir.map(m => `${m.label} → ${m.targetLabel}: ${m.guidance === 'datalink' ? `active in ${m.timeToActive !== null ? Math.round(m.timeToActive) : '--'} s` : m.guidance === 'sarh' ? `hold the lock, ${m.timeToImpact !== null ? Math.round(m.timeToImpact) : '--'} s` : m.guidance === 'active' ? `pitbull, ${m.timeToImpact !== null ? Math.round(m.timeToImpact) : '--'} s` : m.guidance}`).join(' · ') : 'No missiles in flight.');
+    setText(mslText, inAir.length ? inAir.map(m => `${m.label} → ${m.targetLabel}: ${m.guidance === 'datalink' ? `active in ${m.timeToActive !== null ? Math.round(m.timeToActive) : '--'} s` : m.guidance === 'sarh' ? `hold the lock, ${m.timeToImpact !== null ? Math.round(m.timeToImpact) : '--'} s` : m.guidance === 'active' ? `pitbull, ${m.timeToImpact !== null ? Math.round(m.timeToImpact) : '--'} s` : m.guidance === 'hoj' ? 'home on jam' : m.guidance}`).join(' · ') : 'No missiles in flight.');
     const clock = `${fmtTime(world.t)} / ${fmtTime(SORTIE_LIMIT_S)}${paused ? ' · PAUSED' : timeScale > 1 ? ` · ${timeScale}×` : ''}`;
     setText(clockEl, clock);
     fireBtn.setLit(!!pic?.shootCue);
     const cue = pic?.cueLabel === '*' ? '★' : pic?.cueLabel ?? '';
     fireBtn.setLabel(pic?.shootCue ? `Fire · ${cue}` : inRange ? 'Fire · in range' : 'Fire');
-    setText(fireWhy, !me.alive ? '' : pic?.shootCue ? (cue ? `${cue} ${pic.cueLabel === '*' || pic.cueLabel === '▲' ? 'flashing' : 'lit'}: the shot is valid.` : 'Launch available: the shot is valid in this trainer.')
+    const hojLock = !!pic?.stt?.hoj;
+    setText(fireWhy, !me.alive ? '' : pic?.shootCue && hojLock ? 'Jam lock: a home-on-jam shot is valid. No range and no launch zone: the missile flies at the jammer.'
+      : pic?.shootCue ? (cue ? `${cue} ${pic.cueLabel === '*' || pic.cueLabel === '▲' ? 'flashing' : 'lit'}: the shot is valid.` : 'Launch available: the shot is valid in this trainer.')
       : inRange && pic?.dlz ? `In range: you can fire now. ${cue} lights inside Rne (${rng(pic.dlz.rne)}), where he cannot escape.`
         : pic?.launchBlockedReason ?? '');
     radarBezel.setStatus(me.alive ? `${pic?.modeLabel ?? ''}` : '');
@@ -774,6 +814,11 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     powerT.set(me.radar.mode !== 'off');
     setText(cmdOut, `CMD ${String(Math.round(((me.cmd.heading * R2D) % 360 + 360) % 360)).padStart(3, '0')}° · ${fmtAlt(me.cmd.altitude, units)} · ${fmtSpeed(me.cmd.speed, units)}${me.cmd.afterburner ? ' · AB' : ''}${aid ? ` · ${aid.toUpperCase()}` : ''}`);
     abT.set(me.cmd.afterburner);
+    jamT?.set(me.jamming);
+    // Burn-through on a jam lock: the radar measures range again and the lock turns into an ordinary STT.
+    const hojNow = me.radar.mode === 'stt' && !!me.radar.stt.hoj;
+    if (wasHoj && !hojNow && me.radar.mode === 'stt' && me.radar.stt.targetId) say(`Burn-through: range on ${names(me.radar.stt.targetId)}, ordinary lock now`, 'ok');
+    wasHoj = hojNow;
     const dead = !me.alive || !!ending;
     for (const b of [fireBtn, wpnBtn, chaffBtn, flareBtn, desBtn, unlockBtn, stepBtn, decoyBtn].filter((x): x is ButtonHandle => !!x)) b.setDisabled(dead);
   }
@@ -801,7 +846,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
       missilesLeft: missilesLeft(me),
       shootCue: !!pm?.shootCue, inRange, cueLabel: pm?.cueLabel ?? '', blocked: pm?.launchBlockedReason ?? '',
       contacts: (pm?.tracks.length ?? 0) + (pm?.bricks.length ?? 0),
-      primary: prim && pm ? { label: names(prim.targetId), range: prim.range, ...zoneOf(prim.targetId, pm) } : null,
+      primary: prim && pm ? { label: names(prim.targetId), range: prim.range, ...(pm.stt?.hoj ? { rmax: null, rne: null } : zoneOf(prim.targetId, pm)) } : null,
       rwr: r ? {
         state: r.state, bearing: r.bearing, elevation: r.elevation,
         emitter: r.emitterType === 'missile' ? 'Missile' : names(r.emitterId),
@@ -818,6 +863,10 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
         return { name: b.callsign, range, bearing: relBearing(me.pos, me.heading, b.pos), alt: b.pos.y, rne: s?.rne ?? null, inRne: !!s?.rne && range < s.rne, hot: Math.abs(relBearing(me.pos, me.heading, b.pos)) < 35 * D2R };
       }),
       ownAlt: me.pos.y,
+      ecm: {
+        strobes: pm?.strobes.length ?? 0, jamLock: !!pm?.stt?.hoj,
+        hojWeapon: !!me.selectedWeapon && isHojMissile(me.selectedWeapon), burnThrough: BURN_THROUGH_M[ac].value,
+      },
     };
     const hint = flightHint(state);
     coach.set(hint.text, hint.why, hint.tone);
@@ -888,6 +937,7 @@ function buildKeyHelp(ac: FighterId, map: JetKeyMap): HTMLElement {
     row('Weapon step', K.weaponCycle),
     ...map.selects.map(s => keyHint({ label: `Select ${s.family}`, keys: s.keys, note: s.dcsName })),
     row('Chaff', K.chaff), row('Flares', K.flare), row('Countermeasures', K.chaff ? undefined : K.decoys),
+    jamHint(ac, map),
     placard('Trainer keys'),
     keyHint({ label: 'Turn left / right (hold)', keys: `${tk.left} / ${tk.right}` }),
     keyHint({ label: 'Climb / descend (hold)', keys: `${tk.climb} / ${tk.descend}` }),
@@ -904,4 +954,14 @@ function buildKeyHelp(ac: FighterId, map: JetKeyMap): HTMLElement {
     h('summary', { class: 'sortie-keys__sum' }, h('span', null, `Keys · ${spec.short}`), h('span', { class: 'sortie-keys__hint' }, spec.module === 'fc3' ? 'FC3 defaults' : 'HOTAS + keyboard')),
     body);
   return h('section', { class: 'ui-console sortie-keys-panel' }, det);
+}
+
+/** Key-help row for the own jammer: the DCS key with its trainer / not-verified notes, or why it is a click. */
+function jamHint(ac: FighterId, map: JetKeyMap): HTMLElement | null {
+  const own = OWN_JAMMER[ac];
+  if (!own) return null;
+  const jk = jammerKey(map);
+  if (!jk.key) return keyHint({ label: 'Jammer on / off', keys: 'click', note: `${own.name} · ${own.key} is ${jk.collidesWith ?? 'taken'} here` });
+  const note = [own.name, own.trainerKey ? 'trainer key' : '', own.verified ? '' : 'not verified', own.trainerKey ? own.note ?? '' : ''].filter(Boolean).join(' · ');
+  return keyHint({ label: 'Jammer on / off', keys: jk.key, note });
 }
