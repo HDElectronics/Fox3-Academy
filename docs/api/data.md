@@ -308,6 +308,10 @@ Research: `docs/research/cas-jtac.md`, `docs/research/cas-jets.md`; plan in `doc
 
 ### SAM sites
 
+- AI and SAMs (`src/sim/ai.ts`): the ring margin `SAM_RING_MARGIN_M` = 3 km and the whole rule (keep out of rings the
+  RWR shows, notch SAM launches with chaff) are trainer choices, **not verified**. The SAM drill start
+  `SAM_DRILL_LEAD_M` (at most 5 km outside the ring, `src/sim/scenarios.ts`) is a trainer value.
+
 Research: `docs/research/sam-threats.md`. No ring was checked in the Mission Editor (the ED ring chart thread
 refused access), so every `threatRingKm` is **not verified**: SA-10 120 km, SA-11 35 km, SA-15 12 km, all from the
 Airgoons game-data reference. SA-10: older references show a smaller ring. SA-15 ceiling 6000 m vs 26000 ft on

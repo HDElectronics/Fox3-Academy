@@ -58,7 +58,9 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
 - **Jamming constraint**: СНП2 checks a scenario flag; this is not an electronic-warfare model.
 - **SAM sites**: three sites (SA-10, SA-11, SA-15) stand for the long, medium and short range classes. The site
   holds a track and its missile needs that track to impact; notch plus chaff, terrain (the radar horizon plus a
-  scenario ridge height) or leaving the ring breaks it. Missile timing is arcade tuning. AI jets ignore SAMs.
+  scenario ridge height) or leaving the ring breaks it. Missile timing is arcade tuning. AI jets keep out of a
+  ring their RWR shows (3 km margin) and notch SAM launches with chaff: a trainer rule, since how the DCS AI
+  handles SAMs is not documented.
 
 ## Not verified (the app labels these)
 

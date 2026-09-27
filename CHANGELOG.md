@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- AI jets react to SAMs (#34): a site on the jet's RWR keeps it out of the ring (3 km margin), and a SAM launch
+  makes it beam the site, descend and drop chaff, then rejoin the fight. A trainer rule, labelled simplified. The
+  SAM drills start at most 5 km outside the ring, so the SA-10 locks in about 20 s instead of about 75 s.
+
 - See the world through the HUDs: the Su-25T ИЛС (Shkval & Vikhr, CAS & JTAC), the landing HUD (Pattern &
   landing) and the gun sight HUD (Merge & guns). A colour view ahead in each HUD's own frame, lined up with the
   ladder and the boresight (banked with the jet on the landing and gun HUDs), under a light tint.

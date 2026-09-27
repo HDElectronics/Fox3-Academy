@@ -257,7 +257,8 @@ Rmax, F-pole, how long the target was warned) and coaching on what went right an
 
 Under **SAM sites** the brief adds one or two SA-10, SA-11 or SA-15 sites on the bandits' side. They show in
 the 3D view with their rings, the coach calls their lock and launch, and the debrief notes a SAM kill or a
-broken track. Simplified: the AI jets ignore the sites, and the sites shoot only at your side.
+broken track. Simplified: your AI wingman stays out of a ring once its RWR shows the site, and beams, descends and
+drops chaff against a SAM fired at it (a trainer rule); the sites shoot only at your side.
 
 Use **Truth / Your radar** below the playback controls to compare the complete fight with your recorded
 sensor picture. Your radar shows ownship, echo squares and estimated track rings; dashed rings mean a

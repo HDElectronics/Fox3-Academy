@@ -22,7 +22,7 @@ describe('sortie SAM sites', () => {
   test('the brief states ring and band as not verified and the AI gap as simplified', () => {
     const lines = samBriefLines({ sams: 1, samType: 'sa11', range: 100_000 }, 'metric');
     expect(lines[0]).toMatch(/SA-11 Gadfly site.*ring 35 km.*not verified/);
-    expect(lines.join(' ')).toMatch(/Simplified: the AI jets ignore the SAM sites/);
+    expect(lines.join(' ')).toMatch(/Simplified: your AI wingman stays out of a SAM ring/);
     expect(lines.join(' ')).not.toMatch(/!/);
   });
 

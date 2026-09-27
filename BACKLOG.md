@@ -35,8 +35,6 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 - **B22. Flight-ops polish** ([#33](https://github.com/HDElectronics/Fox3-Academy/issues/33)). Small gaps left from the
   flight-ops PRs: touch panel on tanker starts, catapults 3–4, deck altitude on the HUD, carrier wake, and others.
-- **B23. SAM follow-ups** ([#34](https://github.com/HDElectronics/Fox3-Academy/issues/34)). AI jets ignore SAMs,
-  sites cannot be destroyed, SA-10 drill pacing.
 - **B28. CAS follow-ups** ([#61](https://github.com/HDElectronics/Fox3-Academy/issues/61)). Pitch buttons on touch screens,
   the S1 rocket salvo selector (ПО 1 / 2 / 4 / ВСЕ), the laser code in recordings, the IR pointer lesson, and a
   multirole route role so the Hornet and Viper can fly CAS.

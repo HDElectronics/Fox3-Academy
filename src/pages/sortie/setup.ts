@@ -95,7 +95,7 @@ export function samPlacements(s: Pick<SortieSetup, 'sams' | 'samType' | 'range'>
   return offs.map(offsetDeg => ({ type: s.samType, range, offsetDeg }));
 }
 
-/** Brief lines for the SAM sites (empty without sites). AI jets ignore SAMs: said as simplified. */
+/** Brief lines for the SAM sites (empty without sites). The AI SAM rule (sim/ai.ts) is said as simplified. */
 export function samBriefLines(s: Pick<SortieSetup, 'sams' | 'samType' | 'range'>, units: Units): string[] {
   if (!s.sams) return [];
   const sp = SAMS[s.samType];
@@ -104,7 +104,7 @@ export function samBriefLines(s: Pick<SortieSetup, 'sams' | 'samType' | 'range'>
   return [
     `${s.sams === 2 ? 'Two' : 'One'} ${sp.nato} site${s.sams === 2 ? 's' : ''} ahead, about ${fmtRange(p.range ?? 0, units, 0)} out: ring ${fmtRange(sp.threatRingKm * 1000, units, 0)}, ${fmtAltFine(sp.minAltM, units)} to ${fmtAlt(sp.maxAltM, units)} (not verified in the Mission Editor).`,
     `The RWR shows ${short} search, then lock, then launch. ${sp.defeat[0]}`,
-    'Simplified: the AI jets ignore the SAM sites and fly the fight as if they were not there. The sites shoot only at your side.',
+    'Simplified: your AI wingman stays out of a SAM ring once its RWR shows the site, and beams it, descends and drops chaff when a SAM is fired at it (a trainer rule: how the DCS AI handles SAMs is not documented). The sites shoot only at your side.',
   ];
 }
 
