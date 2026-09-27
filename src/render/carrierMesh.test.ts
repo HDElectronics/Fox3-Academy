@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { SHIPS } from '../data/ships';
 import { landingToWorld, createFlightOpsState } from '../sim/flightOps';
 import { FLIGHT_OPS } from '../data/flightOps';
-import { deckOutline, landingLocal, landingPaint, lensCell, shipLocal, shipToLanding } from './flightOps/carrier';
+import { Color } from 'three';
+import { CarrierMesh, WAKE, deckOutline, landingLocal, landingPaint, lensCell, shipLocal, shipToLanding, wakeStrip } from './flightOps/carrier';
+import type { Palette } from './palette';
 
 /** Point in polygon (ship frame a, c). */
 function inside(poly: [number, number][], a: number, c: number): boolean {
@@ -55,5 +57,27 @@ describe('carrier mesh helpers (#26)', () => {
     expect(lensCell({ ...b, cell: 0 })).toEqual({ cell: 0, red: false });
     expect(lensCell({ ...b, cell: -4 })).toEqual({ cell: -4, red: true });
     expect(lensCell({ ...b, cell: 12 })).toEqual({ cell: 5, red: false });
+  });
+
+  it('draws a wake astern that widens and fades, on the sea behind the ship', () => {
+    for (const id of ['cvn', 'kuznetsov'] as const) {
+      const rows = wakeStrip(id);
+      expect(rows[0]!.a).toBeCloseTo(0, 9);
+      expect(rows.at(-1)!.a).toBeCloseTo(-WAKE.lengthM, 6);
+      expect(rows.at(-1)!.alpha).toBeCloseTo(0, 6);
+      for (let i = 1; i < rows.length; i++) {
+        expect(rows[i]!.a).toBeLessThan(rows[i - 1]!.a);
+        expect(rows[i]!.hw).toBeGreaterThan(rows[i - 1]!.hw);
+        expect(rows[i]!.alpha).toBeLessThan(rows[i - 1]!.alpha);
+      }
+      const palette = new Proxy({}, { get: () => new Color(0.5, 0.5, 0.5) }) as Palette;
+      const m = new CarrierMesh(palette, id);
+      const wake = m.getObjectByName('flightOps:wake') as import('three').Mesh;
+      wake.geometry.computeBoundingBox();
+      const bb = wake.geometry.boundingBox!;
+      expect(bb.min.z).toBeGreaterThanOrEqual(0);           // astern of the ramp (+z is aft)
+      expect(bb.max.y).toBeLessThan(1);                       // on the sea, well below the deck
+      m.dispose();
+    }
   });
 });
