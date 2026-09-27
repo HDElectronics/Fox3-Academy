@@ -17,6 +17,8 @@ import { JET_NOTES } from './notes';
 import { jamFacts, lockKeyOf } from './jamming';
 import { iffFacts } from './iff';
 import { IFF, IFF_CAVEATS, IFF_RANGE_FACTOR } from '../../data/iff';
+import { DATALINK_CAVEATS } from '../../data/datalink';
+import { dlFacts } from './datalink';
 
 /** "Simplified here" lines for this page: the sim's radar model plus the jet's scan/detection caveats. */
 export function simplifiedLines(ac: FighterId): string[] {
@@ -31,6 +33,7 @@ export function simplifiedLines(ac: FighterId): string[] {
     'Jamming is one burn-through range per radar; a jammer shows as a strobe out to 1.75 × the head-on detection range (trainer value). Home-on-jam missiles fly pure pursuit.',
   ];
   lines.push(...IFF_CAVEATS);
+  lines.push(...DATALINK_CAVEATS);
   const ld = lookDownCaveat(ac);
   if (ld) lines.push(ld.replace(/^Simplified: /, ''));
   const re = /bar|scan|detect|notch|beam|range scale|elevation|azimuth|gimbal|TWS scan|frame/i;
@@ -183,6 +186,18 @@ export function buildExplainer(ac: FighterId, u: Units): HTMLElement {
     h('p', null, ff.noReply),
     h('p', null, ff.shoot),
     h('p', null, `IFF reaches ${rng(IFF_RANGE_FACTOR * r.detectKm.headOn * 1000, u)} here, ${IFF_RANGE_FACTOR} × the head-on detection range (trainer value), within ±${IFF[ac].scanHalfDeg}° of the nose. Source: ${IFF[ac].source}.`),
+  );
+
+  const df = dlFacts(ac);
+  sec('dl', 'Datalink: seeing beyond your radar',
+    h('p', null, 'A datalink puts other sensors\' tracks on your display: an AWACS picture, and in some jets the radar tracks of other fighters on the same network. You see a bandit before your own radar does. Where your radar also holds him, the two correlate into one contact.'),
+    df.has
+      ? h('p', null, `In the ${spec.short}: ${df.where} ${df.symbol}`, df.radarOnFirst && df.radarKey ? h('span', { class: 'rl-ex__keys' }, ' ', kbd(df.radarKey)) : null)
+      : h('p', null, df.none),
+    df.has ? h('p', null, [df.awacs, df.donors, df.ppli].filter(Boolean).join(' ')) : null,
+    df.has ? h('p', null, df.coast) : null,
+    h('p', null, `${df.fire} The datalink shows where he is; only your own radar gives a lock, a launch zone and guidance.`),
+    h('p', null, df.source),
   );
 
   const notes = JET_NOTES[ac];

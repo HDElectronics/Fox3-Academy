@@ -11,10 +11,14 @@ import { burnThroughRange, explainDetection, iffReply, isJammed, revisitTime, sc
 import { fighterSpec, fighterType } from '../../sim/jet';
 import { D2R, R2D, groundRange } from '../../sim/math';
 import type { Units } from '../../app/format';
-import type { IffSnap, JamSnap, Scene, ScanPreset, Snap, TargetSnap } from './exercises';
+import { buildRadarPicture } from '../../sim/picture';
+import type { DlSnap, IffSnap, JamSnap, Scene, ScanPreset, Snap, TargetSnap } from './exercises';
 import { coverageAt } from './geometry';
 
 export const PLAYER = 'player';
+
+/** How far behind the player the exercise AWACS orbits (m). */
+export const AWACS_BEHIND_M = 120_000;
 
 export interface PaintRec { first: number | null; firstRange: number | null; last: number | null; seen: boolean }
 
@@ -31,6 +35,18 @@ export function buildLabWorld(ac: FighterId, units: Units, scene: Scene, preset:
   scene.targets.forEach((t, i) => { if (t.jamming) world.setJamming(lab.targetIds[i], true); });
   // Friends: the scenario spawns every target red; a friendly one flies for the player's side and answers his IFF.
   scene.targets.forEach((t, i) => { const a = t.friendly ? world.get(lab.targetIds[i]) : undefined; if (a) a.side = me.side; });
+  // A friend with his radar on (datalink donor): flown straight by the script with a fixed search ahead, no AI scan
+  // pattern, so his tracks go out from the start of the scene.
+  scene.targets.forEach((t, i) => {
+    const a = world.get(lab.targetIds[i]);
+    if (!a || !t.friendly || !t.radar || t.radar === 'off') return;
+    a.controller = 'script';
+    world.setRadarMode(a.id, t.radar);
+    world.setScan(a.id, { autoCenter: false, azHalf: 30 * D2R, bars: 2, azCenter: 0, elCenter: 0 });
+  });
+  // Datalink: a friendly AWACS orbit 120 km behind the player (not an entity); FC3 jets start with the radar off.
+  if (scene.awacs) world.setAwacs(me.side, { x: me.pos.x - Math.sin(me.heading) * AWACS_BEHIND_M, y: 9000, z: me.pos.z + Math.cos(me.heading) * AWACS_BEHIND_M });
+  if (scene.radarOff) world.setRadarMode(PLAYER, 'off');
   return { world, me, targetIds: lab.targetIds };
 }
 
@@ -142,6 +158,23 @@ export function buildSnap(
       .filter((x): x is TargetSnap => !!x),
     jam: jamSnap(world, me, ids.find((_, i) => scene.targets[i]?.jamming)),
     iff: iffSnap(world, me, ids.find((_, i) => scene.targets[i]?.friendly), ids.find((_, i) => scene.targets[i]?.role === 'hostile'), paint),
+    dl: scene.awacs ? dlSnap(world, me, units) : undefined,
+  };
+}
+
+/** The own datalink picture as the display gets it, and what the radar holds in STT (datalink exercise). */
+export function dlSnap(world: World, me: Aircraft, units: Units): DlSnap | undefined {
+  const pic = buildRadarPicture(world, me.id, { units });
+  if (!pic) return undefined;
+  const st = me.radar;
+  const tracks = pic.datalink.map(d => ({
+    targetId: d.targetId, source: d.source, donorLabel: d.donorLabel, az: d.az * R2D, range: d.range, correlated: d.correlated, age: d.age,
+  }));
+  const held = st.mode === 'stt' && st.stt.lostFor === 0 && !st.stt.hoj ? st.stt.targetId : null;
+  const on = held ? tracks.filter(x => x.targetId === held) : [];
+  return {
+    radarOn: st.mode !== 'off', tracks,
+    lock: !held ? null : on.some(x => x.source !== 'ppli') ? 'dl' : on.length ? 'ppli' : 'other',
   };
 }
 

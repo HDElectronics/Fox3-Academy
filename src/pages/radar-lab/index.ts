@@ -2,10 +2,11 @@
  * [OWNER: page-radar-lab] Radar Lab (#/radar): the scan volume made physical. Own jet with its live
  * RadarVolume, scripted bandits at chosen ranges / altitudes / aspects, the jet's radar display showing
  * only what was painted, a 2D side view of the bars, a "Why" panel for any clicked jet, the scan console
- * and seven guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
+ * and eight guided exercises. Query params: ?ac=<id> ?units=metric|imperial ?ex=<id> ?t=<preroll s>
  * ?sel=<n> ?cam=34|side|top|behind ?el=<deg> ?azc=<deg> ?w=<±deg> ?bars=<n> ?mode=rws|tws ?cursor=<units> ?pause=1
  * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through;
- * iff, iffasked, iffdone: two unknowns, after the interrogation (auto-IFF jets: friend marked), hostile locked)
+ * iff, iffasked, iffdone: two unknowns, after the interrogation (auto-IFF jets: friend marked), hostile locked;
+ * dl, dlcorr: the datalink picture beyond the radar (FC3: radar switched on), then the scan slewed onto it: correlated)
  * ?view=explain (reading section only).
  */
 import './style.css';
@@ -32,11 +33,12 @@ import {
   patternHalfDeg, revisitTime, rng, rngToM, rngUnit, rngValue, scanFreedom, sdeg, seconds, twsPatterns,
 } from './geometry';
 import {
-  EXERCISES, EXERCISE_DEFS, availableExercises, notchButtons, notchPress, recordLockTry, strobeNearCursor,
-  type ExerciseId, type Mem, type ScanPreset, type Scene, type Snap,
+  EXERCISES, EXERCISE_DEFS, availableExercises, dlCue, notchButtons, notchPress, recordLockTry, strobeNearCursor,
+  type DlSnap, type ExerciseId, type Mem, type ScanPreset, type Scene, type Snap,
 } from './exercises';
 import { lockKeyOf } from './jamming';
 import { iffFacts } from './iff';
+import { dlFacts } from './datalink';
 import { labKeys, type LabKeys } from './labKeys';
 import { SideView, type SideTarget } from './sideView';
 import { WhyPanel, type WhyData } from './whyPanel';
@@ -78,6 +80,7 @@ const factory: PageFactory = (): Page => {
         '1': ['free', 12], free: ['free', 12], low: ['low', 5], revisit: ['revisit', 5], notch: ['notch', 20], aspect: ['aspect', 25], centre: ['centre', 5],
         jam: ['jam', 8], jamlock: ['jam', 16], jambt: ['jam', 240],
         iff: ['iff', 8], iffasked: ['iff', 12], iffdone: ['iff', 16],
+        dl: ['dl', 22], dlcorr: ['dl', 120],
       };
       const [ex, t] = SHOT[shot] ?? SHOT.free;
       if (!q.has('ex')) q.set('ex', ex);
@@ -118,6 +121,9 @@ const factory: PageFactory = (): Page => {
     // IFF shots: the interrogation (interrogating jets) and the lock on the hostile are played during the pre-roll.
     const iffShot = shot === 'iffasked' || shot === 'iffdone' ? shot : null;
     const ff = iffFacts(ac);
+    // Datalink shots: the pilot's radar-on (FC3) and, for dlcorr, the scan slewed onto the datalink track.
+    const dlShot = shot === 'dl' || shot === 'dlcorr' ? shot : null;
+    const df = dlFacts(ac);
 
     // ---- state -----------------------------------------------------------------------------------------
     let world = new World(7);
@@ -163,13 +169,22 @@ const factory: PageFactory = (): Page => {
     const unlockBtn = button({ label: 'Unlock', size: 's', id: 'rl-unlock', title: 'Break the lock', onClick: () => { world.unlock(PLAYER); updateUi(true); } });
     iffBtn.el.hidden = ff.auto;
     const iffRow = h('div', { class: 'ui-row rl-notchrow' }, iffBtn.el, unlockBtn.el);
+    const dlRadarBtn = button({
+      label: 'Radar on', size: 's', id: 'rl-dlradar', keys: df.radarKey ?? undefined,
+      title: df.radarKey ? `Radar on / off (${df.radarKey})` : 'Radar on / off', onClick: () => toggleRadar(),
+    });
+    dlRadarBtn.el.hidden = !df.radarOnFirst;
+    const dlUnlockBtn = button({ label: 'Unlock', size: 's', id: 'rl-dlunlock', title: 'Break the lock', onClick: () => { world.unlock(PLAYER); updateUi(true); } });
+    dlUnlockBtn.el.hidden = !df.has;
+    const dlList = h('ul', { class: 'rl-dllist', 'aria-label': 'Datalink tracks', 'aria-live': 'off' });
+    const dlRow = h('div', { class: 'rl-dlrow' }, h('div', { class: 'ui-row rl-notchrow' }, dlRadarBtn.el, dlUnlockBtn.el), df.has ? dlList : null);
     const progressEl = h('span', { class: 'rl-progress' });
     const log = eventLog({ id: 'rl-log', max: 30, empty: 'Paints and losses show here.' });
     log.el.style.setProperty('--log-h', '6.5em');
 
     const exPanel = consolePanel({
       title: 'Exercises', id: 'rl-expanel', actions: progressEl,
-      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, iffRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
+      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, iffRow, dlRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
     });
 
     // Radar controls.
@@ -419,6 +434,7 @@ const factory: PageFactory = (): Page => {
       notchRow.hidden = id !== 'notch';
       jamRow.hidden = id !== 'jam' || !!na;
       iffRow.hidden = id !== 'iff' || !!na;
+      dlRow.hidden = id !== 'dl' || !!na;
       const st = def.steps(ac, units, {
         elev: keys.elev?.text ?? null, zone: keys.zone?.text ?? null, width: keys.width?.text ?? null,
         cursor: keys.cursor.text, expRange: keys.expRange?.text ?? null, lock: lockKey?.text ?? null,
@@ -496,9 +512,9 @@ const factory: PageFactory = (): Page => {
       updateUi(true);
     }
 
-    /** Lock a contact (IFF exercise): break any other lock first. The Hornet's lock also interrogates him. */
+    /** Lock a contact (IFF and datalink exercises): break any other lock first. The Hornet's lock also interrogates him. */
     function lockContact(id: EntityId | null): void {
-      if (!me || exId !== 'iff') return;
+      if (!me || (exId !== 'iff' && exId !== 'dl')) return;
       if (!id) { toast('Put the cursor on a contact, or click it', { within: lab.view, tone: 'caution' }); return; }
       const st = me.radar;
       if (st.mode === 'stt' && st.stt.targetId === id) return;
@@ -521,6 +537,32 @@ const factory: PageFactory = (): Page => {
       const st = me?.radar;
       unlockBtn.setDisabled(!st || st.mode !== 'stt');
       iffBtn.setDisabled(!st || st.mode === 'off');
+    }
+
+    // ---- datalink exercise ---------------------------------------------------------------------------------
+    /** Radar on / off (FC3 datalink: the AWACS picture starts once the radar is on). */
+    function toggleRadar(): void {
+      if (!me) return;
+      setMode(me.radar.mode === 'off' ? 'rws' : 'off');
+      updateUi(true);
+    }
+
+    const DL_SRC: Record<DlSnap['tracks'][number]['source'], string> = { awacs: 'AWACS', donor: 'Donor', ppli: 'Friend' };
+    let dlSig = '', dlRadarLbl = 'Radar on';
+    function syncDl(x: DlSnap | undefined): void {
+      const st = me?.radar;
+      const lbl = st?.mode === 'off' ? 'Radar on' : 'Radar off';
+      if (lbl !== dlRadarLbl) { dlRadarLbl = lbl; dlRadarBtn.setLabel(lbl); }
+      dlUnlockBtn.setDisabled(!st || st.mode !== 'stt');
+      if (!df.has) return;
+      // What the network gives this jet (the picture, not the truth): source, bearing, range, age, correlation.
+      const rows = (x?.tracks ?? []).filter(t => t.source !== 'ppli' || df.ppli)
+        .sort((a, b) => a.range - b.range)
+        .map(t => `${DL_SRC[t.source]}${t.donorLabel && t.source === 'donor' ? ` (${t.donorLabel})` : ''} · ${sdeg(t.az, 0)} · ${rng(t.range, units)} · ${Math.round(t.age)} s${t.correlated && t.source !== 'ppli' ? ' · on your radar' : ''}`);
+      const sig = rows.join('|');
+      if (sig === dlSig) return;
+      dlSig = sig;
+      dlList.replaceChildren(...(rows.length ? rows : [st?.mode === 'off' && df.radarOnFirst ? 'Radar off: no datalink picture' : 'No datalink tracks yet']).map(t => h('li', null, t)));
     }
 
     function syncNotchButtons(): void {
@@ -677,7 +719,7 @@ const factory: PageFactory = (): Page => {
         if (exId === 'jam') jamLock(pk.targetId); else select(pk.targetId);
         return;
       }
-      if (pk && exId === 'iff') { select(pk.targetId); lockContact(pk.targetId); return; }
+      if (pk && (exId === 'iff' || exId === 'dl')) { select(pk.targetId); lockContact(pk.targetId); return; }
       const id = pk?.targetId ?? null;
       if (id) { select(id); return; }
       const p = radarDisp.toRadar(e.clientX, e.clientY);
@@ -730,7 +772,9 @@ const factory: PageFactory = (): Page => {
       } else keyMap[keys.mode.key] = () => setMode2();
     }
     // The jet's lock key: a jam lock on the strobe under the cursor (jam exercise only).
-    if (lockKey && !keyMap[lockKey.chord]) keyMap[lockKey.chord] = () => { if (exId === 'jam') jamLock(jamStrobeId(false)); else if (exId === 'iff') lockContact(contactNearCursorId()); };
+    if (lockKey && !keyMap[lockKey.chord]) keyMap[lockKey.chord] = () => { if (exId === 'jam') jamLock(jamStrobeId(false)); else if (exId === 'iff' || exId === 'dl') lockContact(contactNearCursorId()); };
+    // FC3 radar on / off (datalink exercise: the AWACS picture needs the radar on).
+    if (df.radarOnFirst && df.radarChord && !keyMap[df.radarChord]) keyMap[df.radarChord] = () => { if (exId === 'dl') toggleRadar(); };
     // The jet's IFF key (data/iff.ts): interrogate. None on the Hornet (designate or lock interrogates) or the auto-IFF jets.
     if (ff.chord && !ff.auto && !keyMap[ff.chord]) keyMap[ff.chord] = () => interrogateNow();
     keyMap['Pause'] = () => setTimeScale(timeScale > 0 ? 0 : lastScale);
@@ -830,6 +874,7 @@ const factory: PageFactory = (): Page => {
       }
       if (exId === 'notch') syncNotchButtons();
       if (exId === 'iff') syncIffButtons();
+      if (exId === 'dl') syncDl(snap.dl);
       if (exId === 'jam') syncJamButtons();
       else view?.setLayer('tracks', true);
       if (ev.done && exId !== 'free' && !doneSaved) {
@@ -1001,7 +1046,13 @@ const factory: PageFactory = (): Page => {
         uiClock = 0;
         if (jamShot) jamPreroll();
         if (iffShot) iffPreroll();
+        if (dlShot) dlPreroll();
         updateUi();
+        // Correlation shot: stop a couple of seconds after the radar picks up the datalink track.
+        if (dlShot === 'dlcorr' && mem.latched[(df.radarOnFirst ? 1 : 0) + 1 + (df.wingType ? 1 : 0)]) {
+          if (mem.okSince == null) mem.okSince = world.t;
+          else if (world.t - mem.okSince > 2) break;
+        }
         // Burn-through shot: stop a few seconds after the lock turns into a normal STT.
         if (jamShot === 'jambt' && mem.latched[3]) {
           if (mem.okSince == null) mem.okSince = world.t;
@@ -1032,6 +1083,16 @@ const factory: PageFactory = (): Page => {
         world.lock(PLAYER, x.hostileId);
       }
     }
+    /** Screenshot pre-roll for the datalink shots: radar on (FC3), then (dlcorr) the scan onto the datalink track. */
+    function dlPreroll(): void {
+      if (!me || exId !== 'dl') return;
+      if (me.radar.mode === 'off' && world.t > 1) setMode('rws');
+      if (dlShot !== 'dlcorr' || world.t < 24 || me.radar.mode === 'stt') return;
+      const x = buildSnap(world, me, units, scene, targetIds, paint, inspected, selected).dl;
+      const cue = x ? dlCue(x.tracks.filter(t => t.source === 'awacs')) : null;
+      if (cue) applyScan({ azCenter: (ru ? 30 : Math.max(-lim(), Math.min(lim(), cue.az))) * D2R });
+    }
+    function lim(): number { return azCenterLimitDeg(r, curAz()); }
     const sel = num('sel');
     if (sel !== null && targetIds[sel - 1]) select(targetIds[sel - 1]);
     if (q.get('view') === 'explain') lab.el.style.display = 'none'; // screenshot aid: the reading section alone
