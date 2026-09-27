@@ -42,7 +42,7 @@ describe('datalink picture as DCS shows it (docs/research/ecm-datalink-iff.md §
     }
   });
 
-  it('FC3: the AWACS picture needs the radar switched on', () => {
+  it('FC3: the AWACS picture needs the radar switched on once, then stays with it off', () => {
     const world = new World(3);
     world.record = false;
     world.spawnAircraft({ id: 'me', side: 'red', type: 'su27', controller: 'player', pos: { x: 0, y: 8000, z: 0 }, heading: 0, speed: 250, radarMode: 'off' });
@@ -51,6 +51,10 @@ describe('datalink picture as DCS shows it (docs/research/ecm-datalink-iff.md §
     run(world, 1);
     expect(datalinkFor(world, world.get('me')!)).toHaveLength(0);
     world.setRadarMode('me', 'rws');
+    expect(datalinkFor(world, world.get('me')!).map(d => d.source)).toEqual(['awacs']);
+    run(world, 1);
+    world.setRadarMode('me', 'off');
+    run(world, 1);
     expect(datalinkFor(world, world.get('me')!).map(d => d.source)).toEqual(['awacs']);
   });
 

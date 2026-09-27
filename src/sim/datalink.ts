@@ -13,6 +13,8 @@ import { identifiedFriend } from './radar';
 
 interface NetState { awacsAt: number; donorAt: number }
 const NET = new WeakMap<World, NetState>();
+/** FC3 jets whose radar has been on at least once: their AWACS picture stays after it goes off (Su-27 manual). */
+const RADAR_WAS_ON = new WeakSet<Aircraft>();
 
 function net(world: World): NetState {
   let n = NET.get(world);
@@ -33,6 +35,7 @@ function upsert(list: DatalinkTrack[], tr: DatalinkTrack): void {
 /** Advance every side's datalink picture by h seconds. */
 export function stepDatalink(world: World, h: number): void {
   const n = net(world), t = world.t;
+  for (const ac of world.aircraft.values()) if (ac.radar.mode !== 'off') RADAR_WAS_ON.add(ac);
   for (const side of ['blue', 'red'] as const) {
     const list = world.datalink[side];
     // Coast and drop.
@@ -79,13 +82,13 @@ export function stepDatalink(world: World, h: number): void {
 /**
  * What `ac`'s datalink shows: one entry per target (PPLI over donor over AWACS, freshest first), filtered by the
  * jet's network (DATALINK[type]). Never its own position or its own donor tracks. Empty for jets without a picture.
- * FC3 jets need the radar switched on (the Su-27 manual: active once the radar is first on).
+ * FC3 jets need the radar switched on once (the Su-27 manual: active once the radar is first on, stays after it is off).
  */
 export function datalinkFor(world: World, ac: Aircraft): DatalinkTrack[] {
   if (!isFighter(ac.type) || !ac.alive) return [];
   const spec = DATALINK[ac.type];
   if (!spec.name) return [];
-  if (!spec.donors.length && ac.radar.mode === 'off') return [];
+  if (!spec.donors.length && ac.radar.mode === 'off' && !RADAR_WAS_ON.has(ac)) return [];
   const rank = { ppli: 0, donor: 1, awacs: 2 } as const;
   const best = new Map<EntityId, DatalinkTrack>();
   for (const tr of world.datalink[ac.side]) {

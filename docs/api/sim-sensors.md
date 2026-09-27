@@ -346,7 +346,8 @@ hostile; donors (jets whose `DATALINK[type].donors` includes their own type: Lin
 JF-17) send their firm tracks and position every 2 s, with their own IFF ID (friendly or unknown); every track is
 extrapolated and dropped 20 s after its last update (Viper manual), or when the target dies.
 - `datalinkFor(world, ac)`: the jet's view, one entry per target (PPLI over donor over AWACS), filtered by
-  `DATALINK[type]` (AWACS, donor types, PPLI), never its own position or its own tracks. FC3 jets need the radar on.
+  `DATALINK[type]` (AWACS, donor types, PPLI), never its own position or its own tracks. FC3 jets need the radar
+  switched on once; the picture stays after it goes off (Su-27 manual).
   F-15C and M-2000C: empty.
 - `datalinkSovereignty`: friendly, hostile (an AWACS call) or unknown; picture tracks carry it as `dl`, the Hornet
   HAFU bottom half and second ID factor.
