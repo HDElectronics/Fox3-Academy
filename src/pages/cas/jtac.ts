@@ -3,10 +3,16 @@
  * check-in, control type, 9-line, remarks, readback, report IP inbound, continue, smoke inside 10 nm ("mark is on
  * the deck"), contact the mark, talk-on, In, cleared hot or abort, Off, re-attack or depart, BDA, check out.
  * Pure page logic over the World: the page forwards radio-menu actions and World events, calls step() after
- * world.step(), and renders the calls. Jet-agnostic: the page supplies an aim adapter (the Shkval point for the Su-25T).
+ * world.step(), and renders the calls. Jet-agnostic: the page supplies an aim adapter (the Shkval point for the Su-25T,
+ * the pod track or the SPI for the A-10C II).
+ * Mark types (line 7): WP smoke inside 10 nm; Laser after "Laser On" (the JTAC lases the target with its code, 1688 by
+ * default, and waits for Spot, Shift or Terminate; ED A-10C II manual pp. 786-787); None (coordinates only: cleared to
+ * engage once the data is sent, then Attack Complete). With `datalink` (A-10C II, SADL) the JTAC answers the readback
+ * with "Standby for data" and sends the digital 9-line: a tasking the pilot accepts with WILCO or refuses with CNTCO.
  * When the AI clears or aborts is not documented by ED: those are trainer rules, labelled in the UI.
  */
 import type { World } from '../../sim/world';
+import { JTAC_DEFAULT_LASER_CODE } from '../../data/cas';
 import type { EntityId, SimEvent } from '../../sim/types';
 import type { CommsMenuNode } from '../../data/types';
 import { buildCommsMenu, type JtacAction, type JtacMenuState } from '../../data/cas';
@@ -16,7 +22,11 @@ import { headingErrorDeg } from './safety';
 
 export type JtacState =
   | 'idle' | 'checked-in' | 'nine-line' | 'remarks-ready' | 'remarks' | 'readback' | 'await-ip' | 'inbound'
-  | 'mark-down' | 'talk-on' | 'cleared' | 'aborted' | 'off' | 'complete' | 'checked-out';
+  | 'mark-down' | 'talk-on' | 'cleared' | 'aborted' | 'off' | 'complete' | 'checked-out'
+  /** A-10C II: "Standby for data" said, the digital 9-line on its way (coordinates only: waiting for WILCO). */
+  | 'data'
+  /** Laser mark: the JTAC lases after "Laser On" and waits for Spot, Shift or Terminate. */
+  | 'lasing';
 
 export type { JtacAction };
 
@@ -24,8 +34,20 @@ export type { JtacAction };
 const MENU_STATE: Record<JtacState, JtacMenuState> = {
   idle: 'idle', 'checked-out': 'idle', 'checked-in': 'control', 'nine-line': 'control', 'remarks-ready': 'remarks',
   remarks: 'remarks', readback: 'readback', 'await-ip': 'ip', inbound: 'inbound', 'mark-down': 'mark',
-  'talk-on': 'run-in', aborted: 'run-in', cleared: 'cleared', off: 'post', complete: 'post',
+  'talk-on': 'run-in', aborted: 'run-in', cleared: 'cleared', off: 'post', complete: 'post', data: 'ip', lasing: 'lasing',
 };
+
+/** A digital 9-line as it arrives by datalink (A-10C II): the target point, the lines for the MSG page, and the answer. */
+export interface Tasking {
+  /** Target point (the red triangle on the TAD). */
+  pos: XZ;
+  /** new: ATTACK flashes until WILCO; wilco: the triangle goes steady; cntco: the triangle is removed. */
+  state: 'new' | 'wilco' | 'cntco';
+  /** NEW TASKING on both MFCDs until TMS Left Short clears it. */
+  newShown: boolean;
+  t: number;
+  lines: { label: string; value: string }[];
+}
 
 export interface JtacCall {
   t: number;
@@ -51,6 +73,10 @@ export interface JtacOptions {
   lineGapS?: number;
   /** Smoke goes down inside this range after IP inbound (ED manual: 10 nm). */
   markRangeM?: number;
+  /** A-10C II: the 9-line also arrives by datalink after the readback ("Standby for data"). */
+  datalink?: boolean;
+  /** Weapons in the check-in call (default the Su-25T's "Vikhr and rockets"). */
+  weapons?: string;
   aim(): AimState;
 }
 
@@ -63,9 +89,14 @@ export class JtacController {
   readonly violations: { t: number; why: Violation; weaponId: EntityId }[] = [];
   /** Clearance at each release, by weapon id. */
   readonly releases = new Map<EntityId, { t: number; cleared: boolean; headingErrDeg: number }>();
+  /** The smoke mark (WP). */
   markId: EntityId | null = null;
+  /** The JTAC's laser spot while it lases (laser mark following a target unit). */
+  laserId: EntityId | null = null;
+  /** The digital 9-line (A-10C II datalink), once sent. */
+  tasking: Tasking | null = null;
   attacks = 0;
-  private queue: { at: number; call: Omit<JtacCall, 't'>; then?: () => void }[] = [];
+  private queue: { at: number; call?: Omit<JtacCall, 't'>; then?: () => void }[] = [];
   private listeners = new Set<(c: JtacCall) => void>();
   private evCursor = 0;
   readonly callsign: string;
@@ -96,8 +127,10 @@ export class JtacController {
     if (s === 'readback' && !busy) out.push('readback');
     if (s === 'await-ip' && !busy) out.push('ip-inbound');
     if (s === 'mark-down' && !busy) out.push('contact-mark');
+    if (s === 'inbound' && !busy && this.nineLine.mark === 'laser') out.push('laser-on');
+    if (s === 'lasing' && !busy) out.push('spot', 'terminate', 'shift');
     if ((s === 'talk-on' || s === 'aborted') && !busy) out.push('in');
-    if (s === 'cleared') out.push('off');
+    if (s === 'cleared') out.push(this.nineLine.mark === 'none' ? 'attack-complete' : 'off');
     if (s !== 'idle' && s !== 'checked-out') {
       out.push('repeat-brief', 'what-target');
       if (this.attacks > 0) out.push('request-bda');
@@ -114,7 +147,9 @@ export class JtacController {
     const walk = (nodes: CommsMenuNode[]): CommsMenuNode[] => nodes.filter(n => !nav(n)).map(n => n.children
       ? { ...n, children: walk(n.children) }
       : n.action && !ok.has(n.action) ? { ...n, disabled: true } : n);
-    return walk(buildCommsMenu(this.callsign, MENU_STATE[this.state], this.nineLine.mark));
+    // Coordinates only: once cleared to engage the menu offers Attack Complete (the data module's 'ip' state).
+    const ms = this.state === 'cleared' && this.nineLine.mark === 'none' ? 'ip' : MENU_STATE[this.state];
+    return walk(buildCommsMenu(this.callsign, ms, this.nineLine.mark));
   }
 
   /** A radio-menu action from the pilot. Returns false when the item is not valid in this state. */
@@ -124,7 +159,7 @@ export class JtacController {
     if (!this.allowed().includes(a)) return false;
     switch (a) {
       case 'check-in':
-        say(`${this.callsign}, ${this.pilot}, checking in: ${this.sc.controlPoint.name}, weapons Vikhr and rockets, playtime 15 minutes.`);
+        say(`${this.callsign}, ${this.pilot}, checking in: ${this.sc.controlPoint.name}, weapons ${this.opts.weapons ?? 'Vikhr and rockets'}, playtime 15 minutes.`);
         this.jtac(`${this.pilot}, ${this.callsign}, type 2 in effect. Advise when ready for 9-line.`, false, () => { this.state = 'checked-in'; });
         break;
       case 'ready-to-copy':
@@ -141,7 +176,34 @@ export class JtacController {
         break;
       case 'readback':
         say(`${lineText(nl, 'location')}, ${lineText(nl, 'elevation')}, final attack heading ${nl.remarks.find(r => r.startsWith('Final'))?.replace('Final attack heading ', '') ?? 'none'}${nl.dangerClose ? ', danger close' : ''}.`);
-        this.jtac('Readback correct. Report IP inbound.', false, () => { this.state = 'await-ip'; });
+        if (this.opts.datalink) {
+          // ED A-10C II manual: "Standby for data", then the digital 9-line arrives on the MSG page and the TAD.
+          this.jtac('Readback correct.', false);
+          this.jtac('Standby for data.', true, () => { this.state = 'data'; });
+          this.later(() => this.sendData());
+        } else {
+          this.jtac('Readback correct. Report IP inbound.', false, () => { this.state = 'await-ip'; });
+        }
+        break;
+      case 'laser-on':
+        say('Laser on.');
+        this.jtac(`Lasing, code ${this.code()}.`, false, () => { this.lase(); this.state = 'lasing'; });
+        break;
+      case 'spot':
+        say('Spot.');
+        this.jtac(`Copy spot. ${nl.description}, that is your target. Report In.`, false, () => { this.state = 'talk-on'; });
+        break;
+      case 'shift':
+        say('Shift.');
+        this.jtac('Shifting.', false, () => this.lase(true));
+        break;
+      case 'terminate':
+        say('Terminate.');
+        this.jtac('Laser off.', false, () => { this.stopLaser(); this.state = 'inbound'; });
+        break;
+      case 'attack-complete':
+        say('Attack complete.');
+        this.afterAttack();
         break;
       case 'ip-inbound':
         say('IP inbound.');
@@ -176,7 +238,7 @@ export class JtacController {
         break;
       case 'check-out':
         say('Checking out.');
-        this.jtac(`${this.pilot}, cleared to depart. ${this.callsign} out.`, false, () => { this.state = 'checked-out'; });
+        this.jtac(`${this.pilot}, cleared to depart. ${this.callsign} out.`, false, () => { this.stopLaser(); this.state = 'checked-out'; });
         break;
     }
     return true;
@@ -187,8 +249,15 @@ export class JtacController {
     const w = this.world;
     while (this.queue.length && this.queue[0]!.at <= w.t) {
       const q = this.queue.shift()!;
-      this.emit({ ...q.call, t: w.t });
+      if (q.call) this.emit({ ...q.call, t: w.t });
       q.then?.();
+    }
+    // The JTAC stops lasing a unit that is destroyed (trainer rule; how long the AI lases is not documented).
+    if (this.laserId) {
+      const m = w.marks.get(this.laserId);
+      const u = m?.followUnitId ? w.groundUnits.get(m.followUnitId) : undefined;
+      if (!m || !m.alive) this.laserId = null;
+      else if (u && !u.alive) this.stopLaser();
     }
     const me = this.sc.me;
     // Smoke goes down once inside the mark range after IP inbound (ED manual: 10 nm).
@@ -206,6 +275,85 @@ export class JtacController {
     if (!m || !tgt) return `${this.nineLine.description} at grid ${this.nineLine.grid}.`;
     const d = Math.round(distM(m.pos, tgt) / 10) * 10;
     return `From the mark, ${cardinal(bearingDeg(m.pos, tgt))} ${d} m, ${this.nineLine.description}. That is your target.`;
+  }
+
+  /** WILCO (MSG page OSB 19): accept the tasking; the triangle goes steady. Coordinates only: cleared to engage. */
+  wilco(): boolean {
+    const tk = this.tasking;
+    if (!tk || tk.state !== 'new') return false;
+    tk.state = 'wilco';
+    if (this.state === 'data' && this.nineLine.mark === 'none') {
+      this.jtac(`${this.pilot}, cleared to engage.`, false, () => { this.state = 'cleared'; }, 'ok');
+    }
+    return true;
+  }
+
+  /** CNTCO (MSG page OSB 7): cannot comply; the triangle is removed. The trainer JTAC sends the data again. */
+  cntco(): boolean {
+    const tk = this.tasking;
+    if (!tk || tk.state !== 'new') return false;
+    tk.state = 'cntco';
+    if (this.state === 'data') {
+      this.jtac('Copy. Standby for data.', false);
+      this.later(() => this.sendData());
+    }
+    return true;
+  }
+
+  /** TMS Left Short: clear NEW TASKING from the MFCDs. */
+  clearNewTasking(): void { if (this.tasking) this.tasking.newShown = false; }
+
+  /** Laser code the JTAC lases with (read in the 9-line; 1688 by default). */
+  code(): number { return this.nineLine.laserCode ?? JTAC_DEFAULT_LASER_CODE; }
+
+  /** The digital 9-line: the tasking, then "Report IP inbound" (smoke and laser marks) or wait for WILCO (coordinates). */
+  private sendData(): void {
+    const nl = this.nineLine;
+    this.tasking = this.buildTasking('new');
+    this.world.emit({ t: this.world.t, type: 'note', text: `${this.callsign}: digital 9-line sent` });
+    if (nl.mark !== 'none') this.jtac('Report IP inbound.', false, () => { this.state = 'await-ip'; });
+  }
+
+  /** Lessons that start past the brief (A-10C II): the digital 9-line already received and accepted with WILCO. */
+  presetTasking(): void { this.tasking = this.buildTasking('wilco'); }
+
+  private buildTasking(state: Tasking['state']): Tasking {
+    const tgt = this.targetCentre() ?? this.sc.target;
+    const nl = this.nineLine;
+    return {
+      pos: { x: tgt.x, z: tgt.z }, state, newShown: state === 'new', t: this.world.t,
+      lines: [
+        ...NINE_LINE_ORDER.map((f, i) => ({ label: `${i + 1}`, value: lineText(nl, f) })),
+        ...nl.remarks.map(r => ({ label: 'RMK', value: r })),
+      ],
+    };
+  }
+
+  /** Start lasing the first live target (or, with `next`, the next one in the group: Shift). */
+  private lase(next = false): void {
+    const w = this.world;
+    const live = this.sc.targets.filter(id => w.groundUnits.get(id)?.alive);
+    if (!live.length) return;
+    const cur = this.laserId ? w.marks.get(this.laserId) : undefined;
+    let unitId = live[0]!;
+    if (next && cur?.followUnitId) {
+      const i = live.indexOf(cur.followUnitId);
+      unitId = live[(i + 1) % live.length]!;
+    }
+    if (cur && cur.alive) {
+      // Shift moves the spot: the same mark goes onto the next vehicle, so a tracking LSS follows it.
+      cur.followUnitId = unitId;
+      cur.pos.copy(w.groundUnits.get(unitId)!.pos);
+      return;
+    }
+    const u = w.groundUnits.get(unitId)!;
+    const m = w.spawnMark({ type: 'laser', side: 'blue', ownerId: this.sc.jtac, pos: { x: u.pos.x, z: u.pos.z }, code: this.code(), followUnitId: unitId });
+    this.laserId = m.id;
+  }
+
+  private stopLaser(): void {
+    if (this.laserId) this.world.endMark(this.laserId);
+    this.laserId = null;
   }
 
   private dropMark(): void {
@@ -241,7 +389,9 @@ export class JtacController {
     this.attacks++;
     const left = this.sc.targets.filter(id => this.world.groundUnits.get(id)?.alive).length;
     if (left === 0) {
-      this.jtac(`${this.bda()} Cleared to depart ${this.nineLine.egress}.`, false, () => { this.state = 'complete'; });
+      this.jtac(`${this.bda()} Cleared to depart ${this.nineLine.egress}.`, false, () => { this.stopLaser(); this.state = 'complete'; });
+    } else if (this.nineLine.mark === 'none') {
+      this.jtac(`${this.bda()} Cleared to engage.`, false, () => { this.state = 'cleared'; });
     } else {
       this.jtac(`${this.bda()} Cleared re-attack. Report IP inbound.`, false, () => { this.state = 'await-ip'; });
     }
@@ -266,7 +416,7 @@ export class JtacController {
       if (this.state === 'aborted') this.violations.push({ t: e.t, why: 'after-abort', weaponId: e.weaponId });
       else if (this.state !== 'cleared') this.violations.push({ t: e.t, why: 'no-clearance', weaponId: e.weaponId });
       // Players report this call on a release without clearance (not verified wording).
-      if (!cleared && !this.queue.some(q => q.call.tone === 'warning')) this.jtac('Abort, abort, abort. You do not have permission to fire.', false, () => { if (this.state !== 'complete') this.state = 'aborted'; }, 'warning');
+      if (!cleared && !this.queue.some(q => q.call?.tone === 'warning')) this.jtac('Abort, abort, abort. You do not have permission to fire.', false, () => { if (this.state !== 'complete') this.state = 'aborted'; }, 'warning');
     }
   }
 
@@ -279,6 +429,12 @@ export class JtacController {
     let x = 0, z = 0, n = 0;
     for (const id of this.sc.targets) { const u = this.world.groundUnits.get(id); if (u?.alive) { x += u.pos.x; z += u.pos.z; n++; } }
     return n ? { x: x / n, z: z / n } : null;
+  }
+
+  /** Queue an action (no call) one gap after the previous call. */
+  private later(then: () => void): void {
+    const last = this.queue.at(-1)?.at ?? this.world.t;
+    this.queue.push({ at: Math.max(last, this.world.t) + this.gap, then });
   }
 
   /** Queue a JTAC call after the previous one (trainer pace). */
