@@ -519,7 +519,7 @@ export type SimEvent =
   /** A ground unit or SAM site destroyed (separate from 'kill', which is for aircraft). */
   | { t: number; type: 'ground-kill'; targetId: EntityId; by: EntityId | null; weapon: AgWeaponId | null }
   /** A target mark put down ('on') or ended ('off': expired, terminated, or its owner died). */
-  | { t: number; type: 'mark'; markId: EntityId; mark: MarkKind; what: 'on' | 'off'; ownerId: EntityId | null }
+  | { t: number; type: 'mark'; markId: EntityId; mark: MarkKind; what: 'on' | 'off'; ownerId: EntityId | null; code?: number | null }
   | { t: number; type: 'note'; text: string };
 
 export interface SpawnOptions {
@@ -575,7 +575,7 @@ export interface RecordFrame {
   groundUnits?: { id: EntityId; kind: GroundUnitKind; side: Side; pos: [number, number, number]; heading: number; alive: boolean }[];
   agWeapons?: { id: EntityId; type: AgWeaponId; side: Side; shooterId: EntityId; targetId: EntityId | null; pos: [number, number, number]; guided: boolean; alive: boolean }[];
   /** Target marks (absent in recordings without them). */
-  marks?: { id: EntityId; type: MarkKind; colour: MarkColour | null; side: Side; pos: [number, number, number]; alive: boolean }[];
+  marks?: { id: EntityId; type: MarkKind; colour: MarkColour | null; side: Side; pos: [number, number, number]; alive: boolean; code?: number | null }[];
   /** Shkval per attack jet while the sight is on: ground aim point, locked unit, laser. */
   shkval?: { ownerId: EntityId; point: [number, number, number] | null; locked: EntityId | null; laser: boolean }[];
 }

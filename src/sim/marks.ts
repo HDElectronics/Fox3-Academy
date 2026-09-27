@@ -36,7 +36,7 @@ export function endMark(world: World, id: EntityId): void {
   const m = world.marks.get(id);
   if (!m || !m.alive) return;
   m.alive = false;
-  world.emit({ t: world.t, type: 'mark', markId: m.id, mark: m.type, what: 'off', ownerId: m.ownerId });
+  world.emit({ t: world.t, type: 'mark', markId: m.id, mark: m.type, what: 'off', ownerId: m.ownerId, code: m.code });
 }
 
 /** Expire marks at their end time, and end every mark whose owner unit has died. */

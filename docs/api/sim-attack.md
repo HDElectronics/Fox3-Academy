@@ -36,8 +36,8 @@ Game level only (AGENTS.md rule 1). Rules come from the ED *DCS World Su-25T Fli
   unstabilised; a sight looking above the horizon records a null point.
 - Target marks (`marks.ts`, for the CAS module): `MarkKind` (`'smoke' | 'laser' | 'ir'`) and `MarkColour`
   (`'white' | 'orange' | 'red' | 'green'`) live in `src/data/types.ts`. `world.marks: Map<EntityId, GroundMark>`
-  (`kind: 'mark'`), `world.spawnMark(MarkSpawnOptions)`, `world.endMark(id)`, a `mark` event (`what: 'on' | 'off'`)
-  and `RecordFrame.marks`.
+  (`kind: 'mark'`), `world.spawnMark(MarkSpawnOptions)`, `world.endMark(id)`, a `mark` event (`what: 'on' | 'off'`,
+  `code` for a laser) and `RecordFrame.marks` (with `code` for a laser).
 
 ## AttackState (`ac.ag`)
 

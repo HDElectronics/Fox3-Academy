@@ -165,7 +165,7 @@ export class World {
   spawnMark(o: MarkSpawnOptions): GroundMark {
     const m = createMark(this, o);
     this.marks.set(m.id, m);
-    this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId });
+    this.emit({ t: this.t, type: 'mark', markId: m.id, mark: m.type, what: 'on', ownerId: m.ownerId, code: m.code });
     return m;
   }
 
@@ -427,6 +427,7 @@ export class World {
     if (this.marks.size) {
       f.marks = [...this.marks.values()].map(m => ({
         id: m.id, type: m.type, colour: m.colour, side: m.side, pos: [m.pos.x, m.pos.y, m.pos.z], alive: m.alive,
+        ...(m.code != null ? { code: m.code } : {}),
       }));
     }
     const sk = [...this.aircraft.values()].filter(a => a.ag?.shkval.on);

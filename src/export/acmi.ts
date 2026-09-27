@@ -102,7 +102,7 @@ function eventMessage(e: SimEvent, look: Lookup): { ids: (EntityId | null)[]; me
       ids: [e.targetId, e.by],
       message: `${look.names.get(e.targetId) ?? 'Ground target'} destroyed${e.weapon ? ` by ${AG_WEAPONS[e.weapon].name}` : ''}`,
     };
-    case 'mark': return { ids: [e.markId, e.ownerId], message: `${markName(e.mark, look.colours.get(e.markId))} mark ${e.what}` };
+    case 'mark': return { ids: [e.markId, e.ownerId], message: `${markName(e.mark, look.colours.get(e.markId))} mark${e.code != null ? ` ${e.code}` : ''} ${e.what}` };
     case 'note': return { ids: [], message: e.text };
     default: return null;
   }
