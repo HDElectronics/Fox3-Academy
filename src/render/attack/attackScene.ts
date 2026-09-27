@@ -83,15 +83,17 @@ const LOCK_GIMBAL = { az: 35, up: 15, down: -85 };
 
 /** A metre-scale reviewed store with a synchronous procedural fallback. */
 export class AgStoreVisual extends Group {
-  private readonly asset: AssetVisual;
+  private readonly asset: AssetVisual | null;
   private readonly forward = new Vector3(0, 0, -1);
   private readonly direction = new Vector3();
 
   constructor(type: Exclude<AgWeaponId, 'gun25t'>, geometry: BufferGeometry, material: Material, onReady?: () => void) {
     super();
     const fallback = new Mesh(geometry, material);
-    this.asset = new AssetVisual(type, { onReady: () => { fallback.visible = false; onReady?.(); } });
-    this.add(fallback, this.asset);
+    // APKWS's library asset is the LAU-131 carriage pod, never a flying rocket.
+    this.asset = type === 'apkws' ? null : new AssetVisual(type, { onReady: () => { fallback.visible = false; onReady?.(); } });
+    this.add(fallback);
+    if (this.asset) this.add(this.asset);
   }
 
   /** Imported stores point down −Z; keep their nose on the current flight direction. */
@@ -100,7 +102,7 @@ export class AgStoreVisual extends Group {
   }
 
   override dispose(): void {
-    this.asset.dispose();
+    this.asset?.dispose();
     this.removeFromParent();
   }
 }

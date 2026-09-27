@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { Box3, Mesh, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { assetUrl, type AssetId } from './assetRegistry';
+import { assetFileId, assetUrl, type AssetId } from './assetRegistry';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { AG_WEAPONS } from '../data/agWeapons';
@@ -10,16 +10,15 @@ import { SAMS } from '../data/sams';
 
 interface Record { id: AssetId; category: string; sha256: string }
 const records = JSON.parse(await readFile(new URL('../assets/models/manifest.json', import.meta.url), 'utf8')) as Record[];
-/** Catalog entries still drawn by their procedural fallback (A-10C II slice: models come separately). */
-const PENDING: string[] = ['a10c', 'gbu12', 'agm65d', 'agm65h', 'agm65l', 'apkws', 'mk82', 'cbu97', 'gau8'];
 describe('production exterior files', () => {
   it('covers the app catalogs and generic ground classes with bundled URLs', () => {
     const ids = new Set(records.map(r => r.id));
-    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa']
-      .filter(id => !PENDING.includes(id));
+    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t' && id !== 'gau8'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tgp', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa']
+      .map(id => assetFileId(id as AssetId));
     expect(ids).toEqual(new Set(expected));
-    // A pending entry has no bundled file yet, so the procedural fallback draws it.
-    for (const id of PENDING) expect(assetUrl(id as AssetId), id).toBeUndefined();
+    // Cannon rounds are tracers, not standalone store models.
+    expect(assetUrl('gau8')).toBeUndefined();
+    for (const id of ['agm65d', 'agm65h', 'agm65l'] as const) expect(assetUrl(id)).toBe(assetUrl('agm65'));
     expect(records.length).toBe(ids.size);
     for (const record of records) expect(assetUrl(record.id)).toBeTruthy();
   });

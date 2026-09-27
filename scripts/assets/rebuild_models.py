@@ -1,12 +1,20 @@
 """Rebuild original source art and optimized assets from the repository's preferred sources.
 python3 scripts/assets/rebuild_models.py --blender /path/to/blender --work /tmp/fox3-models [--only r77]
 """
-import argparse,json,shutil,subprocess
+import argparse,json,shutil,subprocess,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 p=argparse.ArgumentParser();p.add_argument('--blender',default='blender');p.add_argument('--work',type=Path,required=True);p.add_argument('--out',type=Path,default=ROOT/'src/assets/models');p.add_argument('--only',nargs='*');a=p.parse_args()
 catalog=json.loads((ROOT/'scripts/assets/catalog.json').read_text());selected={r['id'] for r in catalog} if not a.only else set(a.only)
 assert selected<=set(r['id'] for r in catalog),'Unknown asset ID'
+# A-10/CAS art is already batched by material and hinge in its direct GLB source generator.
+# This path needs no Blender/Metal access and preserves the named configuration pivots.
+direct=selected & set('a10c gbu12 agm65 apkws mk82 cbu97 tgp'.split())
+if direct:
+ subprocess.run([sys.executable,str(ROOT/'scripts/assets/source/a10c/generate.py'),'--out',str(a.work.resolve()/'a10c'),'--production',str(a.out.resolve()),'--only',*sorted(direct)],check=True)
+selected-=direct
+if not selected:sys.exit(0)
+
 groups=[('aircraft/hornet/create_hornet.py',['fa18c']),('aircraft/western/generate_fleet.py','f15c f16c f14b jf17 m2000c'.split()),('aircraft/eastern/create_fleet.py','su27 su33 j11a mig29s su25t'.split()),('missiles/generate_missiles.py','r27r r27er r27t r27et r77 r73 aim120b aim120c aim7m aim9m aim9x aim54a aim54c sd10 pl5e s530d magic2'.split()),('stores/generate_stores.py','vikhr kh25ml kh29l kh29t kh58 sa10-missile sa11-missile sa15-missile r60 s8 s13 kab500kr fab250'.split()),('ground/generate_ground.py','tank apc truck bunker building sam-site aaa sa10 sa11 sa15'.split())]
 review=a.work.resolve()/'review';review.mkdir(parents=True,exist_ok=True);(review/'fleet.json').write_text(json.dumps(catalog,indent=2)+'\n')
 for script,ids in groups:

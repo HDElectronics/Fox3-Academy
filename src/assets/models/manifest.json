@@ -1115,5 +1115,230 @@
       "F-14B approximation with spread wings and simplified GE-style exhaust. Museum F-14A reference supports family silhouette only, not B-specific details. Wing pivots prepared but not animated.",
       "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
     ]
+  },
+  {
+    "id": "a10c",
+    "name": "A-10C II Tank Killer",
+    "category": "aircraft",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Nominal app envelope: 16.26 m length, 17.53 m span. Closed shaded canopy, eleven empty pylons.",
+      "Named pivots drive three gear legs, two flaps and four split-deceleron leaves; no skeletal rig, gear-door sequence, cockpit or pilot."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 602524,
+    "sha256": "e5f95524a9ec9f33f107111b5c873471714ad5deb03ef874afa4703a76292afd",
+    "triangles": 8188,
+    "meshes": 16,
+    "source_sha256": "e5f95524a9ec9f33f107111b5c873471714ad5deb03ef874afa4703a76292afd"
+  },
+  {
+    "id": "gbu12",
+    "name": "GBU-12 Paveway II",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Static store exterior, no animation. GBU-12 tail fins shown extended; exact subvariant detail not verified."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 81152,
+    "sha256": "ff44189d2404986cf3de73b0019c223894ea813afdf835525d6a41c037985a0c",
+    "triangles": 1068,
+    "meshes": 5,
+    "source_sha256": "ff44189d2404986cf3de73b0019c223894ea813afdf835525d6a41c037985a0c"
+  },
+  {
+    "id": "agm65",
+    "name": "AGM-65 Maverick family (D/H/L shared exterior)",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "D/H/L deliberately share this exterior; optical-window differences are not represented."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 52888,
+    "sha256": "622064445e7d812cd5efc55ef572c8527831136dd0203ad81d17e3221215fac9",
+    "triangles": 684,
+    "meshes": 4,
+    "source_sha256": "622064445e7d812cd5efc55ef572c8527831136dd0203ad81d17e3221215fac9"
+  },
+  {
+    "id": "apkws",
+    "name": "LAU-131 seven-tube APKWS carriage pod",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Seven-tube LAU-131 carriage pod only; NOT a flying APKWS rocket. Runtime projectile retains procedural geometry."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 234412,
+    "sha256": "22a0630b90963b6dc99526b0ece03f5ebd5b41a6ddb2a9d5e0427220c4e8937b",
+    "triangles": 3212,
+    "meshes": 3,
+    "source_sha256": "22a0630b90963b6dc99526b0ece03f5ebd5b41a6ddb2a9d5e0427220c4e8937b"
+  },
+  {
+    "id": "mk82",
+    "name": "Mk 82 low-drag bomb",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Static store exterior, no animation. GBU-12 tail fins shown extended; exact subvariant detail not verified."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 59376,
+    "sha256": "f4946748f46801c7e19d8fb6d722758919ac99cbeb63b5978a0d586d2a202bb8",
+    "triangles": 784,
+    "meshes": 3,
+    "source_sha256": "f4946748f46801c7e19d8fb6d722758919ac99cbeb63b5978a0d586d2a202bb8"
+  },
+  {
+    "id": "cbu97",
+    "name": "CBU-97 closed canister",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Static store exterior, no animation. GBU-12 tail fins shown extended; exact subvariant detail not verified."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 59380,
+    "sha256": "c0daaf7db662495250826ec1429c3b23a0895f38b9fda3028709dac5cec99fd4",
+    "triangles": 784,
+    "meshes": 3,
+    "source_sha256": "c0daaf7db662495250826ec1429c3b23a0895f38b9fda3028709dac5cec99fd4"
+  },
+  {
+    "id": "tgp",
+    "name": "Litening targeting pod",
+    "category": "store",
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity; page image access returned 403 during this task"
+      },
+      {
+        "url": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/",
+        "use": "A-10C family reference; page access returned 403, not used for measured geometry"
+      },
+      {
+        "url": "https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir",
+        "use": "USAF A-10C exterior reference lead; exact fittings artist approximations"
+      }
+    ],
+    "source_caveats": [
+      "Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.",
+      "No copied game geometry, texture imagery, internals, or authentic livery.",
+      "Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.",
+      "Independent exact-variant fidelity and physical-device performance remain unverified.",
+      "Static store exterior, no animation. GBU-12 tail fins shown extended; exact subvariant detail not verified."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
+    "bytes": 51840,
+    "sha256": "0a145c6641b407e9786104490f433168d3112fd23b6a2017f81084f242acb724",
+    "triangles": 680,
+    "meshes": 3,
+    "source_sha256": "0a145c6641b407e9786104490f433168d3112fd23b6a2017f81084f242acb724"
   }
 ]
