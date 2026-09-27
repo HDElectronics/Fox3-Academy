@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The A-10C II (#62): a second attack jet with its CAS stores, DCS default keys, the ALR-69 and a detailed 3D model.
+  CAS & JTAC flies it with the targeting pod (slew, point track, SPI, own laser, laser spot search), laser-guided
+  stores that home on any spot on their code, and two new lessons: the digital 9-line (TAD triangle, MSG page, WILCO,
+  SPI) and the JTAC laser hand-off (Laser On, LSS, Spot, Terminate). Shkval & Vikhr stays Su-25T only.
+
 - The datalink picture (#12): an AWACS and network members (Link 16 Hornet and Viper, F-14 Link 4, JF-17) share
   tracks and positions, which coast 20 s; each jet draws its own symbols (Hornet HAFU halves and PPLI, Viper
   colours, FC3 AWACS triangles, TID symbols below the dot), and the AWACS hostile call is the Hornet's second ID
