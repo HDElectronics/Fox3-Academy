@@ -52,18 +52,18 @@ import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, readouts, callout, placard, lamp,
   bindKeys, keyHint, disclosure, setText, toggle, parseChord, type ChecklistHandle,
 } from '../../ui';
-import { BallDisplay, HudDisplay, HUD_VFOV_DEG, IndexerDisplay, NavDisplay, TraceDisplay, hudBoresight, type TracePoint } from './displays';
+import { BallDisplay, HudDisplay, HUD_VFOV_DEG, IndexerDisplay, NavDisplay, TraceDisplay, hudBoresight, hudHeightM, type TracePoint } from './displays';
 import { carrierCaption, lessonSteps, legCaption } from './lesson';
 import {
   FLIGHT_OPS_JETS, GLIDE_TOL_DEG, LINEUP_TOL_DEG, PASS_SCORE, altFtText, altVal, aoaText, currentStep, errLevel, flapControl,
   gatesForStart, isFlightOpsJet, kt, ktText, lessonPassed, navMilestones, navPicture, placeGates, plannedGates, spdUnit, spdVal,
-  stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow,
+  stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
   type FlownPoint, type LessonKind, type NavMilestones, type TakeoffItem,
   ballPicture, ballPrompt, carrierPlannedGates, pointAt, carrierStarts, gradeCard, toLandingOverlay, type CarrierStart,
 } from './logic';
 import { touchControls, type TouchAction } from './touch';
 import {
-  avoidKey, keyTag, launchCaption, launchCard, launchCurrent, launchKeys, launchLessonSteps, launchStarts, launchStepsDone, launchWarnings,
+  avoidKey, launchCaption, launchCard, launchCurrent, launchKeys, launchLessonSteps, launchStarts, launchStepKey, launchStepTag, launchStepsDone, launchWarnings,
   powerText, stationLabel, touchLabel, trimReadout, type LaunchStart,
 } from './launchLesson';
 
@@ -183,7 +183,8 @@ const factory: PageFactory = (): Page => {
       : rtb() && navOk ? 'rtb' : 'pattern');
     const toAb = d.takeoff.afterburner.value;
     const brakesKey = d.takeoff.keys.brakes.value;
-    const thrMaxKey = d.takeoff.keys.throttleMax?.value ?? 'PgUp';
+    const thrMax = throttleMaxKey(d);
+    const thrMaxKey = thrMax.key;
 
     // ---------------------------------------------------------------- displays (strip)
     const viewport = h('div', { class: 'fo-viewport' });
@@ -237,10 +238,11 @@ const factory: PageFactory = (): Page => {
       lSeq.replaceChildren(...strip.map(x => {
         const k = keyOfStep.get(x.id);
         const stepNote = ld.steps.find(z => z.id === x.id)?.note ?? '';
-        const tag = keyTag(k) ?? (/not verified/i.test(stepNote) ? 'not verified' : null);
-        const kbdText = x.id === 'trim' ? 'T / LShift+T' : x.id === 'power' ? thrMaxKey : k?.value;
-        return h('li', { class: `fo-lstep is-${x.state}`, 'aria-current': x.state === 'next' ? 'step' : undefined, title: k?.note ?? (stepNote || undefined) },
-          x.label, kbdText ? h('kbd', null, kbdText) : null, tag ? h('span', { class: 'fo-nv', title: k?.note ?? stepNote }, tag) : null);
+        const tag = launchStepTag(d, x.id);
+        const kbdText = launchStepKey(d, x.id);
+        const title = (x.id === 'power' && thrMax.tag ? thrMax.note : k?.note) || stepNote || undefined;
+        return h('li', { class: `fo-lstep is-${x.state}`, 'aria-current': x.state === 'next' ? 'step' : undefined, title },
+          x.label, kbdText ? h('kbd', null, kbdText) : null, tag ? h('span', { class: 'fo-nv', title }, tag) : null);
       }));
       const rows: HTMLElement[] = [];
       if (tr) {
@@ -462,7 +464,7 @@ const factory: PageFactory = (): Page => {
       keyHint({ label: 'Roll (stick)', keys: 'Left / Right' }),
       keyHint({ label: 'Throttle up / down', keys: 'Num+ / = , Num- / -' }),
       keyHint({ label: toAb ? 'Throttle full afterburner' : 'Throttle MIL', keys: thrMaxKey,
-        note: !d.takeoff.keys.throttleMax ? 'trainer key' : d.takeoff.keys.throttleMax.verified ? undefined : 'not verified' }),
+        note: thrMax.tag ?? undefined }),
       keyHint({ label: 'Wheel brakes (hold)', keys: brakesKey, note: d.takeoff.keys.brakes.verified ? undefined : 'not verified' }),
       keyHint({ label: 'Gear', keys: d.keys.gear, note: 'not verified' }),
       fc === 'with-gear' ? keyHint({ label: 'Flaps', keys: 'follow the gear' })
@@ -640,9 +642,11 @@ const factory: PageFactory = (): Page => {
       sc?.overlay.clearTrail();
       steps_.reset();
       debriefPanel.el.hidden = true;
-      // Return to base: the nav display replaces the pattern trace (the rings stay in the 3D view).
+      // Return to base: the nav display joins the pattern trace at desktop width; on narrower layouts it
+      // replaces the trace (style.css, .fo-lab--nav). The rings stay in the 3D view.
       navBezel.el.hidden = !s.nav;
-      traceBezel.el.hidden = !!s.nav || atLaunch() || atAar();
+      traceBezel.el.hidden = atLaunch() || atAar();
+      layout.el.classList.toggle('fo-lab--nav', !!s.nav);
       syncLaunchStrip(true);
       hudStatus = '';
       pauseBtn.setLabel('Pause');
@@ -867,7 +871,7 @@ const factory: PageFactory = (): Page => {
       setText(pill, !started ? (mode === 'watch' ? 'Demo ready' : 'Ready') : paused ? 'Paused'
         : s.phase === 'crashed' ? 'Crashed' : s.phase === 'stopped' ? 'Stopped'
           : s.launch && ld && s.launch.stage === 'hold' ? `Held · ${stationLabel(ld, s.launch.station)}` : s.launch?.stage === 'shot' ? 'Shot: stand by'
-          : `${spdVal(s.speed, u)} ${spdUnit(u).toLowerCase()} · ${Math.max(0, altVal(s.pos.y, u))} ${altUnit(u).toLowerCase()}`);
+          : `${spdVal(s.speed, u)} ${spdUnit(u).toLowerCase()} · ${Math.max(0, altVal(hudHeightM(s), u))} ${altUnit(u).toLowerCase()}`);
       coachLine(warn.overspeed);
     }
 
@@ -950,7 +954,7 @@ const factory: PageFactory = (): Page => {
       if (!started && tev) {
         coach.set(mode === 'watch' ? 'Watch the demo take off.' : 'Fly it: runway takeoff.',
           mode === 'watch' ? 'Captions follow each step. The strip under the view lights each item.'
-            : `Hold ${brakesKey} for the wheel brakes, ${thrMaxKey} or Num+ for power, then release. Down arrow to rotate, ${d.keys.gear} gear.`);
+            : `Hold ${brakesKey} for the wheel brakes, ${thrMaxKey}${thrMax.tag === 'trainer key' ? ' (trainer key)' : ''} or Num+ for power, then release. Down arrow to rotate, ${d.keys.gear} gear.`);
         return;
       }
       if (!started) {

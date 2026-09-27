@@ -106,10 +106,12 @@ in Fly mode completes it.
 press 1 to cycle МРШ, ВЗВ, ПОС: ВЗВ steers you to the glide-slope intercept point, then ПОС comes up and the tower
 calls above, below or on glide path. On the F-15C, NAV steers to the IAF; press 1 for ILSN and fly the GSUP / GSDN
 cue. The Nav (HSI) display shows the mode, steer point, bearing pointer, distance, command altitude and, in the
-landing mode, the glide-slope and localizer bars. The HUD adds a steering caret. Units follow the km / nm switch.
+landing mode, the glide-slope and localizer bars. On a wide screen the Pattern trace stays beside it; on a narrower
+one the Nav display takes its place. The HUD adds a steering caret. Units follow the km / nm switch.
 
 **Takeoff** (all ten jets): start on the runway. Hold W for the wheel brakes, set MIL (or full afterburner where
-the jet's takeoff uses it; PgUp sets it in one press), release, steer with Left / Right, and pull with the Down
+the jet's takeoff uses it; PgUp sets it in one press: a trainer key on the F/A-18C, F-16C, F-14B, JF-17 and M-2000C,
+the FC3 default, not verified, on the others), release, steer with Left / Right, and pull with the Down
 arrow at the jet's rotation speed (the F-16C pulls 10 kt before Vr). Hold the nose in the pitch bracket below the
 red tail-strike line, raise the gear with a positive climb before the gear limit, then the flaps (AUTO on the
 Hornet; the F-16C flaps follow the gear; the M-2000C has no flap control). The HUD speed tape carries a VR bug
@@ -128,15 +130,15 @@ grade (_OK_, OK, (OK), ---, C, B, WO, OWO) with the comment codes in plain words
 70 or more in Fly mode completes the carrier lesson. The LSO camera views the groove from the platform. Kuznetsov
 LSO calls and grades are not verified: the trainer grades the pass itself.
 
-**Catapult and Ski-jump** (F/A-18C and F-14B on CVN catapult 1 or 2, Su-33 on Kuznetsov position 1 or 3): pick the
+**Catapult and Ski-jump** (F/A-18C and F-14B on CVN catapults 1–4, Su-33 on Kuznetsov position 1 or 3): pick the
 catapult or position and turn on Heavy for the heavy trainer weight. The Launch sequence strip under the view lists
 each step with its key; the step to do now is outlined and done steps tick. Hornet: NWS HI (S), launch bar (L),
-hook up (U), T/O trim by weight (T nose up, LShift+T nose down: 16°, 17° or 19°), MIL on PgUp (press again for
+hook up (U), T/O trim by weight (T nose up, LShift+T nose down: 16°, 17° or 19°), MIL on PgUp (a trainer key; press again for
 afterburner; the heavy jet needs it), wipe out (K), salute, hands off. Tomcat: hook up (U), MIL, salute (LShift+U).
 The shooter refuses a salute with a step missing. Su-33: full afterburner against the deck stoppers, special
 afterburner (LShift+E); the stoppers drop after 3 s and the jet runs up the 12° ramp. Leave the FOD screens (LAlt+I)
-alone. Launch bar, wipe-out and trim keys are trainer keys, and the Hornet salute key conflicts between sources:
-the strip tags them. After the launch: gear and flaps up, the clearing turn (right from cats 1–2), climb through
+alone. Launch bar, wipe-out, trim and PgUp keys are trainer keys, the Hornet salute key conflicts between sources and the
+Su-33 stopper release is not verified: the strip tags them. After the launch: gear and flaps up, the clearing turn (right from cats 1–2, left from 3–4), climb through
 1000 ft. The debrief gives the outcome (good launch, sequence error, cold cat, short run), the gates and a score;
 70 or more in Fly mode completes the launch lesson. The Deck camera is the shooter's view beside the jet.
 
@@ -158,7 +160,8 @@ and MiG-29S have no refuelling lesson.
 On a tablet, Fly mode shows on-screen controls: a stick pad (drag down to pull; it springs back), a
 throttle slider and GEAR, FLAPS, BRAKES (hold), SPD BRK and NAV buttons, plus AB on jets that take off in
 afterburner, HOOK and BALL on the carrier starts, and the launch sequence buttons (NWS HI, L-BAR, HOOK UP, TRIM,
-WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On a desktop, turn them on with Show on-screen controls.
+WIPE OUT, SALUTE, SPEC AB, AB) on the launch starts. On the tanker starts only the stick, the throttle and the
+refuelling buttons (PROBE or DOOR, LIGHTS, CALL) show. On a desktop, turn them on with Show on-screen controls.
 
 ### Merge & guns
 Close-combat basics for all ten jets. You fly an arcade BFM mode:

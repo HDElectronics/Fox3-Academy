@@ -19,6 +19,17 @@
 }
 
 /* ---- strip ---- */
+/* Return to base (.fo-lab--nav): the nav display and the pattern trace share the strip at desktop width,
+   both a little smaller so the strip does not scroll; narrower, the nav display replaces the trace. */
+@media (min-width: 1280px) {
+  .fo-lab--nav .ui-lab__strip > .ui-bezel:is(.fo-trace, .fo-navd) > .ui-bezel__glass.has-aspect {
+    height: calc(0.8 * (var(--lab-strip-h) - 2 * var(--strip-pad) - 4px - 2 * var(--bezel-pad) - var(--bezel-head) - var(--bezel-gap)));
+  }
+  .fo-lab--nav .ui-lab__strip > .fo-cfg { flex: 1 1 150px; min-width: 140px; }
+}
+@media (max-width: 1279px) {
+  .fo-lab--nav .ui-lab__strip > .ui-bezel.fo-trace { display: none; }
+}
 
 /* ---- on-screen controls (Fly mode, coarse pointers or the toggle) ---- */
 .ui-lab__strip > .fo-touch { flex: 1 1 100%; }

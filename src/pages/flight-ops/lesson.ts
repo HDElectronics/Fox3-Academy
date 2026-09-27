@@ -6,7 +6,7 @@
 import type { Units } from '../../app/format';
 import { SHIPS } from '../../data/ships';
 import { CLIMB_ALT_FT, rotateAtKt, targetWire, type FlightOpsJetData, type DemoLeg, type FlightOpsPhase, type NavState, type Sourced } from '../../sim/flightOps';
-import { altFtText, flapControl, ktText, navPicture, stepOrder, type LessonKind, type StepId } from './logic';
+import { altFtText, flapControl, ktText, navPicture, stepOrder, throttleMaxKey, type LessonKind, type StepId } from './logic';
 
 export interface LessonStep { id: StepId; text: string; keys?: string; note?: string }
 
@@ -30,10 +30,11 @@ function takeoffSteps(d: FlightOpsJetData, u: Units): Partial<Record<StepId, Les
   const t = d.takeoff, fc = flapControl(d);
   const [lo, hi] = t.pitchDeg.value;
   const at = rotateAtKt(d), early = t.pullEarlyKt;
-  const thrKey = t.keys.throttleMax?.value ?? 'PgUp';
+  const thr = throttleMaxKey(d);
+  const thrNote = [thr.tag === 'trainer key' ? `${thr.key} is a trainer key.` : null, t.afterburner.note].filter(Boolean).join(' ');
   return {
     brakes: { id: 'brakes', text: `Hold the wheel brakes on ${t.keys.brakes.value}${unv(t.keys.brakes)}`, keys: t.keys.brakes.value, note: t.keys.brakes.note },
-    power: { id: 'power', text: `Throttle to ${powerText(d)}, brakes held${unv(t.afterburner)}`, keys: `${thrKey}, Num+`, note: t.afterburner.note },
+    power: { id: 'power', text: `Throttle to ${powerText(d)}, brakes held${unv(t.afterburner)}`, keys: `${thr.key}, Num+`, note: thrNote || undefined },
     release: { id: 'release', text: 'Release the brakes. Hold the centreline with nosewheel steering', keys: 'Left / Right' },
     rotate: early
       ? { id: 'rotate', text: `Pull at ${ktText(at, u)}: Vr ${ktText(t.vrKt.value, u)}, start the pull ${ktText(early.value, u)} early${unv(t.vrKt)}`, keys: 'Down', note: early.note }

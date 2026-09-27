@@ -31,6 +31,18 @@ export function flapControl(d: FlightOpsJetData): FlapControl {
   return noFlapControl(d) ? 'none' : d.flapsWithGear ? 'with-gear' : 'selector';
 }
 
+/**
+ * The key that sets MIL (or full afterburner) and how to tag it: a sourced key, a key the data lists but
+ * has not verified (FC3 default), or a trainer key (`trainer: true` in the data: the jets whose DCS default
+ * is not in the sources).
+ */
+export function throttleMaxKey(d: FlightOpsJetData): { key: string; tag: 'trainer key' | 'not verified' | null; note?: string } {
+  const k = d.takeoff.keys.throttleMax as FlightOpsJetData['takeoff']['keys']['throttleMax'] | undefined;
+  if (!k) return { key: 'PgUp', tag: 'trainer key', note: 'Trainer key: the DCS default for this jet is not in the sources.' };
+  if (k.trainer) return { key: k.value, tag: 'trainer key', note: k.note };
+  return { key: k.value, tag: k.verified ? null : 'not verified', note: k.note };
+}
+
 /** Landing configuration for the lesson: gear down and locked, landing flaps where the jet has flap control. */
 export function landingConfigured(d: FlightOpsJetData, s: FlightOpsState): boolean {
   if (!s.gearDown || s.gearPos < 0.99) return false;
