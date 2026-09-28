@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { World } from './world';
-import { TGP_DEFAULT_CODE, validLaserCode } from './tgp';
+import { TGP_DEFAULT_CODE, TGP_FOV_DEG, tgpFovDeg, validLaserCode } from './tgp';
 
 /** A-10C II at 4 km heading north over a tank 8 km ahead, and a JTAC truck 2 km to the side. */
 function setup(loadout = 'laser') {
@@ -24,6 +24,20 @@ describe('A-10C II targeting pod (docs/research/a10c.md §3)', () => {
     const frog = w.spawnAircraft({ id: 'f', side: 'blue', type: 'su25t', controller: 'player', pos: { x: 0, y: 3000, z: 0 }, heading: 0, speed: 180 });
     expect(frog.ag!.tgp).toBeNull();
     expect(frog.ag!.stores.gun25t).toBeGreaterThan(0);
+  });
+
+  it('zooms 0Z–9Z inside WIDE / NARO: the view narrows, clamped at both ends', () => {
+    const { world, ac } = setup();
+    const t = ac.ag!.tgp!;
+    expect(t.zoom).toBe(0);
+    expect(tgpFovDeg(t)).toBeCloseTo(TGP_FOV_DEG.wide, 9);
+    for (let i = 0; i < 12; i++) world.tgpZoom('hog', 1);
+    expect(t.zoom).toBe(9);
+    expect(tgpFovDeg(t)).toBeCloseTo(TGP_FOV_DEG.wide / 4, 9);
+    world.tgpToggleFov('hog');
+    expect(tgpFovDeg(t)).toBeCloseTo(TGP_FOV_DEG.narrow / 4, 9);
+    for (let i = 0; i < 12; i++) world.tgpZoom('hog', -1);
+    expect(t.zoom).toBe(0);
   });
 
   it('codes: four digits 1111–1788, digits 1–8', () => {

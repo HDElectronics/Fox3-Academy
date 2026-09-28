@@ -37,7 +37,7 @@ import { createGunState, stepGuns } from './guns';
 import { createGroundUnit, groundHeight, lineOfSight, stepGroundUnits } from './ground';
 import { createMark, endMark, stepMarks } from './marks';
 import { mavLock, mavPointAt, mavRecage, mavSlaveToSpi, setMavSlew, stepMav, type MavResult } from './maverick';
-import { pointTgp, toggleTgpFov, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
+import { pointTgp, stepTgpZoom, toggleTgpFov, setSpiFromTgp, setTgpCode, setTgpLaser, setTgpLss, setTgpPower, setTgpSlew, stepTgp, tgpTrack, type TgpResult } from './tgp';
 import {
   pointShkval, setLaser, setShkvalPower, setShkvalStab, setShkvalTargetSize, shkvalAimPoint, shkvalLock, shkvalUnlock, stepShkval,
   stepShkvalTargetSize, stepShkvalZoom, type ShkvalResult,
@@ -183,6 +183,8 @@ export class World {
   tgpPointAt(id: EntityId, p: { x: number; y?: number; z: number }): void { const ac = this.aircraft.get(id); if (ac) pointTgp(this, ac, p); }
   /** WIDE ⇄ NARO. */
   tgpToggleFov(id: EntityId): 'wide' | 'narrow' | null { const ac = this.aircraft.get(id); return ac ? toggleTgpFov(ac) : null; }
+  /** Pod zoom 0Z–9Z: +1 in (DMS Forward), −1 out (DMS Aft). */
+  tgpZoom(id: EntityId, dir: 1 | -1): number | null { const ac = this.aircraft.get(id); return ac ? stepTgpZoom(ac, dir) : null; }
   tgpTrack(id: EntityId, mode: 'area' | 'point' | 'inr'): TgpResult {
     const ac = this.aircraft.get(id); return ac ? tgpTrack(this, ac, mode) : { ok: false, reason: 'No aircraft' };
   }

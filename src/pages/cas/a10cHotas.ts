@@ -273,9 +273,9 @@ export class A10cHotas {
       const i = TAD_SCALES.indexOf(this.tadScaleNm as (typeof TAD_SCALES)[number]);
       this.tadScaleNm = TAD_SCALES[Math.max(0, Math.min(TAD_SCALES.length - 1, i + (fwd ? -1 : 1)))]!;
     } else if (this.soi === 'tgp') {
-      // Zoom is simplified to the two fields of view: DMS Forward narrows, Aft widens.
-      const t = ac.ag?.tgp;
-      if (t && (t.fov === 'wide') === fwd) this.host.world().tgpToggleFov(ac.id);
+      // DMS Forward / Aft zooms the pod 0Z–9Z (ED manual); China Hat Forward Short toggles WIDE / NARO.
+      const z = this.host.world().tgpZoom(ac.id, fwd ? 1 : -1);
+      if (z != null) this.host.log(`TGP zoom ${z}Z`);
     }
   }
 

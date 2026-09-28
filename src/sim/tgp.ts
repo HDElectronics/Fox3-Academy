@@ -15,6 +15,14 @@ import { endMark } from './marks';
 
 /** Horizontal field of view (deg): WIDE and NARO. Trainer values. */
 export const TGP_FOV_DEG = { wide: 4, narrow: 1 } as const;
+/** Zoom levels 0Z–9Z (ED manual). The magnification at 9Z is a trainer value: the manual gives the steps, not the factor. */
+export const TGP_ZOOM_MAX = 9;
+const TGP_ZOOM_9Z = 4;
+
+/** Field of view (deg) after zoom: the WIDE / NARO view divided by 1× at 0Z up to 4× at 9Z (linear, trainer). */
+export function tgpFovDeg(t: Pick<TgpState, 'fov' | 'zoom'>): number {
+  return TGP_FOV_DEG[t.fov] / (1 + (TGP_ZOOM_9Z - 1) * (t.zoom / TGP_ZOOM_MAX));
+}
 /** Default laser and LSS code (ED manual: 1688). Valid codes 1111–1788 (research a10c.md §3). */
 export const TGP_DEFAULT_CODE = 1688;
 export const TGP_CODE_RANGE = { min: 1111, max: 1788 } as const;
@@ -43,7 +51,7 @@ export function validLaserCode(code: number): boolean {
 
 export function createTgp(aim: Vector3): TgpState {
   return {
-    on: false, aim: aim.clone(), slew: { x: 0, y: 0 }, track: 'none', trackedUnitId: null, fov: 'wide',
+    on: false, aim: aim.clone(), slew: { x: 0, y: 0 }, track: 'none', trackedUnitId: null, fov: 'wide', zoom: 0,
     laserCode: TGP_DEFAULT_CODE, laserFiring: false, laserMarkId: null,
     lssCode: TGP_DEFAULT_CODE, lss: 'off', lssMarkId: null, lssSince: 0,
   };
@@ -87,7 +95,14 @@ export function pointTgp(world: World, ac: Aircraft, p: { x: number; y?: number;
 
 /** Width of the view on the ground at the aim (m). */
 export function tgpViewWidthM(ac: Aircraft, t: TgpState): number {
-  return 2 * ac.pos.distanceTo(t.aim) * Math.tan((TGP_FOV_DEG[t.fov] * Math.PI) / 360);
+  return 2 * ac.pos.distanceTo(t.aim) * Math.tan((tgpFovDeg(t) * Math.PI) / 360);
+}
+
+/** DMS Forward (+1) zooms in, Aft (−1) zooms out, 0Z–9Z. */
+export function stepTgpZoom(ac: Aircraft, dir: 1 | -1): number | null {
+  const t = tgpOf(ac);
+  if (!t) return null;
+  return (t.zoom = Math.max(0, Math.min(TGP_ZOOM_MAX, t.zoom + dir)));
 }
 
 /** Toggle WIDE / NARO (research: the pod's field of view steps). */

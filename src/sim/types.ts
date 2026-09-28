@@ -340,6 +340,8 @@ export interface TgpState {
   track: 'none' | 'area' | 'point' | 'inr';
   trackedUnitId: EntityId | null;
   fov: 'wide' | 'narrow';
+  /** Zoom level 0..9 inside the field of view (0Z–9Z, DMS Forward / Aft; ED manual pp. 384–395). */
+  zoom: number;
   /** Own laser code (CNTL page, OSB 18) and whether the laser fires; the spot is a laser mark owned by the jet. */
   laserCode: number;
   laserFiring: boolean;

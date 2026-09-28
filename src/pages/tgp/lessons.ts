@@ -91,7 +91,7 @@ export const LESSONS: Record<TgpLessonId, LessonDef> = {
     steps: [
       { id: 'soi', text: 'Make the TGP the SOI: Coolie Right Long.', keys: 'K (hold)', check: s => s.soi === 'tgp' },
       { id: 'slew', text: 'Slew the crosshair onto the vehicle column, 700 m north-east of the steerpoint.', keys: '; . , /', check: s => (s.aimToColumnM ?? 1e9) < 80 },
-      { id: 'naro', text: 'NARO for a closer look: China Hat Forward Short (DMS Forward also narrows). The same switch goes back to WIDE.', keys: 'V, Home / End', check: s => s.narrowSeen },
+      { id: 'naro', text: 'NARO for a closer look: China Hat Forward Short; the same switch goes back to WIDE. DMS Forward / Aft then zooms 0Z–9Z inside it.', keys: 'V, Home / End', check: s => s.narrowSeen },
       { id: 'point', text: 'POINT track a vehicle: TMS Forward Short. A box sits on it and follows it.', keys: 'LCtrl+Up', check: s => s.pointOnColumn },
       { id: 'area', text: 'Drop back to AREA: TMS Forward Short again (TMS Aft Short gives INR, a fixed point).', keys: 'LCtrl+Up, LCtrl+Down', check: s => s.areaAfterPoint },
       { id: 'spi', text: 'POINT track a vehicle again and make it the SPI: TMS Forward Long.', keys: 'LCtrl+Up, then LCtrl+Up (hold)', check: s => s.spiSource === 'tgp' && s.spiOnTarget && s.pointOnColumn },

@@ -15,7 +15,7 @@ import type { Aircraft, EntityId } from '../../sim/types';
 import type { World } from '../../sim/world';
 import { D2R, relBearing } from '../../sim/math';
 import { canAgLaunch, predictImpact, spotFor } from '../../sim/agWeapons';
-import { TGP_FOV_DEG, tgpViewWidthM } from '../../sim/tgp';
+import { tgpFovDeg, tgpViewWidthM } from '../../sim/tgp';
 import type { ShkvalTv } from '../../render/attack';
 import { vFovDeg, type ForwardView } from '../../render/forwardView';
 import { UNIT_PER_M, orientationQuaternion } from '../../render/units';
@@ -145,6 +145,9 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const tmsLs = cap('TMS Left', 'TMS Left Short: clear NEW TASKING', tap('tmsL'), 'LCtrl+Left');
   const slave = cap('Slave to SPI', 'China Hat Forward Long: slave all sensors to the SPI', tap('chF', true), 'V');
   const fovBtn = cap('FOV', 'China Hat Forward Short: TGP WIDE / NARO', tap('chF'));
+  const zoomTo = (sw: 'dmsF' | 'dmsA') => () => { if (hotas.soi !== 'tgp') hotas.setSoi('tgp'); hotas.tap(sw); };
+  const zoomIn = cap('Zoom in', 'DMS Forward with the TGP as SOI: zoom in (0Z–9Z)', zoomTo('dmsF'), 'Home');
+  const zoomOut = cap('Zoom out', 'DMS Aft with the TGP as SOI: zoom out', zoomTo('dmsA'), 'End');
   const toStp = cap('TGP to STPT', 'China Hat Aft Long: TGP to the steerpoint', tap('chA', true), 'C');
   const recage = cap('MAV recage', 'China Hat Aft Short with the MAV page as SOI: recage the Maverick', () => { if (hotas.soi === 'tgp') hotas.setSoi('mav'); hotas.tap('chA'); });
   const lssBtn = button({ label: 'LSS · OSB 6', size: 's', lamp: true, keepCase: true, ariaLabel: 'TGP page OSB 6: laser spot search', onClick: () => hotas.toggleLss() });
@@ -168,7 +171,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     placard('SOI (Coolie)'), row(soiHud.el, soiTad.el, soiTgp.el, soiMav.el), row(pageBtn.el, rPageBtn.el),
     placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el, tmsLs.el),
     placard('Slew'), slewPad,
-    placard('China Hat · TGP · MAV'), row(slave.el, fovBtn.el, toStp.el), row(lssBtn.el, laserBtn.el, recage.el),
+    placard('China Hat · TGP · MAV'), row(slave.el, fovBtn.el, toStp.el), row(zoomIn.el, zoomOut.el), row(lssBtn.el, laserBtn.el, recage.el),
     ...(host.noMsg ? [] : [placard('MSG page'), row(wilcoBtn.el, cntcoBtn.el)]),
     placard('Weapons'), row(masterBtn.el, profBtn.el, flareBtn.el), releaseBtn.el,
   ];
@@ -269,7 +272,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     const r = t.on ? ac.pos.distanceTo(t.aim) : null;
     const spi = ag.spi;
     return {
-      t: world().t, on: t.on, image: t.on ? image : null, fov: t.fov, track: t.track, lss: t.lss,
+      t: world().t, on: t.on, image: t.on ? image : null, fov: t.fov, zoom: t.zoom, track: t.track, lss: t.lss,
       lssCode: t.lssCode, laserCode: t.laserCode, laserFiring: t.laserFiring,
       rangeM: r, rangeSource: r == null ? null : t.laserFiring ? 'L' : t.track !== 'none' ? 'T' : 'E',
       soi: hotas.soi === 'tgp', isSpi: hotas.spiSource === 'tgp' && !!spi && spi.distanceTo(t.aim) < 5, units: 'imperial',
@@ -354,7 +357,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       } else {
         if (podCam && t?.on && ac.alive) {
           _dir.subVectors(t.aim, ac.pos).normalize();
-          podCam.render(ac.pos, _dir, TGP_FOV_DEG[t.fov], lastPage !== 'tgp');
+          podCam.render(ac.pos, _dir, tgpFovDeg(t), lastPage !== 'tgp');
         }
         lastPage = 'tgp';
         tgp.draw(tgpView(podCam && t?.on ? podCam.image : null));

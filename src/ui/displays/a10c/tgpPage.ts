@@ -135,6 +135,7 @@ export class A10cTgpPage extends MfcdPage<TgpPageView> {
     // Top line: FOV upper left, video mode upper right.
     g.font(3.4, 700, 8); halo();
     g.text(fovText(v.fov, v.lss), s * 0.1, s * 0.13, 'left');
+    if (v.zoom != null) g.text(`${v.zoom}Z`, s * 0.1, s * 0.18, 'left');
     g.text('CCD', s * 0.9, s * 0.13, 'right');
     if (!v.soi) g.text('NOT SOI', cx, s * 0.2);
 

@@ -43,6 +43,8 @@ export interface TgpPageView {
   /** The pod video (the ShkvalTv render of the line of sight at the pod FOV), or null. */
   image: CanvasImageSource | null;
   fov: 'wide' | 'narrow';
+  /** Zoom level 0–9 (drawn as nZ next to WIDE / NARO); optional. */
+  zoom?: number;
   /** Track mode: AREA / POINT / INR, or none (rate). */
   track: 'none' | 'area' | 'point' | 'inr';
   /** LSS state: LSRCH, DETECT, LTRACK, NO LSR; off draws nothing. */
