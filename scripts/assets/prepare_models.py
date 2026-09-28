@@ -1,7 +1,7 @@
 """Prepare the approved exterior library for Fox3. Visual geometry only.
 blender --background --threads 2 --python prepare_models.py -- --source REVIEW --out src/assets/models
 """
-import argparse,bpy,json,sys,hashlib
+import argparse,bpy,json,sys,hashlib,struct
 from pathlib import Path
 from mathutils import Vector
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--only',nargs='*');args=p.parse_args(sys.argv[sys.argv.index('--')+1:]);args.out.mkdir(parents=True,exist_ok=True)
@@ -12,10 +12,19 @@ for record in catalog:
  bpy.ops.wm.read_factory_settings(use_empty=True)
  source=args.source/id/'model.glb';bpy.ops.import_scene.gltf(filepath=str(source))
  meshes=[o for o in bpy.context.scene.objects if o.type=='MESH'];pivots={}
+ if id=='a10c':
+  names=['gear.nose','gear.port','gear.starboard','flap.port','flap.starboard','deceleron.port.upper','deceleron.port.lower','deceleron.starboard.upper','deceleron.starboard.lower']
+  for name in names:
+   ob=bpy.data.objects.get(name);assert ob,name;pivots[name]=ob.matrix_world.copy()
  if id=='f14b':
   for name in ['wing.swing.port','wing.swing.starboard']:
    ob=bpy.data.objects.get(name);assert ob,name;pivots[name]=ob.matrix_world.copy()
  def part(o):
+  if id=='a10c':
+   parent=o.parent
+   while parent:
+    if parent.name in pivots:return parent.name
+    parent=parent.parent
   if id=='f14b':
    for name in pivots:
     if o.name.startswith(name):return name
@@ -50,9 +59,16 @@ for record in catalog:
  bpy.context.view_layer.update()
  bpy.ops.object.select_all(action='SELECT')
  output=args.out/(id+'.glb')
- bpy.ops.export_scene.gltf(filepath=str(output),export_format='GLB',use_selection=True,export_yup=True,export_texcoords=False,export_normals=True,export_animations=False,export_cameras=False,export_lights=False,export_extras=False)
+ meta=json.loads((args.source/id/'manifest.json').read_text())
+ if 'part_names' in meta:bpy.context.scene['partNames']=meta['part_names']
+ bpy.ops.export_scene.gltf(filepath=str(output),export_format='GLB',use_selection=True,export_yup=True,export_texcoords=False,export_normals=True,export_animations=False,export_cameras=False,export_lights=False,export_extras=('part_names' in meta))
  meta=json.loads((args.source/id/'manifest.json').read_text())
  records.append({'id':id,'category':record['category'],'name':record['name'],'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sha256':hashlib.sha256(output.read_bytes()).hexdigest(),'bytes':output.stat().st_size,'references':meta.get('references',meta.get('refs',meta.get('reference_urls',[]))),'source_caveats':meta.get('variant_caveats',meta.get('caveats',[])),'authorship':'Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.'})
+ if 'authoring_tool' in meta:
+  data=output.read_bytes();doc=json.loads(data[20:20+struct.unpack_from('<I',data,12)[0]])
+  tris=sum(doc['accessors'][p.get('indices',p['attributes']['POSITION'])]['count']//3 for m in doc['meshes'] for p in m['primitives'])
+  records[-1].update({k:meta[k] for k in ['authoring_tool','blender_version','openvsp_used','source_axes','export_axes','generator']})
+  records[-1].update(triangles=tris,meshes=len(doc['meshes']))
  print('PREPARED',id,output.stat().st_size,flush=True)
 manifest=args.out/'manifest.json'
 if args.only and manifest.exists():

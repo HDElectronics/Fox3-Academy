@@ -1,6 +1,6 @@
 # Original exterior asset library
 
-Fox3 ships 58 original scripted exterior models under the repository's [MIT license](../../LICENSE):
+Fox3 ships 58 original Blender-authored exterior models under the repository's [MIT license](../../LICENSE):
 12 aircraft, 17 air-to-air missiles, 19 other stores/SAM missiles, and 10 ground vehicles or structures.
 No third-party meshes, game extractions or image textures are included. Public photographs and drawings
 were visual references only; per-model reference links and variant caveats are in
@@ -14,11 +14,10 @@ Maverick D/H/L share one exterior file. See [A-10/CAS exterior art](a10c.md). Th
 
 ## Preferred source and rebuild
 
-Editable, original source is in [`scripts/assets/source`](../../scripts/assets/source); the original six standalone
-Blender Python generators create meshes, source `.blend` files and review GLBs. The A-10/CAS batch uses a
-direct Python GLB generator; its geometry can be imported into Blender without changing the runtime format. OpenVSP is optional in the
-wider authoring workflow and was not used to create these shipped models. Blender 5.2.2 was used for the
-original 51 exports; the seven A-10/CAS files use the direct authoring path described above. Rebuild from the repository root:
+Editable, original source is in [`scripts/assets/source`](../../scripts/assets/source). The seven Blender
+Python generators create editable `.blend` scenes, review GLBs and Cycles images. The A-10/CAS generator
+replaces the initial sandbox-constrained direct GLB prototype; see [its workflow](a10c.md). OpenVSP is
+optional and was not used for these models. Blender 5.2.2 generated the integration exports. Rebuild:
 
 ```sh
 python3 scripts/assets/rebuild_models.py --blender /path/to/blender --work /tmp/fox3-models
@@ -32,7 +31,7 @@ folder; only optimized GLBs and their manifest belong in the application bundle.
 rebuild was exercised end to end. Export bytes can differ with Blender/exporter versions.
 
 `prepare_models.py` reduces dense surfaces, merges static meshes by material and preserves separate
-F-14 wing pivots. Assets contain only geometry and material colors, use metres, nose −Z, up +Y and right +X;
+F-14 wing pivots and all nine A-10 configuration pivots. Assets contain only geometry and material colors, use metres, nose −Z, up +Y and right +X;
 ground assets have their base at Y=0. The runtime fits aircraft/missile lengths and ground footprints to the
 existing display contracts. The manifest records review-source and optimized-output SHA-256 hashes;
 its `source_caveats` retain the original review notes, including checks since completed during integration.
@@ -55,7 +54,7 @@ base64 encoding or transfer compression. Prefer the web build for normal hosting
 Automated checks parse all 58 exports, check coverage, finite positions, embedded resources, sensible bounds,
 ground origin, and budgets of 18 meshes / 60000 triangles per asset. Loader tests cover concurrent users,
 late loads, failure, tint isolation and cleanup. Real F-14 geometry is tested in spread and swept states; the A-10 rig is checked through deployment and retraction.
-The original 51-model integration had desktop and 390 CSS-pixel browser checks. The A-10/CAS batch
-has CPU geometry reviews; its browser check is still pending due to the restricted session. These checks do not
+The original 51-model integration had desktop and 390 CSS-pixel browser checks. The A-10/CAS batch has Cycles source/export reviews and a desktop browser gallery check;
+see its [rebuild report](a10c-blender-rebuild.md) for measurements and verification. These checks do not
 establish physical-phone or low-end-GPU frame rates; device QA remains tracked in
 [#6](https://github.com/HDElectronics/Fox3-Academy/issues/6).

@@ -1,16 +1,18 @@
-"""Original A-10C II and CAS exterior art; visual approximations, no weapon internals.
-
-Standard-library GLB authoring path (also importable into Blender). No external meshes/textures.
-python3 scripts/assets/source/a10c/generate.py --out .shots/a10c-model-review
-Optional Blender source conversion is documented in docs/assets/a10c.md.
-Axes throughout: metres, right +X, up +Y, nose -Z. Geometry is deterministic.
+"""Original A-10C II and CAS exterior meshes, authored and rendered inside Blender.
+blender --background --threads 2 --python generate.py -- --out REVIEW [--only a10c]
+Recipe coordinates: metres, nose -Z, up +Y, right +X. The mesh builder converts to
+Blender +Y forward/+Z up, so Blender's standard glTF export returns the runtime axes.
+No imported meshes, textures, weapon internals or engineering models.
 """
 import argparse
 import hashlib
 import json
 import math
-import struct
+import sys
 from pathlib import Path
+import bpy
+import bmesh
+from mathutils import Matrix, Quaternion, Vector
 
 MATERIALS = [
     ('Airframe grey', (.39, .43, .46), .18, .55),
@@ -21,9 +23,8 @@ MATERIALS = [
     ('Store band ochre', (.56, .43, .12), .1, .5),
 ]
 REFS = [
-    {'url': 'https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/', 'use': 'DCS variant identity; page image access returned 403 during this task'},
-    {'url': 'https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104490/a-10c-thunderbolt-ii/', 'use': 'A-10C family reference; page access returned 403, not used for measured geometry'},
-    {'url': 'https://www.usafe.af.mil/News/Article-Display/Article/748059/incirlik-ab-receives-a-10-forces-in-support-of-oir', 'use': 'USAF A-10C exterior reference lead; exact fittings artist approximations'},
+    {'url': 'https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg', 'use': 'Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets'},
+    {'url': 'https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/', 'use': 'DCS variant identity and store family context'},
 ]
 NAMES = {'a10c': 'A-10C II Tank Killer', 'gbu12': 'GBU-12 Paveway II', 'agm65': 'AGM-65 Maverick family (D/H/L shared exterior)', 'apkws': 'LAU-131 seven-tube APKWS carriage pod', 'mk82': 'Mk 82 low-drag bomb', 'cbu97': 'CBU-97 closed canister', 'tgp': 'Litening targeting pod'}
 
@@ -36,32 +37,84 @@ def unit(a):
     return tuple(x/n for x in a)
 
 
+def native(p): return (p[0], -p[2], p[1])
+
+
+def material(name, rgb, metal, rough):
+    mat=bpy.data.materials.new(name);mat.diffuse_color=(*rgb,1);mat.use_nodes=True
+    bsdf=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
+    bsdf.inputs['Base Color'].default_value=(*rgb,1)
+    bsdf.inputs['Metallic'].default_value=metal;bsdf.inputs['Roughness'].default_value=rough
+    return mat
+
+
 class Art:
-    def __init__(self, key):
-        self.key, self.meshes, self.pivots, self.labels = key, {}, {}, []
+    def __init__(self,key):
+        self.key=key;self.objects=[];self.pivots={};self.labels=[]
+        self.collection=bpy.data.collections.new(key+' exterior');bpy.context.scene.collection.children.link(self.collection)
+        self.materials=[material(*m) for m in MATERIALS]
 
-    def pivot(self, name, xyz): self.pivots[name] = xyz
+    def pivot(self,name,xyz):
+        node=bpy.data.objects.new(name,None);self.collection.objects.link(node);node.location=native(xyz)
+        node.empty_display_size=.25;self.pivots[name]=node
 
-    def mesh(self, name, verts, faces, material=0, parent=None, smooth=False):
-        """Batch by material and moving group; preserve component labels in extras."""
+    def mesh(self,name,verts,faces,material=0,parent=None,smooth=False):
         self.labels.append(name)
-        normals = [(0., 0., 0.) for _ in verts]
-        tris = []
-        for face in faces:
-            for j in range(1, len(face)-1):
-                t = (face[0], face[j], face[j+1])
-                n = cross(sub(verts[t[1]], verts[t[0]]), sub(verts[t[2]], verts[t[0]]))
-                if sum(x*x for x in n) < 1e-15: continue
-                tris.append((t, unit(n)))
-                for i in t: normals[i] = add(normals[i], n)
-        ns = list(map(unit, normals))
-        batch = self.meshes.setdefault((parent, material), {'positions': [], 'normals': [], 'components': []})
-        batch['components'].append(name)
-        origin = self.pivots.get(parent, (0, 0, 0))
-        for tri, normal in tris:
-            for i in tri:
-                batch['positions'].extend(sub(verts[i], origin))
-                batch['normals'].extend(ns[i] if smooth else normal)
+        origin=self.pivots[parent].location if parent else Vector((0,0,0))
+        me=bpy.data.meshes.new(name);me.from_pydata([Vector(native(v))-origin for v in verts],[],faces);me.update()
+        bm=bmesh.new();bm.from_mesh(me)
+        bmesh.ops.remove_doubles(bm,verts=list(bm.verts),dist=0.000001)
+        bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces));bm.to_mesh(me);bm.free();me.update()
+        ob=bpy.data.objects.new(name,me);self.collection.objects.link(ob);ob.data.materials.append(self.materials[material]);ob['fox3_group']=parent or 'static'
+        if parent:ob.parent=self.pivots[parent]
+        self.objects.append(ob)
+        for face in me.polygons:face.use_smooth=smooth and len(face.vertices)==4
+        if not smooth:
+            mod=ob.modifiers.new('Rounded exterior edges','BEVEL');mod.width=.012 if self.key=='a10c' else .004;mod.segments=2
+            mod.limit_method='ANGLE'
+            self.apply(ob,mod)
+        return ob
+
+    def apply(self,ob,mod):
+        bpy.ops.object.select_all(action='DESELECT');ob.select_set(True);bpy.context.view_layer.objects.active=ob
+        bpy.ops.object.modifier_apply(modifier=mod.name);ob.select_set(False)
+
+    def seam(self,name,points,radius=.014,material=3,parent=None):
+        curve=bpy.data.curves.new(name,'CURVE');curve.dimensions='3D';curve.bevel_depth=radius;curve.bevel_resolution=2
+        poly=curve.splines.new('POLY');poly.points.add(len(points)-1)
+        origin=self.pivots[parent].location if parent else Vector((0,0,0))
+        for p,xyz in zip(poly.points,points):p.co=(*(Vector(native(xyz))-origin),1)
+        ob=bpy.data.objects.new(name,curve);self.collection.objects.link(ob);curve.materials.append(self.materials[material]);ob['fox3_group']=parent or 'static'
+        if parent:ob.parent=self.pivots[parent]
+        bpy.ops.object.select_all(action='DESELECT');ob.select_set(True);bpy.context.view_layer.objects.active=ob
+        bpy.ops.object.convert(target='MESH');ob.select_set(False);self.objects.append(ob);self.labels.append(name)
+
+    def wing(self,name,sections,side=1):
+        # Artist airfoil-like sections: rounded leading edge and tapered trailing edge, no aero data.
+        chord_profile=[(0,0),(.04,.57),(.16,1),(.48,.77),(1,.06),(1,-.06),(.48,-.60),(.16,-.75),(.04,-.48)]
+        verts=[]
+        for x,leading,trailing,y,half_t in sections:
+            for t,h in chord_profile:verts.append((side*x,y+half_t*h,leading+t*(trailing-leading)))
+        n=len(chord_profile);faces=[]
+        for k in range(len(sections)-1):
+            for j in range(n):faces.append((k*n+j,k*n+(j+1)%n,(k+1)*n+(j+1)%n,(k+1)*n+j))
+        faces.extend([tuple(range(n-1,-1,-1)),tuple((len(sections)-1)*n+j for j in range(n))])
+        return self.mesh(name,verts,faces,smooth=True)
+
+    def retract_gear(self,name):
+        rotation=Matrix.Rotation(math.pi/2,4,'X')
+        for ob in self.objects:
+            if ob.parent==self.pivots[name]:ob.data.transform(rotation)
+
+    def export(self,path):
+        bpy.context.scene['partNames']=self.labels
+        bpy.context.scene['axes']='metres: nose -Z, up +Y, right +X after glTF export'
+        bpy.ops.object.select_all(action='DESELECT')
+        for ob in [*self.objects,*self.pivots.values()]:ob.select_set(True)
+        bpy.context.view_layer.objects.active=self.objects[0]
+        bpy.ops.export_scene.gltf(filepath=str(path),export_format='GLB',use_selection=True,export_yup=True,
+            export_texcoords=False,export_normals=True,export_animations=False,export_cameras=False,export_lights=False,export_extras=True)
+        return {'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 
     def loft(self, name, rows, material=0, x=0, parent=None, segments=40, caps=True):
         # Rows: z, half-width, half-height, centre-y. Increasing z = nose to tail.
@@ -72,7 +125,11 @@ class Art:
                 a=k*segments+j; b=k*segments+(j+1)%segments
                 f.append((a,b,b+segments,a+segments))
         if caps: f += [tuple(range(segments-1, -1, -1)), tuple((len(rows)-1)*segments+j for j in range(segments))]
-        self.mesh(name, v, f, material, parent, True)
+        ob=self.mesh(name, v, f, material, parent, True)
+        if name in ['Fuselage','Bubble canopy','Canopy rear fairing','Bomb body','Paveway body','Closed canister'] or name.startswith('Main gear pod'):
+            mod=ob.modifiers.new('Curved exterior subdivision','SUBSURF');mod.levels=1;mod.render_levels=1
+            self.apply(ob,mod)
+            for polygon in ob.data.polygons:polygon.use_smooth=True
 
     def plate(self, name, outline, material=0, thickness=.08, parent=None):
         # Arbitrary horizontal outline xyz, clockwise viewed from above gives upward normal.
@@ -107,7 +164,7 @@ class Art:
         self.mesh(name,v,f,material,parent,True)
 
     def ring(self,name,x,y,z,r,inner,material=3,depth=.06):
-        n=40;v=[(x+rr*math.cos(t),y+rr*math.sin(t),zz) for zz,rr in [(z,r),(z,inner),(z+depth,inner),(z+depth,r)] for t in (2*math.pi*j/n for j in range(n))]
+        n=48;v=[(x+rr*math.cos(t),y+rr*math.sin(t),zz) for zz,rr in [(z,r),(z,inner),(z+depth,inner),(z+depth,r)] for t in (2*math.pi*j/n for j in range(n))]
         f=[]
         for k in range(4):
             for j in range(n):
@@ -115,48 +172,30 @@ class Art:
                 f.append((d,c,b,a))
         self.mesh(name,v,f,material,None,True)
 
-    def export(self,path):
-        doc={'asset':{'version':'2.0','generator':'Fox3 original exterior art (Python)','copyright':'MIT; original geometry, no third-party assets'},'scene':0,'scenes':[{'nodes':[]}], 'nodes':[],'meshes':[],'materials':[], 'buffers':[], 'bufferViews':[],'accessors':[]}
-        binary=bytearray()
-        for name,rgb,metal,rough in MATERIALS:
-            doc['materials'].append({'name':name,'pbrMetallicRoughness':{'baseColorFactor':[*rgb,1],'metallicFactor':metal,'roughnessFactor':rough}})
-        roots={}
-        for name,xyz in self.pivots.items():
-            roots[name]=len(doc['nodes']);doc['scenes'][0]['nodes'].append(len(doc['nodes']));doc['nodes'].append({'name':name,'translation':xyz,'children':[]})
-        def accessor(values,position=False):
-            data=struct.pack('<'+'f'*len(values),*values); offset=len(binary);binary.extend(data)
-            view=len(doc['bufferViews']);doc['bufferViews'].append({'buffer':0,'byteOffset':offset,'byteLength':len(data),'target':34962})
-            a={'bufferView':view,'componentType':5126,'count':len(values)//3,'type':'VEC3'}
-            if position:
-                a['min']=[min(values[i::3]) for i in range(3)];a['max']=[max(values[i::3]) for i in range(3)]
-            doc['accessors'].append(a);return len(doc['accessors'])-1
-        for (parent,mat),batch in self.meshes.items():
-            primitive={'attributes':{'POSITION':accessor(batch['positions'],True),'NORMAL':accessor(batch['normals'])},'material':mat,'mode':4}
-            name=(parent or 'static')+'.'+MATERIALS[mat][0]
-            node={'name':name,'mesh':len(doc['meshes']),'extras':{'components':batch['components']}}
-            doc['meshes'].append({'name':name,'primitives':[primitive]})
-            (doc['nodes'][roots[parent]]['children'] if parent else doc['scenes'][0]['nodes']).append(len(doc['nodes']));doc['nodes'].append(node)
-        doc['buffers']=[{'byteLength':len(binary)}]
-        doc['scenes'][0]['extras']={'partNames':self.labels,'axes':'metres: right +X, up +Y, forward -Z'}
-        raw=json.dumps(doc,separators=(',',':')).encode(); raw+=b' '*((-len(raw))%4)
-        binary+=b'\0'*((-len(binary))%4)
-        data=struct.pack('<III',0x46546c67,2,12+8+len(raw)+8+len(binary))+struct.pack('<II',len(raw),0x4e4f534a)+raw+struct.pack('<II',len(binary),0x004e4942)+binary
-        path.write_bytes(data)
-        return {'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'triangles':sum(len(m['positions'])//9 for m in self.meshes.values()),'meshes':len(self.meshes)}
 
 
 def aircraft():
     a=Art('a10c')
-    a.loft('Fuselage', [(-7.96,.11,.19,-.20),(-7.72,.48,.52,-.11),(-7.1,.68,.70,0),(-6,.79,.80,.02),(-4.5,.85,.88,.05),(-2.7,.83,.86,.06),(-1,.76,.79,.02),(1.5,.66,.70,.04),(3.6,.53,.52,.12),(5.5,.40,.38,.21),(6.9,.25,.24,.26),(7.8,.07,.09,.3)],segments=56)
+    a.loft('Fuselage', [(-7.96,.11,.19,-.20),(-7.72,.48,.52,-.11),(-7.1,.68,.70,0),(-6,.79,.80,.02),(-4.5,.85,.88,.05),(-2.7,.83,.86,.06),(-1,.76,.79,.02),(1.5,.66,.70,.04),(3.6,.55,.54,.33),(5.5,.40,.38,.48),(6.9,.25,.24,.58),(7.8,.07,.09,.3)],segments=56)
     a.loft('Bubble canopy', [(-6.55,.10,.06,.57),(-6.20,.37,.31,.70),(-5.6,.51,.72,.76),(-4.7,.52,.76,.80),(-3.85,.43,.52,.87),(-3.3,.10,.04,.94)],1,segments=48)
+    # Windshield bow is an exterior frame, no cockpit internals.
+    canopy=next(ob for ob in a.objects if ob.name=='Bubble canopy')
+    bow=[]
+    for j in range(25):
+        x=-.34+j*.68/24
+        hit,point,normal,_=canopy.ray_cast(Vector((x,5.91,4)),Vector((0,0,-1)))
+        if hit:
+            point+=normal*.008
+            bow.append((point.x,point.z,-point.y))
+    a.seam('Windshield bow',bow,.018,0)
     # Raised sill and rear fairing; a closed shaded canopy, no cockpit interior.
     a.loft('Canopy rear fairing',[(-3.7,.40,.20,.92),(-3.0,.34,.17,.88),(-2.0,.17,.06,.80)],0)
     for s in [-1,1]:
         # Inner/outer wing panels stop at separate flap/deceleron hinge lines.
         def wing(name,points): a.plate(name,[(s*x,y,z) for x,y,z in points],thickness=.18)
         wing('Wing root '+str(s),[(.65,-.32,-1.75),(1.05,-.32,-1.73),(1.05,-.32,2.0),(.65,-.32,2.05)])
-        wing('Straight wing '+str(s),[(1.05,-.32,-1.73),(5.65,-.23,-1.1),(5.65,-.23,1.0),(1.05,-.32,1.1)])
-        wing('Outer wing '+str(s),[(5.65,-.23,-1.1),(8.35,-.22,-.75),(8.35,-.22,.88),(5.65,-.23,.88)])
+        a.wing('Straight wing '+str(s),[(1.05,-1.73,1.1,-.32,.18),(2.1,-1.58,1.075,-.30,.17),(5.65,-1.1,1.0,-.23,.10)],s)
+        a.wing('Outer wing '+str(s),[(5.65,-1.1,.88,-.23,.10),(8.35,-.75,.88,-.22,.07)],s)
         wing('Drooped wingtip '+str(s),[(8.35,-.22,-.75),(8.765,-.51,-.52),(8.765,-.51,1.53),(8.35,-.22,1.67)])
         # Small transition aft of flap to split aileron.
         wing('Flap outboard separator '+str(s),[(5.60,-.23,.87),(5.72,-.23,.87),(5.72,-.23,1.76),(5.60,-.23,1.76)])
@@ -171,6 +210,7 @@ def aircraft():
         # High aft engine mounts and circular nacelles; shallow dark intake/exhaust surfaces only.
         a.plate('Engine support '+str(s),[(s*.3,.58,1.9),(s*1.75,.92,2.18),(s*1.75,.92,4.3),(s*.3,.58,4.48)],thickness=.30)
         a.loft('TF34 nacelle '+str(s),[(1.28,.70,.70,1.25),(1.48,.80,.80,1.25),(2.2,.82,.82,1.25),(3.7,.79,.79,1.25),(4.75,.69,.69,1.25),(5.18,.56,.57,1.25)],x=s*1.65,segments=56,caps=False)
+        a.ring('Nacelle join '+str(s),s*1.65,1.25,2.19,.822,.816,3,.018)
         a.ring('Intake lip '+str(s),s*1.65,1.25,1.27,.71,.60,0,.11)
         a.cylinder('Intake recess '+str(s),(s*1.65,1.25,1.36),(s*1.65,1.25,1.42),.60,2,segments=48)
         a.loft('Intake centre cap '+str(s),[(1.30,.04,.04,1.25),(1.40,.13,.13,1.25)],3,x=s*1.65)
@@ -178,6 +218,7 @@ def aircraft():
         a.cylinder('Exhaust recess '+str(s),(s*1.65,1.25,5.12),(s*1.65,1.25,5.14),.47,2)
         wing('Horizontal stabiliser '+str(s),[(.12,.24,5.70),(3.14,.25,6.17),(3.14,.25,7.89),(.12,.24,7.89)])
         a.fin('Twin vertical tail '+str(s),[(-.59,6.52),(.23,6.15),(1.86,6.25),(2.08,6.42),(2.08,7.71),(1.87,7.96),(-.38,8.13)],s*3.10,.17)
+        a.seam('Rudder join '+str(s),[(s*3.191,-.29,7.62),(s*3.191,1.90,7.48)],.011,3)
         # 4 stations under each wing plus 3 on the fuselage = 11.
         for j,x in enumerate([2.90,4.25,5.68,7.15]):
             y=-.35+(x/8)*.10;z=-.12+(x/8)*.15
@@ -186,10 +227,10 @@ def aircraft():
         a.fin('Pylon '+str(5+i),[(-.63,-.95),(-1.02,-.56),(-1.04,.62),(-.61,.9)],x,.10)
     # GAU-8 muzzle shroud and visible muzzle-face dots only (no barrel interiors).
     a.loft('GAU-8 muzzle shroud',[(-8.125,.155,.155,-.40),(-7.55,.21,.21,-.40)],3,x=-.12)
-    a.cylinder('Muzzle face',(-.12,-.4,-8.128),(-.12,-.4,-8.126),.128,2)
+    a.cylinder('Muzzle face',(-.12,-.4,-8.128),(-.12,-.4,-8.126),.128,3)
     for j in range(7):
         t=j*2*math.pi/7;x=-.12+.082*math.cos(t);y=-.4+.082*math.sin(t)
-        a.cylinder('Muzzle marking '+str(j),(x,y,-8.130),(x,y,-8.129),.025,3,segments=8)
+        a.cylinder('Muzzle marking '+str(j),(x,y,-8.130),(x,y,-8.129),.025,2,segments=12)
     # External refuelling receptacle mark and two restrained dorsal aerials.
     a.plate('Refuelling receptacle', [(-.22,.70,-6.74),(-.20,.83,-6.2),(.20,.83,-6.2),(.22,.70,-6.74)],3,.014)
     a.fin('Dorsal aerial',[(.76,-1.55),(1.20,-1.4),(.83,-.97)],0,.05)
@@ -201,11 +242,7 @@ def aircraft():
         a.cylinder(name+' tyre',(x-.14,wheel_y,z),(x+.14,wheel_y,z),r,2,name,32)
         a.cylinder(name+' hub',(x-.145,wheel_y,z),(x+.145,wheel_y,z),r*.47,3,name,24)
         # Rotate +90 degrees around local X: down -> forward. Runtime reverses this as gear deploys.
-        for (parent,_),batch in a.meshes.items():
-            if parent!=name: continue
-            for attr in ['positions','normals']:
-                vals=batch[attr]
-                for j in range(0,len(vals),3): vals[j+1],vals[j+2]=-vals[j+2],vals[j+1]
+        a.retract_gear(name)
     return a
 
 
@@ -248,7 +285,7 @@ def store(key):
     elif key=='mk82':
         a.loft('Bomb body',[(-1.10,.02,.02,0),(-1.02,.09,.09,0),(-.83,.13,.13,0),(-.55,.145,.145,0),(.46,.145,.145,0),(.76,.074,.074,0),(1.10,.046,.046,0)],4)
         radial_fins(a,'Tail fin',[(.58,.12),(.76,.25),(1.10,.25),(1.10,.045)])
-        a.loft('Yellow identification band',[(-.70,.140,.140,0),(-.65,.142,.142,0)],5)
+        a.loft('Yellow identification band',[(-.70,.140,.140,0),(-.65,.143,.143,0)],5)
     elif key=='gbu12':
         a.loft('Paveway body',[(-1.56,.04,.04,0),(-1.46,.07,.07,0),(-1.11,.084,.084,0),(-.90,.11,.11,0),(-.60,.145,.145,0),(.63,.145,.145,0),(.88,.095,.095,0),(1.56,.08,.08,0)],4)
         a.loft('Nose window',[(-1.60,.035,.035,0),(-1.55,.045,.045,0)],1)
@@ -264,29 +301,75 @@ def store(key):
     return a
 
 
-def main():
-    p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--only',nargs='*');p.add_argument('--production',type=Path);args=p.parse_args()
-    selected=args.only or list(NAMES)
-    if not set(selected)<=NAMES.keys(): p.error('Unknown asset ID')
-    records=[]
-    for key in selected:
-        out=args.out/key;out.mkdir(parents=True,exist_ok=True)
-        model=aircraft() if key=='a10c' else store(key)
-        stats=model.export(out/'model.glb')
-        caveats=['Original exterior artist approximation; dimensions and fittings are visual display proportions, not engineering data.','No copied game geometry, texture imagery, internals, or authentic livery.','Direct Python GLB authoring; Blender CLI crashed during Metal initialization in the restricted session.','Independent exact-variant fidelity and physical-device performance remain unverified.']
-        if key=='a10c': caveats+=['Nominal app envelope: 16.26 m length, 17.53 m span. Closed shaded canopy, eleven empty pylons.','Named pivots drive three gear legs, two flaps and four split-deceleron leaves; no skeletal rig, gear-door sequence, cockpit or pilot.']
-        elif key=='agm65': caveats+=['D/H/L deliberately share this exterior; optical-window differences are not represented.']
-        elif key=='apkws': caveats+=['Seven-tube LAU-131 carriage pod only; NOT a flying APKWS rocket. Runtime projectile retains procedural geometry.']
-        else: caveats+=['Static store exterior, no animation. GBU-12 tail fins shown extended; exact subvariant detail not verified.']
-        meta={'id':key,'name':NAMES[key],'category':'aircraft' if key=='a10c' else 'store','references':REFS,'source_caveats':caveats,'authorship':'Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.',**stats}
-        meta['source_sha256']=meta['sha256']
-        (out/'manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
-        records.append(meta)
-        if args.production:
-            args.production.mkdir(parents=True,exist_ok=True);(args.production/(key+'.glb')).write_bytes((out/'model.glb').read_bytes())
-        print(key,stats,flush=True)
-    if args.production:
-        mf=args.production/'manifest.json';old=json.loads(mf.read_text()) if mf.exists() else []
-        mf.write_text(json.dumps([r for r in old if r['id'] not in selected]+records,indent=2)+'\n')
+def aim(obj, point): obj.rotation_euler=(Vector(point)-obj.location).to_track_quat('-Z','Y').to_euler()
 
-if __name__=='__main__': main()
+
+def studio(model, out, render=True):
+    scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=24;scene.cycles.use_denoising=True
+    scene.render.threads_mode='FIXED';scene.render.threads=2
+    scene.render.resolution_x=1200;scene.render.resolution_y=900;scene.render.resolution_percentage=100
+    scene.render.image_settings.file_format='PNG';scene.view_settings.view_transform='AgX'
+    scene.world=bpy.data.worlds.new('Neutral review world');scene.world.use_nodes=True
+    background=next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND');background.inputs['Color'].default_value=(.19,.22,.27,1);background.inputs['Strength'].default_value=.45
+    bpy.context.view_layer.update()
+    coords=[ob.matrix_world@Vector(v) for ob in model.objects for v in ob.bound_box]
+    lo=Vector(tuple(min(v[i] for v in coords) for i in range(3)));hi=Vector(tuple(max(v[i] for v in coords) for i in range(3)));center=(lo+hi)/2
+    length=max(hi.x-lo.x,hi.y-lo.y,hi.z-lo.z)
+    bpy.ops.mesh.primitive_plane_add(size=length*200,location=(0,0,lo.z-.2));floor=bpy.context.object;floor.name='Review floor (excluded from export)';floor.data.materials.append(material('Studio charcoal',(.08,.10,.13),0,.85))
+    for name,xyz,energy,size in [('Key',(1,1.3,2.0),95,1.2),('Fill',(-1.5,.4,1.0),65,1.4),('Rim',(.5,-1.2,1.7),125,1.0)]:
+        light=bpy.data.lights.new(name,'AREA');light.energy=energy*length*length;light.shape='DISK';light.size=length*size
+        ob=bpy.data.objects.new(name,light);scene.collection.objects.link(ob);ob.location=center+Vector(xyz)*length;aim(ob,center)
+    camera=bpy.data.cameras.new('Review camera');cam=bpy.data.objects.new('Review camera',camera);scene.collection.objects.link(cam);scene.camera=cam
+    camera.type='ORTHO';camera.clip_end=length*100;camera.ortho_scale=length*1.25
+    views={'front':(0,2.5,.18),'side':(2.5,0,.08),'top':(0,0,2.5),'quarter':(1.3,1.8,1.2)}
+    if model.key=='a10c':views['rear']=(1.35,-1.8,1.1)
+    for name,position in views.items():
+        cam.location=center+Vector(position)*length;aim(cam,center)
+        if name=='top':cam.rotation_euler=(0,0,0)
+        camera.ortho_scale=length*(1.25 if name!='side' else 1.38)
+        # Ensure portrait-long stores and top aircraft fit vertical resolution too.
+        if name=='top':camera.ortho_scale=length*1.65
+        floor.hide_render=name in ['front','side']
+        scene.render.filepath=str(out/(name+'.png'))
+        if render:bpy.ops.render.render(write_still=True)
+    if model.key=='a10c':
+        originals={name:(root.rotation_mode,root.matrix_basis.copy()) for name,root in model.pivots.items()}
+        for name,root in model.pivots.items():
+            angle=-math.pi/2 if name.startswith('gear.') else (math.pi/6 if name.startswith('flap.') else (-math.pi/3 if name.endswith('upper') else math.pi/3))
+            base=root.matrix_basis.to_quaternion()
+            root.rotation_mode='QUATERNION'
+            root.rotation_quaternion=base @ Quaternion((1,0,0),angle)
+        cam.location=center+Vector((1.35,-1.8,1.1))*length;aim(cam,center);camera.ortho_scale=length*1.25
+        floor.hide_render=True;scene.render.filepath=str(out/'deployed.png')
+        if render:bpy.ops.render.render(write_still=True)
+        for name,root in model.pivots.items():
+            mode,basis=originals[name];root.rotation_mode=mode;root.matrix_basis=basis
+    # Save a clean rig configuration with an immediately useful studio view.
+    floor.hide_render=False;cam.location=center+Vector((1.3,1.8,1.2))*length;aim(cam,center);camera.ortho_scale=length*1.25
+
+
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--only',nargs='*');p.add_argument('--no-render',action='store_true')
+    args=p.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
+    selected=args.only or list(NAMES)
+    if not set(selected)<=NAMES.keys():p.error('Unknown asset ID')
+    for key in selected:
+        out=args.out.resolve()/key;out.mkdir(parents=True,exist_ok=True)
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        bpy.context.scene.unit_settings.system='METRIC';bpy.context.scene.unit_settings.scale_length=1
+        model=aircraft() if key=='a10c' else store(key)
+        bpy.context.view_layer.update()
+        stats=model.export(out/'model.glb')
+        caveats=['Original artist approximation for a game tutorial; no weapon internals or engineering data.','No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.','Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.']
+        if key=='a10c':caveats+=['App envelope: 16.26 m length and 17.53 m span. Closed canopy and eleven empty pylons.','Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation.']
+        elif key=='agm65':caveats+=['D/H/L share one simplified external shell; variant-specific optical windows not represented.']
+        elif key=='apkws':caveats+=['LAU-131 seven-opening carriage pod only; flying APKWS projectiles retain procedural geometry.']
+        elif key=='gbu12':caveats+=['Tail fins shown extended; no deployment animation.']
+        meta={'id':key,'name':NAMES[key],'category':'aircraft' if key=='a10c' else 'store','references':REFS,'caveats':caveats,'authorship':'Original Fox3 scripted exterior art; repository MIT licence.','authoring_tool':'Blender Python (bpy/bmesh); Blender glTF exporter','blender_version':bpy.app.version_string,'openvsp_used':False,'source_axes':'Blender +Y forward, +Z up, +X right','export_axes':'metres: -Z forward, +Y up, +X right','part_names':model.labels,'generator':'scripts/assets/source/a10c/generate.py',**stats}
+        (out/'manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
+        studio(model,out,not args.no_render)
+        bpy.ops.wm.save_as_mainfile(filepath=str(out/'model.blend'))
+        print('BLENDER_AUTHORED',key,stats,flush=True)
+
+
+if __name__=='__main__':main()
