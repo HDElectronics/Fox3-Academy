@@ -104,7 +104,7 @@ export const LESSONS: Record<TgpLessonId, LessonDef> = {
       { id: 'point', text: 'TGP as SOI, POINT track a vehicle in the column. Your L code on the CNTL page reads 1688, the code your bombs carry.', keys: 'K (hold), ; . , /, LCtrl+Up', check: s => s.pointOnColumn && s.laserCode === 1688 },
       { id: 'lase', text: 'Fire the laser for 2 s: Insert, held (or latch it). L flashes on the TGP page and the HUD; the range reads L.', keys: 'Insert (hold)', check: s => s.lasedPointS >= 2 },
       { id: 'code', text: `Laser off. Ranger 2, south-east of the trucks, lases a truck on ${BUDDY_CODE}. Set the LSS code to ${BUDDY_CODE} on the CNTL page.`, keys: 'CNTL page: LSS code', check: s => s.lssCode === BUDDY_CODE && !s.laserFiring },
-      { id: 'lss', text: 'Laser spot search: OSB 6. LSRCH while it searches, then DETECT and OSB 6 reads LST. Keep the trucks inside the view.', keys: 'OSB 6', check: s => s.lssDetectBuddy },
+      { id: 'lss', text: 'Laser spot search: press the "LSS · OSB 6" button in Controls (an MFCD button in DCS; C, China Hat Aft Short, also works with the TGP as SOI, not verified). Keep the trucks on the TGP page: the search sees spots near the line of sight. LSRCH while it searches, then DETECT and the button reads LST, then LTRACK.', keys: 'OSB 6 button, C', check: s => s.lssDetectBuddy },
       { id: 'ltrack', text: 'LTRACK: after 1 s a box sits on the spot and the pod follows it.', check: s => s.lssTrackBuddy },
       { id: 'spi', text: 'Make the spot the SPI: TMS Forward Long.', keys: 'LCtrl+Up (hold)', check: s => s.spiOnBuddySpot && s.spiSource === 'tgp' },
     ],
