@@ -38,6 +38,8 @@ export const ALT_GAIN = 0.12;
 const MAX_CLIMB_AB = 25 * D2R;
 const MAX_CLIMB_MIL = 18 * D2R;
 const MAX_DIVE = 45 * D2R;
+/** Vertical load (g) the bank is measured against during a push-over, so the jet stays upright. Trainer value. */
+const PUSH_BANK_REF_G = 0.3;
 const MAX_PITCH_RATE = 12 * D2R;
 const FLOOR_AGL = 150;
 const MIN_SPEED = 60;
@@ -150,7 +152,12 @@ export function stepAircraft(world: World, ac: Aircraft, dt: number): void {
   if (Math.abs(herr) > Math.PI - 0.03 && ac.roll !== 0 && Math.sign(ac.roll) !== Math.sign(herr)) herr = -herr;
   const nHMax = Math.sqrt(Math.max(0, gAvail * gAvail - nV * nV));
   const nHCmd = clamp(v * HEADING_GAIN * herr / G0, -nHMax, nHMax);
-  const bankTarget = Math.abs(nHCmd) < 1e-4 && nV > 0 ? 0 : Math.atan2(nHCmd, nV);
+  // Attack jets (hand-flown with the pitch keys): a push-over stays upright, the pilot pushes the nose down instead of
+  // the jet rolling inverted to pull toward the ground. The bank is taken against a small positive load. Fighters
+  // keep the old rule (the AI's dives and the duel tuning depend on it).
+  const pushUpright = !!ac.ag;
+  const nVBank = pushUpright ? Math.max(nV, PUSH_BANK_REF_G) : nV;
+  const bankTarget = Math.abs(nHCmd) < 1e-4 && (nV > 0 || pushUpright) ? 0 : Math.atan2(nHCmd, nVBank);
   const dRoll = wrapPi(bankTarget - ac.roll);
   const maxRoll = ROLL_RATE * dt;
   ac.roll = wrapPi(ac.roll + clamp(dRoll, -maxRoll, maxRoll));
