@@ -151,7 +151,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const toStp = cap('TGP to STPT', 'China Hat Aft Long: TGP to the steerpoint', tap('chA', true), 'C');
   const recage = cap('MAV recage', 'China Hat Aft Short with the MAV page as SOI: recage the Maverick', () => { if (hotas.soi === 'tgp') hotas.setSoi('mav'); hotas.tap('chA'); });
   const lssBtn = button({ label: 'LSS · OSB 6', size: 's', lamp: true, keepCase: true, ariaLabel: 'TGP page OSB 6: laser spot search', onClick: () => hotas.toggleLss() });
-  const laserBtn = button({ label: 'Laser latch', size: 's', lamp: true, keepCase: true, keys: 'Insert', ariaLabel: 'Fire the laser: latch on or off (Insert: hold to fire)', onClick: () => hotas.toggleLaserLatch() });
+  const laserBtn = button({ label: 'Laser', size: 's', lamp: true, keepCase: true, keys: 'Insert', ariaLabel: 'Fire the laser: latch on or off (Insert: hold to fire)', onClick: () => hotas.toggleLaserLatch() });
   const wilcoBtn = button({ label: 'WILCO · OSB 19', size: 's', lamp: true, keepCase: true, ariaLabel: 'MSG page OSB 19: WILCO', onClick: () => { if (host.jtac()?.wilco()) log('WILCO: tasking accepted', 'ok'); } });
   const cntcoBtn = button({ label: 'CNTCO · OSB 7', size: 's', keepCase: true, ariaLabel: 'MSG page OSB 7: cannot comply', onClick: () => { if (host.jtac()?.cntco()) log('CNTCO: tasking refused'); } });
   const masterBtn = cap('M Master', 'Master mode NAV, GUNS, CCIP, CCRP', () => { log(`Master mode ${hotas.cycleMaster()}`); }, 'M');
@@ -165,15 +165,17 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     holdPad('◀', 'Slew left', v => { slew.left = v; }), cap('TMS', 'TMS Forward Short', tap('tmsF')).el, holdPad('▶', 'Slew right', v => { slew.right = v; }),
     h('span'), holdPad('▼', 'Slew down', v => { slew.down = v; }), h('span'));
   const touchPad = h('div', { class: 'ui-strip-block strk-touch' }, placard('Slew'), slewGrid('strk-pad'));
-  const row = (...els: HTMLElement[]) => h('div', { class: 'strk-row' }, ...els);
+  // Two caps per row (the SOI row takes four short ones), so a label and its key chip always fit.
+  const row = (...els: HTMLElement[]) => h('div', { class: `strk-row cas-a10-row${els.length > 2 ? ' cas-a10-row--4' : ''}` }, ...els);
   const slewPad = slewGrid('strk-pad cas-a10-pad');
   const controlRows = [
     placard('SOI (Coolie)'), row(soiHud.el, soiTad.el, soiTgp.el, soiMav.el), row(pageBtn.el, rPageBtn.el),
-    placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el, tmsLs.el),
+    placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el), row(tmsLs.el),
     placard('Slew'), slewPad,
-    placard('China Hat · TGP · MAV'), row(slave.el, fovBtn.el, toStp.el), row(zoomIn.el, zoomOut.el), row(lssBtn.el, laserBtn.el, recage.el),
+    placard('China Hat · TGP · MAV'), row(slave.el, toStp.el), row(fovBtn.el, recage.el), row(zoomIn.el, zoomOut.el),
+    placard('Laser'), row(lssBtn.el, laserBtn.el),
     ...(host.noMsg ? [] : [placard('MSG page'), row(wilcoBtn.el, cntcoBtn.el)]),
-    placard('Weapons'), row(masterBtn.el, profBtn.el, flareBtn.el), releaseBtn.el,
+    placard('Weapons'), row(masterBtn.el, profBtn.el), row(flareBtn.el), releaseBtn.el,
   ];
   const binds = PROCEDURES.a10c.binds;
   const keyList = disclosure({
