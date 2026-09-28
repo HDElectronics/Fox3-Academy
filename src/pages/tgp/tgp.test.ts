@@ -89,7 +89,11 @@ describe('tgp lesson step machines', () => {
     expect(pass('soi', blank({ soiSeen: new Set(['hud', 'tgp', 'tad']), soi: 'tad' }))).toEqual(['tgp', 'tad']);
     const all = blank({ soiSeen: new Set(['hud', 'tgp', 'tad']), soi: 'hud', spiSource: 'steer', spiOnColumn: true, slavedBack: true });
     expect(pass('soi', all)).toEqual(['tgp', 'tad', 'hud']);
-    expect(pass('soi', { ...all, spiSource: 'tgp' })).toEqual(['tgp', 'tad', 'hud', 'spi', 'slave']);
+    // The pod step needs the TGP as SOI with the crosshair on the column; the SPI step then needs a pod SPI.
+    const step = (id: string) => LESSONS.soi.steps.find(x => x.id === id)!;
+    expect(step('pod').check({ ...all, soi: 'tgp', aimToColumnM: 50 })).toBe(true);
+    expect(step('pod').check({ ...all, soi: 'hud', aimToColumnM: 50 })).toBe(false);
+    expect(step('spi').check({ ...all, spiSource: 'tgp' })).toBe(true);
   });
 
   it('Maverick: a profile without an A-G master mode does not pass the master step', () => {

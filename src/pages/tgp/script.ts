@@ -59,7 +59,8 @@ const SCRIPTS: Record<TgpLessonId, Stage[]> = {
     { id: 'tgp', act: p => { p.hotas.tap('coolieR', true); settle(p); } },
     { id: 'tad', act: p => { p.hotas.tap('coolieL', true); settle(p); } },
     { id: 'hud', act: p => { p.hotas.tap('coolieU'); settle(p); } },
-    { id: 'spi', act: p => { p.hotas.tap('coolieR', true); lookAt(p, col(p, 2)); p.hotas.tap('tmsF', true); settle(p); } },
+    { id: 'pod', act: p => { p.hotas.tap('coolieR', true); lookAt(p, col(p, 2)); settle(p); } },
+    { id: 'spi', act: p => { p.hotas.tap('tmsF', true); settle(p); } },
     { id: 'slave', act: p => { const c = col(p, 2); lookAt(p, { x: c.x + 400, y: c.y, z: c.z - 200 }); settle(p); p.hotas.tap('chF', true); settle(p); } },
     { id: 'reset', act: p => { p.hotas.tap('tmsA', true); settle(p); } },
   ],
@@ -69,7 +70,8 @@ const SCRIPTS: Record<TgpLessonId, Stage[]> = {
     { id: 'naro', act: p => { p.hotas.tap('chF'); settle(p); } },
     { id: 'point', act: p => { p.hotas.tap('tmsF'); settle(p); } },
     { id: 'area', act: p => { p.hotas.tap('tmsF'); settle(p); } },
-    { id: 'spi', act: p => { p.hotas.tap('tmsF'); p.hotas.tap('tmsF', true); settle(p); } },
+    { id: 'point2', act: p => { p.hotas.tap('tmsF'); settle(p); } },
+    { id: 'spi', act: p => { p.hotas.tap('tmsF', true); settle(p); } },
   ],
   laser: [
     { id: 'point', act: p => track(p, col(p, 1), false) },
@@ -88,7 +90,8 @@ const SCRIPTS: Record<TgpLessonId, Stage[]> = {
   mav: [
     { id: 'profile', act: p => { profile(p, 'agm65d'); settle(p); } },
     { id: 'master', act: p => { master(p, 'CCIP'); settle(p); } },
-    { id: 'spi', act: p => track(p, col(p, 0), true) },
+    { id: 'point', act: p => track(p, col(p, 0), false) },
+    { id: 'spi', act: p => { p.hotas.tap('tmsF', true); settle(p); } },
     { id: 'slave', act: p => { p.hotas.tap('chF', true); settle(p); } },
     { id: 'mavsoi', act: p => { p.hotas.tap('coolieR'); if (p.hotas.soi !== 'mav') p.hotas.setSoi('mav'); settle(p); } },
     {
@@ -109,8 +112,10 @@ const SCRIPTS: Record<TgpLessonId, Stage[]> = {
     { id: 'kills', act: p => p.run(90, () => !ownFlying(p) && kills(p, 'agm65d') + kills(p, 'agm65h') >= 2) },
   ],
   lgb: [
-    { id: 'spi', act: p => track(p, col(p, 1), true) },
-    { id: 'gbu', act: p => { profile(p, 'gbu12'); master(p, 'CCRP'); settle(p); } },
+    { id: 'point', act: p => track(p, col(p, 1), false) },
+    { id: 'spi', act: p => { p.hotas.tap('tmsF', true); settle(p); } },
+    { id: 'gbu', act: p => { profile(p, 'gbu12'); settle(p); } },
+    { id: 'ccrp', act: p => { master(p, 'CCRP'); settle(p); } },
     { id: 'release', act: p => releaseWhenReady(p) },
     { id: 'lase', act: p => { p.hotas.setLaserHeld(true); p.run(2); } },
     { id: 'gbu-hit', act: p => p.run(90, () => kills(p, 'gbu12') > 0 && p.session.phase === 'apkws') },
@@ -118,6 +123,11 @@ const SCRIPTS: Record<TgpLessonId, Stage[]> = {
       id: 'apkws', act: p => {
         p.run(5, () => p.session.phase === 'apkws');
         profile(p, 'apkws');
+        master(p, 'CCIP'); settle(p);
+      },
+    },
+    {
+      id: 'truck', act: p => {
         track(p, unitPos(p, p.session.sc.trucks[0]!), false);
         p.hotas.setLaserHeld(true); settle(p);
       },
