@@ -1,15 +1,9 @@
-"""Original A-10C II and CAS exterior meshes, authored and rendered inside Blender.
-blender --background --threads 2 --python generate.py -- --out REVIEW [--only a10c]
-Recipe coordinates: metres, nose -Z, up +Y, right +X. The mesh builder converts to
-Blender +Y forward/+Z up, so Blender's standard glTF export returns the runtime axes.
-No imported meshes, textures, weapon internals or engineering models.
+"""Shared Blender mesh/export and Cycles studio helpers for original exterior art.
+Recipes live in their aircraft-family or store generators. No imported geometry or internals.
 """
-import argparse
 import hashlib
 import json
 import math
-import sys
-from pathlib import Path
 import bpy
 import bmesh
 from mathutils import Matrix, Quaternion, Vector
@@ -22,23 +16,23 @@ MATERIALS = [
     ('Store olive', (.24, .28, .17), .12, .58),
     ('Store band ochre', (.56, .43, .12), .1, .5),
 ]
+
 REFS = [
     {'url': 'https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg', 'use': 'Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets'},
     {'url': 'https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/', 'use': 'DCS variant identity and store family context'},
 ]
-NAMES = {'a10c': 'A-10C II Tank Killer', 'gbu12': 'GBU-12 Paveway II', 'agm65': 'AGM-65 Maverick family (D/H/L shared exterior)', 'apkws': 'LAU-131 seven-tube APKWS carriage pod', 'mk82': 'Mk 82 low-drag bomb', 'cbu97': 'CBU-97 closed canister', 'tgp': 'Litening targeting pod'}
-
 
 def add(a, b): return tuple(x+y for x, y in zip(a, b))
+
 def sub(a, b): return tuple(x-y for x, y in zip(a, b))
+
 def cross(a, b): return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+
 def unit(a):
     n = math.sqrt(sum(x*x for x in a)) or 1
     return tuple(x/n for x in a)
 
-
 def native(p): return (p[0], -p[2], p[1])
-
 
 def material(name, rgb, metal, rough):
     mat=bpy.data.materials.new(name);mat.diffuse_color=(*rgb,1);mat.use_nodes=True
@@ -46,7 +40,6 @@ def material(name, rgb, metal, rough):
     bsdf.inputs['Base Color'].default_value=(*rgb,1)
     bsdf.inputs['Metallic'].default_value=metal;bsdf.inputs['Roughness'].default_value=rough
     return mat
-
 
 class Art:
     def __init__(self,key):
@@ -172,137 +165,7 @@ class Art:
                 f.append((d,c,b,a))
         self.mesh(name,v,f,material,None,True)
 
-
-
-def aircraft():
-    a=Art('a10c')
-    a.loft('Fuselage', [(-7.96,.11,.19,-.20),(-7.72,.48,.52,-.11),(-7.1,.68,.70,0),(-6,.79,.80,.02),(-4.5,.85,.88,.05),(-2.7,.83,.86,.06),(-1,.76,.79,.02),(1.5,.66,.70,.04),(3.6,.55,.54,.33),(5.5,.40,.38,.48),(6.9,.25,.24,.58),(7.8,.07,.09,.3)],segments=56)
-    a.loft('Bubble canopy', [(-6.55,.10,.06,.57),(-6.20,.37,.31,.70),(-5.6,.51,.72,.76),(-4.7,.52,.76,.80),(-3.85,.43,.52,.87),(-3.3,.10,.04,.94)],1,segments=48)
-    # Windshield bow is an exterior frame, no cockpit internals.
-    canopy=next(ob for ob in a.objects if ob.name=='Bubble canopy')
-    bow=[]
-    for j in range(25):
-        x=-.34+j*.68/24
-        hit,point,normal,_=canopy.ray_cast(Vector((x,5.91,4)),Vector((0,0,-1)))
-        if hit:
-            point+=normal*.008
-            bow.append((point.x,point.z,-point.y))
-    a.seam('Windshield bow',bow,.018,0)
-    # Raised sill and rear fairing; a closed shaded canopy, no cockpit interior.
-    a.loft('Canopy rear fairing',[(-3.7,.40,.20,.92),(-3.0,.34,.17,.88),(-2.0,.17,.06,.80)],0)
-    for s in [-1,1]:
-        # Inner/outer wing panels stop at separate flap/deceleron hinge lines.
-        def wing(name,points): a.plate(name,[(s*x,y,z) for x,y,z in points],thickness=.18)
-        wing('Wing root '+str(s),[(.65,-.32,-1.75),(1.05,-.32,-1.73),(1.05,-.32,2.0),(.65,-.32,2.05)])
-        a.wing('Straight wing '+str(s),[(1.05,-1.73,1.1,-.32,.18),(2.1,-1.58,1.075,-.30,.17),(5.65,-1.1,1.0,-.23,.10)],s)
-        a.wing('Outer wing '+str(s),[(5.65,-1.1,.88,-.23,.10),(8.35,-.75,.88,-.22,.07)],s)
-        wing('Drooped wingtip '+str(s),[(8.35,-.22,-.75),(8.765,-.51,-.52),(8.765,-.51,1.53),(8.35,-.22,1.67)])
-        # Small transition aft of flap to split aileron.
-        wing('Flap outboard separator '+str(s),[(5.60,-.23,.87),(5.72,-.23,.87),(5.72,-.23,1.76),(5.60,-.23,1.76)])
-        name='flap.'+('port' if s<0 else 'starboard');a.pivot(name,(s*1.05,-.32,1.10))
-        a.plate('Trailing flap '+str(s),[(s*1.05,-.32,1.10),(s*5.60,-.23,1.00),(s*5.60,-.23,1.76),(s*1.05,-.32,2.00)],parent=name,thickness=.12)
-        for up in [True,False]:
-            name='deceleron.'+('port' if s<0 else 'starboard')+('.upper' if up else '.lower');y=-.19 if up else -.27
-            a.pivot(name,(s*5.72,y,.89))
-            a.plate(name,[(s*5.72,y,.89),(s*8.33,y,.89),(s*8.33,y,1.67),(s*5.72,y,1.76)],parent=name,thickness=.06)
-        # Landing-gear sponsons, correctly forward of the wing's leading edge.
-        a.loft('Main gear pod '+str(s),[(-3.15,.07,.09,-.43),(-2.75,.32,.36,-.55),(-2.15,.43,.48,-.62),(-.8,.44,.44,-.61),(.65,.35,.26,-.51),(1.5,.05,.04,-.36)],x=s*2.10)
-        # High aft engine mounts and circular nacelles; shallow dark intake/exhaust surfaces only.
-        a.plate('Engine support '+str(s),[(s*.3,.58,1.9),(s*1.75,.92,2.18),(s*1.75,.92,4.3),(s*.3,.58,4.48)],thickness=.30)
-        a.loft('TF34 nacelle '+str(s),[(1.28,.70,.70,1.25),(1.48,.80,.80,1.25),(2.2,.82,.82,1.25),(3.7,.79,.79,1.25),(4.75,.69,.69,1.25),(5.18,.56,.57,1.25)],x=s*1.65,segments=56,caps=False)
-        a.ring('Nacelle join '+str(s),s*1.65,1.25,2.19,.822,.816,3,.018)
-        a.ring('Intake lip '+str(s),s*1.65,1.25,1.27,.71,.60,0,.11)
-        a.cylinder('Intake recess '+str(s),(s*1.65,1.25,1.36),(s*1.65,1.25,1.42),.60,2,segments=48)
-        a.loft('Intake centre cap '+str(s),[(1.30,.04,.04,1.25),(1.40,.13,.13,1.25)],3,x=s*1.65)
-        a.ring('Exhaust rim '+str(s),s*1.65,1.25,5.13,.56,.47,3,.08)
-        a.cylinder('Exhaust recess '+str(s),(s*1.65,1.25,5.12),(s*1.65,1.25,5.14),.47,2)
-        wing('Horizontal stabiliser '+str(s),[(.12,.24,5.70),(3.14,.25,6.17),(3.14,.25,7.89),(.12,.24,7.89)])
-        a.fin('Twin vertical tail '+str(s),[(-.59,6.52),(.23,6.15),(1.86,6.25),(2.08,6.42),(2.08,7.71),(1.87,7.96),(-.38,8.13)],s*3.10,.17)
-        a.seam('Rudder join '+str(s),[(s*3.191,-.29,7.62),(s*3.191,1.90,7.48)],.011,3)
-        # 4 stations under each wing plus 3 on the fuselage = 11.
-        for j,x in enumerate([2.90,4.25,5.68,7.15]):
-            y=-.35+(x/8)*.10;z=-.12+(x/8)*.15
-            a.fin('Pylon '+str((4-j) if s<0 else (8+j)),[(y,z-.70),(y-.37,z-.49),(y-.44,z+.55),(y,z+.86)],s*x,.11)
-    for i,x in enumerate([-.64,0,.64]):
-        a.fin('Pylon '+str(5+i),[(-.63,-.95),(-1.02,-.56),(-1.04,.62),(-.61,.9)],x,.10)
-    # GAU-8 muzzle shroud and visible muzzle-face dots only (no barrel interiors).
-    a.loft('GAU-8 muzzle shroud',[(-8.125,.155,.155,-.40),(-7.55,.21,.21,-.40)],3,x=-.12)
-    a.cylinder('Muzzle face',(-.12,-.4,-8.128),(-.12,-.4,-8.126),.128,3)
-    for j in range(7):
-        t=j*2*math.pi/7;x=-.12+.082*math.cos(t);y=-.4+.082*math.sin(t)
-        a.cylinder('Muzzle marking '+str(j),(x,y,-8.130),(x,y,-8.129),.025,2,segments=12)
-    # External refuelling receptacle mark and two restrained dorsal aerials.
-    a.plate('Refuelling receptacle', [(-.22,.70,-6.74),(-.20,.83,-6.2),(.20,.83,-6.2),(.22,.70,-6.74)],3,.014)
-    a.fin('Dorsal aerial',[(.76,-1.55),(1.20,-1.4),(.83,-.97)],0,.05)
-    a.fin('Rear aerial',[(.70,2.0),(1.02,2.23),(.67,2.42)],0,.04)
-    # Leg meshes authored down, then baked into their retracted pose about each hinge.
-    for name,x,y,z,r in [('gear.nose',.23,-.55,-5.8,.30),('gear.port',-2.10,-.68,-.23,.43),('gear.starboard',2.10,-.68,-.23,.43)]:
-        a.pivot(name,(x,y,z));wheel_y=-1.95+r
-        a.cylinder(name+' strut',(x,y,z),(x,wheel_y,z),.066,3,name)
-        a.cylinder(name+' tyre',(x-.14,wheel_y,z),(x+.14,wheel_y,z),r,2,name,32)
-        a.cylinder(name+' hub',(x-.145,wheel_y,z),(x+.145,wheel_y,z),r*.47,3,name,24)
-        # Rotate +90 degrees around local X: down -> forward. Runtime reverses this as gear deploys.
-        a.retract_gear(name)
-    return a
-
-
-def radial_fins(a,name,outline,material=4):
-    for k in range(4):
-        angle=math.pi/4+k*math.pi/2;c=math.cos(angle);s=math.sin(angle)
-        v=[(r*c-d*s,r*s+d*c,z) for d in [-.012,.012] for z,r in outline];n=len(outline)
-        f=[tuple(range(n-1,-1,-1)),tuple(range(n,2*n))]+[(j,(j+1)%n,(j+1)%n+n,j+n) for j in range(n)]
-        # Surface winding corrected using centroid (convex fins).
-        center=tuple(sum(p[i] for p in v)/len(v) for i in range(3))
-        for i,face in enumerate(f):
-            normal=cross(sub(v[face[1]],v[face[0]]),sub(v[face[2]],v[face[0]]));fc=tuple(sum(v[j][i] for j in face)/len(face) for i in range(3))
-            if sum(x*y for x,y in zip(normal,sub(fc,center)))<0: f[i]=tuple(reversed(face))
-        a.mesh(name+' '+str(k),v,f,material)
-
-
-def store(key):
-    a=Art(key)
-    if key=='apkws':
-        a.loft('Pod shell',[(-.88,.23,.23,0),(-.80,.255,.255,0),(.80,.255,.255,0),(.88,.22,.22,0)],0)
-        # Seven shallow opening discs and rims. No tubes or rocket internals.
-        for i in range(7):
-            t=(i-1)*math.pi/3;x=.145*math.cos(t) if i else 0;y=.145*math.sin(t) if i else 0
-            a.cylinder('Tube opening '+str(i),(x,y,-.893),(x,y,-.891),.061,2)
-            a.ring('Tube rim '+str(i),x,y,-.900,.068,.061,3,.016)
-        a.box('Mount',(0,.264,.05),(.14,.10,.62),3)
-    elif key=='tgp':
-        a.loft('Litening body',[(-1.04,.18,.18,0),(-.85,.21,.21,0),(.76,.21,.21,0),(1.07,.16,.16,0)],0)
-        a.loft('External sensor head',[(-1.28,.07,.07,0),(-1.22,.16,.16,0),(-1.02,.20,.20,0)],0)
-        a.cylinder('Opaque sensor window',(0,0,-1.288),(0,0,-1.281),.074,1)
-        a.box('Optical side window',(.178,0,-1.095),(.025,.09,.09),1)
-        a.box('Upper mounting rail',(0,.23,.04),(.16,.10,.84),3)
-        a.box('Cooling fairing',(.19,.02,.35),(.18,.24,.50),0)
-    elif key=='agm65':
-        a.loft('Maverick shell',[(-1.24,.13,.13,0),(-1.06,.155,.155,0),(.90,.155,.155,0),(1.24,.13,.13,0)],0)
-        a.loft('Opaque nose window',[(-1.26,.085,.085,0),(-1.245,.13,.13,0)],1)
-        radial_fins(a,'Long cruciform wing',[(-.55,.15),(.50,.36),(.91,.36),(.91,.15)],0)
-        radial_fins(a,'Tail fin',[(.93,.14),(1.02,.26),(1.23,.26),(1.23,.13)],0)
-        a.cylinder('Aft dark cap',(0,0,1.239),(0,0,1.244),.105,2)
-    elif key=='mk82':
-        a.loft('Bomb body',[(-1.10,.02,.02,0),(-1.02,.09,.09,0),(-.83,.13,.13,0),(-.55,.145,.145,0),(.46,.145,.145,0),(.76,.074,.074,0),(1.10,.046,.046,0)],4)
-        radial_fins(a,'Tail fin',[(.58,.12),(.76,.25),(1.10,.25),(1.10,.045)])
-        a.loft('Yellow identification band',[(-.70,.140,.140,0),(-.65,.143,.143,0)],5)
-    elif key=='gbu12':
-        a.loft('Paveway body',[(-1.56,.04,.04,0),(-1.46,.07,.07,0),(-1.11,.084,.084,0),(-.90,.11,.11,0),(-.60,.145,.145,0),(.63,.145,.145,0),(.88,.095,.095,0),(1.56,.08,.08,0)],4)
-        a.loft('Nose window',[(-1.60,.035,.035,0),(-1.55,.045,.045,0)],1)
-        radial_fins(a,'Forward control fin',[(-1.25,.075),(-1.14,.21),(-.94,.21),(-.94,.085)],0)
-        radial_fins(a,'Deployed tail wing',[(.71,.14),(1.0,.60),(1.48,.60),(1.55,.08)],4)
-        a.loft('Identification band',[(-.61,.147,.147,0),(-.55,.147,.147,0)],5)
-    elif key=='cbu97':
-        a.loft('Closed canister',[(-1.17,.055,.055,0),(-1.09,.15,.15,0),(-.91,.20,.20,0),(-.70,.205,.205,0),(.71,.205,.205,0),(.93,.14,.14,0),(1.17,.10,.10,0)],4)
-        radial_fins(a,'Tail fin',[(.73,.20),(.88,.30),(1.17,.30),(1.17,.10)],4)
-        a.loft('Identification band',[(-.83,.204,.204,0),(-.76,.207,.207,0)],5)
-    if key not in ['apkws','tgp']:
-        for z in [-.3,.25]: a.box('Mount pad '+str(z),(0,.16,z),(.07,.08,.10),3)
-    return a
-
-
 def aim(obj, point): obj.rotation_euler=(Vector(point)-obj.location).to_track_quat('-Z','Y').to_euler()
-
 
 def studio(model, out, render=True):
     scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=24;scene.cycles.use_denoising=True
@@ -347,29 +210,12 @@ def studio(model, out, render=True):
     # Save a clean rig configuration with an immediately useful studio view.
     floor.hide_render=False;cam.location=center+Vector((1.3,1.8,1.2))*length;aim(cam,center);camera.ortho_scale=length*1.25
 
-
-def main():
-    p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--only',nargs='*');p.add_argument('--no-render',action='store_true')
-    args=p.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
-    selected=args.only or list(NAMES)
-    if not set(selected)<=NAMES.keys():p.error('Unknown asset ID')
-    for key in selected:
-        out=args.out.resolve()/key;out.mkdir(parents=True,exist_ok=True)
-        bpy.ops.wm.read_factory_settings(use_empty=True)
-        bpy.context.scene.unit_settings.system='METRIC';bpy.context.scene.unit_settings.scale_length=1
-        model=aircraft() if key=='a10c' else store(key)
-        bpy.context.view_layer.update()
-        stats=model.export(out/'model.glb')
-        caveats=['Original artist approximation for a game tutorial; no weapon internals or engineering data.','No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.','Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.']
-        if key=='a10c':caveats+=['App envelope: 16.26 m length and 17.53 m span. Closed canopy and eleven empty pylons.','Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation.']
-        elif key=='agm65':caveats+=['D/H/L share one simplified external shell; variant-specific optical windows not represented.']
-        elif key=='apkws':caveats+=['LAU-131 seven-opening carriage pod only; flying APKWS projectiles retain procedural geometry.']
-        elif key=='gbu12':caveats+=['Tail fins shown extended; no deployment animation.']
-        meta={'id':key,'name':NAMES[key],'category':'aircraft' if key=='a10c' else 'store','references':REFS,'caveats':caveats,'authorship':'Original Fox3 scripted exterior art; repository MIT licence.','authoring_tool':'Blender Python (bpy/bmesh); Blender glTF exporter','blender_version':bpy.app.version_string,'openvsp_used':False,'source_axes':'Blender +Y forward, +Z up, +X right','export_axes':'metres: -Z forward, +Y up, +X right','part_names':model.labels,'generator':'scripts/assets/source/a10c/generate.py',**stats}
-        (out/'manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
-        studio(model,out,not args.no_render)
-        bpy.ops.wm.save_as_mainfile(filepath=str(out/'model.blend'))
-        print('BLENDER_AUTHORED',key,stats,flush=True)
-
-
-if __name__=='__main__':main()
+def write_manifest(model, out, name, category, generator, stats):
+    key=model.key
+    caveats=['Original artist approximation for a game tutorial; no weapon internals or engineering data.','No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.','Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.']
+    if key=='a10c':caveats+=['App envelope: 16.26 m length and 17.53 m span. Closed canopy and eleven empty pylons.','Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation.']
+    elif key=='agm65':caveats+=['D/H/L share one simplified external shell; variant-specific optical windows not represented.']
+    elif key=='apkws':caveats+=['LAU-131 seven-opening carriage pod only; flying APKWS projectiles retain procedural geometry.']
+    elif key=='gbu12':caveats+=['Tail fins shown extended; no deployment animation.']
+    meta={'id':key,'name':name,'category':category,'references':REFS,'caveats':caveats,'authorship':'Original Fox3 scripted exterior art; repository MIT licence.','authoring_tool':'Blender Python (bpy/bmesh); Blender glTF exporter','blender_version':bpy.app.version_string,'openvsp_used':False,'source_axes':'Blender +Y forward, +Z up, +X right','export_axes':'metres: -Z forward, +Y up, +X right','part_names':model.labels,'generator':generator,**stats}
+    (out/'manifest.json').write_text(json.dumps(meta,indent=2)+'\n')

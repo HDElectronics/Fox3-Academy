@@ -16,7 +16,8 @@ Maverick D/H/L share one exterior file. See [A-10/CAS exterior art](a10c.md). Th
 
 Editable, original source is in [`scripts/assets/source`](../../scripts/assets/source). The seven Blender
 Python generators create editable `.blend` scenes, review GLBs and Cycles images. The A-10/CAS generator
-replaces the initial sandbox-constrained direct GLB prototype; see [its workflow](a10c.md). OpenVSP is
+lives under `source/aircraft/a10c/`; its stores live in `source/stores/generate_stores.py`.
+They share `source/blender_exterior.py` helpers; see [their workflow](a10c.md). OpenVSP is
 optional and was not used for these models. Blender 5.2.2 generated the integration exports. Rebuild:
 
 ```sh
@@ -35,6 +36,8 @@ F-14 wing pivots and all nine A-10 configuration pivots. Assets contain only geo
 ground assets have their base at Y=0. The runtime fits aircraft/missile lengths and ground footprints to the
 existing display contracts. The manifest records review-source and optimized-output SHA-256 hashes;
 its `source_caveats` retain the original review notes, including checks since completed during integration.
+All production entries use the same nine fields: `id`, `category`, `name`, `source_sha256`, `sha256`,
+`bytes`, `references`, `source_caveats`, and `authorship`. Detailed authoring metadata stays with review sources.
 
 ## Runtime and limits
 
@@ -55,6 +58,6 @@ Automated checks parse all 58 exports, check coverage, finite positions, embedde
 ground origin, and budgets of 18 meshes / 60000 triangles per asset. Loader tests cover concurrent users,
 late loads, failure, tint isolation and cleanup. Real F-14 geometry is tested in spread and swept states; the A-10 rig is checked through deployment and retraction.
 The original 51-model integration had desktop and 390 CSS-pixel browser checks. The A-10/CAS batch has Cycles source/export reviews and a desktop browser gallery check;
-see its [rebuild report](a10c-blender-rebuild.md) for measurements and verification. These checks do not
+see [A-10/CAS exterior art](a10c.md) for measurements and verification. These checks do not
 establish physical-phone or low-end-GPU frame rates; device QA remains tracked in
 [#6](https://github.com/HDElectronics/Fox3-Academy/issues/6).

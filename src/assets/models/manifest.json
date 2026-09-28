@@ -1139,15 +1139,7 @@
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
       "Tail fins shown extended; no deployment animation."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 3792,
-    "meshes": 5
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "agm65",
@@ -1172,15 +1164,7 @@
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
       "D/H/L share one simplified external shell; variant-specific optical windows not represented."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 1580,
-    "meshes": 4
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "apkws",
@@ -1205,15 +1189,7 @@
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
       "LAU-131 seven-opening carriage pod only; flying APKWS projectiles retain procedural geometry."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 3756,
-    "meshes": 3
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "mk82",
@@ -1237,15 +1213,7 @@
       "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 2884,
-    "meshes": 3
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "cbu97",
@@ -1269,15 +1237,7 @@
       "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 2884,
-    "meshes": 3
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "tgp",
@@ -1301,15 +1261,7 @@
       "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
       "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 968,
-    "meshes": 3
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "a10c",
@@ -1335,14 +1287,6 @@
       "App envelope: 16.26 m length and 17.53 m span. Closed canopy and eleven empty pylons.",
       "Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation."
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
-    "authoring_tool": "Blender Python (bpy/bmesh); Blender glTF exporter",
-    "blender_version": "5.2.2 LTS",
-    "openvsp_used": false,
-    "source_axes": "Blender +Y forward, +Z up, +X right",
-    "export_axes": "metres: -Z forward, +Y up, +X right",
-    "generator": "scripts/assets/source/a10c/generate.py",
-    "triangles": 18201,
-    "meshes": 16
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   }
 ]

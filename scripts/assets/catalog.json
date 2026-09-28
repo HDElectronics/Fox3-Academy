@@ -55,6 +55,11 @@
     "category": "aircraft"
   },
   {
+    "id": "a10c",
+    "name": "A-10C II Tank Killer",
+    "category": "aircraft"
+  },
+  {
     "id": "r27r",
     "name": "R-27R",
     "category": "missile"
@@ -205,6 +210,36 @@
     "category": "store"
   },
   {
+    "id": "gbu12",
+    "name": "GBU-12 Paveway II",
+    "category": "store"
+  },
+  {
+    "id": "agm65",
+    "name": "AGM-65 Maverick family (D/H/L shared exterior)",
+    "category": "store"
+  },
+  {
+    "id": "apkws",
+    "name": "LAU-131 seven-tube APKWS carriage pod",
+    "category": "store"
+  },
+  {
+    "id": "mk82",
+    "name": "Mk 82 low-drag bomb",
+    "category": "store"
+  },
+  {
+    "id": "cbu97",
+    "name": "CBU-97 closed canister",
+    "category": "store"
+  },
+  {
+    "id": "tgp",
+    "name": "Litening targeting pod",
+    "category": "store"
+  },
+  {
     "id": "tank",
     "name": "Generic main battle tank",
     "category": "ground"
@@ -253,40 +288,5 @@
     "id": "sa15",
     "name": "SA-15 / Tor-family vehicle",
     "category": "ground"
-  },
-  {
-    "id": "a10c",
-    "name": "A-10C II Tank Killer",
-    "category": "aircraft"
-  },
-  {
-    "id": "gbu12",
-    "name": "GBU-12 Paveway II",
-    "category": "store"
-  },
-  {
-    "id": "agm65",
-    "name": "AGM-65 Maverick family (D/H/L shared exterior)",
-    "category": "store"
-  },
-  {
-    "id": "apkws",
-    "name": "LAU-131 seven-tube APKWS carriage pod",
-    "category": "store"
-  },
-  {
-    "id": "mk82",
-    "name": "Mk 82 low-drag bomb",
-    "category": "store"
-  },
-  {
-    "id": "cbu97",
-    "name": "CBU-97 closed canister",
-    "category": "store"
-  },
-  {
-    "id": "tgp",
-    "name": "Litening targeting pod",
-    "category": "store"
   }
 ]
