@@ -41,8 +41,8 @@ Nothing open. Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (
 ## P4 — Ideas
 
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
-- A-10C II as the next CAS jet ([#62](https://github.com/HDElectronics/Fox3-Academy/issues/62)): laser spot search, the
-  digital 9-line on the TAD, coordinates and markpoints (research in [cas-jets.md](docs/research/cas-jets.md)).
+- A-10C II follow-ups: CDU coordinate entry from line 6 and markpoints, the Maverick page, CCIP consent (hold
+  through the solution cue), and in-game checks of the trainer values in [a10c.md](docs/research/a10c.md).
 
 ## Community contributions — deferred from active implementation
 

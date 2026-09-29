@@ -540,12 +540,40 @@ export const AIRCRAFT: JetTable = {
       'Subsonic and slow to climb: terrain and the SPO-15 are your defence',
     ],
   },
+  a10c: {
+    id: 'a10c', role: 'attack', name: 'A-10C II Tank Killer', short: 'A-10C II', nation: 'us', module: 'full', developer: 'Eagle Dynamics',
+    cockpit: 'us', units: 'imperial', rwr: 'alr69',
+    radar: null,
+    weapons: ['GAU-8 30 mm gun', 'GBU-12 (laser)', 'AGM-65D / H Maverick', 'AGM-65L (laser Maverick)', 'APKWS laser rockets', 'Mk-82 bombs', 'CBU-97 cluster bombs', 'Litening targeting pod', 'AIM-9M pair'],
+    // 240 chaff / 120 flares: CMSC defaults, A-10C II manual p. 498.
+    cms: { chaff: 240, flares: 120 },
+    // Manual p. 103: stall 120 kt, cruise 300 kt, Vne 450 kt at sea level, +7.3 g, ceiling 45000 ft.
+    // Knots converted to Mach at sea level (661 kt): 450 kt = M0.68, 300 kt = M0.45. Corner speed is a trainer value.
+    perf: { maxMach: 0.68, cruiseMach: 0.45, maxG: 7.3, cornerKts: 300, ceilingFt: 45000 },
+    rcsM2: 10,
+    blurb:
+      'The close air support jet: slow, tough, and built around the targeting pod and the gun. You work with the ' +
+      'JTAC: take the 9-line, find his laser spot with LSS, make the target your SPI, and drop a GBU-12 or fire a ' +
+      'Maverick or APKWS on it. The HOTAS runs everything through the sensor of interest (SOI).',
+    strengths: [
+      'Litening pod: find, track and lase targets from well outside gun range',
+      'LSS finds the JTAC\'s laser spot; GBU-12, AGM-65L and APKWS home on any spot with their code',
+      'GAU-8 gun with CCIP gunsights for strafing armour at 0.5–2 nm',
+      'Datalink (SADL) tasking: the 9-line and the target triangle appear on the TAD',
+    ],
+    limits: [
+      'No air-to-air radar: the AIM-9M pair is for self-defence only',
+      'Slow: 300 kt cruise, 450 kt limit. You cannot outrun a SAM; terrain and the ALR-69 are your defence',
+      'Every sensor action depends on the SOI: the wrong SOI means the switch does nothing',
+      'Laser weapons need a spot with their code on the target, from you or the JTAC: the whole flight for AGM-65L and APKWS, the last seconds for a GBU-12',
+    ],
+  },
 };
 
 /** Fighters in picker order. BVR pages, tests and tables iterate this. */
 export const FIGHTER_ORDER: FighterId[] = ['su27', 'su33', 'j11a', 'mig29s', 'f15c', 'fa18c', 'f16c', 'f14b', 'jf17', 'm2000c'];
 /** Attack jets in picker order (air-to-ground routes only). */
-export const ATTACK_ORDER: AttackId[] = ['su25t'];
+export const ATTACK_ORDER: AttackId[] = ['su25t', 'a10c'];
 /** Every jet: fighters first, then attack jets. The picker and the 3D models use this. */
 export const AIRCRAFT_ORDER: AircraftId[] = [...FIGHTER_ORDER, ...ATTACK_ORDER];
 
@@ -640,5 +668,12 @@ export const AIRCRAFT_CAVEATS: Record<AircraftId, string[]> = {
     'The manual documents about 1 minute of continuous laser operation with cooling (p. 57) and 20 minutes total per flight (p. 32). These are separate limits; current-game behavior is not verified.',
     'Gun conflict: the manual names a 30 mm twin-barrel cannon with 200 rounds; GSh-30 with 150 rounds is also reported. Not verified.',
     'The manual gives no launch ranges for guided air-to-ground weapons; any range shown later is a community value, not verified.',
+  ],
+  a10c: [
+    'Stall, cruise and maximum speed, the +7.3 g limit and the 45000 ft ceiling are from the A-10C II manual (p. 103); converting knots to Mach at sea level and the 300 kt corner speed are trainer values.',
+    'Radar cross-section is a trainer value, not verified.',
+    'Weapon release on RAlt + Space and the gun on Space come from the A-10C default key list; they are not verified for the A-10C II.',
+    'Default Mission Editor CAS loadouts were not verified; the trainer loadouts follow ED training missions where they can.',
+    '"Typical CAS at 250–300 KIAS" is common advice, not an ED figure.',
   ],
 };

@@ -123,7 +123,7 @@ true | { altitudeM = 2400, coverage = 0.32 }`, `sunAzimuthDeg = 140`, `sunElevat
 
 See [asset library](../assets/README.md) for provenance, source, budgets and configuration limits.
 `AssetId` covers current aircraft, missiles, non-gun A-G stores, ground units, SAM sites and SAM missiles,
-plus the loadout-only R-60. `assetUrl(id)` resolves a bundled URL; no external service is required.
+plus the loadout-only R-60 and Litening pod (`tgp`). Maverick `agm65d/h/l` resolve to the single `agm65` file through `assetFileId`. `assetUrl(id)` resolves a bundled URL; no external service is required.
 
 `new AssetVisual(id, { onReady? })` extends `Group`. `ready`, `content` and intrinsic metre `bounds`
 become available after loading. Each consumer owns its fallback and fitting transform. `setTint(Color | null)`
@@ -133,14 +133,18 @@ late completion after disposal cannot attach a model or call `onReady`. Request 
 so paused scenes refresh. Register standalone consumers for cleanup or dispose them explicitly.
 
 `JetMesh(id, side, palette, { onReady? })` retains its existing API and adds `usingAsset` and `dispose()`.
-Clean states use the exterior; gear/flaps/brakes use the complete procedural airframe. F-14 exterior wing
+Clean states use the exterior; unrigged models use the complete procedural airframe for gear/flaps/brakes.
+The A-10 exterior binds nine named pivots in `a10Rig.ts` to `setConfig`, including both halves of each
+split deceleron. A missing pivot retains the procedural configuration fallback. Ground clearance is 1.95 m
+for this artist model, not a measured aircraft fact. F-14 exterior wing
 pivots follow `setSweep`. WorldView/ReplayView, hangar and flight-ops consumers own disposal.
 
 `MissileVisual(fallbackId, assetId, palette, lengthM, onReady?)` fits the asset to display length and keeps
 `createMissileMesh` as fallback. `MissileLike.display.visualAssetId?: AssetId` selects the separate SAM
 exterior while the existing fallback MissileId and gameplay contracts stay intact. Ground/SAM layers fit
 footprints to their prior sizes, retain terrain alignment, and dispose on reset/removal. A-G visuals face −Z
-along velocity; gun rounds remain procedural tracers.
+along velocity; gun rounds remain procedural tracers. `apkws.glb` is the seven-tube LAU-131 carriage pod,
+so `AgStoreVisual` deliberately keeps procedural geometry for flying APKWS rockets.
 
 ## WorldView (`worldView.ts`)
 

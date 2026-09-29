@@ -4,6 +4,9 @@ blender --background --threads 2 --python generate_stores.py -- --out /path --on
 import bpy,bmesh,math,json,sys,argparse
 from pathlib import Path
 from mathutils import Vector
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from blender_exterior import Art, cross, sub, studio as exterior_studio, write_manifest
 P=argparse.ArgumentParser();P.add_argument('--out',type=Path,default=Path(__file__).parent);P.add_argument('--only',nargs='*');P.add_argument('--no-render',action='store_true');A=P.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 REF='https://www.digitalcombatsimulator.com/upload/iblock/f6d/DCS_FC3_Flight_Manual_EN.pdf'
 # Art normalization only; these values are neither engineering dimensions nor performance data.
@@ -132,8 +135,72 @@ def studio(out):
  floor.hide_render=False
  cam.location=Vector(views['front'][0])*L;aim(cam,(0,0,0));d.ortho_scale=views['front'][1]
 
-for k,spec in SPECS.items():
+# Preserved CAS exterior recipes; share the normal per-store output/export path.
+CAS_SPECS={'gbu12': 'GBU-12 Paveway II', 'agm65': 'AGM-65 Maverick family (D/H/L shared exterior)', 'apkws': 'LAU-131 seven-tube APKWS carriage pod', 'mk82': 'Mk 82 low-drag bomb', 'cbu97': 'CBU-97 closed canister', 'tgp': 'Litening targeting pod'}
+
+def radial_fins(a,name,outline,material=4):
+    for k in range(4):
+        angle=math.pi/4+k*math.pi/2;c=math.cos(angle);s=math.sin(angle)
+        v=[(r*c-d*s,r*s+d*c,z) for d in [-.012,.012] for z,r in outline];n=len(outline)
+        f=[tuple(range(n-1,-1,-1)),tuple(range(n,2*n))]+[(j,(j+1)%n,(j+1)%n+n,j+n) for j in range(n)]
+        # Surface winding corrected using centroid (convex fins).
+        center=tuple(sum(p[i] for p in v)/len(v) for i in range(3))
+        for i,face in enumerate(f):
+            normal=cross(sub(v[face[1]],v[face[0]]),sub(v[face[2]],v[face[0]]));fc=tuple(sum(v[j][i] for j in face)/len(face) for i in range(3))
+            if sum(x*y for x,y in zip(normal,sub(fc,center)))<0: f[i]=tuple(reversed(face))
+        a.mesh(name+' '+str(k),v,f,material)
+
+def build_cas(key):
+    a=Art(key)
+    if key=='apkws':
+        a.loft('Pod shell',[(-.88,.23,.23,0),(-.80,.255,.255,0),(.80,.255,.255,0),(.88,.22,.22,0)],0)
+        # Seven shallow opening discs and rims. No tubes or rocket internals.
+        for i in range(7):
+            t=(i-1)*math.pi/3;x=.145*math.cos(t) if i else 0;y=.145*math.sin(t) if i else 0
+            a.cylinder('Tube opening '+str(i),(x,y,-.893),(x,y,-.891),.061,2)
+            a.ring('Tube rim '+str(i),x,y,-.900,.068,.061,3,.016)
+        a.box('Mount',(0,.264,.05),(.14,.10,.62),3)
+    elif key=='tgp':
+        a.loft('Litening body',[(-1.04,.18,.18,0),(-.85,.21,.21,0),(.76,.21,.21,0),(1.07,.16,.16,0)],0)
+        a.loft('External sensor head',[(-1.28,.07,.07,0),(-1.22,.16,.16,0),(-1.02,.20,.20,0)],0)
+        a.cylinder('Opaque sensor window',(0,0,-1.288),(0,0,-1.281),.074,1)
+        a.box('Optical side window',(.178,0,-1.095),(.025,.09,.09),1)
+        a.box('Upper mounting rail',(0,.23,.04),(.16,.10,.84),3)
+        a.box('Cooling fairing',(.19,.02,.35),(.18,.24,.50),0)
+    elif key=='agm65':
+        a.loft('Maverick shell',[(-1.24,.13,.13,0),(-1.06,.155,.155,0),(.90,.155,.155,0),(1.24,.13,.13,0)],0)
+        a.loft('Opaque nose window',[(-1.26,.085,.085,0),(-1.245,.13,.13,0)],1)
+        radial_fins(a,'Long cruciform wing',[(-.55,.15),(.50,.36),(.91,.36),(.91,.15)],0)
+        radial_fins(a,'Tail fin',[(.93,.14),(1.02,.26),(1.23,.26),(1.23,.13)],0)
+        a.cylinder('Aft dark cap',(0,0,1.239),(0,0,1.244),.105,2)
+    elif key=='mk82':
+        a.loft('Bomb body',[(-1.10,.02,.02,0),(-1.02,.09,.09,0),(-.83,.13,.13,0),(-.55,.145,.145,0),(.46,.145,.145,0),(.76,.074,.074,0),(1.10,.046,.046,0)],4)
+        radial_fins(a,'Tail fin',[(.58,.12),(.76,.25),(1.10,.25),(1.10,.045)])
+        a.loft('Yellow identification band',[(-.70,.140,.140,0),(-.65,.143,.143,0)],5)
+    elif key=='gbu12':
+        a.loft('Paveway body',[(-1.56,.04,.04,0),(-1.46,.07,.07,0),(-1.11,.084,.084,0),(-.90,.11,.11,0),(-.60,.145,.145,0),(.63,.145,.145,0),(.88,.095,.095,0),(1.56,.08,.08,0)],4)
+        a.loft('Nose window',[(-1.60,.035,.035,0),(-1.55,.045,.045,0)],1)
+        radial_fins(a,'Forward control fin',[(-1.25,.075),(-1.14,.21),(-.94,.21),(-.94,.085)],0)
+        radial_fins(a,'Deployed tail wing',[(.71,.14),(1.0,.60),(1.48,.60),(1.55,.08)],4)
+        a.loft('Identification band',[(-.61,.147,.147,0),(-.55,.147,.147,0)],5)
+    elif key=='cbu97':
+        a.loft('Closed canister',[(-1.17,.055,.055,0),(-1.09,.15,.15,0),(-.91,.20,.20,0),(-.70,.205,.205,0),(.71,.205,.205,0),(.93,.14,.14,0),(1.17,.10,.10,0)],4)
+        radial_fins(a,'Tail fin',[(.73,.20),(.88,.30),(1.17,.30),(1.17,.10)],4)
+        a.loft('Identification band',[(-.83,.204,.204,0),(-.76,.207,.207,0)],5)
+    if key not in ['apkws','tgp']:
+        for z in [-.3,.25]: a.box('Mount pad '+str(z),(0,.16,z),(.07,.08,.10),3)
+    return a
+
+for k,spec in {**SPECS,**CAS_SPECS}.items():
  if A.only and k not in A.only:continue
+ if k in CAS_SPECS:
+  out=A.out.resolve()/k;out.mkdir(parents=True,exist_ok=True);bpy.ops.wm.read_factory_settings(use_empty=True)
+  bpy.context.scene.unit_settings.system='METRIC';bpy.context.scene.unit_settings.scale_length=1
+  model=build_cas(k);bpy.context.view_layer.update();stats=model.export(out/'model.glb')
+  write_manifest(model,out,spec,'store','../generate_stores.py',stats)
+  exterior_studio(model,out,not A.no_render);bpy.ops.wm.save_as_mainfile(filepath=str(out/'model.blend'))
+  print('COMPLETED',k,flush=True)
+  continue
  name,L,R,page,figure,note=spec;out=A.out/k;out.mkdir(parents=True,exist_ok=True);bpy.ops.wm.read_factory_settings(use_empty=True);scene=bpy.context.scene;scene.world=bpy.data.worlds.new('World');scene.unit_settings.system='METRIC';scene.unit_settings.scale_length=1
  coll=bpy.data.collections.new(name+' exterior');scene.collection.children.link(coll);parts=[]
  paint=material('Exterior light grey' if k not in ['fab250','kab500kr','sa10-missile','sa11-missile','sa15-missile'] else 'Exterior sage',(.60,.63,.63) if k not in ['fab250','kab500kr','sa10-missile','sa11-missile','sa15-missile'] else (.26,.32,.28),.18,.47)

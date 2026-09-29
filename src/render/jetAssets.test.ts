@@ -1,3 +1,4 @@
+import { A10_HINGES } from './a10Rig';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Box3, BoxGeometry, Color, Group, Material, Mesh, MeshBasicMaterial, Object3D, PropertyBinding, Vector3 } from 'three';
 import { JetMesh, jetMaterials } from './jets';
@@ -115,6 +116,33 @@ describe('aircraft asset adoption', () => {
 
   it('keeps the F-14 procedural fallback if a loaded model is missing wing pivots', async () => {
     const j = jet('f14b'); await exterior(j).finish();
+    expect(j.usingAsset).toBe(false); expect(j.body.visible).toBe(true);
+  });
+});
+
+
+describe('A-10 animated exterior adoption', () => {
+  it('applies a pre-load configuration and keeps the exterior visible through repeated deployment', async () => {
+    const j = jet('a10c'), a = exterior(j), content = new Group();
+    for (const { name } of A10_HINGES) {
+      const pivot = new Group(); pivot.name = PropertyBinding.sanitizeNodeName(name); content.add(pivot);
+    }
+    j.setConfig({ gear: 1, flaps: .5, speedbrake: 1 });
+    await a.finish(content);
+    expect(j.usingAsset).toBe(true); expect(j.body.visible).toBe(false);
+    for (const { name, drive, radians } of A10_HINGES) {
+      expect(content.getObjectByName(PropertyBinding.sanitizeNodeName(name))!.rotation.x).toBeCloseTo(j.config[drive] * radians);
+    }
+    expect(j.children.filter(n => n.name.startsWith('part:')).every(n => !n.visible)).toBe(true);
+    j.setConfig({ gear: 0, flaps: 0, speedbrake: 0 });
+    expect(j.usingAsset).toBe(true);
+    for (const node of content.children) expect(node.rotation.x).toBeCloseTo(0);
+  });
+
+  it('retains working procedural configuration when the A-10 rig is incomplete', async () => {
+    const j = jet('a10c'); await exterior(j).finish();
+    expect(j.usingAsset).toBe(true);
+    j.setConfig({ speedbrake: 1 });
     expect(j.usingAsset).toBe(false); expect(j.body.visible).toBe(true);
   });
 });

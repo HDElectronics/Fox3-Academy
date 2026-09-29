@@ -267,6 +267,8 @@ export interface GroundMark {
   pos: Vector3;
   /** Laser code (laser only, e.g. 1688); null otherwise. */
   code: number | null;
+  /** The mark stays on this ground unit as it moves; null = fixed point. */
+  followUnitId: EntityId | null;
   t0: number;
   /** Sim time the mark ends by itself; null = until endMark(). */
   until: number | null;
@@ -286,6 +288,8 @@ export interface MarkSpawnOptions {
   durationS?: number | null;
   /** Laser code (laser only). */
   code?: number;
+  /** Keep the mark on this ground unit as it moves (a JTAC lasing a vehicle). */
+  followUnitId?: EntityId | null;
 }
 
 /** Su-25T master mode: [1] navigation, [7] air-to-ground, [8] fixed reticle. */
@@ -322,6 +326,43 @@ export interface ShkvalState {
   laserCoolS: number;
 }
 
+/**
+ * A-10C II Litening targeting pod (sim/tgp.ts, docs/research/a10c.md §3). Game level: where it looks, what it tracks,
+ * the laser and the laser spot search, never sensor internals.
+ */
+export interface TgpState {
+  on: boolean;
+  /** Ground point on the line of sight (world m). */
+  aim: Vector3;
+  /** Held slew input, −1..1 per axis (TDC keys); x right, y away from the jet along the line of sight. */
+  slew: { x: number; y: number };
+  /** Track mode: none (slewable, rate stabilised), AREA (ground point), POINT (a unit), INR (inertial, memory). */
+  track: 'none' | 'area' | 'point' | 'inr';
+  trackedUnitId: EntityId | null;
+  fov: 'wide' | 'narrow';
+  /** Zoom level 0..9 inside the field of view (0Z–9Z, DMS Forward / Aft; ED manual pp. 384–395). */
+  zoom: number;
+  /** Own laser code (CNTL page, OSB 18) and whether the laser fires; the spot is a laser mark owned by the jet. */
+  laserCode: number;
+  laserFiring: boolean;
+  laserMarkId: EntityId | null;
+  /** Laser spot search code (CNTL page, OSB 17) and state: LSRCH, DETECT, LTRACK (LST), or NO LSR once the spot is gone. */
+  lssCode: number;
+  lss: 'off' | 'search' | 'detect' | 'track' | 'lost';
+  lssMarkId: EntityId | null;
+  lssSince: number;
+}
+
+/** A-10C II AGM-65D/H seeker (sim/maverick.ts): slaved to the SPI, slewed, locked with TMS Forward Short. */
+export interface MavState {
+  /** Ground point the seeker looks at; null = caged at boresight. */
+  aim: Vector3 | null;
+  slew: { x: number; y: number };
+  lockedUnitId: EntityId | null;
+  /** Last break-lock (crosshairs spread to the edges). */
+  lastBreak: null | { t: number; unitId: EntityId; why: 'target-dead' | 'masked' | 'gimbal' };
+}
+
 /** Unguided release quantity per trigger press (S1: ПО 1 / ПО 2 / ПО 4 / ВСЕ, cycled with [LCtrl-Space]). */
 export type AgSalvo = 1 | 2 | 4 | 'all';
 
@@ -330,7 +371,7 @@ export interface AttackState {
   /** Rounds left per A-G store (the cannon counts rounds). */
   stores: Partial<Record<AgWeaponId, number>>;
   /** Pylons as loaded; counts go down as stores are fired. */
-  stations: { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73'; count: number }[];
+  stations: { station: number; weapon: AgWeaponId | 'l081' | 'r60' | 'r73' | 'tgp' | 'aim9m'; count: number }[];
   selected: AgWeaponId | null;
   /** Station the next round of the selected store comes from (alternates left / right). */
   station: number | null;
@@ -347,6 +388,14 @@ export interface AttackState {
   /** One automatic release per pass; reset when the solution is more than 0.5 s ahead again. */
   ccrpReleased: boolean;
   shkval: ShkvalState;
+  /** A-10C II targeting pod; null on the Su-25T. */
+  tgp: TgpState | null;
+  /** A-10C II Maverick seeker (AGM-65D/H loaded); null otherwise. */
+  mav: MavState | null;
+  /** SPI (A-10C II): the point every sensor and weapon is slaved to; set from the TGP with TMS Forward Long. */
+  spi: Vector3 | null;
+  /** Laser code each 'laser-spot' store is set to (DSMS INV page), default from AgWeaponSpec.defaultLaserCode. */
+  laserCodes: Partial<Record<AgWeaponId, number>>;
 }
 
 /** Why an A-G weapon missed. */
@@ -370,6 +419,9 @@ export interface AgWeapon {
   alive: boolean;
   /** Still guided; false once a hold-to-impact rule broke (then it falls ballistic and misses). */
   guided: boolean;
+  /** 'laser-spot' stores: the code it homes on, and the laser spot (mark) it follows now. */
+  laserCode: number | null;
+  spotId: EntityId | null;
   /** Why guidance stopped, once it has. */
   lostWhy: AgMissReason | null;
   timeToImpact: number | null;

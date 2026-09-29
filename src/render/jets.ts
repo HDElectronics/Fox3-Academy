@@ -14,6 +14,7 @@ import { MISSILES } from '../data/missiles';
 import { ModelBuilder, S, Slot, SLOT_COUNT, type SlotId } from './modelBuilder';
 import { sideColor, type Palette, type VisualSide } from './palette';
 import { AssetVisual } from './assets';
+import { bindA10Rig } from './a10Rig';
 
 export interface JetModel {
   id: AircraftId;
@@ -68,6 +69,7 @@ export const JET_DIMENSIONS: Record<AircraftId, { length: number; span: number }
   jf17: { length: 14.9, span: 9.45 },
   m2000c: { length: 14.4, span: 9.13 },
   su25t: { length: 15.3, span: 14.4 },
+  a10c: { length: 16.26, span: 17.53 },
 };
 
 /** Nominal length used for the screen-size floor so relative sizes survive the Tacview scale boost. */
@@ -308,6 +310,29 @@ function su25t(): BufferGeometry {
   return b.build(15.3);
 }
 
+/**
+ * Synchronous A-10C II fallback while its exterior loads, or if loading fails.
+ * Simple silhouette only; the normal loaded model and its moving pivots live in a10c.glb.
+ */
+function a10c(): BufferGeometry {
+  const b = new ModelBuilder();
+  // Blunt nose, cockpit forward, straight fuselage tapering to the tail.
+  b.loft([
+    S(0, 0, 0, 0, 0), S(0.5, 0.4, 0.4, 0.4, 0), S(2.0, 0.7, 0.75, 0.7, 0.05), S(5.0, 0.75, 0.8, 0.75, 0.05),
+    S(10.0, 0.6, 0.65, 0.6, 0.1), S(13.5, 0.35, 0.4, 0.35, 0.2), S(15.2, 0.15, 0.2, 0.15, 0.3),
+  ], { seg: 12 });
+  // Two engine pods high on the rear fuselage.
+  b.loft([S(9.0, 0.5, 0.5, 0.5, 1.05), S(10.0, 0.6, 0.6, 0.6, 1.05), S(12.2, 0.55, 0.55, 0.55, 1.05), S(12.8, 0.4, 0.4, 0.4, 1.05)], { x: 1.35, mirror: true, frontCap: Slot.dark, seg: 10 });
+  // Straight, low-mounted wing.
+  b.plate([[0.6, 6.3], [8.76, 7.0], [8.76, 8.9], [0.6, 9.4]], { t: 0.3, y: -0.3 });
+  // Tailplane and the twin fins at its tips.
+  b.plate([[0.2, 14.4], [2.9, 14.6], [2.9, 16.0], [0.2, 16.0]], { t: 0.14, y: 0.35 });
+  b.fin([[14.1, -0.9], [14.8, 2.0], [15.8, 2.0], [16.26, -0.9]], { x: 2.9, y: 0.35, t: 0.16 });
+  b.canopy(2.2, 4.4, 0.5, 0.55, 0.7);
+  navLights(b, 8.7, 8.0, -0.3);
+  return b.build(16.26);
+}
+
 // ------------------------------------------------------------------------------------------ config parts
 
 /*
@@ -441,6 +466,22 @@ const PART_SPECS: Partial<Record<AircraftId, PartsSpec>> = {
       maxDeg: 60,
     },
   },
+  // A-10 procedural fallback: visual hinge positions follow the authored exterior.
+  a10c: {
+    L: 16.26, groundY: -1.95,
+    nose: { x: 0, y: -0.55, z: 2.33, wheelR: 0.3 },
+    // Mains retract forward into pods under the wing.
+    main: { x: 2.1, y: -0.68, z: 7.90, wheelR: 0.42 },
+    flap: { xi: 1.05, zi: 10.13, xo: 5.60, zo: 9.89, chord: 0.9, y: -0.32, maxDeg: 30 },
+    // Split decelerons at the wingtips: one half opens up, the other down.
+    brake: {
+      plates: [
+        { x0: 5.72, x1: 8.33, z0: 9.02, z1: 9.80, y: -0.19, up: true, mirror: true },
+        { x0: 5.72, x1: 8.33, z0: 9.02, z1: 9.80, y: -0.27, up: false, mirror: true },
+      ],
+      maxDeg: 60,
+    },
+  },
   f16c: {
     L: 15.06, groundY: -2.05,
     nose: { x: 0, y: -1.0, z: 5.0, wheelR: 0.28 },
@@ -545,6 +586,7 @@ export function getJetModel(id: AircraftId): JetModel {
     case 'jf17': m = { id, geometry: jf17(), lengthM: dim.length, spanM: dim.span }; break;
     case 'm2000c': m = { id, geometry: m2000c(), lengthM: dim.length, spanM: dim.span }; break;
     case 'su25t': m = { id, geometry: su25t(), lengthM: dim.length, spanM: dim.span }; break;
+    case 'a10c': m = { id, geometry: a10c(), lengthM: dim.length, spanM: dim.span }; break;
   }
   const spec = PART_SPECS[id];
   if (spec) m.parts = buildParts(spec);
@@ -585,7 +627,8 @@ export function jetMaterials(p: Palette, side: VisualSide): Material[] {
 }
 
 /** A jet instance with an asynchronously loaded exterior and a procedural fallback.
- * Clean configurations use the asset; deployed gear/flaps/brakes use the complete procedural model.
+ * Clean configurations use the asset; unrigged exteriors use the procedural model for deployed parts.
+ * The A-10 exterior has gear, flap and split-deceleron pivots driven by setConfig.
  * F-14 asset wings retain the authored approximate pivots and follow the same visual sweep schedule.
  */
 export class JetMesh extends Group {
@@ -595,6 +638,7 @@ export class JetMesh extends Group {
   private wings: [Mesh, Mesh] | null = null;
   private readonly asset: AssetVisual;
   private assetWings: { node: Object3D; base: Quaternion; sign: number }[] = [];
+  private applyExteriorConfig: ((config: Readonly<JetConfig>) => void) | null = null;
   private disposed = false;
   private sweep = 20;
   private partMeshes: { part: JetPart; mesh: Mesh; left: boolean }[] = [];
@@ -645,6 +689,7 @@ export class JetMesh extends Group {
           this.applyAssetSweep();
         }
       }
+      if (id === 'a10c') this.applyExteriorConfig = bindA10Rig(this.asset.content);
       this.applyConfig();
       opts.onReady?.();
     } });
@@ -657,7 +702,7 @@ export class JetMesh extends Group {
   get lengthM(): number { return this.model.lengthM; }
   get hasSwingWing(): boolean { return this.wings !== null; }
   get sweepDeg(): number { return this.sweep; }
-  /** Whether the loaded exterior is currently drawn (false for loading, failure or deployed parts). */
+  /** Whether the loaded exterior is currently drawn (false for loading, failure or unsupported deployed parts). */
   get usingAsset(): boolean { return this.asset.visible && this.asset.ready && !this.disposed; }
 
   /** F-14 wing sweep in degrees (20 = spread, 68 = fully swept). No-op for fixed wings. */
@@ -705,12 +750,13 @@ export class JetMesh extends Group {
 
   private applyConfig(): void {
     const { gear, flaps, speedbrake, hook } = this.cfg;
-    // Review exteriors contain no matching rigged gear, flaps or brakes. Keep these operations coherent
-    // by changing the entire airframe instead of attaching mismatched procedural parts to the asset.
+    // The A-10 has its own complete exterior rig. Other unrigged exteriors switch to the
+    // complete procedural airframe for configuration changes.
     const supported = this.configParts;
     const deployed = (supported.gear && gear > 0.001) || (supported.flaps && flaps > 0.001) || (supported.speedbrake && speedbrake > 0.001)
       || (supported.hook && hook > 0.02);
-    const useAsset = !this.disposed && this.asset.ready && !deployed && (!this.hasSwingWing || this.assetWings.length === 2);
+    const useAsset = !this.disposed && this.asset.ready && (!deployed || this.applyExteriorConfig !== null) && (!this.hasSwingWing || this.assetWings.length === 2);
+    this.applyExteriorConfig?.(this.cfg);
     this.asset.visible = useAsset;
     this.body.visible = !useAsset;
     for (const wing of this.wings ?? []) wing.visible = !useAsset;
@@ -757,6 +803,7 @@ export class JetMesh extends Group {
     this.asset.dispose();
     this.asset.removeFromParent();
     this.assetWings = [];
+    this.applyExteriorConfig = null;
     this.removeFromParent();
   }
 }

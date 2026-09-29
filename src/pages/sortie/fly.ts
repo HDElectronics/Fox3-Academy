@@ -59,7 +59,7 @@ type Aid = 'hot' | 'crank' | 'notch' | 'cold' | null;
 
 const RADAR_LABEL: Record<string, string> = { 'ru-hud': 'ИЛС', 'f15-vsd': 'VSD', tid: 'TID', vtb: 'VTB' };
 const MFD_LABEL: Partial<Record<FighterId, string>> = { fa18c: 'DDI · RDR', f16c: 'MFD · FCR', jf17: 'MFCD · RDR' };
-const RWR_LABEL: Record<RwrId, string> = { spo15: 'СПО-15', alr56c: 'TEWS', alr67: 'ALR-67', alr56m: 'ALR-56M', jf17rwr: 'RWR', serval: 'SERVAL' };
+const RWR_LABEL: Record<RwrId, string> = { spo15: 'СПО-15', alr56c: 'TEWS', alr67: 'ALR-67', alr56m: 'ALR-56M', jf17rwr: 'RWR', serval: 'SERVAL', alr69: 'ALR-69' };
 const SEARCH_MODES: RadarModeId[] = ['rws', 'tws', 'vs'];
 /** LShift / LCtrl throttle starts after this hold, so a quick chord (LShift + D) does not move it. */
 const THROTTLE_DELAY_MS = 250;

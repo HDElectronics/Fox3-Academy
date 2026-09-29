@@ -1115,5 +1115,178 @@
       "F-14B approximation with spread wings and simplified GE-style exhaust. Museum F-14A reference supports family silhouette only, not B-specific details. Wing pivots prepared but not animated.",
       "Original clean exterior study, closed gear and no weapon stores. Surface seams illustrative; not maintenance documentation."
     ]
+  },
+  {
+    "id": "gbu12",
+    "category": "store",
+    "name": "GBU-12 Paveway II",
+    "source_sha256": "bc00ff3a4db0ffb54820ba38331783e4d7094574f4b01dfb05735a0969c8c1a6",
+    "sha256": "cb06bcf8af246ceb6f6c12bf1b51fae97c1c4654256fdff3670ee3c601ca2270",
+    "bytes": 118776,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
+      "Tail fins shown extended; no deployment animation."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "agm65",
+    "category": "store",
+    "name": "AGM-65 Maverick family (D/H/L shared exterior)",
+    "source_sha256": "9b8cf8987e3a03fe9b1795bed863f536d5251f3bb50e8d367a81a50af70acb92",
+    "sha256": "81e64e111bd92e9b4dc212b8c0077d43f552a35d8f5fa5f7d521c2f1433375d4",
+    "bytes": 76412,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
+      "D/H/L share one simplified external shell; variant-specific optical windows not represented."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "apkws",
+    "category": "store",
+    "name": "LAU-131 seven-tube APKWS carriage pod",
+    "source_sha256": "f1d794dca704306e3c527c7abd97941806c39515dc4d02caf8db15d78d51e158",
+    "sha256": "16922749eecdbf1c8dcf8d7f487b16b6973223e05f2ce93a672314d3018342d7",
+    "bytes": 85212,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
+      "LAU-131 seven-opening carriage pod only; flying APKWS projectiles retain procedural geometry."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "mk82",
+    "category": "store",
+    "name": "Mk 82 low-drag bomb",
+    "source_sha256": "b8f68fd7200dc569bddc07f189512ad48df32e6e56accbc4981c536c27834dac",
+    "sha256": "e081425213ef0c90856cbcad3d3cc60d9b26b90ac39736627a7e3ee8aee3e029",
+    "bytes": 81552,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "cbu97",
+    "category": "store",
+    "name": "CBU-97 closed canister",
+    "source_sha256": "a36c9934b7d5512269950ec256b2253a2c60e5114e484eff2127ba62007a4e8b",
+    "sha256": "81f3cf022d61f0839c8af0b49e67437d968238d16006284fcf02aade3379bbcb",
+    "bytes": 80876,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "tgp",
+    "category": "store",
+    "name": "Litening targeting pod",
+    "source_sha256": "6aa4622ea343bc508da68e31a2c669eca39089b38f85e9a2f3506b17eb0374d0",
+    "sha256": "1d857c96300576e09a9853867b0cb45d12e410cb04e99ee7ea678dcb65af7646",
+    "bytes": 37896,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "a10c",
+    "category": "aircraft",
+    "name": "A-10C II Tank Killer",
+    "source_sha256": "dedf8b206d2d60f23be2404062de687bed31a5a9ffa543273586a7383cc6b176",
+    "sha256": "7265934e29f9eeba9b0946a3f8099fe594f230aa30cdb9b1e5f8ae48cfda5435",
+    "bytes": 501160,
+    "references": [
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Fairchild_Republic_A-10_Thunderbolt_II_3-view.svg",
+        "use": "Three-view exterior silhouette inspected 2026-09-28; family reference, not exact C II fitting certification; no image included in assets"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/planes/tank_killer/",
+        "use": "DCS variant identity and store family context"
+      }
+    ],
+    "source_caveats": [
+      "Original artist approximation for a game tutorial; no weapon internals or engineering data.",
+      "No copied meshes, source image textures, cockpit interior, authentic livery or LOD chain.",
+      "Small C II-specific fittings and store subvariants are simplified; not a claim of exact DCS mesh parity.",
+      "App envelope: 16.26 m length and 17.53 m span. Closed canopy and eleven empty pylons.",
+      "Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   }
 ]

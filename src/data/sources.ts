@@ -158,6 +158,12 @@ const LIST = {
   airgoonsSu25t: ['Airgoons wiki, Su-25T Frogfoot (laser code 1113 HUD diamond)', 'https://www.airgoons.com/w/Su-25T_Frogfoot'],
   fSu25t1113: ['ED Forums, "Laser Code 1113 and (at least) Su-25T" (2016; snippet only)', 'https://forum.dcs.world/topic/138919-laser-code-1113-and-at-least-su-25t/'],
   fSu25t1113Bug: ['ED Forums, "Su-25 missiles stopped being guided by laser code 1113" (bug report, c. Jun 2025; snippet only)', 'https://forum.dcs.world/topic/375657-su-25-missiles-stopped-being-guided-by-laser-code-1113/'],
+  // --- A-10C II (docs/research/a10c.md) ---
+  edA10c2Training: ['ED A-10C II training mission texts (HOTAS, TGP, PGM, Maverick, Laser MAV/APKWS, Guns and Rockets, Countermeasures), via the community Japanese localisation (key names untranslated)', 'https://github.com/5kdn/DCS-Translation-Japanese/tree/HEAD/DCSWorld/Mods/aircraft/A-10C_2/Missions/Training'],
+  bindsA10cExport: ['mirage335-colossus, extendedInterface: DCS A-10C default keyboard export (community)', 'https://github.com/mirage335-colossus/extendedInterface/blob/HEAD/_ref/default_keybinds/DCS/A-10C/Keyboard.html'],
+  bindsA10c2Clean: ['Holdi601, JoystickProfiler: A-10C II keyboard clean profile (community)', 'https://github.com/Holdi601/JoystickProfiler/blob/HEAD/JoyPro/JoyPro/KeyboardCleanProfile/DCS/A-10C%20II.cf'],
+  fA10cTrigger: ['ED Forums, "Trigger and Weapon Release" (A-10C; snippet only)', 'https://forum.dcs.world/topic/197578-trigger-and-weapon-release'],
+  edChangelogMirror: ['virgo47, dcs-files: mirror of ED stable changelogs (DCS 2.5.6.59625, A-10C China Hat)', 'https://github.com/virgo47/dcs-files/tree/HEAD/dcs-changelogs/stable'],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type SourceKey = keyof typeof LIST;
@@ -187,6 +193,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   jf17: ['chucksJf17', 'edShopThunder', 'fawKlj7Search', 'fawKlj7Track', 'dmKlj7', 'dmSd10'],
   m2000c: ['chucksM2000', 'dmMirage', 'fseliteRazbam'],
   su25t: ['edSu25tManual'],
+  a10c: ['edA10c2Manual', 'edA10c2Training', 'bindsA10cExport', 'bindsA10c2Clean', 'fA10cTrigger', 'edChangelogMirror'],
 
   r27r: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],
   r27er: ['dmNewMissiles', 'edSu27Manual', 'cl2_9_20', 'fawR27', 'cl2_9_27b'],
@@ -212,6 +219,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
   alr56m: ['edViperGuide'],
   jf17rwr: ['chucksJf17'],
   serval: ['chucksM2000'],
+  alr69: ['edA10c2Manual', 'edA10c2Training'],
 
   notch: ['dmSensors', 'dmApg63', 'dmN001', 'dmN019', 'hbRadarGeneral', 'cl2_7_1', 'cl2_7_14', 'fNotchWidth', 'fNotchBug', 'fF16LookDown', 'fMig29aNotch'],
   chaff: ['luaJas39Aim9', 'dmRockets', 'dmAim120c', 'dmAim7mh', 'cl2_7_1', 'edF15cManual', 'fawArh2'],
@@ -227,7 +235,7 @@ const T: Record<SourceTopic, SourceKey[]> = {
     'edA10c2Manual', 'edUserManual', 'edCombinedArmsManual', 'edHornetGuide', 'edViperGuide', 'edSu25tManual',
     'chucksA10c', 'chucksHornet', 'chucksViper', 'hoggitFacTasks', 'hoggitJtacCallsigns', 'hoggitJtac', 'mudspikeJtac',
     'steamJtacGbu', 'steamF10Menu', 'jtacAutoLase', 'fJtacLaserCode', 'fJtacAbort', 'fJtacClearedHot',
-    'airgoonsSu25t', 'fSu25t1113', 'fSu25t1113Bug',
+    'airgoonsSu25t', 'fSu25t1113', 'fSu25t1113Bug', 'edA10c2Training',
   ],
 };
 

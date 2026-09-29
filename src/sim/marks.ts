@@ -25,6 +25,7 @@ export function createMark(world: World, o: MarkSpawnOptions): GroundMark {
     ownerId: o.ownerId ?? null,
     pos: new Vector3(o.pos.x, y, o.pos.z),
     code: o.type === 'laser' ? o.code ?? null : null,
+    followUnitId: o.followUnitId ?? null,
     t0: world.t,
     until: duration == null ? null : world.t + duration,
     alive: true,
@@ -39,12 +40,17 @@ export function endMark(world: World, id: EntityId): void {
   world.emit({ t: world.t, type: 'mark', markId: m.id, mark: m.type, what: 'off', ownerId: m.ownerId, code: m.code });
 }
 
-/** Expire marks at their end time, and end every mark whose owner unit has died. */
+/**
+ * Expire marks at their end time, end every mark whose owner (a JTAC unit, or a jet lasing with its pod) has died,
+ * and keep a following mark on its unit.
+ */
 export function stepMarks(world: World): void {
   for (const m of world.marks.values()) {
     if (!m.alive) continue;
-    const owner = m.ownerId ? world.groundUnits.get(m.ownerId) : undefined;
-    if ((m.until != null && world.t >= m.until) || (owner && !owner.alive)) endMark(world, m.id);
+    const owner = m.ownerId ? world.groundUnits.get(m.ownerId) ?? world.aircraft.get(m.ownerId) : undefined;
+    if ((m.until != null && world.t >= m.until) || (owner && !owner.alive)) { endMark(world, m.id); continue; }
+    const u = m.followUnitId ? world.groundUnits.get(m.followUnitId) : undefined;
+    if (u) m.pos.copy(u.pos);
   }
 }
 

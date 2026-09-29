@@ -10,30 +10,37 @@ import type { AppStore } from './store';
 import { h } from '../ui/dom';
 
 const DEFAULT_ROLES: readonly AircraftRole[] = ['fighter'];
+/** The route that teaches one attack jet's own cockpit, named in the gate text. */
+const OWN_COCKPIT: Partial<Record<AircraftId, string>> = { su25t: 'Shkval & Vikhr', a10c: 'Targeting pod & Mavericks' };
 
 export function routeRoles(route: Pick<RouteDef, 'roles'>): readonly AircraftRole[] {
   return route.roles ?? DEFAULT_ROLES;
 }
 
-export function jetAllowed(route: Pick<RouteDef, 'roles'>, id: AircraftId): boolean {
-  return routeRoles(route).includes(AIRCRAFT[id].role);
+export function jetAllowed(route: Pick<RouteDef, 'roles' | 'jets'>, id: AircraftId): boolean {
+  return routeRoles(route).includes(AIRCRAFT[id].role) && (!route.jets || route.jets.includes(id));
 }
 
 /** Picker options on a route: the jets it accepts, plus the current jet so the picker never lies. */
-export function pickerJets(route: Pick<RouteDef, 'roles'>, current: AircraftId): AircraftId[] {
+export function pickerJets(route: Pick<RouteDef, 'roles' | 'jets'>, current: AircraftId): AircraftId[] {
   return AIRCRAFT_ORDER.filter(id => id === current || jetAllowed(route, id));
 }
 
 /** Panel shown in place of a page that does not accept the selected jet. */
 export function roleGatePanel(route: RouteDef, app: AppStore): HTMLElement {
   const jet = app.jetSpec;
-  const lead = jet.role === 'attack'
-    ? `The ${jet.short} has no air-to-air radar. Pick a fighter.`
-    : `${route.label} is for attack jets. Pick one.`;
-  const detail = jet.role === 'attack'
-    ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in Shkval & Vikhr or CAS & JTAC (Learn).`
-    : `The ${jet.short} is a fighter.`;
-  const choices = jet.role === 'attack' ? FIGHTER_ORDER : AIRCRAFT_ORDER.filter(id => jetAllowed(route, id));
+  const wrongJet = routeRoles(route).includes(jet.role) && !!route.jets;
+  const lead = wrongJet
+    ? `${route.label} teaches the ${route.jets!.map(id => AIRCRAFT[id].short).join(' / ')} cockpit. Pick it.`
+    : jet.role === 'attack'
+      ? `The ${jet.short} has no air-to-air radar. Pick a fighter.`
+      : `${route.label} is for attack jets. Pick one.`;
+  const detail = wrongJet
+    ? `Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
+    : jet.role === 'attack'
+      ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
+      : `The ${jet.short} is a fighter.`;
+  const choices = jet.role === 'attack' && !wrongJet ? FIGHTER_ORDER : AIRCRAFT_ORDER.filter(id => jetAllowed(route, id));
   return h('div', { class: 'role-gate' },
     h('section', { class: 'ui-console', id: 'role-gate', 'aria-labelledby': 'role-gate-title' },
       h('header', { class: 'ui-console__head' }, h('h3', { class: 'ui-console__title', id: 'role-gate-title' }, route.label)),

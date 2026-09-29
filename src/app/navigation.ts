@@ -15,6 +15,7 @@ export const LESSON_LINKS: readonly NavLink[] = [
   { path: 'rwr', label: 'RWR' }, { path: 'flight-ops', label: 'Pattern & landing' },
   { path: 'merge', label: 'Merge & guns' },
   { path: 'strike', label: 'Shkval & Vikhr' },
+  { path: 'tgp', label: 'Targeting pod & Mavericks' },
   { path: 'cas', label: 'CAS & JTAC' },
 ];
 

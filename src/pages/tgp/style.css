@@ -1,0 +1,8 @@
+/* [OWNER: page-tgp] Targeting pod & Mavericks page. Builds on the Strike (strk-*) and CAS (cas-*) styles. Tokens only. */
+.tgp-code {
+  display: grid; grid-template-columns: minmax(0, 1fr) 72px auto; align-items: center; gap: 4px 8px; margin-bottom: 6px;
+}
+.tgp-code__label { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--panel-muted); white-space: nowrap; }
+.tgp-code__input { width: 72px; text-align: center; }
+.tgp-code__status { grid-column: 1 / -1; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--caution); }
+.tgp-code__status:empty { display: none; }

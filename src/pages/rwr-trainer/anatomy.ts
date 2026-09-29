@@ -78,6 +78,7 @@ const RING_TEXT: Record<Exclude<RwrId, 'spo15'>, { r: number; text: string }> = 
   alr56m: { r: 0.34, text: 'Nearer the centre = more lethal: search on the outer ring, track (boxed) just outside the solid circle, guidance inside it. The opposite of the Hornet.' },
   jf17rwr: { r: 0.6, text: 'Inner ring = lethal (tracking you), outer ring = non-lethal (search). Colour carries the state too: yellow search, red lock.' },
   serval: { r: 0.36, text: 'Nearer the centre = more dangerous, not closer. High-threat zone inside, low-threat outside.' },
+  alr69: { r: 0.4, text: 'Search outside, lock and launch inside, as the ED lesson teaches. The manual calls the radius signal strength; which rule the current build uses is not verified.' },
 };
 
 const LAMPS: Partial<Record<RwrId, { shape: Shape; badge: { x: number; y: number }; text: string }>> = {

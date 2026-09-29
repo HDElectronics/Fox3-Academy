@@ -256,8 +256,20 @@ in plan view: drag the timeline, zoom to the target area, click an event to jump
 result and miss reason, the gimbal margin at each guided launch, laser-on bursts, time inside each SAM ring and the
 gun envelope, a score out of 100 and coaching on each mistake.
 
-### CAS & JTAC (Su-25T)
-Only for the Su-25T. Work the built-in DCS JTAC before you fly it: the radio menu opens with \ (on screen: the
+### Targeting pod & Mavericks (A-10C II)
+The A-10C II cockpit on its own, like Shkval & Vikhr for the Su-25T (the route takes only the A-10C II). Six
+lessons, each with a checklist and a debrief: **SOI and SPI** (Coolie U / J / H / K moves the SOI between the HUD,
+the TAD and the TGP; TMS Forward Long sets the SPI, China Hat Forward Long slaves everything to it, TMS Aft Long
+resets it), **Targeting pod** (slew with ; . , /, WIDE / NARO, POINT with TMS Forward Short, AREA and INR),
+**Laser and LSS** (lase with Insert on code 1688, then set the LSS code to 1511 and find a friendly unit's spot:
+LSRCH, DETECT, LTRACK, make it the SPI), **Maverick D / H** (select the profile: SENSOR turns into the DLZ; slave to
+the SPI, MAV page as SOI with Coolie Right, lock with TMS Forward Short, fire inside the DLZ, lock again for the second),
+**Laser weapons** (GBU-12 in CCRP on your own laser, APKWS from about 5 nm, AGM-65L, keeping the laser on) and **Gun
+strafe** (GUNS mode, the pipper on a truck inside 2 nm, Space). Weapon release (RAlt + Space) and the gun (Space) are
+community keys, labelled not verified; the pod starts on and the Maverick aligned (trainer shortcuts).
+
+### CAS & JTAC (Su-25T, A-10C II)
+For the attack jets: pick the Su-25T or the A-10C II. Work the built-in DCS JTAC before you fly it: the radio menu opens with \ (on screen: the
 Radio button), F4 JTACs, then the JTAC (Axeman 1-1). Browsers keep F5, F11 and F12, so the digits 1–0 also pick
 items. The flow follows the ED A-10C II manual: **Check-in** (the game sends your position, weapons and playtime),
 the JTAC gives the control type, **Ready to copy**, the 9 lines (IP, heading, distance, elevation, target, grid,
@@ -272,6 +284,17 @@ attack headings), **Danger close** (friendlies inside 500 m: any friendly hit fa
 the holding point to egress, with the SA-15 and the ZSU-23-4). The Su-25T has no laser spot tracker, so a JTAC
 laser does not help it: ask for smoke and use the talk-on. When the AI JTAC clears or aborts, its exact wording and
 the talk-on are trainer versions, labelled simplified. Unit markers are off by default; switch them on in Controls.
+
+In the **A-10C II** the page shows the HUD, the TAD (or the MSG page) on the left MFCD and the targeting pod on the
+right MFCD, with the DCS default keys: TMS on LCtrl + arrows (long = held 1 s), DMS on Home / End / Delete / PageDown,
+China Hat on V / C, Coolie on U / J / H / K for the SOI, slew on ; . , /, Insert fires the laser, M cycles the
+master mode. Weapon release (RAlt + Space) and the gun (Space) are community keys, labelled not verified; LSS
+(OSB 6), WILCO and CNTCO are buttons. Two lessons are added: **Datalink** (after the readback the JTAC sends the
+digital 9-line: NEW TASKING, the red triangle on the TAD, the lines on the MSG page; WILCO, hook the triangle, make it
+the SPI, slave the pod, point track, lase and drop a GBU-12 or fire an APKWS) and **JTAC laser** (IP Inbound, Laser
+On: the JTAC lases on code 1688; LSS on the pod finds the spot, LTRACK, Spot, make it the SPI, cleared hot, then an
+AGM-65L or GBU-12 on his spot). Talk-on, Cleared hot, Danger close and Sortie use the pod instead of the Shkval.
+Readouts follow the nm / km toggle. CDU coordinate entry and markpoints are not modelled yet.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

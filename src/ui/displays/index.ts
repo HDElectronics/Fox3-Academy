@@ -15,3 +15,4 @@ export {
 } from './gunSightModel';
 export { IrToneAudio, type IrToneOptions } from './irToneAudio';
 export { buildAcmPicture, drawAcm, type AcmPicture, type HudProj } from './acmCues';
+export * from './a10c';

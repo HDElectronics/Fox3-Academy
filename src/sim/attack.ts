@@ -1,27 +1,44 @@
 /**
- * Attack-jet (Su-25T) state: loadout, master mode, store selection. The Shkval lives in shkval.ts and weapon
- * release in agWeapons.ts. Selection follows S1: [D] cycles the stores, [C] selects the cannon.
+ * Attack-jet state (Su-25T, A-10C II): loadout, master mode, store selection. The Su-25T Shkval lives in shkval.ts,
+ * the A-10C II targeting pod in tgp.ts, weapon release in agWeapons.ts. Su-25T selection follows S1: [D] cycles the
+ * stores, [C] selects the cannon.
  */
-import type { AgLoadout, AgWeaponId } from '../data/types';
-import { AG_WEAPON_ORDER, SU25T_GUN_ROUNDS, SU25T_LOADOUTS } from '../data/agWeapons';
+import { Vector3 } from 'three';
+import type { AgLoadout, AgWeaponId, AttackId } from '../data/types';
+import { AG_LOADOUTS, AG_WEAPONS, AG_WEAPON_ORDER, GUN_ROUNDS } from '../data/agWeapons';
 import type { AgSalvo, AttackState } from './types';
 import { createShkvalState } from './shkval';
+import { createTgp } from './tgp';
+import { createMav } from './maverick';
 
-/** A-G state for a freshly spawned attack jet with one of the SU25T_LOADOUTS (default: the first). */
-export function createAttackState(loadoutId?: string): AttackState {
-  const lo: AgLoadout = SU25T_LOADOUTS.find(l => l.id === loadoutId) ?? SU25T_LOADOUTS[0];
-  const stores: AttackState['stores'] = { gun25t: lo.gunRounds ?? SU25T_GUN_ROUNDS };
+/** Each attack jet's cannon store. */
+export const GUN_OF: Record<AttackId, AgWeaponId> = { su25t: 'gun25t', a10c: 'gau8' };
+const isGun = (w: AgWeaponId) => AG_WEAPONS[w].kind === 'gun';
+
+/** A-G state for a freshly spawned attack jet with one of its AG_LOADOUTS (default: the first). */
+export function createAttackState(type: AttackId, loadoutId?: string): AttackState {
+  const list = AG_LOADOUTS[type];
+  const lo: AgLoadout = list.find(l => l.id === loadoutId) ?? list[0];
+  const stores: AttackState['stores'] = { [GUN_OF[type]]: lo.gunRounds ?? GUN_ROUNDS[type] };
   const stations = lo.stations.map(s => ({ ...s }));
   for (const s of stations) {
-    if (s.weapon === 'l081' || s.weapon === 'r60' || s.weapon === 'r73') continue;
+    if (s.weapon === 'l081' || s.weapon === 'r60' || s.weapon === 'r73' || s.weapon === 'tgp' || s.weapon === 'aim9m') continue;
     stores[s.weapon] = (stores[s.weapon] ?? 0) + s.count;
   }
   const ag: AttackState = {
     master: 'nav', stores, stations, selected: null, station: null, pair: false, salvo: 1,
     pod: stations.some(s => s.weapon === 'l081'), arm: { detecting: false, emitterId: null }, ccrpHeld: false, ccrpReleased: false,
     shkval: createShkvalState(),
+    tgp: stations.some(s => s.weapon === 'tgp') ? createTgp(new Vector3()) : null,
+    mav: (stores.agm65d ?? 0) + (stores.agm65h ?? 0) > 0 ? createMav() : null,
+    spi: null,
+    laserCodes: {},
   };
-  selectAgWeapon(ag, AG_WEAPON_ORDER.find(w => w !== 'gun25t' && (stores[w] ?? 0) > 0) ?? null);
+  for (const w of AG_WEAPON_ORDER) {
+    const code = AG_WEAPONS[w].defaultLaserCode;
+    if (code != null && (stores[w] ?? 0) > 0) ag.laserCodes[w] = code;
+  }
+  selectAgWeapon(ag, AG_WEAPON_ORDER.find(w => !isGun(w) && (stores[w] ?? 0) > 0) ?? null);
   return ag;
 }
 
@@ -49,13 +66,13 @@ export const stationsWith = (ag: AttackState, w: AgWeaponId) => ag.stations.filt
 export function selectAgWeapon(ag: AttackState, w: AgWeaponId | null): AgWeaponId | null {
   if (w && (ag.stores[w] ?? 0) <= 0) return ag.selected;
   ag.selected = w;
-  ag.station = w && w !== 'gun25t' ? (stationsWith(ag, w)[0]?.station ?? null) : null;
+  ag.station = w && !isGun(w) ? (stationsWith(ag, w)[0]?.station ?? null) : null;
   return w;
 }
 
 /** [D]: next store with rounds left (the cannon is on [C], not in the cycle). */
 export function cycleAgWeapon(ag: AttackState): AgWeaponId | null {
-  const avail = AG_WEAPON_ORDER.filter(w => w !== 'gun25t' && (ag.stores[w] ?? 0) > 0);
+  const avail = AG_WEAPON_ORDER.filter(w => !isGun(w) && (ag.stores[w] ?? 0) > 0);
   if (!avail.length) return selectAgWeapon(ag, null);
   const i = ag.selected ? avail.indexOf(ag.selected) : -1;
   return selectAgWeapon(ag, avail[(i + 1) % avail.length]);

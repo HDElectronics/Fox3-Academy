@@ -132,6 +132,11 @@ export const TELL: Record<RwrId, { lock: string; launch: string; active: string 
     launch: 'The shooter sits near the centre with a flashing circle and D2M lights: launch.',
     active: '"M" near the centre: the missile\'s own seeker is on you.',
   },
+  alr69: {
+    lock: 'A steady circle around the code: that radar is tracking you.',
+    launch: 'The circle around the shooter\'s code flashes and the ML light comes on: launch.',
+    active: '"M" with a flashing circle: the MWS sees a missile plume close to you.',
+  },
 };
 
 // ---------------------------------------------------------------------------------------- helpers

@@ -5,11 +5,19 @@
  * calls (nm, ft); the grid is a trainer grid, not a real UTM/MGRS square (the Su-25T cannot enter coordinates).
  */
 import type { World } from '../../sim/world';
-import { type CasScenario, type XZ, bearingDeg, distM } from './scenario';
+import { JTAC_DEFAULT_LASER_CODE } from '../../data/cas';
+import type { AgWeaponId } from '../../data/types';
+import { type CasJet, type CasLessonId, type CasScenario, type XZ, bearingDeg, distM } from './scenario';
 
 export type NineLineMark = 'none' | 'wp' | 'laser' | 'ir';
 export type NineLineField = 'ip' | 'heading' | 'distance' | 'elevation' | 'description' | 'location' | 'mark' | 'friendlies' | 'egress';
 export const NINE_LINE_ORDER: readonly NineLineField[] = ['ip', 'heading', 'distance', 'elevation', 'description', 'location', 'mark', 'friendlies', 'egress'];
+
+/** Line 7 per jet and lesson: the Su-25T always gets smoke; the A-10C II gets the laser and coordinates-only lessons. */
+export function markFor(jet: CasJet, lesson: CasLessonId): NineLineMark {
+  if (jet !== 'a10c') return 'wp';
+  return lesson === 'digital' ? 'none' : lesson === 'jtac-laser' || lesson === 'sortie' ? 'laser' : 'wp';
+}
 
 export const M_PER_NM = 1852;
 export const FT_PER_M = 3.28084;
@@ -30,6 +38,8 @@ export interface NineLine {
   egress: string;
   /** Final attack heading window (deg true) given in the remarks. */
   attackHdgDeg: readonly [number, number];
+  /** Laser code read with a laser mark (the built-in JTAC's 1688); null for other marks. */
+  laserCode: number | null;
   /** Remarks lines (weapon, threats, attack headings, danger close). */
   remarks: string[];
   dangerClose: boolean;
@@ -77,14 +87,28 @@ export function makeNineLine(sc: CasScenario, mark: NineLineMark = 'wp'): NineLi
     friendlies: { dir: cardinal(bearingDeg(tgt, fr)), distM: Math.round(frDist / 50) * 50 },
     egress: sc.egress.name,
     attackHdgDeg: sc.attackHdgDeg,
+    laserCode: mark === 'laser' ? JTAC_DEFAULT_LASER_CODE : null,
     remarks: [
-      'Weapon: Vikhr, or rockets on the smoke talk-on',
+      weaponRemark(sc, mark),
+      ...(mark === 'laser' ? [`Laser code ${JTAC_DEFAULT_LASER_CODE}`] : []),
       `Final attack heading ${pad3(a)} to ${pad3(b)}`,
       ...(sc.sams.length ? ['Threat: SA-15 north of the target, ZSU-23-4 near the column'] : []),
       ...(dangerClose ? ['Danger close'] : []),
     ],
     dangerClose,
   };
+}
+
+/**
+ * Remarks weapon line. Su-25T: Vikhr or rockets. A-10C II: the ED flow has the JTAC lase for a tasked GBU-12
+ * (docs/research/a10c.md §8); coordinates only: GBU-12 or APKWS on your own laser. Trainer wording.
+ */
+function weaponRemark(sc: CasScenario, mark: NineLineMark): string {
+  if (sc.me.type !== 'a10c') return 'Weapon: Vikhr, or rockets on the smoke talk-on';
+  const has = (w: AgWeaponId) => (sc.me.ag?.stores[w] ?? 0) > 0;
+  if (mark === 'laser') return has('agm65l') ? 'Weapon: GBU-12 or AGM-65L on my laser' : 'Weapon: GBU-12 on my laser';
+  if (mark === 'none') return has('apkws') ? 'Weapon: GBU-12 or APKWS on your own laser' : 'Weapon: GBU-12 on your own laser';
+  return has('apkws') ? 'Weapon: GBU-12 or APKWS, find the target with the pod' : 'Weapon: GBU-12, find the target with the pod';
 }
 
 /** One line as the JTAC reads it (trainer wording). */
@@ -96,7 +120,7 @@ export function lineText(nl: NineLine, f: NineLineField): string {
     case 'elevation': return `${nl.elevationFt} ft MSL`;
     case 'description': return nl.description;
     case 'location': return nl.grid;
-    case 'mark': return nl.mark === 'wp' ? 'WP' : nl.mark === 'ir' ? 'IR pointer' : nl.mark === 'laser' ? 'Laser' : 'None';
+    case 'mark': return nl.mark === 'wp' ? 'WP' : nl.mark === 'ir' ? 'IR pointer' : nl.mark === 'laser' ? `Laser, code ${nl.laserCode ?? JTAC_DEFAULT_LASER_CODE}` : 'None';
     case 'friendlies': return `${nl.friendlies.dir} ${nl.friendlies.distM} m`;
     case 'egress': return `Egress ${nl.egress}`;
   }
@@ -124,6 +148,8 @@ export function gradeField(nl: NineLine, f: NineLineField, entry: string | undef
     case 'location': return e.replace(/\s/g, '') === norm(nl.grid).replace(/\s/g, '');
     case 'mark': {
       const want = { wp: ['wp', 'white phosphorus', 'smoke', 'willy pete'], laser: ['laser'], ir: ['ir', 'ir pointer'], none: ['none', 'no mark'] }[nl.mark];
+      // A laser line may carry the code: "laser 1688", "laser, code 1688".
+      if (nl.mark === 'laser') return e === 'laser' || /^laser (code )?\d{4}$/.test(e);
       return want.some(x => e === x);
     }
     case 'friendlies': return e.includes(nl.friendlies.dir) && Math.abs(num(entry) - nl.friendlies.distM) <= 100;

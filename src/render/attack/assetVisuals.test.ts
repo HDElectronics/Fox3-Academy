@@ -93,6 +93,15 @@ describe('reviewed ground visuals', () => {
 });
 
 describe('reviewed A-G stores', () => {
+  it('never loads a carriage pod as the flying APKWS rocket', () => {
+    const geometry = new BoxGeometry(), material = new MeshStandardMaterial();
+    const store = new AgStoreVisual('apkws', geometry, material);
+    expect(loads).toHaveLength(0);
+    expect(store.children).toHaveLength(1);
+    expect(store.children[0]!.visible).toBe(true);
+    store.dispose(); geometry.dispose(); material.dispose();
+  });
+
   it('aligns the imported nose with flight direction and preserves that heading at zero speed', () => {
     const geometry = new BoxGeometry(), material = new MeshStandardMaterial();
     const onReady = vi.fn();

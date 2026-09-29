@@ -2,7 +2,7 @@
  * [OWNER: data] RWR systems: what each emitter looks like, how search / lock / launch / missile look and
  * sound, and the misconceptions to teach. Sources: ru-fc3.md (SPO-15), f15c-fc3.md (ALR-56C TEWS),
  * hornet-viper.md (ALR-67, ALR-56M), tomcat-thunder-mirage.md (ALR-67 in the F-14, JF-17 RWR, Serval),
- * bvr-mechanics.md (warning rules).
+ * bvr-mechanics.md (warning rules), a10c.md section 9 (ALR-69 in the A-10C II).
  *
  * Every RwrSpec lists a symbol for every emitter kind (all ten AircraftIds, 'missile', 'awacs',
  * 'sam-long', 'sam-medium', 'sam-short', 'unknown'). Use rwrSymbol() for lookups.
@@ -190,6 +190,33 @@ export const RWRS: Record<RwrId, RwrSpec> = {
       'The symbol library is on the kneeboard page "Menaces VCM" (RShift + K, then [ and ]). This trainer uses ED-style codes instead; the real glyphs were not researched.',
     ],
   },
+
+  alr69: {
+    id: 'alr69',
+    name: 'AN/ALR-69(V)',
+    kind: 'scope',
+    aircraft: ['a10c'],
+    // ED code family (manual p. 501–502, which also lists Gepard/ZSU "A" and laser "L"). J-11A, JF-17 and "U"
+    // are not in the manual's list: see RWR_CAVEATS.alr69.
+    symbols: table(ED_AIR, ED_OTHER),
+    cues: {
+      search: 'A code with no circle at its bearing, with the new-threat tone. Each radar has its own tone.',
+      lock: 'A steady circle around the code: that radar is tracking you. Lock tone.',
+      launch: 'A flashing circle around the code: the radar supports a missile at you. Launch tone and the red ML light on the CMSC.',
+      missile:
+        '"M" with a flashing circle: a missile the MWS sees by its motor plume. It stays 10 s after burnout and cannot ' +
+        'tell friend from foe. The MWS window reads LAUNCH.',
+    },
+    teach: [
+      'Steady circle = lock, flashing circle = launch. No circle = search.',
+      'The manual says distance from the centre is signal strength, not range; the ED countermeasures lesson puts search on the outer ring and track on the inner ring. Treat inner contacts as the bigger threat.',
+      '"M" here is the missile warning system seeing a plume, not an active radar seeker: any missile, friend or foe, and only when it is close.',
+      'A long-range air launch shows only as the shooter\'s flashing circle; the MWS sees plumes only when close.',
+      '"L" means a laser is illuminating you. "A" is a Gepard or ZSU-23-4, "S" an early-warning radar.',
+      'PRI shows the 5 highest threats (green light), OPEN shows 16. SEP spreads clustered symbols.',
+      'Same code family as the F-15C and F-16C scopes. The ED lesson draws a hat over airborne radars: 15 with a hat is an F-15, 15 without one an SA-15.',
+    ],
+  },
 };
 
 /** Symbol text an RWR shows for an emitter kind ('' on the SPO-15 = no type lamp). */
@@ -225,5 +252,11 @@ export const RWR_CAVEATS: Record<RwrId, string[]> = {
   serval: [
     'Serval symbols were not researched; ED-style codes stand in for them.',
     'Tones and the exact look of lock and launch are not documented in research.',
+  ],
+  alr69: [
+    'Whether the scope radius follows signal strength (manual) or search-outer / track-inner (ED lesson) in the current build is not verified; the trainer draws search outside and lock or launch inside.',
+    'The hat, diamond and new-threat semicircle come from the ED training text only; the A-10C II manual does not list them.',
+    'The manual list has no code for the J-11A or the JF-17 and no "U"; the trainer uses 29, JF and U from ED\'s current list.',
+    'The laser warning "L" and the Gepard "A" are listed in the manual; the trainer does not generate them yet.',
   ],
 };

@@ -8,8 +8,8 @@ import { ROUTES } from './routes';
 import { AppStore } from './store';
 
 describe('fighter and attack roles', () => {
-  it('keeps the Su-25T out of every BVR list and in the full jet list', () => {
-    expect(ATTACK_ORDER).toEqual(['su25t']);
+  it('keeps the attack jets out of every BVR list and in the full jet list', () => {
+    expect(ATTACK_ORDER).toEqual(['su25t', 'a10c']);
     expect(FIGHTER_ORDER).not.toContain('su25t' as never);
     expect(AIRCRAFT_ORDER).toEqual([...FIGHTER_ORDER, ...ATTACK_ORDER]);
     for (const id of FIGHTER_ORDER) expect(AIRCRAFT[id].role, id).toBe('fighter');
@@ -38,7 +38,7 @@ describe('fighter and attack roles', () => {
 
 describe('route role gate and picker', () => {
   it('keeps lesson role gates while progress accepts every jet', () => {
-    for (const r of ROUTES.filter(x => !['strike', 'cas', 'progress'].includes(x.path))) {
+    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress'].includes(x.path))) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);
@@ -53,9 +53,12 @@ describe('route role gate and picker', () => {
 
   it('filters the picker by route role and always keeps the selected jet', () => {
     expect(pickerJets({}, 'f15c')).toEqual(FIGHTER_ORDER);
-    expect(pickerJets({}, 'su25t')).toEqual(AIRCRAFT_ORDER);
-    expect(pickerJets({ roles: ['attack'] }, 'su25t')).toEqual(['su25t']);
-    expect(pickerJets({ roles: ['attack'] }, 'f16c')).toEqual(['f16c', 'su25t']);
+    expect(pickerJets({}, 'su25t')).toEqual([...FIGHTER_ORDER, 'su25t']);
+    expect(pickerJets({ roles: ['attack'] }, 'su25t')).toEqual(['su25t', 'a10c']);
+    expect(pickerJets({ roles: ['attack'] }, 'f16c')).toEqual(['f16c', 'su25t', 'a10c']);
+    // A route for one cockpit lists only that jet (Shkval & Vikhr: the Su-25T).
+    expect(pickerJets({ roles: ['attack'], jets: ['su25t'] }, 'su25t')).toEqual(['su25t']);
+    expect(jetAllowed({ roles: ['attack'], jets: ['su25t'] }, 'a10c')).toBe(false);
     expect(pickerJets({ roles: ['fighter', 'attack'] }, 'su27')).toEqual(AIRCRAFT_ORDER);
   });
 });

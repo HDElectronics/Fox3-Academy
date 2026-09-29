@@ -15,10 +15,11 @@ import { Vector3 } from 'three';
 import type { World } from './world';
 import type { AgWeaponId } from '../data/types';
 import { AG_WEAPONS } from '../data/agWeapons';
-import type { AgMissReason, AgWeapon, Aircraft, AttackState, EntityId } from './types';
-import { D2R, G0, clamp, dirFrom, relBearing } from './math';
+import { AIRCRAFT } from '../data/aircraft';
+import type { AgMissReason, AgWeapon, Aircraft, AttackState, EntityId, GroundMark } from './types';
+import { D2R, G0, M_PER_NM, clamp, dirFrom, relBearing } from './math';
 import { cycleAgWeapon, salvoCount, stationsWith } from './attack';
-import { damageGround, groundHeight, groundUnitVel } from './ground';
+import { damageGround, groundHeight, groundUnitVel, lineOfSight } from './ground';
 import { shkvalAimPoint } from './shkval';
 import { kh58CanAttack } from '../data/agWeapons';
 
@@ -49,6 +50,15 @@ export const AG_MODEL: Record<AgWeaponId, AgModel> = {
   s13:      { speed: [], turnRate: 0, maxTime: 20, hitRadiusM: 0, killRadiusM: 8, damage: 1, dispersionMrad: 3, boost: 450 },
   fab250:   { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 20, damage: 2, dispersionMrad: 4, boost: 0 },
   gun25t:   { speed: [], turnRate: 0, maxTime: 6, hitRadiusM: 0, killRadiusM: 2, damage: 0.35, dispersionMrad: 4, boost: 900 },
+  // A-10C II stores: same kind of trainer constants, chosen to feel like the DCS outcome, not weapon data.
+  gbu12:    { speed: [[0, 220], [30, 250]], turnRate: 0.25, maxTime: 90, hitRadiusM: 5, killRadiusM: 12, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65d:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65h:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  agm65l:   { speed: [[0, 230], [2, 450], [30, 330]], turnRate: 0.35, maxTime: 60, hitRadiusM: 4, killRadiusM: 6, damage: 2, dispersionMrad: 0, boost: 0 },
+  apkws:    { speed: [[0, 230], [1.5, 650], [15, 420]], turnRate: 0.5, maxTime: 30, hitRadiusM: 3, killRadiusM: 4, damage: 1, dispersionMrad: 0, boost: 0 },
+  mk82:     { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 20, damage: 2, dispersionMrad: 4, boost: 0 },
+  cbu97:    { speed: [], turnRate: 0, maxTime: 60, hitRadiusM: 0, killRadiusM: 60, damage: 1.5, dispersionMrad: 5, boost: 0 },
+  gau8:     { speed: [], turnRate: 0, maxTime: 6, hitRadiusM: 0, killRadiusM: 2, damage: 0.4, dispersionMrad: 4, boost: 1000 },
 };
 
 /** Rounds per cannon trigger press (one release = one short burst). Trainer value. */
@@ -133,11 +143,65 @@ export interface AgLaunchCheck {
   band: { min: number; max: number } | null;
 }
 
-const kmS = (m: number) => `${(m / 1000).toFixed(1)} km`;
+const kmOut = (m: number) => `${(m / 1000).toFixed(1)} km`;
 
-/** Target of the selected guided weapon: the Shkval lock, or the Kh-58 emitter. */
-function guidedTarget(world: World, ac: Aircraft, w: AgWeaponId): { id: EntityId; pos: Vector3 } | null {
+/** Half angle (deg) of the cone a 'laser-spot' store sees a spot in, around its flight path. Trainer value. */
+const SPOT_CONE_DEG = 30;
+/** A unit this close to a laser spot is what the spot is on (m). Trainer value. */
+const SPOT_ON_UNIT_M = 15;
+
+/** Live laser spots on `code` (JTAC marks or a jet's own pod), excluding one owner if given. */
+export function laserSpots(world: World, code: number): GroundMark[] {
+  return [...world.marks.values()].filter(m => m.alive && m.type === 'laser' && m.code === code);
+}
+
+/** The laser spot a 'laser-spot' store would take now: on its code, ahead of the jet, in sight, nearest the pod aim. */
+export function spotFor(world: World, ac: Aircraft, w: AgWeaponId): GroundMark | null {
+  const code = ac.ag?.laserCodes[w];
+  if (code == null) return null;
+  const ref = ac.ag?.tgp?.on ? ac.ag.tgp.aim : ac.ag?.spi ?? null;
+  const fwd = dirFrom(ac.heading, 0);
+  const cands = laserSpots(world, code).filter(m => {
+    const v = tmpC.subVectors(m.pos, ac.pos);
+    return v.dot(fwd) > 0 && lineOfSight(world, ac.pos, { x: m.pos.x, y: m.pos.y + 2, z: m.pos.z });
+  });
+  if (!cands.length) return null;
+  const key = (m: GroundMark) => (ref ? m.pos.distanceToSquared(ref) : m.pos.distanceToSquared(ac.pos));
+  return cands.sort((a, b) => key(a) - key(b))[0]!;
+}
+
+/** Ground unit a laser spot is on, if any. */
+function unitUnder(world: World, p: Vector3): EntityId | null {
+  let best: { id: EntityId; d: number } | null = null;
+  for (const u of world.groundUnits.values()) {
+    if (!u.alive) continue;
+    const d = Math.hypot(u.pos.x - p.x, u.pos.z - p.z);
+    if (d <= SPOT_ON_UNIT_M && (!best || d < best.d)) best = { id: u.id, d };
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Target of the selected guided weapon: the Kh-58 emitter; a laser spot on the store's code ('laser-spot'; the GBU-12
+ * may also go on the SPI); the A-10C II Maverick seeker lock (maverick.ts); the pod's POINT track; or the Shkval lock (Su-25T).
+ */
+function guidedTarget(world: World, ac: Aircraft, w: AgWeaponId): { id: EntityId | null; pos: Vector3; spotId?: EntityId } | null {
   const ag = ac.ag!;
+  const spec = AG_WEAPONS[w];
+  if (spec.guidance === 'laser-spot') {
+    const spot = spotFor(world, ac, w);
+    if (spot) return { id: unitUnder(world, spot.pos), pos: spot.pos, spotId: spot.id };
+    if (!spec.needsLock && !spec.holdToImpact && ag.spi) return { id: unitUnder(world, ag.spi), pos: ag.spi };
+    return null;
+  }
+  if (ag.mav && (w === 'agm65d' || w === 'agm65h')) {
+    const u = ag.mav.lockedUnitId ? world.groundUnits.get(ag.mav.lockedUnitId) : undefined;
+    return u && u.alive ? { id: u.id, pos: u.pos } : null;
+  }
+  if (ag.tgp) {
+    const u = ag.tgp.trackedUnitId ? world.groundUnits.get(ag.tgp.trackedUnitId) : undefined;
+    return u && u.alive ? { id: u.id, pos: u.pos } : null;
+  }
   if (AG_WEAPONS[w].needsEmitter) {
     const s = ag.arm.emitterId ? world.samSites.get(ag.arm.emitterId) : undefined;
     return s ? { id: s.id, pos: s.pos } : null;
@@ -152,6 +216,8 @@ export function canAgLaunch(world: World, ac: Aircraft, weapon?: AgWeaponId): Ag
   const w = weapon ?? ag?.selected ?? null;
   const out: AgLaunchCheck = { ok: false, pr: false, reason: '', weapon: w, targetId: null, range: null, band: null };
   const fail = (reason: string) => ({ ...out, reason });
+  // Reasons in the jet's own units: km in the Su-25T, nm in the A-10C II.
+  const kmS = (m: number) => (AIRCRAFT[ac.type].units === 'imperial' ? `${(m / M_PER_NM).toFixed(1)} nm` : kmOut(m));
   if (!ag || !ac.alive) return fail('No air-to-ground system');
   if (ag.master === 'nav') return fail('Select air-to-ground mode [7]');
   if (!w) return fail('Select a weapon [D]');
@@ -175,6 +241,18 @@ export function canAgLaunch(world: World, ac: Aircraft, weapon?: AgWeaponId): Ag
     if (!s || !s.alive) return fail('Lock an emitter [Enter]');
     if (!s.active) return fail('Emitter silent');
     if (!armEmitters(world, ac).includes(s.id)) return fail('Emitter outside ±30° detection zone');
+  } else if (spec.guidance === 'laser-spot') {
+    const code = ag.laserCodes[w];
+    if (!spotFor(world, ac, w)) {
+      if (spec.needsLock || spec.holdToImpact) return fail(`No laser spot on code ${code}: lase with the pod or ask the JTAC`);
+      if (!ag.spi) return fail(`No laser spot on code ${code} and no SPI`);
+    }
+  } else if (ag.mav && (w === 'agm65d' || w === 'agm65h')) {
+    if (!ag.mav.aim) return fail('Maverick caged: slave it to the SPI (China Hat Forward Long)');
+    if (!ag.mav.lockedUnitId) return fail('No Maverick lock: slew the gate onto the target and lock (TMS Forward Short)');
+  } else if (ag.tgp) {
+    if (!ag.tgp.on) return fail('Targeting pod is off');
+    if (spec.needsLock && !ag.tgp.trackedUnitId) return fail('No lock: point track the target with the pod');
   } else {
     const sh = ag.shkval;
     if (!sh.on) return fail('Shkval is off [O]');
@@ -245,7 +323,7 @@ function spawnWeapon(world: World, ac: Aircraft, w: AgWeaponId, targetId: Entity
   const wp: AgWeapon = {
     kind: 'ag-weapon', id: world.uid('W'), type: w, side: ac.side, shooterId: ac.id, targetId,
     aimPoint: aim.clone(), pos, vel, launchedAt: world.t, alive: true, guided: AG_WEAPONS[w].guidance !== 'ballistic',
-    lostWhy: null, timeToImpact: null, result: null,
+    lostWhy: null, timeToImpact: null, result: null, laserCode: null, spotId: null,
   };
   world.agWeapons.set(wp.id, wp);
   return wp;
@@ -274,9 +352,13 @@ export function agLaunch(world: World, ac: Aircraft, opts: { ccrp?: boolean } = 
     for (let i = 0; i < n; i++) {
       const station = takeRound(ag, w);
       const lateral = station == null ? 0 : (station - 6) * 0.8;
-      out.push(spawnWeapon(world, ac, w, tgt.id, tgt.pos, ac.vel.clone(), lateral));
+      const wp = spawnWeapon(world, ac, w, tgt.id, tgt.pos, ac.vel.clone(), lateral);
+      if (spec.guidance === 'laser-spot') { wp.laserCode = ag.laserCodes[w] ?? null; wp.spotId = tgt.spotId ?? null; }
+      out.push(wp);
     }
   }
+  // A Maverick leaves the rail with the lock; the next one must be locked again.
+  if (ag.mav && (w === 'agm65d' || w === 'agm65h')) ag.mav.lockedUnitId = null;
   for (const wp of out) {
     world.emit({ t: world.t, type: 'ag-launch', weaponId: wp.id, shooterId: ac.id, targetId: wp.targetId, weapon: w, range: check.range, ...(opts.ccrp ? { ccrp: true } : {}) });
   }
@@ -416,6 +498,17 @@ function guidanceBroken(world: World, wp: AgWeapon): AgMissReason | null {
     if (!s || !s.alive) return 'target-dead';
     return s.active ? null : 'emitter-off';
   }
+  if (spec.guidance === 'laser-spot') {
+    // Keep the spot it follows, or take another on its code inside its cone; the GBU-12 flies on to the last spot.
+    let spot = wp.spotId ? world.marks.get(wp.spotId) : undefined;
+    if (!spot || !spot.alive) {
+      const fwd = tmpB.copy(wp.vel).normalize(), cos = Math.cos((SPOT_CONE_DEG * Math.PI) / 180);
+      spot = wp.laserCode == null ? undefined : laserSpots(world, wp.laserCode).find(m => tmpC.subVectors(m.pos, wp.pos).normalize().dot(fwd) >= cos);
+      wp.spotId = spot?.id ?? null;
+    }
+    if (spot) { wp.aimPoint.copy(spot.pos); wp.targetId = unitUnder(world, spot.pos) ?? wp.targetId; return null; }
+    return spec.holdToImpact ? 'laser-off' : null;
+  }
   const u = wp.targetId ? world.groundUnits.get(wp.targetId) : undefined;
   if (!spec.holdToImpact) return u && u.alive ? null : 'target-dead';
   const sh = shooter?.alive ? shooter.ag?.shkval : undefined;
@@ -434,6 +527,7 @@ function steerPoint(world: World, wp: AgWeapon, out: Vector3): Vector3 {
     const s = world.samSites.get(wp.targetId!);
     return out.copy(s ? s.pos : wp.aimPoint);
   }
+  if (spec.guidance === 'laser-spot') return out.copy(wp.aimPoint);
   const u = world.groundUnits.get(wp.targetId!);
   const tp = u ? u.pos : wp.aimPoint;
   if (spec.guidance === 'beam-riding') {

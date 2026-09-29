@@ -5,7 +5,8 @@ import { FLIGHT_OPS } from '../../data/flightOps';
 import { LESSON_PATH, isDone, type ProgressReader } from '../../app/learningProgress';
 import { lessonPath } from '../../app/navigation';
 import { LESSONS, LESSON_ORDER, progressKey } from '../strike/lessons';
-import { CAS_LESSON_ORDER, LESSONS as CAS_LESSONS, progressKey as casProgressKey } from '../cas/lessons';
+import { lessonOrder, lessonsFor, progressKey as casProgressKey } from '../cas/lessons';
+import { LESSONS as TGP_LESSONS, TGP_LESSON_ORDER, progressKey as tgpProgressKey } from '../tgp/lessons';
 
 export interface ProgressGoal { id: string; label: string; href: string; done: boolean }
 export interface JetProgress {
@@ -45,10 +46,16 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
     if (typeof rwr === 'number' && Number.isFinite(rwr) && rwr >= 0) scores.push({ label: 'Best RWR run', value: `${Math.floor(rwr)} correct` });
     if (typeof sortie === 'number' && Number.isFinite(sortie) && sortie >= 0 && sortie <= 100) scores.push({ label: 'Best winning sortie', value: `${Math.round(sortie)}/100` });
   } else {
-    for (const lesson of LESSON_ORDER) goals.push({ id: lesson, label: LESSONS[lesson].title,
+    // Shkval & Vikhr is the Su-25T cockpit, Targeting pod & Mavericks the A-10C II's (routes.ts `jets`); CAS & JTAC
+    // is every attack jet.
+    if (id === 'su25t') for (const lesson of LESSON_ORDER) goals.push({ id: lesson, label: LESSONS[lesson].title,
       href: progressHref(`strike?lesson=${lesson}`, id), done: get(progressKey(lesson)) === true });
-    for (const lesson of CAS_LESSON_ORDER) goals.push({ id: `cas-${lesson}`, label: `CAS: ${CAS_LESSONS[lesson].title}`,
-      href: progressHref(`cas?lesson=${lesson}`, id), done: get(casProgressKey(lesson)) === true });
+    if (id === 'a10c') for (const lesson of TGP_LESSON_ORDER) goals.push({ id: `tgp-${lesson}`, label: TGP_LESSONS[lesson].title,
+      href: progressHref(`tgp?lesson=${lesson}`, id), done: get(tgpProgressKey(lesson)) === true });
+    const casJet = id === 'a10c' ? 'a10c' : 'su25t';
+    const casLessons = lessonsFor(casJet);
+    for (const lesson of lessonOrder(casJet)) goals.push({ id: `cas-${lesson}`, label: `CAS: ${casLessons[lesson].title}`,
+      href: progressHref(`cas?lesson=${lesson}`, id), done: get(casProgressKey(lesson, id)) === true });
   }
   return { id, goals, completed: goals.filter(g => g.done).length, total: goals.length,
     next: goals.find(g => !g.done) ?? null, scores };
