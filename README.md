@@ -2,9 +2,9 @@
 
 # Fox3 Academy
 
-**Learn BVR and flight ops the way DCS World flies them.**
-Radar, TWS, launch zones, missile and SAM defense, the RWR, takeoff, landing, the carrier and the tanker,
-in 3D, in your browser, for the jet you fly.
+**Learn BVR, flight ops and close air support the way DCS World flies them.**
+Radar, TWS, launch zones, missile and SAM defense, the RWR, jamming, IFF and the datalink, dogfighting and guns,
+takeoff, landing, the carrier and the tanker, targeting pods and the JTAC, in 3D, in your browser, for the jet you fly.
 
 [![CI](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml/badge.svg)](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
@@ -26,13 +26,21 @@ energy bleed off, without loading a mission or spending an evening getting shot 
 - **Be the target.** Break the lock, notch and chaff at pitbull, drag the shot out.
 - **Fly the whole fight.** 1v1 to 2v2 against AI that shoots back, then a Tacview-style debrief with coaching.
 - **Beat a SAM.** SA-10, SA-11 and SA-15 drills: read search, lock and launch on your RWR, beam, chaff, get low.
+- **Jammers, IFF and the datalink.** See a jammer as a strobe until burn-through, interrogate before you shoot,
+  and pick up contacts from an AWACS or a Link 16 wingman.
+- **Merge and guns.** Corner speed, pursuit, the merge, one vs two circle, yo-yos, guns tracking with your jet's
+  own sight, and a free fight against a fighting AI.
 - **Take off, land and come home.** Runway takeoff at Vr, the overhead break flown on speed, FC3 return to
   base (МРШ → ВЗВ → ПОС, NAV → ILSN), all graded gate by gate.
 - **Go to the boat and the tanker.** Case I to a moving carrier with the ball, LSO calls and a DCS-style grade;
   catapult and ski-jump launches; air-to-air refuelling on the drogue or the boom.
+- **Hit the ground.** The Su-25T's Shkval and Vikhrs, the A-10C II's targeting pod, laser spot search and
+  Mavericks, and close air support with the DCS JTAC: the 9-line, the talk-on, the laser hand-off and the
+  digital 9-line.
 
-Ten jets, each with its own radar rules, RWR and key bindings: **Su-27, Su-33, J-11A, MiG-29S, F-15C,
-F/A-18C, F-16C, F-14B, JF-17, M-2000C.** Russian jets get a metric, Russian-labelled cockpit skin.
+Twelve jets, each with its own radar rules, RWR and key bindings: ten fighters (**Su-27, Su-33, J-11A, MiG-29S,
+F-15C, F/A-18C, F-16C, F-14B, JF-17, M-2000C**) and two attack jets (**Su-25T, A-10C II**). Russian jets get a
+metric, Russian-labelled cockpit skin.
 
 ## Screenshots
 
@@ -45,6 +53,10 @@ F/A-18C, F-16C, F-14B, JF-17, M-2000C.** Russian jets get a metric, Russian-labe
 | ![Sortie](docs/images/sortie-fly.png) | ![Debrief](docs/images/sortie-debrief.png) |
 | **Case I: F/A-18C in the groove, LSO view** | **Refuelling: Su-33 on the IL-78M, UPAZ hose bands** |
 | ![Carrier](docs/images/carrier.png) | ![Refuelling](docs/images/refuel.png) |
+| **Merge & guns: F-16C guns tracking, EEGS sight** | **Shkval & Vikhr: Su-25T Vikhr in flight** |
+| ![Merge & guns](docs/images/merge.png) | ![Shkval & Vikhr](docs/images/strike.png) |
+| **Targeting pod & Mavericks: A-10C II Maverick lock** | **CAS & JTAC: A-10C II finds the JTAC's laser** |
+| ![Targeting pod & Mavericks](docs/images/tgp.png) | ![CAS & JTAC](docs/images/cas.png) |
 
 More pages and a tour of each module: [Wiki](https://github.com/HDElectronics/Fox3-Academy/wiki).
 
