@@ -6,6 +6,10 @@
 Radar, TWS, launch zones, missile and SAM defense, the RWR, jamming, IFF and the datalink, dogfighting and guns,
 takeoff, landing, the carrier and the tanker, targeting pods and the JTAC, in 3D, in your browser, for the jet you fly.
 
+### [▶ Open Fox3 Academy](https://fox3-academy.pages.dev)
+
+Free, nothing to install. Desktop or tablet browser.
+
 [![CI](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml/badge.svg)](https://github.com/HDElectronics/Fox3-Academy/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 [![Wiki](https://img.shields.io/badge/docs-wiki-0969da.svg)](https://github.com/HDElectronics/Fox3-Academy/wiki)
