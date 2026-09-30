@@ -99,8 +99,9 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   `ctx.app.setProgress('<route>:<aircraft>:done', true)`.
 - **Change a radar rule:** `src/sim/radar.ts` (`radarRules`, scan, detection, TWS, STT), then
   `src/sim/sensors.test.ts`. Launch rules are in `launch.ts`, the display model in `picture.ts`.
-- **Publish:** run `npm run check`, then deploy `dist/` (one file) or `dist-web/` (faster first load) to the
-  chosen static host. No personal deployment endpoint belongs in the repository.
+- **Publish:** merging to `main` deploys `dist-web/` to Cloudflare Pages (https://fox3-academy.pages.dev);
+  pull requests get preview URLs. See `docs/deployment.md`. No deploy token or personal endpoint belongs in the
+  repository.
 
 ## Visual checks
 

@@ -1,7 +1,7 @@
 # Deployment
 
-The public site is the code-split web build (`npm run build:web`, output `dist-web/`) hosted on
-**Cloudflare Pages** through its GitHub integration. Cloudflare builds and publishes every push to `main`;
+The public site, **https://fox3-academy.pages.dev**, is the code-split web build (`npm run build:web`,
+output `dist-web/`) hosted on **Cloudflare Pages** through its GitHub integration. Cloudflare builds and publishes every push to `main`;
 pull requests get their own preview URL. There is no deploy workflow, token or account detail in this
 repository.
 
@@ -12,7 +12,8 @@ repository.
 | `.node-version` | Node 24 for the Cloudflare build, the same as CI. |
 | `public/_headers` | Response headers: Content-Security-Policy, `nosniff`, referrer and permissions policies, and one-year immutable caching for the content-hashed files in `assets/`. |
 | `public/favicon.svg` | Site icon. |
-| `index.html` | Title, description and Open Graph tags for link previews. |
+| `index.html` | Title, description and Open Graph tags for link previews. `og:url` and `og:image` hold the absolute site address: update them if the domain changes. |
+| `public/og.png` | 1200 × 630 link-preview image (a crop of `docs/images/tws.png`). |
 
 The app is a static site. The hash router (`#/tws`) and `base: './'` mean it needs no rewrite rules
 and works at any path.
@@ -23,8 +24,10 @@ feature ever needs another origin, add it to the CSP in `public/_headers` delibe
 
 ## One-time setup (project owner)
 
-1. In the Cloudflare dashboard: **Workers & Pages → Create → Pages → Connect to Git**, and authorise the
-   Cloudflare GitHub app for this repository only.
+1. In the Cloudflare dashboard: **Workers & Pages → Create**, then the **"Looking to deploy Pages?"** link at
+   the bottom (the default form is for Workers and asks for a deploy command and an API token, which Pages
+   does not need), **Import an existing Git repository**, and authorise the Cloudflare GitHub app for this
+   repository only.
 2. Build settings:
    - Production branch: `main`
    - Framework preset: None
