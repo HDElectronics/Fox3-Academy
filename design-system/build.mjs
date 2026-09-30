@@ -28,8 +28,8 @@ await build({
 
 execFileSync(join(here, 'node_modules', '.bin', 'tsc'), ['-p', join(here, 'tsconfig.json')], { stdio: 'inherit' });
 
-// The app loads its four families from Google Fonts in index.html; the bundle's stylesheet says so
-// too, so a design rendered with this kit gets Russo One, IBM Plex Sans and B612 Mono.
+// The app self-hosts its four families (src/styles/fonts.css). This standalone kit has no font files, so
+// its stylesheet loads them from Google Fonts: a design rendered with it gets Russo One, IBM Plex Sans and B612 Mono.
 const FONTS = "@import url('https://fonts.googleapis.com/css2?family=Russo+One&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=B612+Mono:wght@400;700&display=swap');\n\n";
 const sheet = FONTS + ['tokens.css', 'base.css', 'components.css']
   .map(f => `/* ---- src/styles/${f} ---- */\n${readFileSync(join(styles, f), 'utf8')}`)
