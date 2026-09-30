@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "3D BVR radar, missile and RWR trainer for DCS World pilots",
+  "description": "3D trainer for DCS World pilots: BVR radar, missiles and RWR, flight ops, dogfighting and air-to-ground",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
