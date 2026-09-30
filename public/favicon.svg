@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Radar B-scope in the display colours of src/styles/tokens.css (--screen, --sym, --sym-hi). -->
+  <rect width="64" height="64" rx="12" fill="#030706"/>
+  <path d="M10 54 L32 12 L54 54" fill="none" stroke="#1f7a47" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M17 42 Q32 34 47 42" fill="none" stroke="#1f7a47" stroke-width="2.5"/>
+  <line x1="32" y1="54" x2="44" y2="20" stroke="#45f28c" stroke-width="4" stroke-linecap="round"/>
+  <rect x="36" y="22" width="10" height="8" rx="1.5" fill="#f7e26b"/>
+</svg>

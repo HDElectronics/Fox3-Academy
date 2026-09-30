@@ -9,6 +9,7 @@
 | [api/tacview-export.md](api/tacview-export.md) | Pilots and developers | Sortie ACMI downloads, coordinate mapping and export limits. |
 | [browser-qa.md](browser-qa.md) | Maintainers | Browser interaction coverage, regression fixes and remaining device checks. |
 | [decisions.md](decisions.md) | Maintainers | Why the codebase is shaped the way it is. |
+| [deployment.md](deployment.md) | Maintainers | How the public site is built and hosted on Cloudflare Pages, response headers, rollback. |
 | [api/](api/) | Developers and agents | One API page per layer: data, sim-physics, sim-sensors, sim-ai, sim-attack, render, ui-kit, displays. |
 | [research/verification-status.md](research/verification-status.md) | Maintainers | Manual-backed corrections and remaining current-game checks. |
 | [cas-plan.md](cas-plan.md) | Maintainers and contributors | Planned CAS & JTAC module: research findings, design, build order. |
