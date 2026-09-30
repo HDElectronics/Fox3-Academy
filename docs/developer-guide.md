@@ -134,8 +134,9 @@ the page (`src/pages/<name>/style.css`).
 
 ## Publishing
 
-Run `npm run check`, then pick one of the two builds. Web fonts are the only external runtime dependency of
-either.
+Run `npm run check`, then pick one of the two builds. Neither has an external runtime dependency: the four
+font families are self-hosted (`src/styles/fonts.css`, Latin and Cyrillic subsets). The public site runs on
+Cloudflare Pages; see [deployment](deployment.md).
 
 - `npm run build` writes `dist/index.html`: one self-contained file with all code, styles and three.js
   inlined. It opens offline from disk and suits hosts that take a single file. Inspect it with `npm run preview`.
