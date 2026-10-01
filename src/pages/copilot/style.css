@@ -53,6 +53,7 @@
 .cp-lock { display: grid; gap: 8px; padding: 10px; background: var(--screen); border: 1px solid var(--screen-line); border-radius: var(--r-1); font-family: var(--font-mono); }
 .cp-lock__name { font-size: var(--fs-l); color: var(--sym); letter-spacing: 0.04em; }
 .cp-lock[data-state='off'] .cp-lock__name { color: var(--sym-dim); }
+.cp-lock__note { font-size: var(--fs-s); color: var(--sym-hi); letter-spacing: 0.04em; min-height: 1.2em; }
 .cp-dlz { display: grid; gap: 6px; }
 .cp-dlz__zone { font-size: var(--fs-s); color: var(--sym-dim); letter-spacing: 0.06em; }
 .cp-lock[data-state='in'] .cp-dlz__zone, .cp-lock[data-state='no-escape'] .cp-dlz__zone { color: var(--sym-hi); }

@@ -3,6 +3,7 @@ import type { DcsFrame } from '../../dcs/protocol';
 import { HORNET_DEFAULTS, HORNET_FACTS, aoaState, effectiveBingo, type HornetConfig } from '../../copilot/hornet';
 import { enduranceMin, GEAR_DOWN, GEAR_UP, type Situation } from '../../copilot/situation';
 import { clockOf, type LockPicture, type Threat, type Zone } from '../../copilot/threats';
+import type { HornetLock, HornetThreats } from '../../copilot/hornetSensors';
 
 export type CopilotSettings = HornetConfig;
 export const DEFAULT_SETTINGS: CopilotSettings = { ...HORNET_DEFAULTS };
@@ -81,6 +82,8 @@ export function threatRows(threats: readonly Threat[]): ThreatRow[] {
 
 export interface LockView {
   name: string; mode: string; range: string; closure: string; aspect: string; alt: string; where: string;
+  /** A line under the readouts (Hornet: IN LAR and missile timers). */
+  note?: string;
   dlz?: { label: string; zone: Zone; zoneText: string; marks: { rmin: number; rne: number; rmax: number; now: number } };
 }
 const ZONE_TEXT: Record<Zone, string> = { out: 'OUT OF RANGE', in: 'IN RANGE', 'no-escape': 'NO ESCAPE', min: 'INSIDE MIN' };
@@ -108,6 +111,33 @@ export function lockView(p: LockPicture | null): LockView | null {
   return view;
 }
 
+/** Hornet RWR rows: no bearing in the exported text, so the symbol and what it stands for. */
+export function hornetThreatRows(p: HornetThreats | null): ThreatRow[] {
+  if (!p) return [];
+  const lockedSlot = p.threats.find(t => t.locked)?.slot ?? (p.threats.length === 1 ? p.threats[0]!.slot : undefined);
+  return p.threats.map(t => {
+    const state: Threat['state'] = t.slot === lockedSlot && p.cw ? 'launch' : t.slot === lockedSlot && p.ai ? 'lock' : 'search';
+    return { id: t.slot, state, tag: state === 'launch' ? 'CW' : TAG[state], where: t.symbol, name: t.names.slice(0, 3).join(', ') || 'unknown' };
+  });
+}
+
+/** Lock readouts from the Hornet HUD and attack format. */
+export function hornetLockView(l: HornetLock | null): LockView | null {
+  if (!l) return null;
+  const missiles = l.missiles.map(m => `M${m.slot} ${m.active ? 'ACTIVE' : m.ttgS !== undefined ? 'TTA ' + m.ttgS + 's' : '—'}`).join('  ');
+  const tof = l.tof ? `${l.tof.label} ${l.tof.s}s` : '';
+  return {
+    name: 'Radar target',
+    mode: l.memory ? `STT  ${l.memory}` : 'STT',
+    range: l.rangeNm === undefined ? DASH : `${l.rangeNm.toFixed(1)} nm`,
+    closure: l.closureKt === undefined ? DASH : `${Math.round(l.closureKt)} kt`,
+    aspect: l.aspectRaw === undefined ? DASH : `${l.aspectRaw} (raw)`,
+    alt: l.targetAltFt === undefined ? DASH : `${l.targetAltFt} ft`,
+    where: l.targetHeadingDeg === undefined ? DASH : `TGT HDG ${String(Math.round(l.targetHeadingDeg)).padStart(3, '0')}°`,
+    note: [l.inLar ? 'IN LAR' : 'NOT IN LAR', tof, missiles].filter(Boolean).join('   '),
+  };
+}
+
 export const PHASE_TEXT: Record<Situation['phase'], string> = { ground: 'ON GROUND', airborne: 'AIRBORNE', approach: 'APPROACH' };
 
 /** Is the jet in DCS the one this profile is for? null when DCS did not say. */
@@ -115,7 +145,7 @@ export function profileMatches(s: Situation): boolean | null {
   return s.type === undefined ? null : (HORNET_FACTS.dcsTypes as readonly string[]).includes(s.type);
 }
 
-/** ?shot=approach|carrier|bingo|threat|off: fixed frames for screenshots. AoA in degrees, as the export sends it. */
+/** ?shot=approach|carrier|bingo|threat|hornet|off: fixed frames for screenshots. AoA in degrees, as the export sends it. */
 export function previewFrame(shot: string | null): { frame: DcsFrame | null; settings?: Partial<CopilotSettings> } | null {
   const base: DcsFrame = {
     type: 'frame', seq: 1, t: 1520, script: '0.2.0', allow: { ownship: true, sensor: true, object: true },
@@ -154,6 +184,21 @@ export function previewFrame(shot: string | null): { frame: DcsFrame | null; set
         },
       };
     }
+    case 'hornet':
+      // Hornet display text as recorded in game (src/copilot/fixtures/hornet-flight.json): locked, in LAR, AI light.
+      return {
+        frame: {
+          ...base, ias: 160, tas: 230, mach: 0.8, altAgl: 5900, altMsl: 5900, vv: 0, aoa: 3, acc: { y: 1 },
+          mech: { gear: 0, flaps: 0, speedbrakes: 0 }, ind: { bingo: '3000', fuelUp: ' 10900T', fuelDown: '  9200I' },
+          args: { 1: 1, 2: 1, 39: 1, 226: 1, 234: 1, 293: 1, 49: 1, 13: 0, 304: 0 },
+          stores: { counts: { 'AIM-120C': 3, 'AIM-9X': 2, FPU_8A: 1 }, gun: 578 },
+          disp: {
+            hud: { HUD_AA_targetRange_FLOOD: '19.2RNG', HUD_AA_targetRangeRate: ' 850V', HUD_AA_TD_box_IN_LAR_cue: 'IN LAR', TOF_TTG_VAL: '18', AA_MSL_label: 'ACT', HUD_EW_ThreatSymbol0: '29', HUD_EW_SpecialSymbolsStt0: '' },
+            radar: { Radar_mode: 'RWS', TUC_PlaceholderTUC_Altitude: '19', ASPECT_DDI: '0', TargetHeading: ' 83°', IN_LAR_DDI: 'IN LAR', MissileTTG1: '12', AA_MSL_Symb_Mode1: 'TTA' },
+            rwr: { RWR_PrioritySetting: 'N', RWR_ThreatFlasher0: '', RWR_ThreatSymbol0: '29' },
+          },
+        },
+      };
     default: return null;
   }
 }

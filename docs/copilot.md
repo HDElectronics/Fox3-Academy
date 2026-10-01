@@ -29,7 +29,16 @@ Put it on a second monitor or a tablet next to your HOTAS.
 | … KT, CONFIGURE BELOW 150 | carrier, gear down, faster than 160 kt (guide p108) | "Fast for the gear." |
 | HOOK UP | carrier, gear down, hook handle up | "Check hook." |
 | FLAPS NOT FULL | gear down, flap switch not FULL | "Check flaps." |
-| SPIKE … O'CLOCK, type | an RWR emitter goes to lock (sensor export) | "Spike, three o'clock, Su-27." |
+| NEW THREAT 29 (Su-27, …) | F/A-18C: a symbol appears on the RWR display, named from the app's ALR-67 table | "New threat, two niner." |
+| SPIKE 29 | F/A-18C: the AI threat light (hostile fighter radar lock) | "Spike, two niner." |
+| MISSILE GUIDING (CW) | F/A-18C: the CW threat light (CW radar, probably guiding a missile, guide p414) | "Missile guiding. Defend." |
+| SAM LOCK | F/A-18C: the SAM threat light | "SAM lock." |
+| LOCKED … NM VC … | F/A-18C: the HUD shows target range and closure | "Locked, 31 miles, closing 870." |
+| IN LAR | F/A-18C: the jet's own IN LAR cue | "In LAR." |
+| PITBULL | F/A-18C: an AMRAAM on the attack format goes from TTA to A | "Pitbull." |
+| RADAR MEM … | F/A-18C: the radar shows MEM (coasting the track) | "Memory. Re-lock." |
+| FOX THREE | the AIM-120 count drops and nothing else changes | "Fox three." |
+| SPIKE … O'CLOCK, type | FC3 jets | an RWR emitter goes to lock (sensor export) | "Spike, three o'clock, Su-27." |
 | MISSILE LAUNCH … O'CLOCK | an RWR emitter shows a launch | "Missile launch, three o'clock. Defend." |
 | LOCKED type, range, aspect | the radar locks a target | "Locked, Su-27, 25 miles, hot." |
 | IN RANGE / NO ESCAPE / INSIDE MIN RANGE | the locked target crosses the selected missile's Rmax, Rne or Rmin (this app's launch-zone tables, src/sim/dlz.ts) | "In range." / "No escape." / "Too close." |
@@ -39,7 +48,10 @@ Put it on a second monitor or a tablet next to your HOTAS.
 The Threats panel lists every RWR emitter (launch, lock, track, search) with its clock position; the Radar lock
 panel shows the locked target's range, closure, aspect (HOT, FLANK 30–60°, BEAM, DRAG), altitude and bearing, and
 a launch-zone bar for the selected missile. Both use only the jet's own sensors and stay empty when the server
-blocks sensor export. The RWR bearing unit and sign are not verified yet.
+blocks sensor export. For the F/A-18C they come from the jet's own displays (HUD, radar attack format, RWR display
+text and threat lights), because DCS's FC3 sensor functions return nothing for it; the Hornet's displays give no
+threat bearing as text, so its threat calls have no clock position. For FC3 jets the RWR bearing unit and sign
+are not verified yet.
 
 Approach means airborne with the gear down below 5000 ft AGL. A call must hold for a moment before it is made, is
 made once, repeats at an interval if it matters, and rearms after it has been clear for a few seconds.

@@ -12,6 +12,7 @@ import { HORNET_FACTS, HORNET_RULES, flapsFull, hookDown } from '../../copilot/h
 import { HORNET_COCKPIT_NOTE } from '../../copilot/hornetCockpit';
 import { FuelTrend, situationOf, type Situation } from '../../copilot/situation';
 import { LockTracker, ThreatTracker, lockOf, threatsOf } from '../../copilot/threats';
+import { HornetLockTracker, HornetThreatTracker, hornetLock, hornetThreats } from '../../copilot/hornetSensors';
 import { CopilotVoice } from '../../copilot/voice';
 import { DcsLink, type LinkSnapshot } from '../../dcs/client';
 import type { DcsFrame } from '../../dcs/protocol';
@@ -19,7 +20,7 @@ import {
   button, callout, cleanup, consolePanel, eventLog, h, lamp, pageHeader, readouts, segmented, setText, slider, toggle,
 } from '../../ui';
 import {
-  aoaView, flapsText, fuelView, loadSettings, lockView, PHASE_TEXT, positionText, previewFrame, profileMatches, saveSettings, threatRows,
+  aoaView, flapsText, fuelView, hornetLockView, hornetThreatRows, loadSettings, lockView, PHASE_TEXT, positionText, previewFrame, profileMatches, saveSettings, threatRows,
   type CopilotSettings,
 } from './model';
 
@@ -54,9 +55,12 @@ const factory: PageFactory = () => {
       const dlzZone = h('div', { class: 'cp-dlz__zone' });
       const dlzMarks = { rmin: h('i', { class: 'cp-dlz__mark', title: 'Rmin' }), rne: h('i', { class: 'cp-dlz__mark cp-dlz__mark--ne', title: 'No escape' }), rmax: h('i', { class: 'cp-dlz__mark', title: 'Rmax' }), now: h('i', { class: 'cp-dlz__now', title: 'Target' }) };
       const dlzBox = h('div', { class: 'cp-dlz', hidden: true }, dlzZone, h('div', { class: 'cp-dlz__bar' }, h('i', { class: 'cp-dlz__ne' }), dlzMarks.rmin, dlzMarks.rne, dlzMarks.rmax, dlzMarks.now));
-      const lockBox = h('div', { class: 'cp-lock', dataset: { state: 'off' } }, lockName, lockRows.el, dlzBox);
+      const lockNote = h('div', { class: 'cp-lock__note' });
+      const lockBox = h('div', { class: 'cp-lock', dataset: { state: 'off' } }, lockName, lockRows.el, dlzBox, lockNote);
       const threatTracker = new ThreatTracker();
       const lockTracker = new LockTracker();
+      const hornetThreatTracker = new HornetThreatTracker();
+      const hornetLockTracker = new HornetLockTracker();
 
       // AoA
       const aoaState = h('div', { class: 'cp-aoa__state' });
@@ -169,10 +173,15 @@ const factory: PageFactory = () => {
         const s: Situation = situationOf(live ? frame : null);
         s.fuelFlowLbH = live ? fuelTrend.update(t, s.fuelLb) : undefined;
         const ruled = live ? engine.step(s, t) : { active: [], calls: [] as Callout[] };
-        const threats = live ? threatsOf(frame!.rwr?.emitters) : [];
-        const lock = live ? lockOf(frame) : null;
-        const th = live ? threatTracker.update(threats, t) : { active: [], calls: [] };
-        const lk = live ? lockTracker.update(lock, t) : { active: [], calls: [] };
+        // The Hornet's own displays when it sends them; the FC3 sensor functions otherwise.
+        const hornet = live && frame!.self?.name === 'FA-18C_hornet' && frame!.disp !== undefined;
+        const threats = live && !hornet ? threatsOf(frame!.rwr?.emitters) : [];
+        const lock = live && !hornet ? lockOf(frame) : null;
+        const hThreats = hornet ? hornetThreats(frame) : null;
+        const hLock = hornet ? hornetLock(frame) : null;
+        const none = { active: [], calls: [] };
+        const th = !live ? none : hornet ? hornetThreatTracker.update(hThreats, t) : threatTracker.update(threats, t);
+        const lk = !live ? none : hornet ? hornetLockTracker.update(hLock, frame, t) : lockTracker.update(lock, t);
         const order = { warning: 0, caution: 1, advisory: 2 } as const;
         const active = [...th.active, ...ruled.active, ...lk.active].sort((a, b) => order[a.severity] - order[b.severity]);
         const calls = [...th.calls, ...ruled.calls, ...lk.calls].sort((a, b) => order[a.severity] - order[b.severity]);
@@ -191,7 +200,7 @@ const factory: PageFactory = () => {
         if (match === false) setText(profileNote, `DCS reports ${s.type}. This copilot profile is for the F/A-18C; its calls may not fit.`);
 
         const sensorBlocked = live && frame!.allow.sensor === false;
-        const rows = threatRows(threats);
+        const rows = hornet ? hornetThreatRows(hThreats) : threatRows(threats);
         const tkey = sensorBlocked ? 'blocked' : live ? rows.map(r => r.id + r.state + r.where).join('|') : 'off';
         if (tkey !== threatKey) {
           threatKey = tkey;
@@ -200,7 +209,8 @@ const factory: PageFactory = () => {
               : rows.length ? rows.map(r => h('li', { class: 'cp-threat', dataset: { state: r.state } }, h('b', null, r.tag), h('span', null, r.where), h('span', null, r.name)))
                 : [h('li', { class: 'cp-threat', dataset: { state: 'none' } }, 'RWR clear')]));
         }
-        const lv = lockView(lock);
+        const lv = hornet ? hornetLockView(hLock) : lockView(lock);
+        setText(lockNote, lv?.note ?? '');
         lockBox.dataset.state = lv ? (lv.dlz?.zone ?? 'track') : 'off';
         setText(lockName, lv ? lv.name : sensorBlocked ? 'Sensor export blocked' : 'NO LOCK');
         for (const id of ['mode', 'range', 'closure', 'aspect', 'alt', 'where'] as const) lockRows.set(id, lv ? lv[id] : '—');
