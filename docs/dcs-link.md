@@ -33,6 +33,10 @@ dependencies beyond Node 24.
 4. Open the DCS link page (the public site or `npm run dev`), start a mission and sit in the jet. The DCS lamp
    lights within a second. Press **Send ping**: the Ping lamp lights and the log shows the round trip.
 
+Test mission: `dcs-link/missions/copilot_test.py` (pydcs, Python 3.12) writes `Fox3_Copilot_Test.miz` to
+`Saved Games\DCS\Missions`: an F/A-18C airborne over the sea west of Batumi, an unarmed Su-27 target drone flying
+a race-track 25-40 nm ahead, and an armed Su-27 the pilot calls in from the F10 radio menu.
+
 No DCS at hand: `npm run dcs-link:fake` sends made-up frames to the bridge and answers pings.
 
 ## Troubleshooting
