@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- F/A-18C Copilot (`#/copilot`, Reference): a second-screen helper that reads the DCS link and calls out, on
+  screen and by voice, master warning and caution, fire, FUEL LO, joker and bingo (from the IFEI BINGO), over G, gear
+  speed, a forgotten gear, carrier hook and configuration speed, flaps, and on speed / slow / fast on approach.
+  The export script (v0.2.0) adds gear, flap, hook, fuel and engine data and the Hornet's cockpit switches,
+  lamps and IFEI. See [docs/copilot.md](docs/copilot.md).
+
 - DCS link (`#/dcs`, Reference): a first connection test between the app and DCS World on the same computer. An
   export script sends own-ship telemetry at 10 Hz, a dependency-free bridge (`npm run dcs-link`) relays it to the
   page over loopback, and a ping proves the page can send back. `npm run dcs-link:fake` stands in for DCS. See

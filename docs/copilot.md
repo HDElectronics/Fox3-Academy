@@ -1,0 +1,51 @@
+# Copilot
+
+The Copilot page (`#/copilot`, Reference → Copilot) is a second-screen helper for the F/A-18C while you fly in
+DCS. It reads the [DCS link](dcs-link.md), shows the alerts that need you in large text, and speaks them.
+Put it on a second monitor or a tablet next to your HOTAS.
+
+## Use it
+
+1. Set up the DCS link ([dcs-link.md](dcs-link.md)): export script v0.2.0 or later in `Saved Games\DCS\Scripts`,
+   `npm run dcs-link` running.
+2. Pick the F/A-18C in the top bar and open Reference → Copilot.
+3. Turn **Voice** on (the browser needs a click before it may speak). **Test voice** checks the volume.
+4. Choose **Field** or **Carrier**. **Bingo from IFEI** uses the BINGO you set on the IFEI when the script can read
+   it; otherwise, or with **This setting**, the copilot uses the slider.
+5. On the first approach, compare **AoA (DCS)** in the Flight panel with the HUD. If they differ by a factor of
+   about 57, switch **DCS AoA unit**.
+
+## What it calls
+
+| Call | When | Spoken |
+|---|---|---|
+| MASTER WARNING | `LoGetMCPState` MasterWarning | "Master warning." |
+| FIRE LEFT / RIGHT ENGINE, APU FIRE | fire light lit | No: the jet's warning voice already calls these |
+| MASTER CAUTION | MASTER CAUTION light lit | "Master caution. Check the DDI cautions." |
+| FUEL LO | FUEL LO light lit (a feed tank below 800 lb, guide p65) | No: the jet calls it |
+| BINGO / JOKER | fuel at or below bingo / bingo plus the joker margin, airborne | "Bingo fuel. Head home." / "Joker fuel." |
+| OVER G | load factor above 7.5 G (not verified: the guide gives no G limit) | "Over G." |
+| GEAR UP, LOW AND SLOW | gear up below 1000 ft AGL, slower than 200 kt, descending | "Check gear." |
+| GEAR OUT AT … KT | gear not up above 250 kt (guide p102) | "Gear speed." |
+| … KT, CONFIGURE BELOW 150 | carrier, gear down, faster than 160 kt (guide p108) | "Fast for the gear." |
+| HOOK UP | carrier, gear down, hook handle up | "Check hook." |
+| FLAPS NOT FULL | gear down, flap switch not FULL | "Check flaps." |
+| SLOW / ON SPEED / FAST | gear down below 5000 ft AGL, AoA against the indexer band 7.4–8.8° (on speed 8.1°, guide p44-45) | "Slow." / "On speed." / "Fast." |
+
+Approach means airborne with the gear down below 5000 ft AGL. A call must hold for a moment before it is made, is
+made once, repeats at an interval if it matters, and rearms after it has been clear for a few seconds.
+
+## Where the numbers come from
+
+- ED F/A-18C Early Access Guide (24 Mar 2024): [research/fa18c-copilot.md](research/fa18c-copilot.md).
+- Export functions and Hornet cockpit arguments: [research/dcs-export.md](research/dcs-export.md).
+- The page labels values that are not verified. Still to check in game: the AoA unit, the cockpit switch value
+  maps (from Helios and DCS-BIOS), whether `LoGetMechInfo` and `LoGetMCPState` are filled by the Hornet, and the
+  IFEI strings when the IFEI is off.
+
+## Code
+
+`src/copilot/`: `situation.ts` (frame → knots, feet, pounds, phase), `engine.ts` (rule timing), `voice.ts`
+(speech queue, warnings interrupt), `hornet.ts` (facts and rules), `hornetCockpit.ts` (cockpit argument
+decoding). Page: `src/pages/copilot/`, `?shot=approach|carrier|bingo|off` previews. Another jet needs a facts and
+rules file like `hornet.ts`, its arguments in the export script's `COCKPIT_ARGS`, and a decoder.

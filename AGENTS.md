@@ -61,8 +61,9 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/render/` | three.js kit: `Stage`, sky and ground, procedural jets, `WorldView`, `RadarVolume`, `CameraRig`, `ReplayView` | `docs/api/render.md` |
 | `src/ui/` | Controls, panels, layouts, `bindKeys` | `docs/api/ui-kit.md` |
 | `src/ui/displays/` | Canvas cockpit displays: five radar formats, six RWRs, DLZ bar, missile timeline, RWR audio | `docs/api/displays.md` |
-| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, dcs-link | page `index.ts` header |
+| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, dcs-link, copilot | page `index.ts` header |
 | `src/dcs/`, `dcs-link/` | DCS link: page client and protocol; export script (Lua), bridge and fake DCS (Node) | `docs/api/dcs-link.md` |
+| `src/copilot/` | Live copilot: DCS frame to situation, rule engine, voice, per-jet facts and rules (F/A-18C) | `docs/copilot.md` |
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |
 | `docs/` | Human docs: user guide, developer guide, DCS accuracy, decisions | `docs/README.md` |

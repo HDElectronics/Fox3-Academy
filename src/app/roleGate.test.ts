@@ -38,7 +38,7 @@ describe('fighter and attack roles', () => {
 
 describe('route role gate and picker', () => {
   it('keeps lesson role gates while progress and the DCS link accept every jet', () => {
-    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'dcs'].includes(x.path))) {
+    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'dcs', 'copilot'].includes(x.path))) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);
