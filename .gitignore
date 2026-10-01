@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-web
+dcs-link/mcp/dist
 .wrangler
 artifact
 .DS_Store

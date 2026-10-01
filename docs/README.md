@@ -8,6 +8,7 @@
 | [api/progress.md](api/progress.md) | Pilots and developers | Fleet progress, saved completion rules and supported lessons. |
 | [dcs-link.md](dcs-link.md) | Pilots | Connect the app to DCS World on the same computer: setup, troubleshooting, what it does. |
 | [copilot.md](copilot.md) | Pilots | F/A-18C second-screen copilot: what it calls, when, and where the numbers come from. |
+| [mcp.md](mcp.md) | Pilots and developers | The fox3-dcs MCP server: let Claude read your jet live and answer from the research notes. |
 | [api/dcs-link.md](api/dcs-link.md) | Developers | DCS link protocol, bridge HTTP API, page client, how to extend it. |
 | [api/tacview-export.md](api/tacview-export.md) | Pilots and developers | Sortie ACMI downloads, coordinate mapping and export limits. |
 | [browser-qa.md](browser-qa.md) | Maintainers | Browser interaction coverage, regression fixes and remaining device checks. |

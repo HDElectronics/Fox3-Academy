@@ -45,6 +45,7 @@ npm run build        # dist/index.html (single file, three.js inlined)
 npm run build:web    # dist-web/ (code split: shell, one chunk per page, three.js vendor chunk)
 npm run check        # typecheck + test + both builds
 npm run dcs-link     # DCS link bridge (docs/dcs-link.md); npm run dcs-link:fake stands in for DCS
+npm run dcs-mcp:build  # build the fox3-dcs MCP server (docs/mcp.md) to dcs-link/mcp/dist/
 ```
 
 Offline tuning (slow, only when changing the missile model):
@@ -62,7 +63,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/ui/` | Controls, panels, layouts, `bindKeys` | `docs/api/ui-kit.md` |
 | `src/ui/displays/` | Canvas cockpit displays: five radar formats, six RWRs, DLZ bar, missile timeline, RWR audio | `docs/api/displays.md` |
 | `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, dcs-link, copilot | page `index.ts` header |
-| `src/dcs/`, `dcs-link/` | DCS link: page client and protocol; export script (Lua), bridge and fake DCS (Node) | `docs/api/dcs-link.md` |
+| `src/dcs/`, `dcs-link/` | DCS link: page client and protocol; export script (Lua), bridge, fake DCS, test mission generator, MCP server (`dcs-link/mcp/`) | `docs/api/dcs-link.md`, `docs/mcp.md` |
 | `src/copilot/` | Live copilot: DCS frame to situation, rule engine, voice, per-jet facts and rules (F/A-18C) | `docs/copilot.md` |
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |

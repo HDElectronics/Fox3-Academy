@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- DCS MCP server (`fox3-dcs`, `npm run dcs-mcp:build`): Claude Desktop, Claude Code or any MCP client can read the
+  jet live (status, flight, fuel, threats, radar lock, weapons, cockpit switches, copilot alerts) and search the
+  sourced research notes. Read-only, own jet only. See [docs/mcp.md](docs/mcp.md).
+
 - F/A-18C Copilot (`#/copilot`, Reference): a second-screen helper that reads the DCS link and calls out, on
   screen and by voice, master warning and caution, fire, FUEL LO, joker and bingo (from the IFEI BINGO), over G, gear
   speed, a forgotten gear, carrier hook and configuration speed, flaps, and on speed / slow / fast on approach.

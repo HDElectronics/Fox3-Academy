@@ -14,7 +14,9 @@
     "test": "vitest run",
     "check": "tsc --noEmit && vitest run && vite build && vite build --mode web",
     "dcs-link": "node dcs-link/bridge.ts",
-    "dcs-link:fake": "node dcs-link/fake-dcs.ts"
+    "dcs-link:fake": "node dcs-link/fake-dcs.ts",
+    "dcs-mcp:build": "vite build --config dcs-link/mcp/vite.config.ts",
+    "dcs-mcp": "node dcs-link/mcp/dist/fox3-dcs-mcp.mjs"
   },
   "dependencies": {
     "@fontsource/b612-mono": "^5.3.0",
@@ -24,12 +26,15 @@
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.2.0",
+    "@modelcontextprotocol/server": "^2.2.0",
     "@types/node": "^26.6.2",
     "@types/three": "^0.186.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "zod": "^4.6.5"
   },
   "license": "MIT"
 }

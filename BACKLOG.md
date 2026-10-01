@@ -50,10 +50,11 @@ respects the server's export permissions; world-object truth data stays out.
   route and next waypoint (bearing, distance, ETA, fuel at home plate), ICLS/ILS deviation and carrier LSO-style
   calls (reuse `src/sim/flightOps/lso.ts`), cold start and landing checklists driven by cockpit switches, DDI
   and UFC text. Done when each is verified in game with one recorded frame and has a regression test.
-- **B29. DCS MCP server.** The bridge exposes the live situation as MCP tools (flight state, fuel plan, threats,
-  radar target, route, checklist state, cockpit switches) so any MCP client (Claude Desktop, Claude Code) can
-  read DCS. Read-only first; any action (set BINGO, press a cockpit button, in-game text message) is a separate,
-  opt-in tool that asks for confirmation. Done when a client answers "what is my fuel at home plate" from live data.
+- **B29. DCS MCP server.** Read-only server done ([mcp.md](docs/mcp.md)): status, flight, fuel, threats, radar
+  lock, weapons, cockpit switches, copilot alerts, notes search. Still open: route and fuel at home plate (needs
+  B28 route data), checklist state, and opt-in actions (set BINGO, press a cockpit button, in-game text message)
+  as separate tools that ask for confirmation. Done when a client answers "what is my fuel at home plate" from
+  live data.
 - **B30. Voice LLM copilot.** Push-to-talk in the copilot page: speech to text, an LLM agent with the B29 tools
   and the research notes as its references, spoken answer. Deterministic rules keep every time-critical call;
   the LLM answers questions and talks through procedures. The API key lives with the bridge on the user's
