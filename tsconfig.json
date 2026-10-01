@@ -17,5 +17,5 @@
     "noEmit": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "tests", "sandbox", "vite.config.ts"]
+  "include": ["src", "tests", "sandbox", "dcs-link", "vite.config.ts"]
 }
