@@ -200,6 +200,29 @@ One live frame from export script v0.2.0, single player, during a 4.3 G pull at 
 | Args 226, 234, 293, 49 | `1`, `1`, `1`, `1` with gear up, flaps AUTO, hook up, master arm ARM | Matches the community value maps. |
 | Permissions | ownship, sensor, object all `true` | Single player allows everything. |
 
+### Hornet displays (observed in game, 2026-10-02)
+
+Two recorded flights in the copilot test mission (export script v0.4.0 and v0.4.1, display dumps every 2 s). The
+FC3 sensor functions `LoGetTWSInfo`, `LoGetLockedTargetInformation` and `LoGetTargetInformation` returned
+nothing for the Hornet, even while locked and firing, and `LoGetPayloadInfo().CurrentStation` was never set.
+What the jet displays is available as text through `list_indication(id)`:
+
+| id | Display | Elements the copilot uses | Observed values |
+|---|---|---|---|
+| 1 | HUD | `HUD_AA_targetRange_FLOOD`, `HUD_AA_targetRangeRate`, `HUD_AA_TD_box_IN_LAR_cue`, `TOF_TTG_VAL` + `AA_MSL_label`, `MEM_RMEM_Label`, `HUD_TargetAngleReadout`, `HUD_EW_ThreatSymbol<n>`, `HUD_EW_SpecialSymbolsStt<n>` | `31.3RNG`, ` 870V` (closure, kt), `IN LAR`, `56` + `ACT`/`TTG`, `MEM 7`, ` 16`..` 63`, `29`; the STT special symbol appears while the AI light is lit |
+| 2 | Left DDI, stores | station labels, `Master_Arm_Status`, `Gun_Data_Rounds` | `9X`, `AC`, `SEL`, `ARM`, `578` |
+| 3 | Right DDI, radar attack format | `Radar_mode`, `RadarRange_VS_scaleMax`, `TUC_PlaceholderTUC_Altitude`, `ASPECT_DDI`, `TargetHeading`, `IN_LAR_DDI`, `TOF_DDI`, `MissileTTG<n>` + `AA_MSL_Symb_Mode<n>`, `MEM_RMEM_JAM_RJAM_Label` | `RWS`, `40`, `19` (thousands of ft), `0`..`6`, ` 83°`, `IN LAR`, `16`, `TTA` then `A` |
+| 4 | AMPCD, HSI | compass and HSI text | |
+| 5 | IFEI | fuel, BINGO, RPM, TEMP, FF, oil, clock | `11600T`, `0`, `98`, `818`, `86` |
+| 6 | UFC | option and scratchpad text, comm channels | |
+| 7 | RWR display | `RWR_ThreatSymbol<n>`, `RWR_ThreatFlasher<n>`, `RWR_PrioritySetting` | `29` for the Su-27; the symbol blinks off in some reads while CW is lit |
+
+Lights: the AI light (arg 39) lit when the Su-27 locked the player; the CW light (arg 41) lit about one second
+later, during the R-27ER shot. ED guide p414: AI = hostile AI radar lock, CW = CW radar, probably guiding a
+missile.
+
+Not in the text: threat bearings (the RWR and HUD draw them as graphics, `RWR_ThreatPlacer<n>` carries no value),
+and the target type (no NCTR in the text). `ASPECT_DDI` and `HUD_TargetAngleReadout` meanings are not verified.
 ### Recommended export set for the copilot
 
 In priority order. Every item is a read; none sends a command to the aircraft.

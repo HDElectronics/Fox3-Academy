@@ -88,6 +88,8 @@ export interface DcsFrame {
   /** Module text indicators by the script's short names, e.g. Hornet IFEI { bingo: '2500' }. */
   ind?: Record<string, string>;
   stores?: Stores;
+  /** Selected display text by display key (hud, radar, rwr) and element name, e.g. disp.hud.HUD_AA_targetRange_FLOOD = '31.3RNG'. */
+  disp?: Record<string, Record<string, string>>;
   /** Own sensors, present only when the server allows sensor export. */
   rwr?: { mode?: number; emitters: RwrEmitter[] };
   lock?: RadarTarget[];
@@ -171,6 +173,7 @@ export function parseDcsMessage(raw: unknown): DcsMessage | null {
         cm: cm ? compact({ chaff: num(cm.chaff), flare: num(cm.flare) }) : undefined,
         args, ind,
         stores: parseStores(raw.stores),
+        disp: parseDisplays(raw.disp),
         rwr: parseRwr(raw.rwr),
         lock: parseTargets(raw.lock, 2),
         tracks: parseTargets(raw.tracks, 10),
@@ -200,6 +203,20 @@ function parseTargets(v: unknown, max: number): RadarTarget[] | undefined {
     id: num(t.id), name: str(t.name, 32), dist: num(t.dist), closure: num(t.closure), mach: num(t.mach), flags: num(t.flags),
     jam: t.jam === true ? true : undefined, course: num(t.course), aspect: num(t.aspect), pos: vec3(t.pos), vel: vec3(t.vel),
   }));
+}
+
+function parseDisplays(v: unknown): DcsFrame['disp'] {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, Record<string, string>> = {};
+  for (const [key, d] of Object.entries(v).slice(0, 8)) {
+    if (!/^[a-z]{1,16}$/.test(key) || !isObj(d)) continue;
+    const el: Record<string, string> = {};
+    for (const [k, s] of Object.entries(d).slice(0, 64)) {
+      if (/^[\w.:#-]{1,48}$/.test(k) && typeof s === 'string') el[k] = s.slice(0, 24);
+    }
+    out[key] = el;
+  }
+  return out;
 }
 
 function parseStores(v: unknown): Stores | undefined {

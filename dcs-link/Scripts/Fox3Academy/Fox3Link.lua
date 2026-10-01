@@ -16,7 +16,7 @@
 --   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>", "dump 1" / "dump 0"
 
 do
-  local VERSION = '0.4.1'
+  local VERSION = '0.5.0'
   local HOST = '127.0.0.1'
   local BRIDGE_PORT = 47781  -- the bridge listens here
   local LISTEN_PORT = 47782  -- this script listens here for commands
@@ -104,6 +104,54 @@ do
     ['FA-18C_hornet'] = { id = 5, keep = { txt_FUEL_UP = 'fuelUp', txt_FUEL_DOWN = 'fuelDown', txt_BINGO = 'bingo' } },
   }
 
+  -- Displays whose text the copilot reads (what the pilot sees): list_indication id, a short key, and the
+  -- element-name prefixes to keep. Found with the dump command (docs/research/dcs-export.md, "Hornet displays").
+  local DISPLAYS = {
+    ['FA-18C_hornet'] = {
+      { id = 1, key = 'hud', prefixes = { 'HUD_AA_targetRange', 'HUD_AA_TD_box_IN_LAR_cue', 'TOF_TTG_VAL', 'AA_MSL_label',
+        'HUD_TargetAngleReadout', 'MEM_RMEM', 'HUD_EW_ThreatSymbol', 'HUD_EW_SpecialSymbolsStt', 'Window2_cue' } },
+      { id = 3, key = 'radar', prefixes = { 'Radar_mode', 'RadarRange_VS_scaleMax', 'TUC_PlaceholderTUC_Altitude', 'ASPECT_DDI',
+        'TargetHeading', 'IN_LAR_DDI', 'TOF_DDI', 'MissileTTG', 'AA_MSL_Symb_Mode', 'MEM_RMEM_JAM' } },
+      { id = 7, key = 'rwr', prefixes = { 'RWR_ThreatSymbol', 'RWR_ThreatFlasher', 'RWR_PrioritySetting' } },
+    },
+  }
+  local DISPLAY_INTERVAL = 0.2 -- seconds; displays are read at 5 Hz and the last read is resent in between
+  local MAX_DISPLAY_ELEMENTS = 48
+
+  -- "-----\nname\nvalue\n" blocks of a list_indication text. A final newline is added so the last block matches.
+  local function eachElement(text)
+    return (text .. '\n'):gmatch('%-+\n([^\n]+)\n([^\n]*)\n')
+  end
+
+  local function displayText(id, prefixes)
+    if type(list_indication) ~= 'function' then return nil end
+    local ok, text = pcall(list_indication, id)
+    if not ok or type(text) ~= 'string' then return nil end
+    local out, n = {}, 0
+    for k, v in eachElement(text) do
+      if n >= MAX_DISPLAY_ELEMENTS then break end
+      for _, p in ipairs(prefixes) do
+        if k:sub(1, #p) == p then
+          out[k:sub(1, 48)] = v:sub(1, 24)
+          n = n + 1
+          break
+        end
+      end
+    end
+    return out
+  end
+
+  local lastDisplays, nextDisplays = nil, 0
+  local function displays(list)
+    local now = socket.gettime()
+    if lastDisplays and now < nextDisplays then return lastDisplays end
+    nextDisplays = now + DISPLAY_INTERVAL
+    local out = {}
+    for _, d in ipairs(list) do out[d.key] = displayText(d.id, d.prefixes) end
+    lastDisplays = out
+    return out
+  end
+
   local function cockpitArgs(list)
     if type(GetDevice) ~= 'function' then return nil end
     local ok, dev = pcall(GetDevice, 0)
@@ -122,7 +170,7 @@ do
     local ok, text = pcall(list_indication, id)
     if not ok or type(text) ~= 'string' or text == '' then return nil end
     local out = {}
-    for k, v in text:gmatch('%-+\n([^\n]+)\n([^\n]*)\n') do
+    for k, v in eachElement(text) do
       if keep[k] then out[keep[k]] = v:sub(1, 16) end
     end
     return out
@@ -304,6 +352,8 @@ do
       frame.args = cockpitArgs(args)
       local ind = INDICATIONS[name]
       if ind then frame.ind = indication(ind.id, ind.keep) end
+      local disp = DISPLAYS[name]
+      if disp then frame.disp = displays(disp) end
     end
     return frame
   end

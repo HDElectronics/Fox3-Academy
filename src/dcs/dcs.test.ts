@@ -58,6 +58,15 @@ describe('DCS link protocol', () => {
     expect(parseDcsMessage({ v: 1, type: 'frame', seq: 1, allow: {}, tracks: 'x', rwr: 5 })).not.toHaveProperty('tracks');
   });
 
+  it('parses display text by display and element, dropping odd keys and long values', () => {
+    const f = parseDcsMessage({
+      v: 1, type: 'frame', seq: 1, allow: {},
+      disp: { hud: { HUD_AA_targetRange_FLOOD: '31.3RNG', 'bad key!': 'x', long: 'x'.repeat(40), n: 5 }, Bad: { a: 'b' }, rwr: 'x' },
+    });
+    expect(f).toMatchObject({ disp: { hud: { HUD_AA_targetRange_FLOOD: '31.3RNG', long: 'x'.repeat(24) } } });
+    expect(f && 'disp' in f && Object.keys(f.disp!)).toEqual(['hud']);
+  });
+
   it('parses bridge status', () => {
     expect(parseBridgeStatus({ v: 1, type: 'status', bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 }))
       .toEqual({ bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 });

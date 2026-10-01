@@ -58,6 +58,7 @@ Frame fields (units as the export API returns them):
 | `cm.chaff`, `.flare` | `LoGetSnares` | count |
 | `args` | `GetDevice(0):get_argument_value(n)` for the numbers in `COCKPIT_ARGS[type]` | raw value rounded to 0.001, keys `a<n>`; the page gets `{ [n]: value }` |
 | `ind` | `list_indication(id)`, elements in `INDICATIONS[type]` | strings (max 16 chars) under short names, e.g. Hornet IFEI `bingo`, `fuelUp`, `fuelDown` |
+| `disp.<key>.<element>` | `list_indication(id)` for the displays in `DISPLAYS[type]`, elements filtered by name prefix, read at 5 Hz | strings (max 24 chars). F/A-18C keys `hud` (1), `radar` (3), `rwr` (7); see research/dcs-export.md, "Hornet displays" |
 | `self.x`, `.y`, `.z` | `LoGetSelfData().Position` | m, DCS world frame (x north, y up, z east) |
 | `stores.counts`, `.sel`, `.gun` | `LoGetPayloadInfo`, names from `LoGetNameByType` | count by weapon name, selected station's weapon, gun rounds |
 | `rwr.mode`, `rwr.emitters[]` (`id`, `name`, `signal`, `az`, `power`, `prio`) | `LoGetTWSInfo` | `signal` scan / lock / missile_radio_guided / track_while_scan; `az` relative bearing, unit and sign not verified. Sensor export only |
@@ -65,7 +66,7 @@ Frame fields (units as the export API returns them):
 
 When own-ship export is blocked, a frame carries only `seq`, `t` and `allow`. `args` and `ind` go only for
 modules the script lists (today `FA-18C_hornet`); their meaning is decoded in the app
-(`src/copilot/hornetCockpit.ts`), so a wrong value map is fixed without reinstalling the script. Script v0.3.0. A Lua list arrives as a JSON array, or as `{}` when empty; the parser accepts both.
+(`src/copilot/hornetCockpit.ts`), so a wrong value map is fixed without reinstalling the script. Script v0.5.0. A Lua list arrives as a JSON array, or as `{}` when empty; the parser accepts both.
 
 ## Protocol v1: bridge → DCS
 
