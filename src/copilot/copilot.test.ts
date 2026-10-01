@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CopilotEngine, type Callout, type Rule } from './engine';
 import { HORNET_DEFAULTS, HORNET_FACTS, HORNET_RULES, aoaState, type HornetConfig } from './hornet';
-import { phaseOf, situationOf, enduranceMin, type Situation } from './situation';
+import { FuelTrend, phaseOf, situationOf, enduranceMin, type Situation } from './situation';
 import { CopilotVoice, type SpeechLike } from './voice';
 import type { DcsFrame } from '../dcs/protocol';
 
@@ -45,7 +45,7 @@ describe('copilot engine timing', () => {
 describe('situation from a DCS frame', () => {
   const frame: DcsFrame = {
     type: 'frame', seq: 1, allow: { ownship: true, sensor: null, object: null },
-    self: { name: 'FA-18C_hornet' }, ias: 72.0222, altAgl: 152.4, vv: -3.81, aoa: (8.1 * Math.PI) / 180, acc: { y: 1.1 },
+    self: { name: 'FA-18C_hornet' }, ias: 72.0222, altAgl: 152.4, vv: -3.81, aoa: 8.1, acc: { y: 1.1 },
     mech: { gear: 1, flaps: 1, hook: 0 }, engine: { fuelInt: 2000, fuelExt: 0, ffL: 0.1, ffR: 0.1 }, mcp: ['MasterWarning'],
   };
 
@@ -56,11 +56,39 @@ describe('situation from a DCS frame', () => {
     expect(s.vviFpm).toBeCloseTo(-750, 0);
     expect(s.aoaDeg).toBeCloseTo(8.1, 5);
     expect(s.fuelLb).toBeCloseTo(4409, 0);
-    expect(s.fuelFlowLbH).toBeCloseTo(1587, 0);
     expect(s).toMatchObject({ type: 'FA-18C_hornet', masterWarning: true, phase: 'approach', gear: 1, hook: 0 });
-    expect(situationOf(frame, 'deg').aoaDeg).toBeCloseTo((8.1 * Math.PI) / 180, 5);
-    expect(enduranceMin(s, 1000)).toBeCloseTo(((4409 - 1000) / 1587) * 60, 0);
+    expect(enduranceMin({ ...s, fuelFlowLbH: 1587 }, 1000)).toBeCloseTo(((4409 - 1000) / 1587) * 60, 0);
+    expect(enduranceMin(s)).toBeUndefined();
     expect(situationOf(null)).toEqual({ masterWarning: false, phase: 'ground' });
+  });
+
+  it('reads the Hornet as DCS really sends it: AoA in degrees, fuel from the IFEI, BINGO 0 = not set', () => {
+    // Frame captured from DCS (F/A-18C, 2026-10-01): 4.3 G pull, IFEI 6930 lb, LoGetEngineInfo fuel a 0..1 fraction.
+    const live: DcsFrame = {
+      type: 'frame', seq: 9, allow: { ownship: true, sensor: true, object: true }, self: { name: 'FA-18C_hornet' },
+      ias: 189.6, aoa: 9.0656, altAgl: 1799.4, acc: { y: 4.32 },
+      mech: { gear: 0, flaps: 0.246, speedbrakes: 0 }, engine: { fuelInt: 0.658, fuelExt: 0, ffL: 3.571, ffR: 3.571, rpmL: 100.4, rpmR: 100.4 },
+      mcp: [], args: { 226: 1, 234: 1, 293: 1, 49: 1, 13: 0, 304: 0 }, ind: { fuelUp: '6930T', fuelDown: '6930I', bingo: '0' },
+    };
+    const s = situationOf(live);
+    expect(s.aoaDeg).toBeCloseTo(9.07, 2);
+    expect(s.fuelLb).toBe(6930);
+    expect(s.cockpit?.switches).toMatchObject({ gearHandle: 'UP', flapSwitch: 'AUTO', hookHandle: 'UP', masterArm: 'ARM' });
+    const e = new CopilotEngine(HORNET_RULES, { ...HORNET_DEFAULTS });
+    e.step(s, 0);
+    expect(e.step(s, 11).active.map(a => a.id)).toEqual(['bingo-not-set']); // no joker or bingo at 6930 lb
+    // Without the IFEI, a fraction is not a fuel quantity.
+    expect(situationOf({ ...live, self: { name: 'Su-27' } }).fuelLb).toBeUndefined();
+  });
+
+  it('measures burn from the fuel trend', () => {
+    const tr = new FuelTrend();
+    for (let t = 0; t < 14; t += 2) expect(tr.update(t, 6000 - 3 * t)).toBeUndefined(); // under MIN_S
+    expect(tr.update(20, 5940)).toBeUndefined(); // 6 s gap: data dropped, window restarts
+    for (let t = 22; t <= 40; t += 2) tr.update(t, 5940 - 3 * (t - 20));
+    expect(tr.update(42, 5940 - 66)).toBeCloseTo(10800, 0); // 3 lb/s
+    expect(tr.update(21, 6500)).toBeUndefined(); // tanking: restart
+    expect(tr.update(22, undefined)).toBeUndefined();
   });
 
   it('phases: ground, airborne, approach', () => {

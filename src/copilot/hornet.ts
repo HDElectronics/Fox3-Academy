@@ -59,7 +59,8 @@ export function flapsFull(s: Situation): boolean | undefined {
 /** The bingo the calls use, and where it came from. */
 export function effectiveBingo(s: Situation, cfg: HornetConfig): { lb: number; from: 'ifei' | 'setting' } {
   const ifei = s.cockpit?.ifei.bingoLb;
-  return cfg.bingoSource === 'ifei' && ifei !== undefined ? { lb: ifei, from: 'ifei' } : { lb: cfg.bingoLb, from: 'setting' };
+  // The IFEI shows 0 until the pilot sets a BINGO: treat 0 as not set.
+  return cfg.bingoSource === 'ifei' && ifei ? { lb: ifei, from: 'ifei' } : { lb: cfg.bingoLb, from: 'setting' };
 }
 const inApproach = (s: Situation) => s.phase === 'approach';
 const fmtLb = (lb: number) => `${Math.round(lb / 10) * 10} lb`;
@@ -110,6 +111,12 @@ export const HORNET_RULES: readonly Rule<HornetConfig>[] = [
       return airborne(s) && s.fuelLb !== undefined && s.fuelLb > b && s.fuelLb <= b + cfg.jokerMarginLb;
     },
     text: s => `JOKER  ${fmtLb(s.fuelLb!)}`, say: () => 'Joker fuel.',
+  },
+  {
+    id: 'bingo-not-set', severity: 'advisory', holdS: 10, rearmS: 600,
+    test: (s, { cfg }) => airborne(s) && cfg.bingoSource === 'ifei' && s.cockpit?.ifei.bingoLb === 0,
+    text: (_s, { cfg }) => `IFEI BINGO NOT SET, USING ${fmtLb(cfg.bingoLb)}`,
+    say: () => 'Bingo is not set on the IFEI.',
   },
   {
     id: 'gear-speed', severity: 'caution', holdS: 1, repeatS: 8,

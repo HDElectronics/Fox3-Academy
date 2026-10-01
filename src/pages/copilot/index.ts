@@ -9,7 +9,7 @@ import type { PageFactory } from '../../app/page';
 import { CopilotEngine, type ActiveAlert, type Callout } from '../../copilot/engine';
 import { HORNET_FACTS, HORNET_RULES, flapsFull, hookDown } from '../../copilot/hornet';
 import { HORNET_COCKPIT_NOTE } from '../../copilot/hornetCockpit';
-import { situationOf, type Situation } from '../../copilot/situation';
+import { FuelTrend, situationOf, type Situation } from '../../copilot/situation';
 import { CopilotVoice } from '../../copilot/voice';
 import { DcsLink, type LinkSnapshot } from '../../dcs/client';
 import type { DcsFrame } from '../../dcs/protocol';
@@ -108,11 +108,6 @@ const factory: PageFactory = () => {
         id: 'cp-joker', label: 'Joker above bingo', min: 0, max: 5000, step: 100, value: settings.jokerMarginLb, unit: 'lb',
         onChange: v => { settings.jokerMarginLb = v; persist(); },
       });
-      const aoaUnitSeg = segmented({
-        id: 'cp-aoa-unit', label: 'DCS AoA unit', value: settings.aoaUnit, size: 's',
-        options: [{ value: 'rad', label: 'Radians' }, { value: 'deg', label: 'Degrees' }],
-        onChange: v => { settings.aoaUnit = v; persist(); },
-      });
       const voiceTest = button({ label: 'Test voice', id: 'cp-voice-test', size: 's', disabled: !voice.available, onClick: () => voice.test() });
 
       const root = h('div', { class: 'cp-page' },
@@ -132,7 +127,7 @@ const factory: PageFactory = () => {
           h('section', { class: 'cp-side', 'aria-label': 'Aircraft and settings' },
             consolePanel({ title: 'Configuration', id: 'cp-config-panel', children: [h('div', { class: 'cp-lamps' }, cfgLamps.gear.el, cfgLamps.flaps.el, cfgLamps.hook.el, cfgLamps.brake.el), cfgRows.el] }).el,
             consolePanel({ title: 'Flight', id: 'cp-flight-panel', children: flight.el }).el,
-            consolePanel({ title: 'Settings', id: 'cp-settings-panel', children: [h('div', { class: 'cp-row' }, voiceToggle.el, voiceTest.el), modeSeg.el, bingoSource.el, bingo.el, joker.el, aoaUnitSeg.el, h('p', { class: 'cp-note' }, 'Compare the Flight panel with the HUD AoA on approach. If they differ, switch the DCS AoA unit.')] }).el,
+            consolePanel({ title: 'Settings', id: 'cp-settings-panel', children: [h('div', { class: 'cp-row' }, voiceToggle.el, voiceTest.el), modeSeg.el, bingoSource.el, bingo.el, joker.el] }).el,
             log.el)),
         notes());
       ctx.root.append(root);
@@ -148,9 +143,11 @@ const factory: PageFactory = () => {
       };
 
       let lastKey = '';
+      const fuelTrend = new FuelTrend();
       const render = (frame: DcsFrame | null, link: Pick<LinkSnapshot, 'bridge' | 'dcs'>, t: number) => {
         const live = link.dcs === 'live' && frame !== null;
-        const s: Situation = situationOf(live ? frame : null, settings.aoaUnit);
+        const s: Situation = situationOf(live ? frame : null);
+        s.fuelFlowLbH = live ? fuelTrend.update(t, s.fuelLb) : undefined;
         const { active, calls } = live ? engine.step(s, t) : { active: [], calls: [] as Callout[] };
         for (const c of calls) {
           voice.say(c);

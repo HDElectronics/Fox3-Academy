@@ -12,8 +12,6 @@ Put it on a second monitor or a tablet next to your HOTAS.
 3. Turn **Voice** on (the browser needs a click before it may speak). **Test voice** checks the volume.
 4. Choose **Field** or **Carrier**. **Bingo from IFEI** uses the BINGO you set on the IFEI when the script can read
    it; otherwise, or with **This setting**, the copilot uses the slider.
-5. On the first approach, compare **AoA (DCS)** in the Flight panel with the HUD. If they differ by a factor of
-   about 57, switch **DCS AoA unit**.
 
 ## What it calls
 
@@ -23,7 +21,8 @@ Put it on a second monitor or a tablet next to your HOTAS.
 | FIRE LEFT / RIGHT ENGINE, APU FIRE | fire light lit | No: the jet's warning voice already calls these |
 | MASTER CAUTION | MASTER CAUTION light lit | "Master caution. Check the DDI cautions." |
 | FUEL LO | FUEL LO light lit (a feed tank below 800 lb, guide p65) | No: the jet calls it |
-| BINGO / JOKER | fuel at or below bingo / bingo plus the joker margin, airborne | "Bingo fuel. Head home." / "Joker fuel." |
+| BINGO / JOKER | IFEI fuel total at or below bingo / bingo plus the joker margin, airborne | "Bingo fuel. Head home." / "Joker fuel." |
+| IFEI BINGO NOT SET | airborne, IFEI BINGO reads 0; the slider value is used meanwhile | "Bingo is not set on the IFEI." |
 | OVER G | load factor above 7.5 G (not verified: the guide gives no G limit) | "Over G." |
 | GEAR UP, LOW AND SLOW | gear up below 1000 ft AGL, slower than 200 kt, descending | "Check gear." |
 | GEAR OUT AT … KT | gear not up above 250 kt (guide p102) | "Gear speed." |
@@ -39,9 +38,10 @@ made once, repeats at an interval if it matters, and rearms after it has been cl
 
 - ED F/A-18C Early Access Guide (24 Mar 2024): [research/fa18c-copilot.md](research/fa18c-copilot.md).
 - Export functions and Hornet cockpit arguments: [research/dcs-export.md](research/dcs-export.md).
-- The page labels values that are not verified. Still to check in game: the AoA unit, the cockpit switch value
-  maps (from Helios and DCS-BIOS), whether `LoGetMechInfo` and `LoGetMCPState` are filled by the Hornet, and the
-  IFEI strings when the IFEI is off.
+- Checked in game (2026-10-01, one frame): AoA comes in degrees; `LoGetEngineInfo` fuel is a fraction for the
+  Hornet, so fuel is the IFEI total and burn is measured from its trend; gear handle, flap switch, hook handle
+  and master arm values match the community maps; IFEI BINGO reads 0 until set. Still to check: the other
+  switch maps and the IFEI strings when the IFEI is off.
 
 ## Code
 

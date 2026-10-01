@@ -184,6 +184,22 @@ names [6].
 Not found: the HOTAS speed brake switch has no active clickable (`clickabledata.lua:219` is commented out); use
 `LoGetMechInfo().speedbrakes` and the SPD BRK light instead.
 
+### Observed in game (F/A-18C, 2026-10-01)
+
+One live frame from export script v0.2.0, single player, during a 4.3 G pull at about 370 KIAS, IFEI showing
+6930 lb. These override the reference file and the inferred values above for the Hornet.
+
+| Item | Observed | Consequence |
+|---|---|---|
+| `LoGetAngleOfAttack` | `9.07` | **Degrees**, not radians as `Export.lua:454` says (9.07 rad would be 519°). |
+| `LoGetEngineInfo` `fuel_internal` / `fuel_external` | `0.658` / `0` | A 0..1 **fraction**, not kg, for the Hornet. Fuel comes from the IFEI total instead. |
+| `LoGetEngineInfo` `FuelConsumption` | `3.57` each at 100 % RPM | Unit unclear (kg/s would be 28000 lb/h per engine); not used. The copilot measures burn from the IFEI trend. |
+| `LoGetMechInfo` | `gear 0`, `flaps 0.246`, `speedbrakes 0`, no `hook` | Gear and flaps filled; **hook absent**: use cockpit arg 293. Flaps move in AUTO, so the position is not the switch. |
+| `LoGetMCPState` | `{}` | Nothing set; not filled for the Hornet or nothing was failing. |
+| IFEI `txt_FUEL_UP` / `txt_FUEL_DOWN` / `txt_BINGO` | `6930T` / `6930I` / `0` | Total and internal as inferred; BINGO reads `0` until set. |
+| Args 226, 234, 293, 49 | `1`, `1`, `1`, `1` with gear up, flaps AUTO, hook up, master arm ARM | Matches the community value maps. |
+| Permissions | ownship, sensor, object all `true` | Single player allows everything. |
+
 ### Recommended export set for the copilot
 
 In priority order. Every item is a read; none sends a command to the aircraft.

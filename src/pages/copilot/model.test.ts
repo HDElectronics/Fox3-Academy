@@ -12,8 +12,8 @@ describe('copilot page model', () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } };
     expect(loadSettings(storage)).toEqual(DEFAULT_SETTINGS);
-    saveSettings({ mode: 'carrier', bingoSource: 'manual', bingoLb: 2450, jokerMarginLb: 1000, aoaUnit: 'deg' }, storage);
-    expect(loadSettings(storage)).toEqual({ mode: 'carrier', bingoSource: 'manual', bingoLb: 2500, jokerMarginLb: 1000, aoaUnit: 'deg' });
+    saveSettings({ mode: 'carrier', bingoSource: 'manual', bingoLb: 2450, jokerMarginLb: 1000 }, storage);
+    expect(loadSettings(storage)).toEqual({ mode: 'carrier', bingoSource: 'manual', bingoLb: 2500, jokerMarginLb: 1000 });
     store.set('fox3academy:copilot:v1', '{"mode":"x","bingoLb":-5,"aoaUnit":7}');
     expect(loadSettings(storage)).toEqual({ ...DEFAULT_SETTINGS, bingoLb: 0 });
     store.set('fox3academy:copilot:v1', 'not json');

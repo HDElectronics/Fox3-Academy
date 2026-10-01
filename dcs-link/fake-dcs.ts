@@ -15,7 +15,6 @@ export interface FakeState { t: number; seq: number }
 
 /** Length of one fake sortie: cruise, then a gear-down approach. */
 export const FAKE_CYCLE_S = 120;
-const D2R = Math.PI / 180;
 
 /**
  * One frame at model time t, for an F/A-18C. Each 2 min cycle: 50 s level cruise at 7000 m, then a gear-down
@@ -39,7 +38,7 @@ export function fakeFrame(s: FakeState): Record<string, unknown> {
     pilot: 'Test pilot',
     ias: approach ? 72 : 190 + 3 * Math.sin(s.t / 7), tas: approach ? 74 : 250, mach: approach ? 0.22 : 0.79,
     altMsl: aglM + 50, altAgl: aglM, vv: approach ? -3.5 : 0.4 * Math.sin(s.t / 5),
-    aoa: (approach ? 8.1 + 1.3 * Math.sin((c - 50) / 6) : 4) * D2R,
+    aoa: approach ? 8.1 + 1.3 * Math.sin((c - 50) / 6) : 4, // degrees, as DCS sends it for the Hornet
     acc: { x: 0, y: approach ? 1 : 1.2, z: 0 },
     mech: { gear: approach ? 1 : 0, flaps: approach ? 1 : 0, hook: 0, speedbrakes: 0, wheelbrakes: 0, canopy: 0 },
     engine: { rpmL: approach ? 78 : 88, rpmR: approach ? 78 : 88, fuelInt: fuelKg, fuelExt: 0, ffL: 0.3, ffR: 0.3 },

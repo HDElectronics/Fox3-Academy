@@ -1,10 +1,10 @@
 /** Copilot page model: settings storage, readout text and preview frames. Pure apart from storage. */
 import type { DcsFrame } from '../../dcs/protocol';
 import { HORNET_DEFAULTS, HORNET_FACTS, aoaState, effectiveBingo, type HornetConfig } from '../../copilot/hornet';
-import { enduranceMin, GEAR_DOWN, GEAR_UP, type AoaUnit, type Situation } from '../../copilot/situation';
+import { enduranceMin, GEAR_DOWN, GEAR_UP, type Situation } from '../../copilot/situation';
 
-export interface CopilotSettings extends HornetConfig { aoaUnit: AoaUnit }
-export const DEFAULT_SETTINGS: CopilotSettings = { ...HORNET_DEFAULTS, aoaUnit: 'rad' };
+export type CopilotSettings = HornetConfig;
+export const DEFAULT_SETTINGS: CopilotSettings = { ...HORNET_DEFAULTS };
 const KEY = 'fox3academy:copilot:v1';
 
 export function loadSettings(storage: Pick<Storage, 'getItem'> | null = safeStorage()): CopilotSettings {
@@ -15,7 +15,6 @@ export function loadSettings(storage: Pick<Storage, 'getItem'> | null = safeStor
       bingoSource: d.bingoSource === 'manual' ? 'manual' : 'ifei',
       bingoLb: clampLb(d.bingoLb, DEFAULT_SETTINGS.bingoLb),
       jokerMarginLb: clampLb(d.jokerMarginLb, DEFAULT_SETTINGS.jokerMarginLb),
-      aoaUnit: d.aoaUnit === 'deg' ? 'deg' : 'rad',
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -80,8 +79,7 @@ export function profileMatches(s: Situation): boolean | null {
   return s.type === undefined ? null : (HORNET_FACTS.dcsTypes as readonly string[]).includes(s.type);
 }
 
-const R = Math.PI / 180;
-/** ?shot=approach|carrier|bingo|off: fixed frames for screenshots. AoA in radians, as the export sends it. */
+/** ?shot=approach|carrier|bingo|off: fixed frames for screenshots. AoA in degrees, as the export sends it. */
 export function previewFrame(shot: string | null): { frame: DcsFrame | null; settings?: Partial<CopilotSettings> } | null {
   const base: DcsFrame = {
     type: 'frame', seq: 1, t: 1520, script: '0.2.0', allow: { ownship: true, sensor: true, object: true },
@@ -91,13 +89,13 @@ export function previewFrame(shot: string | null): { frame: DcsFrame | null; set
   switch (shot) {
     case 'off': return { frame: null };
     case 'approach':
-      return { frame: { ...base, ias: 72, altAgl: 180, vv: -3.6, aoa: 9.4 * R, acc: { y: 1 }, mech: { gear: 1, flaps: 1, hook: 0, speedbrakes: 0 }, engine: { fuelInt: 2300, fuelExt: 0, ffL: 0.25, ffR: 0.25 } } };
+      return { frame: { ...base, ias: 72, altAgl: 180, vv: -3.6, aoa: 9.4, acc: { y: 1 }, mech: { gear: 1, flaps: 1, hook: 0, speedbrakes: 0 }, engine: { fuelInt: 2300, fuelExt: 0, ffL: 0.25, ffR: 0.25 } } };
     case 'carrier':
-      return { frame: { ...base, ias: 74, altAgl: 140, vv: -3.6, aoa: 8.1 * R, acc: { y: 1 }, mech: { gear: 1, flaps: 1, hook: 0, speedbrakes: 0 }, engine: { fuelInt: 2300, fuelExt: 0, ffL: 0.25, ffR: 0.25 } }, settings: { mode: 'carrier' } };
+      return { frame: { ...base, ias: 74, altAgl: 140, vv: -3.6, aoa: 8.1, acc: { y: 1 }, mech: { gear: 1, flaps: 1, hook: 0, speedbrakes: 0 }, engine: { fuelInt: 2300, fuelExt: 0, ffL: 0.25, ffR: 0.25 } }, settings: { mode: 'carrier' } };
     case 'bingo':
       return {
         frame: {
-          ...base, ias: 150, mach: 0.75, altAgl: 9000, vv: 0, aoa: 4 * R, acc: { y: 1 },
+          ...base, ias: 150, mach: 0.75, altAgl: 9000, vv: 0, aoa: 4, acc: { y: 1 },
           mech: { gear: 0, flaps: 0, hook: 0, speedbrakes: 0 }, engine: { fuelInt: 1100, fuelExt: 0, ffL: 0.4, ffR: 0.4 },
           args: { 13: 1, 49: 0, 226: 1, 233: 0, 234: 1, 293: 1, 304: 0 }, ind: { bingo: '2500', fuelUp: '  2420T', fuelDown: '  2420I' },
         },
