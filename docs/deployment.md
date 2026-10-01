@@ -19,8 +19,9 @@ The app is a static site. The hash router (`#/tws`) and `base: './'` mean it nee
 and works at any path.
 
 Nothing loads from another origin: scripts, styles, 3D models and fonts are all served by the site
-(`src/styles/fonts.css` self-hosts the four families). That is what lets the CSP stay at `'self'`. If a
-feature ever needs another origin, add it to the CSP in `public/_headers` deliberately.
+(`src/styles/fonts.css` self-hosts the four families). That is what lets the CSP stay at `'self'`. The one
+exception is `connect-src http://127.0.0.1:47780`, the [DCS link](dcs-link.md) bridge on the visitor's own
+computer. If a feature ever needs another origin, add it to the CSP in `public/_headers` deliberately.
 
 ## One-time setup (project owner)
 

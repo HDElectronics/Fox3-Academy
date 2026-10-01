@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- DCS link (`#/dcs`, Reference): a first connection test between the app and DCS World on the same computer. An
+  export script sends own-ship telemetry at 10 Hz, a dependency-free bridge (`npm run dcs-link`) relays it to the
+  page over loopback, and a ping proves the page can send back. `npm run dcs-link:fake` stands in for DCS. See
+  [docs/dcs-link.md](docs/dcs-link.md).
+
 - The A-10C II (#62): a second attack jet with its CAS stores, DCS default keys, the ALR-69 and a detailed 3D model.
   CAS & JTAC flies it with the targeting pod (slew, point track, SPI, own laser, laser spot search), laser-guided
   stores that home on any spot on their code, and two new lessons: the digital 9-line (TAD triangle, MSG page, WILCO,

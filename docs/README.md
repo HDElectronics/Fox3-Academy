@@ -6,6 +6,8 @@
 | [dcs-accuracy.md](dcs-accuracy.md) | Pilots and maintainers | What follows DCS, what is simplified, what is unverified. |
 | [developer-guide.md](developer-guide.md) | Developers | Setup, how the layers fit, testing, publishing, extending. |
 | [api/progress.md](api/progress.md) | Pilots and developers | Fleet progress, saved completion rules and supported lessons. |
+| [dcs-link.md](dcs-link.md) | Pilots | Connect the app to DCS World on the same computer: setup, troubleshooting, what it does. |
+| [api/dcs-link.md](api/dcs-link.md) | Developers | DCS link protocol, bridge HTTP API, page client, how to extend it. |
 | [api/tacview-export.md](api/tacview-export.md) | Pilots and developers | Sortie ACMI downloads, coordinate mapping and export limits. |
 | [browser-qa.md](browser-qa.md) | Maintainers | Browser interaction coverage, regression fixes and remaining device checks. |
 | [decisions.md](decisions.md) | Maintainers | Why the codebase is shaped the way it is. |

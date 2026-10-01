@@ -30,7 +30,7 @@ export const PRACTICE_LINKS: readonly NavLink[] = [
 
 export function destinationFor(path: string, params = new URLSearchParams()): Destination {
   if (path === 'sortie') return 'fly';
-  if (path === 'reference') return 'reference';
+  if (path === 'reference' || path === 'dcs') return 'reference';
   if (path === 'practice' || (params.get('lab') === 'free' && LESSON_LINKS.some(link => link.path.split('?')[0] === path))) return 'practice';
   return 'learn';
 }
@@ -42,7 +42,7 @@ export function lessonPath(route: string): string {
 export function contextualLinks(destination: Destination): readonly NavLink[] {
   return destination === 'learn' ? [{ path: 'learn', label: 'Lesson path' }, { path: 'progress', label: 'Progress' }, ...LESSON_LINKS]
     : destination === 'practice' ? [{ path: 'practice', label: 'All practice' }, ...PRACTICE_LINKS]
-      : destination === 'reference' ? [{ path: 'reference', label: 'Kneeboard' }] : [];
+      : destination === 'reference' ? [{ path: 'reference', label: 'Kneeboard' }, { path: 'dcs', label: 'DCS link' }] : [];
 }
 
 /** Order-independent URL identity; repeated query values retain their relative order. */

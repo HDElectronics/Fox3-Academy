@@ -1,0 +1,20 @@
+.dcs-page { max-width: 1240px; margin: 0 auto; padding: 40px 24px 64px; display: grid; gap: 24px; }
+.dcs-preview { margin: 0; padding: 12px 16px; border-left: 3px solid var(--sym-hi); background: var(--screen); font-family: var(--font-mono); font-size: var(--fs-s); }
+.dcs-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+.dcs-col { display: grid; gap: 20px; min-width: 0; }
+.dcs-lamps { display: flex; flex-wrap: wrap; gap: var(--gap-2); }
+.dcs-panel-note { margin: 0; font-size: var(--fs-s); color: var(--s-label, var(--panel-muted)); }
+.dcs-col .ui-console__body { display: grid; gap: var(--gap-3); }
+#dcs-log { --log-h: 16em; }
+/* Own-ship labels are long (Radar altitude, Vertical speed): two wide columns, one when narrow. */
+#dcs-own.ui-readouts--2col { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.dcs-setup { display: grid; gap: 12px; max-width: 78ch; }
+.dcs-setup h2 { margin: 8px 0 0; font-size: var(--fs-l); }
+.dcs-setup ol { margin: 0; padding-left: 1.4em; display: grid; gap: 12px; }
+.dcs-setup li p, .dcs-setup > p { margin: 0; }
+.dcs-code { margin: 8px 0 0; padding: 10px 12px; overflow-x: auto; border: 1px solid var(--screen-line); border-radius: var(--r-1); background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s); white-space: pre; }
+.dcs-code code { font-size: inherit; }
+@media (max-width: 900px) {
+  .dcs-page { padding: 24px 16px 48px; }
+  .dcs-grid { grid-template-columns: minmax(0, 1fr); }
+}

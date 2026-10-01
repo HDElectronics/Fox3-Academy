@@ -30,6 +30,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'rwr', label: 'RWR', title: 'Read your warning receiver: who is searching, locking, launching', load: () => import('../pages/rwr-trainer/index') },
   { path: 'sortie', label: 'Sortie', title: 'Fly a full BVR engagement against AI that shoots back, then debrief it', load: () => import('../pages/sortie/index') },
   { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index') },
+  { path: 'dcs', label: 'DCS link', title: 'Connect to DCS World on this computer: check that telemetry arrives and that the page can send back', load: () => import('../pages/dcs-link/index'), roles: ['fighter', 'attack'] },
 ];
 
 export function routeFor(path: string): RouteDef {
