@@ -17,6 +17,9 @@ describe('bridge input validation', () => {
   it('accepts only known commands', () => {
     expect(parseCommand({ type: 'ping', id: 7 })).toEqual({ type: 'ping', id: 7 });
     expect(commandLine({ type: 'ping', id: 7 })).toBe('ping 7');
+    expect(parseCommand({ type: 'dump', on: true })).toEqual({ type: 'dump', on: true });
+    expect(commandLine({ type: 'dump', on: false })).toBe('dump 0');
+    expect(parseCommand({ type: 'dump', on: 'yes' })).toBeNull();
     for (const bad of [null, 'ping', { type: 'ping' }, { type: 'ping', id: -1 }, { type: 'ping', id: 1.5 }, { type: 'ping', id: 2 ** 31 }, { type: 'setCommand', id: 1 }]) {
       expect(parseCommand(bad)).toBeNull();
     }

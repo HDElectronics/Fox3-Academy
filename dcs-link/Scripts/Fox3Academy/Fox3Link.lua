@@ -13,10 +13,10 @@
 --
 -- Protocol v1 (docs/api/dcs-link.md):
 --   DCS -> bridge  UDP 127.0.0.1:47781  one JSON object per datagram: hello, frame (10 Hz), pong, bye
---   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>"
+--   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>", "dump 1" / "dump 0"
 
 do
-  local VERSION = '0.3.0'
+  local VERSION = '0.4.0'
   local HOST = '127.0.0.1'
   local BRIDGE_PORT = 47781  -- the bridge listens here
   local LISTEN_PORT = 47782  -- this script listens here for commands
@@ -38,7 +38,10 @@ do
   -- nil fields are omitted; an empty table is an object.
   local encode
   local function encodeString(s)
-    return '"' .. s:gsub('[%c"\\]', function(c) return string.format('\\u%04x', c:byte()) end) .. '"'
+    return '"' .. s:gsub('[%c"\\]', function(c)
+      if c == '\n' then return '\\n' elseif c == '"' then return '\\"' elseif c == '\\' then return '\\\\' elseif c == '\t' then return '\\t' end
+      return string.format('\\u%04x', c:byte())
+    end) .. '"'
   end
   encode = function(v)
     local t = type(v)
@@ -202,6 +205,10 @@ do
 
   local udp = nil
   local seq = 0
+  local dumpUntil, nextDump = 0, 0
+  local DUMP_INTERVAL = 2      -- seconds between display-text dumps
+  local DUMP_MAX_ID = 40       -- list_indication ids tried
+  local DUMP_MAX_CHARS = 2400  -- per display, keeps each datagram under the bridge's 8 KiB
   local nextFrameAt = 0
 
   local function send(msg)
@@ -309,6 +316,12 @@ do
       if id then
         send({ type = 'pong', id = tonumber(id), t = num(get('LoGetModelTime')) })
       end
+      local on = data:match('^dump ([01])$')
+      if on then
+        -- Discovery: send every cockpit display's text for the next 90 s (the bridge renews it while wanted).
+        dumpUntil = on == '1' and socket.gettime() + 90 or 0
+        send({ type = 'dumpack', on = on == '1' })
+      end
     end
   end
 
@@ -333,9 +346,24 @@ do
     send({ type = 'hello', t = num(get('LoGetModelTime')) })
   end
 
+  -- Text of every cockpit display (list_indication 0..DUMP_MAX_ID), one datagram each. Read only.
+  local function dumpIndications()
+    if type(list_indication) ~= 'function' then return end
+    for id = 0, DUMP_MAX_ID do
+      local ok, text = pcall(list_indication, id)
+      if ok and type(text) == 'string' and text ~= '' then
+        send({ type = 'ind', id = id, len = #text, text = text:sub(1, DUMP_MAX_CHARS) })
+      end
+    end
+  end
+
   local function afterFrame()
     if not udp then return end
     local now = socket.gettime()
+    if now < dumpUntil and now >= nextDump then
+      nextDump = now + DUMP_INTERVAL
+      dumpIndications()
+    end
     if now < nextFrameAt then return end
     nextFrameAt = now + FRAME_INTERVAL
     send(buildFrame())

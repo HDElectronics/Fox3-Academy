@@ -49,7 +49,7 @@ export interface BridgeStatus {
   clients: number;
 }
 
-export type Command = { type: 'ping'; id: number };
+export type Command = { type: 'ping'; id: number } | { type: 'dump'; on: boolean };
 
 /** Validate a command body from the page. Only these commands exist; everything else is refused. */
 export function parseCommand(body: unknown): Command | null {
@@ -58,12 +58,14 @@ export function parseCommand(body: unknown): Command | null {
   if (c.type === 'ping' && Number.isInteger(c.id) && (c.id as number) >= 0 && (c.id as number) <= 0x7fffffff) {
     return { type: 'ping', id: c.id as number };
   }
+  // Discovery: ask the export script for every cockpit display's text for 90 s (read only).
+  if (c.type === 'dump' && typeof c.on === 'boolean') return { type: 'dump', on: c.on };
   return null;
 }
 
 /** The text line the export script reads for a command. */
 export function commandLine(c: Command): string {
-  return `ping ${c.id}`;
+  return c.type === 'ping' ? `ping ${c.id}` : `dump ${c.on ? 1 : 0}`;
 }
 
 /** A datagram from the export script: one protocol-v1 JSON object with a type. Null when it is not one. */
