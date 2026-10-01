@@ -16,7 +16,7 @@
 --   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>"
 
 do
-  local VERSION = '0.2.0'
+  local VERSION = '0.3.0'
   local HOST = '127.0.0.1'
   local BRIDGE_PORT = 47781  -- the bridge listens here
   local LISTEN_PORT = 47782  -- this script listens here for commands
@@ -34,7 +34,8 @@ do
   package.cpath = package.cpath .. ';' .. lfs.currentdir() .. '/LuaSocket/?.dll'
   local okSocket, socket = pcall(require, 'socket')
 
-  -- Minimal JSON encoder: objects with string keys, strings, finite numbers, booleans. nil fields are omitted.
+  -- Minimal JSON encoder: arrays (sequences), objects with string keys, strings, finite numbers, booleans.
+  -- nil fields are omitted; an empty table is an object.
   local encode
   local function encodeString(s)
     return '"' .. s:gsub('[%c"\\]', function(c) return string.format('\\u%04x', c:byte()) end) .. '"'
@@ -50,6 +51,10 @@ do
       return v and 'true' or 'false'
     elseif t == 'table' then
       local parts = {}
+      if #v > 0 then
+        for i = 1, #v do parts[i] = encode(v[i]) end
+        return '[' .. table.concat(parts, ',') .. ']'
+      end
       for k, val in pairs(v) do
         if type(k) == 'string' then parts[#parts + 1] = encodeString(k) .. ':' .. encode(val) end
       end
@@ -120,6 +125,81 @@ do
     return out
   end
 
+  -- Display name for a DCS type tuple, e.g. 'Su-27', 'AIM-120C'.
+  local function typeName(t)
+    if type(t) ~= 'table' then return nil end
+    local n = get('LoGetNameByType', t.level1, t.level2, t.level3, t.level4)
+    if type(n) == 'string' and n ~= '' then return n:sub(1, 32) end
+    return nil
+  end
+
+  local function vec(v)
+    if type(v) ~= 'table' then return nil end
+    return { x = num(v.x), y = num(v.y), z = num(v.z) }
+  end
+
+  -- RWR emitters (LoGetTWSInfo): type, signal (scan / lock / missile_radio_guided / track_while_scan),
+  -- azimuth (relative, unit to verify), power, priority. At most 16.
+  local function rwr()
+    local tws = get('LoGetTWSInfo')
+    if type(tws) ~= 'table' then return nil end
+    local list = {}
+    if type(tws.Emitters) == 'table' then
+      for _, e in ipairs(tws.Emitters) do
+        if #list >= 16 then break end
+        if type(e) == 'table' then
+          list[#list + 1] = {
+            id = num(e.ID), name = typeName(e.Type), signal = type(e.SignalType) == 'string' and e.SignalType or nil,
+            az = num(e.Azimuth), power = num(e.Power), prio = num(e.Priority),
+          }
+        end
+      end
+    end
+    return { mode = num(tws.Mode), emitters = list }
+  end
+
+  -- Radar targets (LoGetTargetInformation / LoGetLockedTargetInformation). At most max.
+  local function targets(fn, max)
+    local all = get(fn)
+    if type(all) ~= 'table' then return nil end
+    local list = {}
+    for _, tg in ipairs(all) do
+      if #list >= max then break end
+      if type(tg) == 'table' then
+        local p = type(tg.position) == 'table' and tg.position.p or nil
+        list[#list + 1] = {
+          id = num(tg.ID), name = typeName(tg.type), dist = num(tg.distance), closure = num(tg.convergence_velocity),
+          mach = num(tg.mach), flags = num(tg.flags), jam = tg.isjamming == true or nil,
+          course = num(tg.course), aspect = num(tg.delta_psi), pos = vec(p), vel = vec(tg.velocity),
+        }
+      end
+    end
+    return list
+  end
+
+  -- Selected weapon and stores (LoGetPayloadInfo): counts by name, the selected station's weapon, gun rounds.
+  local function stores()
+    local pl = get('LoGetPayloadInfo')
+    if type(pl) ~= 'table' then return nil end
+    local out = { counts = {} }
+    local n = 0
+    if type(pl.Stations) == 'table' then
+      for i, st in ipairs(pl.Stations) do
+        if type(st) == 'table' and type(st.weapon) == 'table' then
+          local name = typeName(st.weapon)
+          local count = num(st.count) or 0
+          if name and count > 0 and n < 16 then
+            if not out.counts[name] then n = n + 1 end
+            out.counts[name] = (out.counts[name] or 0) + count
+          end
+          if i == pl.CurrentStation then out.sel = name end
+        end
+      end
+    end
+    if type(pl.Cannon) == 'table' then out.gun = num(pl.Cannon.shells) end
+    return out
+  end
+
   local udp = nil
   local seq = 0
   local nextFrameAt = 0
@@ -154,6 +234,8 @@ do
         lat = num(lla.Lat), lon = num(lla.Long), alt = num(lla.Alt),
         hdg = num(s.Heading), pitch = num(s.Pitch), bank = num(s.Bank),
       }
+      -- DCS world frame (x north, y up, z east, metres): for bearing and aspect to sensor targets.
+      if type(s.Position) == 'table' then frame.self.x, frame.self.y, frame.self.z = num(s.Position.x), num(s.Position.y), num(s.Position.z) end
     end
     local pilot = get('LoGetPilotName')
     if type(pilot) == 'string' then frame.pilot = pilot end
@@ -197,6 +279,14 @@ do
     end
     local snares = get('LoGetSnares')
     if type(snares) == 'table' then frame.cm = { chaff = num(snares.chaff), flare = num(snares.flare) } end
+    frame.stores = stores()
+
+    -- Own sensors: RWR and radar. Only what the jet itself knows, and only when the server allows sensor export.
+    if frame.allow.sensor ~= false then
+      frame.rwr = rwr()
+      frame.lock = targets('LoGetLockedTargetInformation', 2)
+      frame.tracks = targets('LoGetTargetInformation', 10)
+    end
 
     -- Module cockpit: raw switch and lamp values, decoded by the app (src/copilot) so a wrong mapping is fixed
     -- there, not in this file. Only for modules listed in COCKPIT_ARGS.

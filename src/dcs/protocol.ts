@@ -18,7 +18,47 @@ export interface OwnShip {
   lat?: number; lon?: number; alt?: number;
   /** Radians. */
   hdg?: number; pitch?: number; bank?: number;
+  /** DCS world position, metres: x north, y up, z east. */
+  x?: number; y?: number; z?: number;
 }
+
+export interface Vec3 { x?: number; y?: number; z?: number }
+
+/** One RWR emitter (LoGetTWSInfo). */
+export interface RwrEmitter {
+  id?: number;
+  /** Display name, e.g. "Su-27"; missing when DCS does not name it. */
+  name?: string;
+  /** DCS signal type: scan, lock, missile_radio_guided, track_while_scan (others kept as sent). */
+  signal?: string;
+  /** Bearing relative to the nose as sent; unit and sign to verify in game (docs/research/dcs-export.md). */
+  az?: number;
+  power?: number;
+  prio?: number;
+}
+
+/** One radar target (LoGetTargetInformation / LoGetLockedTargetInformation). */
+export interface RadarTarget {
+  id?: number;
+  name?: string;
+  /** Metres. */
+  dist?: number;
+  /** Closing speed, m/s (positive closing). */
+  closure?: number;
+  mach?: number;
+  /** DCS target flags: 0x0008 radar lock (STT), 0x0020 radar track (TWS), 0x0800 HOJ (Export.lua). */
+  flags?: number;
+  jam?: boolean;
+  course?: number;
+  /** delta_psi as sent (meaning to verify). */
+  aspect?: number;
+  /** World position and velocity, DCS frame (x north, y up, z east), m and m/s. */
+  pos?: Vec3;
+  vel?: Vec3;
+}
+
+/** Stores (LoGetPayloadInfo): counts by weapon name, the selected station's weapon, gun rounds. */
+export interface Stores { counts: Record<string, number>; sel?: string; gun?: number }
 
 export interface DcsFrame {
   type: 'frame';
@@ -31,13 +71,13 @@ export interface DcsFrame {
   pilot?: string;
   ias?: number; tas?: number; mach?: number;
   altMsl?: number; altAgl?: number; vv?: number;
-  /** Radians per the ED reference Export.lua (not verified in game). */
+  /** Degrees as observed for the F/A-18C (ED's reference Export.lua says radians). */
   aoa?: number;
   /** Acceleration in G, body axes; y is the load factor the pilot feels. */
   acc?: { x?: number; y?: number; z?: number };
   /** LoGetMechInfo positions, 0 = up / retracted / closed, 1 = down / extended / open. */
   mech?: { gear?: number; flaps?: number; hook?: number; speedbrakes?: number; wheelbrakes?: number; canopy?: number };
-  /** LoGetEngineInfo: RPM %, fuel kg, fuel flow kg/s. */
+  /** LoGetEngineInfo: RPM %; fuel kg per the reference file, but a 0..1 fraction for the F/A-18C (observed). */
   engine?: { rpmL?: number; rpmR?: number; fuelInt?: number; fuelExt?: number; ffL?: number; ffR?: number };
   /** LoGetMCPState flags that are set, e.g. ['MasterWarning']. */
   mcp?: string[];
@@ -47,6 +87,11 @@ export interface DcsFrame {
   args?: Record<number, number>;
   /** Module text indicators by the script's short names, e.g. Hornet IFEI { bingo: '2500' }. */
   ind?: Record<string, string>;
+  stores?: Stores;
+  /** Own sensors, present only when the server allows sensor export. */
+  rwr?: { mode?: number; emitters: RwrEmitter[] };
+  lock?: RadarTarget[];
+  tracks?: RadarTarget[];
 }
 
 export type DcsMessage =
@@ -115,7 +160,7 @@ export function parseDcsMessage(raw: unknown): DcsMessage | null {
       return compact<DcsFrame>({
         type: 'frame', seq, ...base,
         allow: { ownship: flag(allow.ownship), sensor: flag(allow.sensor), object: flag(allow.object) },
-        self: s ? compact({ name: str(s.name), lat: num(s.lat), lon: num(s.lon), alt: num(s.alt), hdg: num(s.hdg), pitch: num(s.pitch), bank: num(s.bank) }) : undefined,
+        self: s ? compact({ name: str(s.name), lat: num(s.lat), lon: num(s.lon), alt: num(s.alt), hdg: num(s.hdg), pitch: num(s.pitch), bank: num(s.bank), x: num(s.x), y: num(s.y), z: num(s.z) }) : undefined,
         pilot: str(raw.pilot),
         ias: num(raw.ias), tas: num(raw.tas), mach: num(raw.mach),
         altMsl: num(raw.altMsl), altAgl: num(raw.altAgl), vv: num(raw.vv), aoa: num(raw.aoa),
@@ -125,10 +170,48 @@ export function parseDcsMessage(raw: unknown): DcsMessage | null {
         mcp: mcp ? Object.keys(mcp).filter(k => mcp[k] === true && /^[A-Za-z]{1,40}$/.test(k)).slice(0, 40) : undefined,
         cm: cm ? compact({ chaff: num(cm.chaff), flare: num(cm.flare) }) : undefined,
         args, ind,
+        stores: parseStores(raw.stores),
+        rwr: parseRwr(raw.rwr),
+        lock: parseTargets(raw.lock, 2),
+        tracks: parseTargets(raw.tracks, 10),
       });
     }
     default: return null;
   }
+}
+
+/** A Lua list arrives as a JSON array, or as {} when empty. */
+function list(v: unknown, max: number): unknown[] | undefined {
+  if (Array.isArray(v)) return v.slice(0, max);
+  return isObj(v) && Object.keys(v).length === 0 ? [] : undefined;
+}
+const vec3 = (v: unknown): Vec3 | undefined => (isObj(v) ? compact({ x: num(v.x), y: num(v.y), z: num(v.z) }) : undefined);
+
+function parseRwr(v: unknown): DcsFrame['rwr'] {
+  if (!isObj(v)) return undefined;
+  const emitters = (list(v.emitters, 16) ?? []).filter(isObj).map(e => compact<RwrEmitter>({
+    id: num(e.id), name: str(e.name, 32), signal: str(e.signal, 32), az: num(e.az), power: num(e.power), prio: num(e.prio),
+  }));
+  return compact({ mode: num(v.mode), emitters });
+}
+
+function parseTargets(v: unknown, max: number): RadarTarget[] | undefined {
+  return list(v, max)?.filter(isObj).map(t => compact<RadarTarget>({
+    id: num(t.id), name: str(t.name, 32), dist: num(t.dist), closure: num(t.closure), mach: num(t.mach), flags: num(t.flags),
+    jam: t.jam === true ? true : undefined, course: num(t.course), aspect: num(t.aspect), pos: vec3(t.pos), vel: vec3(t.vel),
+  }));
+}
+
+function parseStores(v: unknown): Stores | undefined {
+  if (!isObj(v)) return undefined;
+  const counts: Record<string, number> = {};
+  if (isObj(v.counts)) {
+    for (const [k, n] of Object.entries(v.counts).slice(0, 16)) {
+      const c = num(n);
+      if (c !== undefined && k.length <= 32) counts[k] = c;
+    }
+  }
+  return compact<Stores>({ counts, sel: str(v.sel, 32), gun: num(v.gun) });
 }
 
 export function parseBridgeStatus(raw: unknown): BridgeStatus | null {

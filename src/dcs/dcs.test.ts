@@ -39,6 +39,25 @@ describe('DCS link protocol', () => {
     expect(f && 'ind' in f && Object.keys(f.ind!)).toEqual(['bingo', 'fuelUp']);
   });
 
+  it('parses RWR emitters, radar targets and stores; an empty Lua list arrives as {}', () => {
+    const f = parseDcsMessage({
+      v: 1, type: 'frame', seq: 1, allow: { sensor: true },
+      self: { name: 'FA-18C_hornet', x: 1, y: 2, z: 3 },
+      rwr: { mode: 0, emitters: [{ id: 5, name: 'Su-27', signal: 'lock', az: 1.2, power: 0.8, prio: 150, junk: 1 }, 'bad'] },
+      lock: [{ id: 5, name: 'Su-27', dist: 40000, closure: 450, flags: 8, jam: false, pos: { x: 1, y: 2, z: 'x' }, vel: { x: -250 } }],
+      tracks: {},
+      stores: { counts: { 'AIM-120C': 2, bad: 'x' }, sel: 'AIM-120C', gun: 578 },
+    });
+    expect(f).toMatchObject({
+      self: { x: 1, y: 2, z: 3 },
+      rwr: { mode: 0, emitters: [{ id: 5, name: 'Su-27', signal: 'lock', az: 1.2, power: 0.8, prio: 150 }] },
+      lock: [{ id: 5, name: 'Su-27', dist: 40000, closure: 450, flags: 8, pos: { x: 1, y: 2 }, vel: { x: -250 } }],
+      tracks: [], stores: { counts: { 'AIM-120C': 2 }, sel: 'AIM-120C', gun: 578 },
+    });
+    expect(f && 'lock' in f && f.lock![0]).not.toHaveProperty('jam');
+    expect(parseDcsMessage({ v: 1, type: 'frame', seq: 1, allow: {}, tracks: 'x', rwr: 5 })).not.toHaveProperty('tracks');
+  });
+
   it('parses bridge status', () => {
     expect(parseBridgeStatus({ v: 1, type: 'status', bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 }))
       .toEqual({ bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 });
