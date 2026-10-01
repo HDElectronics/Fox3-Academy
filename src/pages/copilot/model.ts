@@ -2,6 +2,7 @@
 import type { DcsFrame } from '../../dcs/protocol';
 import { HORNET_DEFAULTS, HORNET_FACTS, aoaState, effectiveBingo, type HornetConfig } from '../../copilot/hornet';
 import { enduranceMin, GEAR_DOWN, GEAR_UP, type Situation } from '../../copilot/situation';
+import { clockOf, type LockPicture, type Threat, type Zone } from '../../copilot/threats';
 
 export type CopilotSettings = HornetConfig;
 export const DEFAULT_SETTINGS: CopilotSettings = { ...HORNET_DEFAULTS };
@@ -72,6 +73,41 @@ export function fuelView(s: Situation, cfg: HornetConfig): FuelView {
   };
 }
 
+export interface ThreatRow { id: number; state: Threat['state']; tag: string; where: string; name: string }
+const TAG: Record<Threat['state'], string> = { launch: 'LAUNCH', lock: 'LOCK', track: 'TRACK', search: 'SEARCH' };
+export function threatRows(threats: readonly Threat[]): ThreatRow[] {
+  return threats.map(t => ({ id: t.id, state: t.state, tag: TAG[t.state], where: t.clock ? `${t.clock} o'clock` : '—', name: t.name }));
+}
+
+export interface LockView {
+  name: string; mode: string; range: string; closure: string; aspect: string; alt: string; where: string;
+  dlz?: { label: string; zone: Zone; zoneText: string; marks: { rmin: number; rne: number; rmax: number; now: number } };
+}
+const ZONE_TEXT: Record<Zone, string> = { out: 'OUT OF RANGE', in: 'IN RANGE', 'no-escape': 'NO ESCAPE', min: 'INSIDE MIN' };
+/** Lock readouts, and the launch-zone bar as fractions of the bar length (0 = here, 1 = 1.25 x Rmax). */
+export function lockView(p: LockPicture | null): LockView | null {
+  if (!p) return null;
+  const view: LockView = {
+    name: p.name,
+    mode: (p.stt ? 'STT' : 'TRACK') + (p.jamming ? '  JAM' : ''),
+    range: `${p.rangeNm.toFixed(1)} nm`,
+    closure: p.closureKt === undefined ? DASH : `${Math.round(p.closureKt)} kt`,
+    aspect: p.aspect ? `${p.aspect} ${Math.round(p.aspectDeg!)}°` : DASH,
+    alt: p.altFt === undefined ? DASH : `${Math.round(p.altFt / 100) * 100} ft`,
+    where: p.relDeg === undefined ? DASH : `${clockOf(p.relDeg)} o'clock`,
+  };
+  if (p.dlz) {
+    const scale = p.dlz.rmaxNm * 1.25;
+    const fr = (nm: number) => Math.max(0, Math.min(1, nm / scale));
+    view.dlz = {
+      label: p.dlz.missile.toUpperCase().replace(/^AIM/, 'AIM-'),
+      zone: p.dlz.zone, zoneText: ZONE_TEXT[p.dlz.zone],
+      marks: { rmin: fr(p.dlz.rminNm), rne: fr(p.dlz.rneNm), rmax: fr(p.dlz.rmaxNm), now: fr(p.rangeNm) },
+    };
+  }
+  return view;
+}
+
 export const PHASE_TEXT: Record<Situation['phase'], string> = { ground: 'ON GROUND', airborne: 'AIRBORNE', approach: 'APPROACH' };
 
 /** Is the jet in DCS the one this profile is for? null when DCS did not say. */
@@ -79,7 +115,7 @@ export function profileMatches(s: Situation): boolean | null {
   return s.type === undefined ? null : (HORNET_FACTS.dcsTypes as readonly string[]).includes(s.type);
 }
 
-/** ?shot=approach|carrier|bingo|off: fixed frames for screenshots. AoA in degrees, as the export sends it. */
+/** ?shot=approach|carrier|bingo|threat|off: fixed frames for screenshots. AoA in degrees, as the export sends it. */
 export function previewFrame(shot: string | null): { frame: DcsFrame | null; settings?: Partial<CopilotSettings> } | null {
   const base: DcsFrame = {
     type: 'frame', seq: 1, t: 1520, script: '0.2.0', allow: { ownship: true, sensor: true, object: true },
@@ -100,6 +136,24 @@ export function previewFrame(shot: string | null): { frame: DcsFrame | null; set
           args: { 13: 1, 49: 0, 226: 1, 233: 0, 234: 1, 293: 1, 304: 0 }, ind: { bingo: '2500', fuelUp: '  2420T', fuelDown: '  2420I' },
         },
       };
+    case 'threat': {
+      const nm = 1852;
+      return {
+        frame: {
+          ...base, ias: 160, tas: 230, mach: 0.8, altAgl: 7600, altMsl: 7600, vv: 0, aoa: 3, acc: { y: 1 },
+          self: { ...base.self, x: 0, y: 7600, z: 0, hdg: 0, pitch: 0 },
+          mech: { gear: 0, flaps: 0, speedbrakes: 0 }, engine: { fuelInt: 0.6 }, ind: { bingo: '3000', fuelUp: '  9200T', fuelDown: '  9200I' },
+          args: { 226: 1, 234: 1, 293: 1, 49: 1, 13: 0, 304: 0 },
+          stores: { counts: { 'AIM-120C': 4, 'AIM-9X': 2 }, sel: 'AIM-120C', gun: 578 },
+          rwr: { mode: 0, emitters: [
+            { id: 2, name: 'Su-27', signal: 'lock', az: 0.35 },
+            { id: 3, name: 'MiG-29S', signal: 'scan', az: -1.1 },
+            { id: 4, name: 'SA-11 Buk', signal: 'scan', az: 2.4 },
+          ] },
+          lock: [{ id: 2, name: 'Su-27', flags: 0x0008, dist: 28 * nm, closure: 480, pos: { x: 26.3 * nm, y: 8200, z: 9.6 * nm }, vel: { x: -240, y: 0, z: -40 } }],
+        },
+      };
+    }
     default: return null;
   }
 }

@@ -39,6 +39,29 @@
 .cp-fuel[data-state='bingo'] .cp-fuel__total { color: var(--warning); }
 .cp-fuel[data-state='off'] .cp-fuel__total { color: var(--sym-dim); }
 
+/* Threats: one line per RWR emitter, launch red, lock amber. */
+.cp-threats { list-style: none; margin: 0; padding: 10px; display: grid; gap: 6px; min-height: 8em; align-content: start; background: var(--screen); border: 1px solid var(--screen-line); border-radius: var(--r-1); font-family: var(--font-mono); }
+.cp-threat { display: grid; grid-template-columns: 6.5ch 10.5ch minmax(0, 1fr); gap: 6px; align-items: baseline; color: var(--sym); font-size: var(--fs-s); white-space: nowrap; }
+.cp-threat b { font-weight: 400; letter-spacing: 0.06em; }
+.cp-threat span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-threat[data-state='launch'] { color: var(--warning); }
+.cp-threat[data-state='lock'] { color: var(--caution); }
+.cp-threat[data-state='search'] { color: var(--sym-dim); }
+.cp-threat[data-state='none'] { display: block; color: var(--sym-dim); }
+
+/* Radar lock and launch-zone bar (0 = own ship on the left, Rmax x 1.25 on the right). */
+.cp-lock { display: grid; gap: 8px; padding: 10px; background: var(--screen); border: 1px solid var(--screen-line); border-radius: var(--r-1); font-family: var(--font-mono); }
+.cp-lock__name { font-size: var(--fs-l); color: var(--sym); letter-spacing: 0.04em; }
+.cp-lock[data-state='off'] .cp-lock__name { color: var(--sym-dim); }
+.cp-dlz { display: grid; gap: 6px; }
+.cp-dlz__zone { font-size: var(--fs-s); color: var(--sym-dim); letter-spacing: 0.06em; }
+.cp-lock[data-state='in'] .cp-dlz__zone, .cp-lock[data-state='no-escape'] .cp-dlz__zone { color: var(--sym-hi); }
+.cp-lock[data-state='min'] .cp-dlz__zone { color: var(--caution); }
+.cp-dlz__bar { position: relative; height: 14px; border: 1px solid var(--sym-dim); border-radius: var(--r-1); }
+.cp-dlz__ne { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--sym-hi) 25%, transparent); }
+.cp-dlz__mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--sym); }
+.cp-dlz__mark--ne { background: var(--sym-hi); }
+.cp-dlz__now { position: absolute; top: -6px; width: 0; height: 0; margin-left: -6px; border: 6px solid transparent; border-top: 8px solid var(--sym-hi); }
 .cp-notes { display: grid; gap: 12px; max-width: 78ch; }
 .cp-notes h2 { margin: 8px 0 0; font-size: var(--fs-l); }
 .cp-notes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }

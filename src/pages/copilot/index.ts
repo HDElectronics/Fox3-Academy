@@ -1,8 +1,9 @@
 /**
  * Copilot (#/copilot): a second-screen helper for the F/A-18C while you fly in DCS. Reads the DCS link
  * (src/dcs), turns each frame into a Situation and runs the Hornet rules (src/copilot): alerts on screen and
- * spoken. Fuel and limits watch, approach AoA and configuration checks, field or carrier.
- * ?shot=approach|carrier|bingo|off renders a fixed frame without touching the network.
+ * spoken. Threats from the RWR and the radar lock against the app's launch zones, fuel and limits watch, approach
+ * AoA and configuration checks, field or carrier.
+ * ?shot=approach|carrier|bingo|threat|off renders a fixed frame without touching the network.
  */
 import './style.css';
 import type { PageFactory } from '../../app/page';
@@ -10,6 +11,7 @@ import { CopilotEngine, type ActiveAlert, type Callout } from '../../copilot/eng
 import { HORNET_FACTS, HORNET_RULES, flapsFull, hookDown } from '../../copilot/hornet';
 import { HORNET_COCKPIT_NOTE } from '../../copilot/hornetCockpit';
 import { FuelTrend, situationOf, type Situation } from '../../copilot/situation';
+import { LockTracker, ThreatTracker, lockOf, threatsOf } from '../../copilot/threats';
 import { CopilotVoice } from '../../copilot/voice';
 import { DcsLink, type LinkSnapshot } from '../../dcs/client';
 import type { DcsFrame } from '../../dcs/protocol';
@@ -17,7 +19,7 @@ import {
   button, callout, cleanup, consolePanel, eventLog, h, lamp, pageHeader, readouts, segmented, setText, slider, toggle,
 } from '../../ui';
 import {
-  aoaView, flapsText, fuelView, loadSettings, PHASE_TEXT, positionText, previewFrame, profileMatches, saveSettings,
+  aoaView, flapsText, fuelView, loadSettings, lockView, PHASE_TEXT, positionText, previewFrame, profileMatches, saveSettings, threatRows,
   type CopilotSettings,
 } from './model';
 
@@ -41,6 +43,20 @@ const factory: PageFactory = () => {
 
       // Alerts
       const alertList = h('ul', { class: 'cp-alerts', 'aria-live': 'off' });
+
+      // Threats (RWR) and radar lock
+      const threatList = h('ul', { class: 'cp-threats' });
+      const lockName = h('div', { class: 'cp-lock__name' });
+      const lockRows = readouts({
+        id: 'cp-lock', variant: 'glass', columns: 2,
+        rows: [{ id: 'mode', label: 'Mode' }, { id: 'range', label: 'Range' }, { id: 'closure', label: 'Closure' }, { id: 'aspect', label: 'Aspect' }, { id: 'alt', label: 'Altitude' }, { id: 'where', label: 'Bearing' }],
+      });
+      const dlzZone = h('div', { class: 'cp-dlz__zone' });
+      const dlzMarks = { rmin: h('i', { class: 'cp-dlz__mark', title: 'Rmin' }), rne: h('i', { class: 'cp-dlz__mark cp-dlz__mark--ne', title: 'No escape' }), rmax: h('i', { class: 'cp-dlz__mark', title: 'Rmax' }), now: h('i', { class: 'cp-dlz__now', title: 'Target' }) };
+      const dlzBox = h('div', { class: 'cp-dlz', hidden: true }, dlzZone, h('div', { class: 'cp-dlz__bar' }, h('i', { class: 'cp-dlz__ne' }), dlzMarks.rmin, dlzMarks.rne, dlzMarks.rmax, dlzMarks.now));
+      const lockBox = h('div', { class: 'cp-lock', dataset: { state: 'off' } }, lockName, lockRows.el, dlzBox);
+      const threatTracker = new ThreatTracker();
+      const lockTracker = new LockTracker();
 
       // AoA
       const aoaState = h('div', { class: 'cp-aoa__state' });
@@ -122,6 +138,9 @@ const factory: PageFactory = () => {
           h('section', { class: 'cp-main', 'aria-label': 'Alerts and approach' },
             consolePanel({ title: 'Alerts', id: 'cp-alerts-panel', children: alertList }).el,
             h('div', { class: 'cp-pair' },
+              consolePanel({ title: 'Threats (RWR)', id: 'cp-threat-panel', children: threatList }).el,
+              consolePanel({ title: 'Radar lock', id: 'cp-lock-panel', children: lockBox }).el),
+            h('div', { class: 'cp-pair' },
               consolePanel({ title: 'Approach AoA', id: 'cp-aoa-panel', children: aoaBox }).el,
               consolePanel({ title: 'Fuel', id: 'cp-fuel-panel', children: fuelBox }).el)),
           h('section', { class: 'cp-side', 'aria-label': 'Aircraft and settings' },
@@ -143,12 +162,20 @@ const factory: PageFactory = () => {
       };
 
       let lastKey = '';
+      let threatKey = '';
       const fuelTrend = new FuelTrend();
       const render = (frame: DcsFrame | null, link: Pick<LinkSnapshot, 'bridge' | 'dcs'>, t: number) => {
         const live = link.dcs === 'live' && frame !== null;
         const s: Situation = situationOf(live ? frame : null);
         s.fuelFlowLbH = live ? fuelTrend.update(t, s.fuelLb) : undefined;
-        const { active, calls } = live ? engine.step(s, t) : { active: [], calls: [] as Callout[] };
+        const ruled = live ? engine.step(s, t) : { active: [], calls: [] as Callout[] };
+        const threats = live ? threatsOf(frame!.rwr?.emitters) : [];
+        const lock = live ? lockOf(frame) : null;
+        const th = live ? threatTracker.update(threats, t) : { active: [], calls: [] };
+        const lk = live ? lockTracker.update(lock, t) : { active: [], calls: [] };
+        const order = { warning: 0, caution: 1, advisory: 2 } as const;
+        const active = [...th.active, ...ruled.active, ...lk.active].sort((a, b) => order[a.severity] - order[b.severity]);
+        const calls = [...th.calls, ...ruled.calls, ...lk.calls].sort((a, b) => order[a.severity] - order[b.severity]);
         for (const c of calls) {
           voice.say(c);
           log.push(c.text, { tone: c.severity === 'warning' ? 'warning' : c.severity === 'caution' ? 'caution' : 'ok' });
@@ -162,6 +189,27 @@ const factory: PageFactory = () => {
         const match = live ? profileMatches(s) : null;
         profileNote.hidden = match !== false;
         if (match === false) setText(profileNote, `DCS reports ${s.type}. This copilot profile is for the F/A-18C; its calls may not fit.`);
+
+        const sensorBlocked = live && frame!.allow.sensor === false;
+        const rows = threatRows(threats);
+        const tkey = sensorBlocked ? 'blocked' : live ? rows.map(r => r.id + r.state + r.where).join('|') : 'off';
+        if (tkey !== threatKey) {
+          threatKey = tkey;
+          threatList.replaceChildren(...(sensorBlocked ? [h('li', { class: 'cp-threat', dataset: { state: 'none' } }, 'Sensor export blocked by the server')]
+            : !live ? [h('li', { class: 'cp-threat', dataset: { state: 'none' } }, 'No data')]
+              : rows.length ? rows.map(r => h('li', { class: 'cp-threat', dataset: { state: r.state } }, h('b', null, r.tag), h('span', null, r.where), h('span', null, r.name)))
+                : [h('li', { class: 'cp-threat', dataset: { state: 'none' } }, 'RWR clear')]));
+        }
+        const lv = lockView(lock);
+        lockBox.dataset.state = lv ? (lv.dlz?.zone ?? 'track') : 'off';
+        setText(lockName, lv ? lv.name : sensorBlocked ? 'Sensor export blocked' : 'NO LOCK');
+        for (const id of ['mode', 'range', 'closure', 'aspect', 'alt', 'where'] as const) lockRows.set(id, lv ? lv[id] : '—');
+        dlzBox.hidden = !lv?.dlz;
+        if (lv?.dlz) {
+          setText(dlzZone, `${lv.dlz.label}  ${lv.dlz.zoneText}`);
+          for (const k of ['rmin', 'rne', 'rmax', 'now'] as const) dlzMarks[k].style.left = `${(lv.dlz.marks[k] * 100).toFixed(1)}%`;
+          (dlzBox.querySelector('.cp-dlz__ne') as HTMLElement).style.width = `${(lv.dlz.marks.rne * 100).toFixed(1)}%`;
+        }
 
         const a = aoaView(s);
         aoaBox.dataset.state = live ? a.state : 'off';

@@ -29,7 +29,17 @@ Put it on a second monitor or a tablet next to your HOTAS.
 | … KT, CONFIGURE BELOW 150 | carrier, gear down, faster than 160 kt (guide p108) | "Fast for the gear." |
 | HOOK UP | carrier, gear down, hook handle up | "Check hook." |
 | FLAPS NOT FULL | gear down, flap switch not FULL | "Check flaps." |
+| SPIKE … O'CLOCK, type | an RWR emitter goes to lock (sensor export) | "Spike, three o'clock, Su-27." |
+| MISSILE LAUNCH … O'CLOCK | an RWR emitter shows a launch | "Missile launch, three o'clock. Defend." |
+| LOCKED type, range, aspect | the radar locks a target | "Locked, Su-27, 25 miles, hot." |
+| IN RANGE / NO ESCAPE / INSIDE MIN RANGE | the locked target crosses the selected missile's Rmax, Rne or Rmin (this app's launch-zone tables, src/sim/dlz.ts) | "In range." / "No escape." / "Too close." |
+| LOCK LOST | the lock is gone for more than 1.5 s | "Lock lost." |
 | SLOW / ON SPEED / FAST | gear down below 5000 ft AGL, AoA against the indexer band 7.4–8.8° (on speed 8.1°, guide p44-45) | "Slow." / "On speed." / "Fast." |
+
+The Threats panel lists every RWR emitter (launch, lock, track, search) with its clock position; the Radar lock
+panel shows the locked target's range, closure, aspect (HOT, FLANK 30–60°, BEAM, DRAG), altitude and bearing, and
+a launch-zone bar for the selected missile. Both use only the jet's own sensors and stay empty when the server
+blocks sensor export. The RWR bearing unit and sign are not verified yet.
 
 Approach means airborne with the gear down below 5000 ft AGL. A call must hold for a moment before it is made, is
 made once, repeats at an interval if it matters, and rearms after it has been clear for a few seconds.
