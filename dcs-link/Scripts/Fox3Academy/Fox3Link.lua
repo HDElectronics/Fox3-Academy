@@ -16,7 +16,7 @@
 --   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>", "dump 1" / "dump 0"
 
 do
-  local VERSION = '0.4.0'
+  local VERSION = '0.4.1'
   local HOST = '127.0.0.1'
   local BRIDGE_PORT = 47781  -- the bridge listens here
   local LISTEN_PORT = 47782  -- this script listens here for commands
@@ -208,7 +208,8 @@ do
   local dumpUntil, nextDump = 0, 0
   local DUMP_INTERVAL = 2      -- seconds between display-text dumps
   local DUMP_MAX_ID = 40       -- list_indication ids tried
-  local DUMP_MAX_CHARS = 2400  -- per display, keeps each datagram under the bridge's 8 KiB
+  local DUMP_CHUNK = 2400      -- characters per datagram, keeps each under the bridge's 8 KiB
+  local DUMP_MAX_PARTS = 8     -- at most 19200 characters per display
   local nextFrameAt = 0
 
   local function send(msg)
@@ -352,7 +353,10 @@ do
     for id = 0, DUMP_MAX_ID do
       local ok, text = pcall(list_indication, id)
       if ok and type(text) == 'string' and text ~= '' then
-        send({ type = 'ind', id = id, len = #text, text = text:sub(1, DUMP_MAX_CHARS) })
+        local parts = math.min(DUMP_MAX_PARTS, math.ceil(#text / DUMP_CHUNK))
+        for p = 1, parts do
+          send({ type = 'ind', id = id, len = #text, part = p, parts = parts, text = text:sub((p - 1) * DUMP_CHUNK + 1, p * DUMP_CHUNK) })
+        end
       end
     end
   end

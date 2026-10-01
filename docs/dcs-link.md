@@ -35,7 +35,7 @@ dependencies beyond Node 24.
 
 Test mission: `dcs-link/missions/copilot_test.py` (pydcs, Python 3.12) writes `Fox3_Copilot_Test.miz` to
 `Saved Games\DCS\Missions`: an F/A-18C airborne over the sea west of Batumi, an unarmed Su-27 target drone flying
-a race-track 25-40 nm ahead, and an armed Su-27 the pilot calls in from the F10 radio menu.
+a race-track 25-40 nm ahead, and from the F10 radio menu an armed Su-27 (60 nm west of the start) and a second drone.
 
 No DCS at hand: `npm run dcs-link:fake` sends made-up frames to the bridge and answers pings.
 

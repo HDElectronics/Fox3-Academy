@@ -7,7 +7,9 @@ An easy, predictable setup for checking the DCS link and the copilot:
 - Target drone: an unarmed Su-27 flying a race-track 25-40 nm ahead of you at 20000 ft. It never
   shoots and never evades: lock it, practise, shoot it.
 - On request: F10 radio menu, Other, "Send armed Su-27" spawns an armed Su-27 (R-27ER, R-73,
-  Average skill) 35 nm ahead, coming at you. It will lock and fire: use it to test RWR spikes and
+  Average skill) 60 nm west of the start point, coming at you. It shoots halfway between its max range and
+  its no-escape range, so the spike comes well before the launch. "Send new target drone" spawns a second
+  drone after you have shot the first. It will lock and fire: use it to test RWR spikes and
   launches. Turn on Options > Gameplay > Immortal first if you want to keep flying after a hit.
 
 Build (needs pydcs; Python 3.12, pydcs 0.15 fails to import on 3.13):
@@ -35,8 +37,9 @@ KT_KMH = 1.852
 
 ALT_M = 20000 * FT
 DRONE_AWAY = (25 * NM, 40 * NM)  # race-track legs, ahead of the start point
-BANDIT_AWAY = 35 * NM
+BANDIT_AWAY = 60 * NM  # far enough that it is still well out after a few minutes flying west
 FLAG_SEND_BANDIT = 1
+FLAG_SEND_DRONE = 2
 
 
 def build(out_path: str) -> None:
@@ -48,7 +51,8 @@ def build(out_path: str) -> None:
     m.set_description_text(
         "Fox3 Academy copilot test. Over the sea west of Batumi.\n"
         "Unarmed Su-27 target drone 25-40 nm west, flying back and forth: lock it and shoot it.\n"
-        "F10 > Other > Send armed Su-27: an armed bandit spawns 35 nm west and will attack you.\n"
+        "F10 > Other > Send armed Su-27: an armed bandit spawns 60 nm west of the start and will attack you.\n"
+        "F10 > Other > Send new target drone: a second unarmed drone.\n"
         "For a forgiving test, turn on Options > Gameplay > Immortal.")
     m.set_description_bluetask_text("Lock the drone. When ready, call the armed Su-27 and let it spike and launch on you.")
 
@@ -97,23 +101,43 @@ def build(out_path: str) -> None:
     b.load_pylon(Su_27.Pylon7.R_27ER__AA_10_Alamo_C____Semi_Act_Extended_Range, 7)
     b.load_pylon(Su_27.Pylon10.R_73__AA_11_Archer____Infra_Red, 10)
     bandit.points[0].tasks.append(task.OptROE(task.OptROE.Values.OpenFireWeaponFree))
+    bandit.points[0].tasks.append(task.OptAAMissileAttackRange(task.OptAAMissileAttackRange.Values.HalfWayRMaxNoEsc))
     bandit.add_waypoint(start, ALT_M, 450 * KT_KMH)
     bandit.add_waypoint(batumi, ALT_M, 450 * KT_KMH)
 
-    # Triggers: briefing message, F10 radio item, activation.
+    # Second drone, same race-track, held until asked for.
+    drone2 = m.flight_group_inflight(russia, "Target drone 2", Su_27, far, altitude=int(ALT_M), speed=int(450 * KT_KMH), maintask=task.CAP)
+    drone2.late_activation = True
+    drone2.units[0].skill = Skill.Average
+    drone2.units[0].heading = 90
+    drone2.points[0].tasks = [
+        task.OptROE(task.OptROE.Values.WeaponHold),
+        task.OptReactOnThreat(task.OptReactOnThreat.Values.NoReaction),
+        task.OrbitAction(int(ALT_M), int(450 * KT_KMH), task.OrbitAction.OrbitPattern.RaceTrack),
+    ]
+    drone2.add_waypoint(near, ALT_M, 450 * KT_KMH)
+
+    # Triggers: briefing message, F10 radio items, activation.
     brief = triggers.TriggerOnce(comment="Briefing")
     brief.add_condition(condition.TimeAfter(1))
     brief.add_action(action.MessageToAll(m.string(
         "Fox3 copilot test. Target drone 25-40 nm west, unarmed: lock it.\n"
         "When ready: F10 > Other > Send armed Su-27. It will spike and shoot."), 30))
     brief.add_action(action.AddRadioItem(m.string("Send armed Su-27"), FLAG_SEND_BANDIT, 1))
+    brief.add_action(action.AddRadioItem(m.string("Send new target drone"), FLAG_SEND_DRONE, 1))
     m.triggerrules.triggers.append(brief)
 
     send = triggers.TriggerOnce(comment="Send armed Su-27")
     send.add_condition(condition.FlagIsTrue(FLAG_SEND_BANDIT))
     send.add_action(action.ActivateGroup(bandit.id))
-    send.add_action(action.MessageToAll(m.string("Armed Su-27 inbound, 35 nm west, hot. Expect a spike, then a launch."), 15))
+    send.add_action(action.MessageToAll(m.string("Armed Su-27 inbound from the west, hot. Expect a spike, then a launch."), 15))
     m.triggerrules.triggers.append(send)
+
+    send2 = triggers.TriggerOnce(comment="Send new target drone")
+    send2.add_condition(condition.FlagIsTrue(FLAG_SEND_DRONE))
+    send2.add_action(action.ActivateGroup(drone2.id))
+    send2.add_action(action.MessageToAll(m.string("New target drone on the race-track, 25-40 nm west of the start point."), 15))
+    m.triggerrules.triggers.append(send2)
 
     m.save(out_path)
     print(f"Saved {out_path}")

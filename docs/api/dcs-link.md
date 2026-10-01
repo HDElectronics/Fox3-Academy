@@ -71,7 +71,7 @@ modules the script lists (today `FA-18C_hornet`); their meaning is decoded in th
 
 Text datagrams, one command each: `ping <id>` (`id` a non-negative 31-bit integer), and `dump 1` / `dump 0`. `dump 1`
 makes the script send every cockpit display's text (`list_indication` 0..40, one `{type: 'ind', id, len, text}`
-datagram each, text cut at 2400 characters) every 2 s for the next 90 s; it answers `{type: 'dumpack', on}`. This is a
+datagram per 2400-character part: `{type: 'ind', id, len, part, parts, text}`, at most 8 parts) every 2 s for the next 90 s; it answers `{type: 'dumpack', on}`. This is a
 discovery aid for finding which display holds what (read only). The script ignores anything else and reads at
 most 16 commands per frame. The bridge accepts `{"type":"dump","on":true|false}` on `POST /command`.
 
