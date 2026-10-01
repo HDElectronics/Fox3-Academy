@@ -38,6 +38,28 @@ Nothing open. Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (
   routes, and frame rate on low-end GPUs, including the new exterior assets and the Shkval second viewport.
   Hold cancellation and thresholds have automated regression tests.
 
+## Objective — Live DCS copilot
+
+Turn the DCS link into a copilot that helps in flight, then into one you can talk to. Builds on `dcs-link/`,
+`src/dcs/`, `src/copilot/` ([copilot.md](docs/copilot.md)). Rule 1 still holds: gameplay-level data and cues only.
+Multiplayer fairness: the copilot only uses what the pilot's own jet knows (own ship, own sensors, own RWR) and
+respects the server's export permissions; world-object truth data stays out.
+
+- **B28. Richer live data and a useful copilot.** Export and use what the pilot actually needs: RWR contacts
+  (`LoGetTWSInfo`), radar lock (range, closure, aspect against the app's own DLZ tables), stores and gun rounds,
+  route and next waypoint (bearing, distance, ETA, fuel at home plate), ICLS/ILS deviation and carrier LSO-style
+  calls (reuse `src/sim/flightOps/lso.ts`), cold start and landing checklists driven by cockpit switches, DDI
+  and UFC text. Done when each is verified in game with one recorded frame and has a regression test.
+- **B29. DCS MCP server.** The bridge exposes the live situation as MCP tools (flight state, fuel plan, threats,
+  radar target, route, checklist state, cockpit switches) so any MCP client (Claude Desktop, Claude Code) can
+  read DCS. Read-only first; any action (set BINGO, press a cockpit button, in-game text message) is a separate,
+  opt-in tool that asks for confirmation. Done when a client answers "what is my fuel at home plate" from live data.
+- **B30. Voice LLM copilot.** Push-to-talk in the copilot page: speech to text, an LLM agent with the B29 tools
+  and the research notes as its references, spoken answer. Deterministic rules keep every time-critical call;
+  the LLM answers questions and talks through procedures. The API key lives with the bridge on the user's
+  computer, never in the repository or the public site. Done when a pilot can ask "talk me through Case I" and
+  "what's my bearing to the boat" in flight and get correct, sourced answers within about two seconds.
+
 ## P4 — Ideas
 
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
