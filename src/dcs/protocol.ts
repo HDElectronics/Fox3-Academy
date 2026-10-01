@@ -35,6 +35,18 @@ export interface DcsFrame {
   aoa?: number;
   /** Acceleration in G, body axes; y is the load factor the pilot feels. */
   acc?: { x?: number; y?: number; z?: number };
+  /** LoGetMechInfo positions, 0 = up / retracted / closed, 1 = down / extended / open. */
+  mech?: { gear?: number; flaps?: number; hook?: number; speedbrakes?: number; wheelbrakes?: number; canopy?: number };
+  /** LoGetEngineInfo: RPM %, fuel kg, fuel flow kg/s. */
+  engine?: { rpmL?: number; rpmR?: number; fuelInt?: number; fuelExt?: number; ffL?: number; ffR?: number };
+  /** LoGetMCPState flags that are set, e.g. ['MasterWarning']. */
+  mcp?: string[];
+  /** LoGetSnares: countermeasures left. */
+  cm?: { chaff?: number; flare?: number };
+  /** Module cockpit arguments by number (raw -1..1 values), for modules the export script knows. */
+  args?: Record<number, number>;
+  /** Module text indicators by the script's short names, e.g. Hornet IFEI { bingo: '2500' }. */
+  ind?: Record<string, string>;
 }
 
 export type DcsMessage =
@@ -79,6 +91,27 @@ export function parseDcsMessage(raw: unknown): DcsMessage | null {
       const allow = isObj(raw.allow) ? raw.allow : {};
       const s = isObj(raw.self) ? raw.self : null;
       const acc = isObj(raw.acc) ? raw.acc : null;
+      const mech = isObj(raw.mech) ? raw.mech : null;
+      const eng = isObj(raw.engine) ? raw.engine : null;
+      const cm = isObj(raw.cm) ? raw.cm : null;
+      const mcp = isObj(raw.mcp) ? raw.mcp : null;
+      const rawArgs = isObj(raw.args) ? raw.args : null;
+      const rawInd = isObj(raw.ind) ? raw.ind : null;
+      let args: Record<number, number> | undefined;
+      if (rawArgs) {
+        args = {};
+        for (const [k, v] of Object.entries(rawArgs).slice(0, 200)) {
+          const n = /^a(\d{1,4})$/.exec(k)?.[1];
+          if (n !== undefined && num(v) !== undefined) args[Number(n)] = v as number;
+        }
+      }
+      let ind: Record<string, string> | undefined;
+      if (rawInd) {
+        ind = {};
+        for (const [k, v] of Object.entries(rawInd).slice(0, 20)) {
+          if (/^[A-Za-z]{1,24}$/.test(k) && typeof v === 'string') ind[k] = v.slice(0, 16);
+        }
+      }
       return compact<DcsFrame>({
         type: 'frame', seq, ...base,
         allow: { ownship: flag(allow.ownship), sensor: flag(allow.sensor), object: flag(allow.object) },
@@ -87,6 +120,11 @@ export function parseDcsMessage(raw: unknown): DcsMessage | null {
         ias: num(raw.ias), tas: num(raw.tas), mach: num(raw.mach),
         altMsl: num(raw.altMsl), altAgl: num(raw.altAgl), vv: num(raw.vv), aoa: num(raw.aoa),
         acc: acc ? compact({ x: num(acc.x), y: num(acc.y), z: num(acc.z) }) : undefined,
+        mech: mech ? compact({ gear: num(mech.gear), flaps: num(mech.flaps), hook: num(mech.hook), speedbrakes: num(mech.speedbrakes), wheelbrakes: num(mech.wheelbrakes), canopy: num(mech.canopy) }) : undefined,
+        engine: eng ? compact({ rpmL: num(eng.rpmL), rpmR: num(eng.rpmR), fuelInt: num(eng.fuelInt), fuelExt: num(eng.fuelExt), ffL: num(eng.ffL), ffR: num(eng.ffR) }) : undefined,
+        mcp: mcp ? Object.keys(mcp).filter(k => mcp[k] === true && /^[A-Za-z]{1,40}$/.test(k)).slice(0, 40) : undefined,
+        cm: cm ? compact({ chaff: num(cm.chaff), flare: num(cm.flare) }) : undefined,
+        args, ind,
       });
     }
     default: return null;

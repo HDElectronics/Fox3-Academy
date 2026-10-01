@@ -61,7 +61,8 @@ describe('bridge input validation', () => {
 
   it('fake DCS frames parse as page messages', () => {
     const f = parseDcsMessage(fakeFrame({ t: 12, seq: 3 }));
-    expect(f).toMatchObject({ type: 'frame', seq: 3, t: 12, allow: { ownship: true }, self: { name: 'F-16C_50' } });
+    expect(f).toMatchObject({ type: 'frame', seq: 3, t: 12, allow: { ownship: true }, self: { name: 'FA-18C_hornet' }, mech: { gear: 0 }, mcp: [] });
+    expect(parseDcsMessage(fakeFrame({ t: 70, seq: 4 }))).toMatchObject({ mech: { gear: 1, flaps: 1, hook: 0 }, engine: { fuelInt: 2720 } });
   });
 });
 

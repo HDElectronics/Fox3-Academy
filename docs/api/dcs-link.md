@@ -52,8 +52,16 @@ Frame fields (units as the export API returns them):
 | `vv` | `LoGetVerticalVelocity` | m/s |
 | `aoa` | `LoGetAngleOfAttack` | rad (not verified) |
 | `acc.x`, `.y`, `.z` | `LoGetAccelerationUnits` | G |
+| `mech.gear`, `.flaps`, `.hook`, `.speedbrakes`, `.wheelbrakes`, `.canopy` | `LoGetMechInfo` `.value` | 0..1 position (FC3-era function; full-fidelity modules may fill part of it) |
+| `engine.rpmL`, `.rpmR`, `.fuelInt`, `.fuelExt`, `.ffL`, `.ffR` | `LoGetEngineInfo` | %, kg, kg/s |
+| `mcp` | `LoGetMCPState` | object of the flags that are set, e.g. `{"MasterWarning":true}`; the page gets a string list |
+| `cm.chaff`, `.flare` | `LoGetSnares` | count |
+| `args` | `GetDevice(0):get_argument_value(n)` for the numbers in `COCKPIT_ARGS[type]` | raw value rounded to 0.001, keys `a<n>`; the page gets `{ [n]: value }` |
+| `ind` | `list_indication(id)`, elements in `INDICATIONS[type]` | strings (max 16 chars) under short names, e.g. Hornet IFEI `bingo`, `fuelUp`, `fuelDown` |
 
-When own-ship export is blocked, a frame carries only `seq`, `t` and `allow`.
+When own-ship export is blocked, a frame carries only `seq`, `t` and `allow`. `args` and `ind` go only for
+modules the script lists (today `FA-18C_hornet`); their meaning is decoded in the app
+(`src/copilot/hornetCockpit.ts`), so a wrong value map is fixed without reinstalling the script. Script v0.2.0.
 
 ## Protocol v1: bridge → DCS
 

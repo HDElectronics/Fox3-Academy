@@ -22,6 +22,23 @@ describe('DCS link protocol', () => {
     expect(parseDcsMessage({ v: 1, type: 'bye' })).toEqual({ type: 'bye' });
   });
 
+  it('parses systems, cockpit args and indicator strings defensively', () => {
+    const f = parseDcsMessage({
+      v: 1, type: 'frame', seq: 1, allow: {},
+      mech: { gear: 1, flaps: 'x', hook: 0 }, engine: { fuelInt: 2000, ffL: 0.2 }, cm: { chaff: 30 },
+      mcp: { MasterWarning: true, CanopyOpen: false, 'bad key!': true },
+      args: { a226: 0, a234: -1, a13: 1, b5: 1, a12345: 1, a7: 'x' },
+      ind: { bingo: '2500', fuelUp: ' 10800T'.padEnd(40, 'x'), 'bad-key': 'x', n: 5 },
+    });
+    expect(f).toMatchObject({
+      mech: { gear: 1, hook: 0 }, engine: { fuelInt: 2000, ffL: 0.2 }, cm: { chaff: 30 }, mcp: ['MasterWarning'],
+      args: { 226: 0, 234: -1, 13: 1 }, ind: { bingo: '2500', fuelUp: ' 10800Txxxxxxxxx' },
+    });
+    expect(f && 'mech' in f && f.mech).not.toHaveProperty('flaps');
+    expect(f && 'args' in f && Object.keys(f.args!)).toEqual(['13', '226', '234']);
+    expect(f && 'ind' in f && Object.keys(f.ind!)).toEqual(['bingo', 'fuelUp']);
+  });
+
   it('parses bridge status', () => {
     expect(parseBridgeStatus({ v: 1, type: 'status', bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 }))
       .toEqual({ bridge: '0.1.0', dcs: { packets: 4, rejected: 0, lastPacketAgeMs: null, script: null }, commands: 1, clients: 1 });

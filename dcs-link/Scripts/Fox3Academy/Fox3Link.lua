@@ -16,7 +16,7 @@
 --   bridge -> DCS  UDP 127.0.0.1:47782  text commands: "ping <id>"
 
 do
-  local VERSION = '0.1.0'
+  local VERSION = '0.2.0'
   local HOST = '127.0.0.1'
   local BRIDGE_PORT = 47781  -- the bridge listens here
   local LISTEN_PORT = 47782  -- this script listens here for commands
@@ -79,6 +79,47 @@ do
     return nil
   end
 
+  -- Cockpit argument numbers per DCS unit type (docs/research/dcs-export.md, "Hornet cockpit").
+  local COCKPIT_ARGS = {
+    ['FA-18C_hornet'] = {
+      -- switches: master arm, gear handle, launch bar, anti-skid, hook bypass, flaps, brake handle, brake
+      -- rotation, hook handle, APU, crank, battery, generators
+      49, 226, 233, 238, 239, 234, 240, 241, 293, 375, 377, 404, 402, 403,
+      -- lamps: LOCK/SHOOT/strobe, AoA indexer, fire L, master caution, bleeds, SPD BRK, L BAR, fire APU/R,
+      -- threat lights, master arm panel, flaps, gear, gear handle, LOW ALT, hook, FUEL LO, APU READY
+      1, 2, 3, 4, 5, 6, 10, 13, 17, 18, 19, 21, 23, 26, 29, 38, 39, 40, 41, 44, 45, 47, 48,
+      162, 163, 164, 165, 166, 167, 227, 290, 294, 304, 376,
+    },
+  }
+  -- Text indicators: list_indication id and the element names to keep.
+  local INDICATIONS = {
+    ['FA-18C_hornet'] = { id = 5, keep = { txt_FUEL_UP = 'fuelUp', txt_FUEL_DOWN = 'fuelDown', txt_BINGO = 'bingo' } },
+  }
+
+  local function cockpitArgs(list)
+    if type(GetDevice) ~= 'function' then return nil end
+    local ok, dev = pcall(GetDevice, 0)
+    if not ok or type(dev) ~= 'table' then return nil end
+    pcall(function() dev:update_arguments() end)
+    local out = {}
+    for _, n in ipairs(list) do
+      local okv, v = pcall(function() return dev:get_argument_value(n) end)
+      if okv and type(v) == 'number' then out['a' .. n] = math.floor(v * 1000 + 0.5) / 1000 end
+    end
+    return out
+  end
+
+  local function indication(id, keep)
+    if type(list_indication) ~= 'function' then return nil end
+    local ok, text = pcall(list_indication, id)
+    if not ok or type(text) ~= 'string' or text == '' then return nil end
+    local out = {}
+    for k, v in text:gmatch('%-+\n([^\n]+)\n([^\n]*)\n') do
+      if keep[k] then out[keep[k]] = v:sub(1, 16) end
+    end
+    return out
+  end
+
   local udp = nil
   local seq = 0
   local nextFrameAt = 0
@@ -125,6 +166,47 @@ do
     frame.aoa = num(get('LoGetAngleOfAttack'))
     local acc = get('LoGetAccelerationUnits')
     if type(acc) == 'table' then frame.acc = { x = num(acc.x), y = num(acc.y), z = num(acc.z) } end
+
+    -- Systems. Written for FC3 jets; full-fidelity modules may fill only part of these (nil fields are omitted).
+    local mech = get('LoGetMechInfo')
+    if type(mech) == 'table' then
+      local function pos(m) if type(m) == 'table' then return num(m.value) end return nil end
+      frame.mech = {
+        gear = pos(mech.gear), flaps = pos(mech.flaps), hook = pos(mech.hook),
+        speedbrakes = pos(mech.speedbrakes), wheelbrakes = pos(mech.wheelbrakes), canopy = pos(mech.canopy),
+      }
+    end
+    local eng = get('LoGetEngineInfo')
+    if type(eng) == 'table' then
+      local rpm = type(eng.RPM) == 'table' and eng.RPM or {}
+      local ff = type(eng.FuelConsumption) == 'table' and eng.FuelConsumption or {}
+      frame.engine = {
+        rpmL = num(rpm.left), rpmR = num(rpm.right),
+        fuelInt = num(eng.fuel_internal), fuelExt = num(eng.fuel_external),
+        ffL = num(ff.left), ffR = num(ff.right),
+      }
+    end
+    -- Warning flags: only the ones that are set, as { MasterWarning = true, ... }.
+    local mcp = get('LoGetMCPState')
+    if type(mcp) == 'table' then
+      local on = {}
+      for k, v in pairs(mcp) do
+        if type(k) == 'string' and v == true then on[k] = true end
+      end
+      frame.mcp = on
+    end
+    local snares = get('LoGetSnares')
+    if type(snares) == 'table' then frame.cm = { chaff = num(snares.chaff), flare = num(snares.flare) } end
+
+    -- Module cockpit: raw switch and lamp values, decoded by the app (src/copilot) so a wrong mapping is fixed
+    -- there, not in this file. Only for modules listed in COCKPIT_ARGS.
+    local name = frame.self and frame.self.name
+    local args = name and COCKPIT_ARGS[name]
+    if args then
+      frame.args = cockpitArgs(args)
+      local ind = INDICATIONS[name]
+      if ind then frame.ind = indication(ind.id, ind.keep) end
+    end
     return frame
   end
 
