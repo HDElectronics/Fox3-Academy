@@ -268,6 +268,20 @@ the SPI, MAV page as SOI with Coolie Right, lock with TMS Forward Short, fire in
 strafe** (GUNS mode, the pipper on a truck inside 2 nm, Space). Weapon release (RAlt + Space) and the gun (Space) are
 community keys, labelled not verified; the pod starts on and the Maverick aligned (trainer shortcuts).
 
+### HARM & SEAD (F/A-18C)
+The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Seven lessons:
+**Radars** (a 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10 batteries: which vehicle carries the radar, its
+RWR symbol, TOO class and PB code), **Homing** (four films: a straight SP / TOO shot, the radar switching off
+mid-flight so the HARM misses, a PB shot that lofts to the point and then listens, and an A/C pull-up),
+**SP** (Master Arm `M`, A/G `2`, HARM on the stores page, HUD on the EW page, weapon release RAlt + Space),
+**TOO** (TDC to the HARM display with RAlt + /, CLASS H2, box with `I`, hand off with `C`), **PB** (UFC, window 4 TGT,
+code 107 for the SA-11 Snow Drift, HRM pull-up, WPDSG on the HSI, then hold release and raise the nose to the cue),
+**Pullback** (unbox HRM OVRD, let a live SA-6 lock you, shoot back and turn away) and **Live** (an SA-6 that goes
+quiet when it sees a HARM and a live SA-11). Click the DDI pushbuttons and the UFC keys on screen; the "What that
+did" log explains every press and points to the ED guide page. Arrows fly the jet on a simple autopilot; time runs
+×1, ×2 or ×4. The Fly it in DCS panel downloads two matching practice missions (safe ranges and live SEAD).
+Trainer values (PB ranges, cue positions, most radar ranges) are listed under Simplified and not verified.
+
 ### CAS & JTAC (Su-25T, A-10C II)
 For the attack jets: pick the Su-25T or the A-10C II. Work the built-in DCS JTAC before you fly it: the radio menu opens with \ (on screen: the
 Radio button), F4 JTACs, then the JTAC (Axeman 1-1). Browsers keep F5, F11 and F12, so the digits 1–0 also pick

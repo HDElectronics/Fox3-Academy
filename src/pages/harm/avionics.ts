@@ -85,6 +85,7 @@ export class HarmAvionics {
   designated = false;
   releaseHeld = false;
   launches = 0;
+  pullbackShots = 0;
 
   constructor(readonly sim: HarmSim, readonly waypoints: Waypoint[]) {}
 
@@ -373,6 +374,7 @@ export class HarmAvionics {
     if (pb) {
       if (!this.masterArm) return say(refused('Pullback HARM is crossed out: Master Arm is SAFE (p366-367).'));
       if (this.station === null) return say(refused('No HARM left.'));
+      this.pullbackShots += 1;
       return this.fire(() => this.sim.launchAt(pb.key), `Pullback shot at ${pb.emitter.radar.rwr}: the radar that locked you (p366).`);
     }
     if (!this.masterArm) return say(refused('Master Arm is SAFE: nothing releases.'));

@@ -27,6 +27,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'strike', label: 'Shkval & Vikhr', title: 'Su-25T: find, lock and lase with the Shkval, fire Vikhrs, fly a rocket CCIP pass', load: () => import('../pages/strike/index'), roles: ['attack'], jets: ['su25t'] },
   { path: 'tgp', label: 'Targeting pod & Mavericks', title: 'A-10C II: SOI and SPI, slew and track with the Litening pod, lase, find a laser spot, lock and fire Mavericks, laser-guided bombs and rockets', load: () => import('../pages/tgp/index'), roles: ['attack'], jets: ['a10c'] },
   { path: 'cas', label: 'CAS & JTAC', title: 'Su-25T and A-10C II: work the JTAC on the radio, copy the 9-line, find the mark or the laser, attack only when cleared hot', load: () => import('../pages/cas/index'), roles: ['attack'] },
+  { path: 'harm', label: 'HARM & SEAD', title: 'F/A-18C: know the SAM radars, see how a HARM flies, fire it in SP, TOO and PB, and shoot back with Pullback', load: () => import('../pages/harm/index'), jets: ['fa18c'] },
   { path: 'rwr', label: 'RWR', title: 'Read your warning receiver: who is searching, locking, launching', load: () => import('../pages/rwr-trainer/index') },
   { path: 'sortie', label: 'Sortie', title: 'Fly a full BVR engagement against AI that shoots back, then debrief it', load: () => import('../pages/sortie/index') },
   { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index') },

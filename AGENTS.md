@@ -60,7 +60,8 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/render/` | three.js kit: `Stage`, sky and ground, procedural jets, `WorldView`, `RadarVolume`, `CameraRig`, `ReplayView` | `docs/api/render.md` |
 | `src/ui/` | Controls, panels, layouts, `bindKeys` | `docs/api/ui-kit.md` |
 | `src/ui/displays/` | Canvas cockpit displays: five radar formats, six RWRs, DLZ bar, missile timeline, RWR audio | `docs/api/displays.md` |
-| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference | page `index.ts` header |
+| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, harm (F/A-18C HARM, page-local sim and SAMs) | page `index.ts` header |
+| `missions/`, `public/missions/` | pydcs generators for DCS practice missions; the built `.miz` files the site serves | `missions/README.md` |
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |
 | `docs/` | Human docs: user guide, developer guide, DCS accuracy, decisions | `docs/README.md` |

@@ -327,6 +327,24 @@ dcsworld.pro. The single `track-to-impact` guidance rule simplifies DCS's mix of
 guidance (SA-10 terminal phase not verified). Missile speed, turn, lock-to-launch delay, notch gate and chaff
 chance in `src/sim/sam.ts` are arcade tuning, not measured in game.
 
+### HARM & SEAD page (`src/pages/harm/data.ts`)
+
+Page-local on purpose: the shared `SamId` stays SA-10/11/15, and the page's SA-6, SA-8 and HARM never enter the
+sim, asset or missile tables. Research: `docs/research/fa18c-harm.md`. Everything below is listed in `HARM_CAVEATS`
+and shown on the page:
+
+- The HARM flight is arcade: a speed curve, a shrinking loft, a turn-rate cap. Only the homing rule is from ED's
+  guide: it needs the radar to keep transmitting (p367).
+- PB in-range distances (40 nm HARM pull-up at 25000 ft, × 1.3 for A/C pull-up, 5 nm minimum) and the HUD release-cue
+  positions are trainer values; the guide gives only "out to 80 nm depending on altitude".
+- RWR detection and lock ranges: SA-6 75 km / 28 km from the DCS encyclopedia; SA-8, SA-11, SA-15 and SA-10 are
+  round trainer numbers (`TRAINER.detectM`, `TRAINER.lockM`).
+- Radar evasion (quiet at 15 km for 45 s) stands in for the Mission Editor's "Evasion of ARM" AI.
+- TOO: only azimuth limits the 30° field of view; heights on the format are drawn at half the depression angle.
+- The EW page is a single ring; the pullback label's HUD position and several DDI layout details are trainer
+  layout (comments in `ddi.ts`, `ew.ts`, `hud.ts`).
+- Encyclopedia vehicle sizes and ranges (S2 in the research note) are not checked in game.
+
 ### Datalink (`src/data/datalink.ts`)
 
 Verified: Hornet MIDS F/F, PPLI and SURV on the attack radar and SA page with the HAFU halves; Viper MIDS on the FCR

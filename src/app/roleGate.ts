@@ -29,6 +29,14 @@ export function pickerJets(route: Pick<RouteDef, 'roles' | 'jets'>, current: Air
 /** Panel shown in place of a page that does not accept the selected jet. */
 export function roleGatePanel(route: RouteDef, app: AppStore): HTMLElement {
   const jet = app.jetSpec;
+  // A fighter route that teaches one jet's own systems (HARM & SEAD: the F/A-18C).
+  if (route.jets && routeRoles(route).includes('fighter')) {
+    const names = route.jets.map(id => AIRCRAFT[id].short).join(' / ');
+    const detail = jet.role === 'attack'
+      ? `Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
+      : `The ${jet.short} has its own lessons in Learn.`;
+    return gatePanel(route, app, `${route.label} teaches the ${names} cockpit. Pick it.`, detail, AIRCRAFT_ORDER.filter(id => jetAllowed(route, id)));
+  }
   const wrongJet = routeRoles(route).includes(jet.role) && !!route.jets;
   const lead = wrongJet
     ? `${route.label} teaches the ${route.jets!.map(id => AIRCRAFT[id].short).join(' / ')} cockpit. Pick it.`
@@ -41,6 +49,10 @@ export function roleGatePanel(route: RouteDef, app: AppStore): HTMLElement {
       ? `${route.label} teaches radar and missile work. Fly the ${jet.short} in CAS & JTAC${OWN_COCKPIT[jet.id] ? ` or ${OWN_COCKPIT[jet.id]}` : ''} (Learn).`
       : `The ${jet.short} is a fighter.`;
   const choices = jet.role === 'attack' && !wrongJet ? FIGHTER_ORDER : AIRCRAFT_ORDER.filter(id => jetAllowed(route, id));
+  return gatePanel(route, app, lead, detail, choices);
+}
+
+function gatePanel(route: RouteDef, app: AppStore, lead: string, detail: string, choices: readonly AircraftId[]): HTMLElement {
   return h('div', { class: 'role-gate' },
     h('section', { class: 'ui-console', id: 'role-gate', 'aria-labelledby': 'role-gate-title' },
       h('header', { class: 'ui-console__head' }, h('h3', { class: 'ui-console__title', id: 'role-gate-title' }, route.label)),

@@ -1,0 +1,54 @@
+/* [OWNER: page-harm] HARM & SEAD page layout. Tokens only. Cockpit parts are in cockpit.css. */
+.harm-lab { --lab-console-w: clamp(330px, 28vw, 410px); --lab-strip-h: clamp(250px, 34vh, 340px); }
+.harm-viewport { position: relative; background: var(--sky-top); }
+.harm-host { position: absolute; inset: 0; }
+.harm-host[hidden] { display: none; }
+.harm-no3d {
+  position: absolute; inset: auto 16px 16px 16px; margin: 0; padding: 10px 12px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s);
+}
+
+/* gallery lesson: no cockpit strip, the 3D battery fills the view */
+.harm--gallery .ui-lab__strip { display: none; }
+
+/* strip */
+.ui-lab__strip > .ui-bezel.harm-hud-bezel > .ui-bezel__glass { background: var(--screen); }
+.ui-lab__strip > .harm-ufc-block { flex: 0 1 270px; min-width: 240px; }
+.ui-lab__strip > .harm-panel { flex: 0 1 200px; min-width: 180px; }
+.harm-panel__row { display: flex; align-items: center; gap: 6px; }
+.harm-panel__row > .ui-btn { flex: 1 1 0; }
+.harm-panel .ui-btn.is-active { border-color: var(--sym); color: var(--sym); }
+.harm-hsi__wp {
+  flex: 1 1 auto; min-width: 0; padding: 4px 6px; border-radius: var(--r-1); text-align: center;
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-xs);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* console */
+.harm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.harm-row > .ui-btn { flex: 0 0 auto; }
+.harm-small { margin: 4px 0; font-size: var(--fs-xs); color: var(--panel-muted); }
+.harm-mono { font-family: var(--font-mono); }
+.harm-card { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; font-size: var(--fs-s); }
+.harm-card p { margin: 0; }
+.harm-card__title { margin: 0; font-family: var(--font-mono); font-size: var(--fs-s); letter-spacing: 0.04em; }
+.harm-card__list { margin: 0; padding-left: 18px; }
+.harm-card__list li { margin-bottom: 3px; }
+.harm-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.harm-table th, .harm-table td { padding: 3px 6px; border-bottom: 1px solid var(--panel-line); text-align: left; vertical-align: top; }
+.harm-table th { font-family: var(--font-mono); font-weight: 400; color: var(--panel-muted); letter-spacing: 0.06em; }
+.harm-film__btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.harm-film__btns .ui-btn.is-active { border-color: var(--sym); color: var(--sym); }
+.harm-film__text { margin: 8px 0 0; padding-left: 18px; font-size: var(--fs-s); }
+.harm-film__text li { margin-bottom: 6px; }
+.harm-missions { margin: 6px 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.harm-missions li { display: flex; flex-direction: column; gap: 2px; }
+.harm-missions__file { font-family: var(--font-mono); font-size: var(--fs-s); color: var(--hi, var(--sym)); }
+.harm-keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 6px 0 0; font-size: var(--fs-xs); }
+.harm-keys dd { margin: 0; }
+.harm-caveats { margin: 8px 0 0; padding-left: 18px; font-size: var(--fs-xs); color: var(--panel-muted); }
+.harm-caveats li { margin-bottom: 4px; }
+.harm-gallery__fallback {
+  position: absolute; inset: auto 16px 16px 16px; margin: 0; padding: 10px 12px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s);
+}
