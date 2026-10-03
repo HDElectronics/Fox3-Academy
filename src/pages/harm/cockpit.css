@@ -1,0 +1,60 @@
+/* [OWNER: page-harm displays] HARM page cockpit parts: UFC, RWR lamps, display canvases. Tokens only. */
+
+/* ---- canvases */
+.harm-ddi-canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--screen); }
+.harm-hud-canvas { display: block; width: 100%; height: 100%; background: transparent; pointer-events: none; }
+
+/* ---- RWR lamps */
+.harm-lamps { display: flex; gap: var(--gap-1); flex-wrap: wrap; }
+.harm-lamps .ui-lamp { min-width: 48px; }
+
+/* ---- UFC */
+.harm-ufc {
+  display: grid; gap: var(--gap-2); padding: var(--gap-2);
+  background: var(--panel-3); border: 1px solid var(--panel-line); border-radius: var(--r-2);
+  font-family: var(--font-mono); color: var(--btn-ink);
+}
+.harm-ufc__scratch,
+.harm-ufc__opt {
+  background: var(--screen); color: var(--sym); border: 1px solid var(--screen-line);
+  font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em; white-space: pre;
+  text-shadow: 0 0 5px color-mix(in srgb, var(--sym) 55%, transparent);
+}
+.harm-ufc__scratch {
+  min-height: 2em; padding: 4px 10px; border-radius: var(--r-1);
+  font-size: var(--fs-l); line-height: 1.5; text-align: right; overflow: hidden;
+}
+.harm-ufc__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--gap-2); align-items: start; }
+.harm-ufc__keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-1); }
+.harm-ufc__opts { display: grid; gap: var(--gap-1); }
+
+.harm-ufc__key, .harm-ufc__opt { cursor: pointer; border-radius: var(--r-1); }
+.harm-ufc__key {
+  min-height: 34px; padding: 4px 0;
+  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--btn-line);
+  font-family: var(--font-mono); font-size: var(--fs-m); font-weight: 700;
+}
+.harm-ufc__key--fn { font-size: var(--fs-xs); letter-spacing: 0.06em; }
+.harm-ufc__key:hover { border-color: var(--btn-ink); }
+.harm-ufc__key:active { background: var(--panel); }
+.harm-ufc__opt {
+  display: flex; align-items: center; min-height: 34px; padding: 2px 8px;
+  font-size: var(--fs-s); text-align: left;
+}
+.harm-ufc__opt:hover { border-color: var(--sym-dim); }
+.harm-ufc__cue { display: inline-block; width: 1ch; }
+.harm-ufc__opt-text { overflow: hidden; text-overflow: clip; }
+
+.harm-ufc__key:focus-visible, .harm-ufc__opt:focus-visible { outline: 2px solid var(--sym-hi); outline-offset: 1px; }
+
+/* Trainer hint: the key to press next. */
+.harm-ufc .is-hint {
+  outline: 2px solid var(--caution); outline-offset: 2px;
+  animation: harm-hint-pulse 1.2s ease-in-out infinite;
+}
+@keyframes harm-hint-pulse {
+  50% { outline-color: color-mix(in srgb, var(--caution) 25%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .harm-ufc .is-hint { animation: none; }
+}
