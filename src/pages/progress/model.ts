@@ -7,7 +7,7 @@ import { lessonPath } from '../../app/navigation';
 import { LESSONS, LESSON_ORDER, progressKey } from '../strike/lessons';
 import { lessonOrder, lessonsFor, progressKey as casProgressKey } from '../cas/lessons';
 import { LESSONS as TGP_LESSONS, TGP_LESSON_ORDER, progressKey as tgpProgressKey } from '../tgp/lessons';
-import { LESSONS as HARM_LESSONS, HARM_LESSON_ORDER, progressKey as harmProgressKey } from '../harm/lessons';
+import { LESSONS as HARM_LESSONS, HARM_PROGRESS_ORDER, progressKey as harmProgressKey } from '../harm/lessons';
 
 export interface ProgressGoal { id: string; label: string; href: string; done: boolean }
 export interface JetProgress {
@@ -43,7 +43,7 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
     if (flight.launch) add('launch', 'Carrier launch', flight.launch.kind === 'skiJump' ? 'skiJump' : 'catapult');
     if (flight.aar) add('aar', 'Air-to-air refuelling', 'aarRejoin');
     // HARM & SEAD is the F/A-18C's own cockpit (routes.ts `jets`).
-    if (id === 'fa18c') for (const lesson of HARM_LESSON_ORDER) goals.push({ id: `harm-${lesson}`, label: `HARM: ${HARM_LESSONS[lesson].title}`,
+    if (id === 'fa18c') for (const lesson of HARM_PROGRESS_ORDER) goals.push({ id: `harm-${lesson}`, label: `HARM: ${HARM_LESSONS[lesson].title}`,
       href: progressHref(`harm?lesson=${lesson}`, id), done: get(harmProgressKey(lesson)) === true });
     const rwr = get(`rwr:${id}:best`);
     const sortie = get(`sortie:${id}:best`);

@@ -25,6 +25,7 @@ import { HornetHud } from './hud';
 import { createUfc } from './ufc';
 import { HarmScene } from './scene3d';
 import { mountGallery, type GalleryHandle } from './gallery3d';
+import { buildBriefing } from './briefing';
 import { HarmSim, bearingDeg, wrapDeg, type SimSetup } from './sim';
 import {
   FILMS, FILM_ORDER, HARM_LESSON_ORDER, LESSONS, MISSIONS, progressKey, type FilmId, type HarmLessonId, type HarmSnap,
@@ -52,7 +53,8 @@ const KEYS: [string, string][] = [
   ['1 / 2', 'Master mode A/A / A/G'],
   ['I', 'HARM Sequence: step emitters (SP) or targets (TOO)'],
   ['C', 'Cage/Uncage: hand off (TOO), back to the highest threat (SP)'],
-  ['RAlt+Space', 'Weapon release (hold it through a PB pull-up)'],
+  ['RAlt+Space', 'Weapon release, the DCS key (hold it through a PB pull-up). On Windows the browser cannot have Alt+Space: Windows opens the window menu'],
+  ['R (hold)', 'Weapon release in the browser, same as RAlt+Space; or hold the WEAPON RELEASE button'],
   ['RAlt+/', 'Sensor Control right: TDC to the HARM display'],
   ['E', 'Chaff (dispense switch forward)'],
   ['Left / Right arrow', 'Turn (trainer autopilot)'],
@@ -101,8 +103,14 @@ const factory: PageFactory = (): Page => {
     const armBtn = button({ label: 'MASTER ARM: SAFE', size: 's', onClick: () => act(av.toggleMasterArm(), 'Master Arm') });
     const aaBtn = button({ label: 'A/A', size: 's', onClick: () => act(av.setMaster('AA'), 'A/A') });
     const agBtn = button({ label: 'A/G', size: 's', onClick: () => act(av.setMaster('AG'), 'A/G') });
+    // Weapon release, held: RAlt+Space in DCS. Windows keeps Alt+Space for the window menu, so the browser also takes R
+    // and this button (trainer substitutes).
+    const releaseBtn = button({ label: 'WEAPON RELEASE', variant: 'primary', size: 's', lamp: true, keys: 'R', title: 'Hold to release (RAlt+Space in DCS)' });
+    bag.on(releaseBtn.el, 'pointerdown', (e: Event) => { (e as PointerEvent).preventDefault(); release(true); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bag.on(releaseBtn.el, ev, () => release(false));
     const wpText = h('span', { class: 'harm-hsi__wp', 'aria-live': 'polite' }, '—');
     const hsi = h('div', { class: 'ui-strip-block harm-panel' },
+      placard('Stick'), releaseBtn.el,
       placard('RWR lamps'), lamps.el, placard('Left panel'), h('div', { class: 'harm-panel__row' }, armBtn.el), h('div', { class: 'harm-panel__row' }, aaBtn.el, agBtn.el),
       placard('HSI · WYPT'),
       h('div', { class: 'harm-panel__row' },
@@ -155,6 +163,7 @@ const factory: PageFactory = (): Page => {
           h('a', { href: `./missions/${m.file}`, download: m.file, class: 'harm-missions__file' }, m.title),
           h('span', { class: 'harm-small' }, m.text)))),
         h('p', { class: 'harm-small' }, 'Route: WP1 fence, WP2 on the SA-6 radar, WP3 between the SA-8 and SA-15, WP4 on the SA-11 Snow Drift, WP5 Kobuleti.'),
+        button({ label: 'Open the mission guide', size: 's', onClick: () => { lesson = 'missions'; restart(); } }).el,
       ],
     });
     const kneeboard = disclosure({
@@ -179,7 +188,8 @@ const factory: PageFactory = (): Page => {
     const viewport = h('div', { class: 'harm-viewport' });
     const sceneHost = h('div', { class: 'harm-host' });
     const galleryHost = h('div', { class: 'harm-host' });
-    viewport.append(sceneHost, galleryHost);
+    const briefHost = h('div', { class: 'harm-host harm-host--brief' }, buildBriefing());
+    viewport.append(sceneHost, galleryHost, briefHost);
 
     const lab = labLayout({
       id: 'harm-lab', class: 'harm-lab',
@@ -229,7 +239,7 @@ const factory: PageFactory = (): Page => {
       'I': () => act(av.sequence(), 'HARM Sequence (I)'),
       'C': () => act(av.cage(), 'Cage/Uncage (C)'),
       'RAlt+/': () => act(av.tdcToHarm(), 'Sensor Control right (RAlt+/)'),
-      'RAlt+Space': { down: () => { const r = av.setRelease(true); if (r) act(r, 'Weapon release'); }, up: () => { av.setRelease(false); } },
+      'RAlt+Space / R': { down: () => release(true), up: () => release(false) },
       'E': () => { if (sim.dropChaff()) log.push('Chaff', { t: sim.t }); },
       'ArrowLeft': turn(-1), 'ArrowRight': turn(1),
       'ArrowDown': pitch(1), 'ArrowUp': pitch(-1),
@@ -239,6 +249,14 @@ const factory: PageFactory = (): Page => {
     function act(r: ActionResult, what: string): void {
       log.push(h('span', null, h('b', null, `${what}: `), r.text), { t: sim.t, ...(r.tone ? { tone: r.tone } : r.ok ? {} : { tone: 'caution' as Tone }) });
       updateUi(true);
+    }
+
+    /** Weapon release pressed (true) or let go (false), from RAlt+Space, R or the on-screen button. */
+    function release(held: boolean): void {
+      if (held === av.releaseHeld) return;
+      const r = av.setRelease(held);
+      releaseBtn.setLit(held);
+      if (r) act(r, 'Weapon release');
     }
 
     function onOsb(n: Osb): void {
@@ -315,17 +333,21 @@ const factory: PageFactory = (): Page => {
       stepsHost.replaceChildren(steps.el);
       log.clear();
       log.push(def.goal, { t: 0 });
-      lab.el.classList.toggle('harm--gallery', def.kind === 'gallery');
+      lab.el.classList.toggle('harm--gallery', def.kind === 'gallery' || def.kind === 'brief');
       lab.el.classList.toggle('harm--film', def.kind === 'film');
       radarPanel.el.hidden = def.kind !== 'gallery';
       filmPanel.el.hidden = def.kind !== 'film';
-      sceneHost.hidden = def.kind === 'gallery';
+      sceneHost.hidden = def.kind === 'gallery' || def.kind === 'brief';
       galleryHost.hidden = def.kind !== 'gallery';
-      camSeg.el.hidden = def.kind === 'gallery';
+      briefHost.hidden = def.kind !== 'brief';
+      camSeg.el.hidden = def.kind === 'gallery' || def.kind === 'brief';
       if (def.kind === 'gallery') {
         if (!gallery) gallery = mountGallery(galleryHost, { reducedMotion: reduced, ariaLabel: 'SAM battery in 3D: drag to orbit' });
         newSim({ jet: { x: 0, z: 0, altFt: 25000, headingDeg: 0, speedKt: 450 }, sites: [] }, null);
         showSystem(system);
+      } else if (def.kind === 'brief') {
+        newSim({ jet: { x: 0, z: 0, altFt: 25000, headingDeg: 0, speedKt: 450 }, sites: [] }, null);
+        briefHost.scrollTop = 0;
       } else if (def.kind === 'film') {
         newSim(filmSetup('direct'), null);
         filmText.replaceChildren(h('li', null, 'Pick a shot above to watch it.'));
@@ -358,7 +380,7 @@ const factory: PageFactory = (): Page => {
 
     function tick(dt: number): void {
       const def = LESSONS[lesson];
-      if (def.kind !== 'gallery' && !ended) {
+      if (def.kind !== 'gallery' && def.kind !== 'brief' && !ended) {
         const sdt = dt * timeScale;
         stepFilm(sdt);
         sim.step(sdt);
@@ -405,14 +427,14 @@ const factory: PageFactory = (): Page => {
       const snap = snapshot();
       while (!ended && stepIdx < def.steps.length && def.steps[stepIdx]!.check(snap)) { steps.setDone(def.steps[stepIdx]!.id); stepIdx++; }
       steps.setCurrent(def.steps[stepIdx]?.id ?? null);
-      if (!ended && stepIdx >= def.steps.length) complete();
+      if (!ended && def.steps.length && stepIdx >= def.steps.length) complete();
       const cur = def.steps[stepIdx];
       let tone: Tone | null = null;
       let why = cur?.why ?? def.goal;
       const pb = av.pullbackLabel();
       if (!ended && pb === 'HARM') { why = 'Pullback ready: HARM in the HUD. Weapon release now.'; tone = 'warning'; }
       else if (!ended && pb === 'PLBK') { why = 'A radar has locked you. PLBK: Pullback is inhibited (HRM OVRD boxed).'; tone = 'caution'; }
-      if (force || cur) coach.set(cur ? cur.text : 'Lesson complete.', why, tone);
+      if (force || cur) coach.set(cur ? cur.text : def.steps.length ? 'Lesson complete.' : 'Read the guide, download a mission, then fly it.', why, tone);
       armBtn.el.textContent = `MASTER ARM: ${av.masterArm ? 'ARM' : 'SAFE'}`;
       armBtn.el.classList.toggle('is-active', av.masterArm);
       aaBtn.el.classList.toggle('is-active', av.master === 'AA');

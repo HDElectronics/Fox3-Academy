@@ -7,8 +7,8 @@ import type { Waypoint } from './avionics';
 import type { SimSetup, Vec3 } from './sim';
 import type { HarmClass, HarmMode, MasterMode, Osb, Pullup, SystemId, UfcKey, VehicleId } from './types';
 
-export type HarmLessonId = 'radars' | 'homing' | 'sp' | 'too' | 'pb' | 'pullback' | 'live';
-export const HARM_LESSON_ORDER: HarmLessonId[] = ['radars', 'homing', 'sp', 'too', 'pb', 'pullback', 'live'];
+export type HarmLessonId = 'radars' | 'homing' | 'sp' | 'too' | 'pb' | 'pullback' | 'live' | 'missions';
+export const HARM_LESSON_ORDER: HarmLessonId[] = ['radars', 'homing', 'sp', 'too', 'pb', 'pullback', 'live', 'missions'];
 export const progressKey = (l: HarmLessonId): string => `harm:${l}:fa18c`;
 
 /** Homing films (lesson 'homing'). */
@@ -95,7 +95,8 @@ export interface HarmLesson {
   title: string;
   short: string;
   goal: string;
-  kind: 'gallery' | 'film' | 'drill';
+  /** brief: a guide to read (no steps, no progress). */
+  kind: 'gallery' | 'film' | 'drill' | 'brief';
   steps: HarmStep[];
   /** Drill setup: the sim and the waypoints. */
   setup?: () => { sim: SimSetup; waypoints: (sitePos: (id: string) => Vec3) => Waypoint[] };
@@ -160,7 +161,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.harmSelected && s.mode === 'SP' && s.spCue === '6',
       },
       {
-        id: 'fire', text: 'Fire: weapon release.', keys: 'RAlt+Space',
+        id: 'fire', text: 'Fire: weapon release.', keys: 'RAlt+Space / R',
         why: 'SP shows no range (guide p367): WP2 sits on the radar, so its HUD distance is your ruler. 30 nm at 25000 ft is a comfortable shot.',
         check: s => s.launches > 0,
       },
@@ -205,7 +206,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         why: 'H-OFF appears above the box, the others vanish, STBY becomes RDY: the HARM now knows exactly which radar to chase (guide p368).',
         check: s => s.handoff === '15',
       },
-      { id: 'fire', text: 'Fire.', keys: 'RAlt+Space', why: 'With the hand-off done, weapon release sends the HARM at the SA-15.', check: s => s.launches > 0 },
+      { id: 'fire', text: 'Fire.', keys: 'RAlt+Space / R', why: 'With the hand-off done, weapon release sends the HARM at the SA-15.', check: s => s.launches > 0 },
       { id: 'kill', text: 'Watch the SA-15 go.', why: 'Next time, try CLASS H1 for the SA-8.', check: s => s.kills.includes('sa15') },
     ],
   },
@@ -254,7 +255,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.inRange,
       },
       {
-        id: 'fire', text: 'Hold weapon release and raise the nose to the HARM pull-up cue.', keys: 'RAlt+Space, Down arrow',
+        id: 'fire', text: 'Hold weapon release and raise the nose to the HARM pull-up cue.', keys: 'RAlt+Space / R, Down arrow',
         why: 'The HARM leaves the rail when the flight path marker meets the cue within 1° of the steering line (guide p375).',
         check: s => s.launches > 0,
       },
@@ -278,7 +279,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.lockSeen,
       },
       {
-        id: 'fire', text: 'HARM in the HUD with no X: weapon release now.', keys: 'RAlt+Space',
+        id: 'fire', text: 'HARM in the HUD with no X: weapon release now.', keys: 'RAlt+Space / R',
         why: 'No mode to select, no target to pick: the jet has done it. Works in any master mode (guide p366-367).',
         check: s => s.pullbackShots > 0,
       },
@@ -318,7 +319,15 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
       { id: 'alive', text: 'Stay alive.', why: 'Beam a launch and drop chaff (E), or kill the radar guiding it.', check: s => s.jetAlive && s.kills.includes('sa6-str') && s.kills.includes('sa11-sr') },
     ],
   },
+  missions: {
+    id: 'missions', title: 'Fly it in DCS', short: 'Missions', kind: 'brief',
+    goal: 'The two practice missions: what is in them, the route and the sites, and which lesson to fly before each range.',
+    steps: [],
+  },
 };
+
+/** Lessons that count for progress (the Missions guide does not). */
+export const HARM_PROGRESS_ORDER: HarmLessonId[] = HARM_LESSON_ORDER.filter(id => LESSONS[id].kind !== 'brief');
 
 /** Downloadable missions (public/missions) and how they map to the lessons. */
 export const MISSIONS = [

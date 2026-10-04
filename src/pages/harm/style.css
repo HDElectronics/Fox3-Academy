@@ -52,3 +52,31 @@
   position: absolute; inset: auto 16px 16px 16px; margin: 0; padding: 10px 12px; border-radius: var(--r-1);
   background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s);
 }
+
+/* Missions guide (lesson "missions"): a scrolling document over the viewport */
+.harm-host--brief { overflow-y: auto; background: var(--panel); color: var(--panel-ink, inherit); }
+.harm-brief { max-width: 920px; margin: 0 auto; padding: 18px 20px 40px; display: flex; flex-direction: column; gap: 20px; font-family: var(--font-body); font-size: var(--fs-s); line-height: 1.5; }
+.harm-brief h2 { margin: 0; font-family: var(--font-mono); font-weight: 700; font-size: 1.3rem; letter-spacing: 0.04em; }
+.harm-brief h3 { margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--fs-s); letter-spacing: 0.06em; text-transform: uppercase; }
+.harm-brief p { margin: 0 0 6px; max-width: 72ch; }
+.harm-brief__eyebrow { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--panel-muted); }
+.harm-brief__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.harm-brief__card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--panel-line); border-radius: var(--r-2); background: var(--panel-2, var(--panel)); min-width: 0; }
+.harm-brief__table { overflow-x: auto; }
+.harm-brief__list { margin: 0; padding-left: 18px; }
+.harm-brief__list li { margin-bottom: 4px; }
+.harm-brief__map { margin: 0 0 10px; overflow-x: auto; }
+.harm-brief__map figcaption { font-size: var(--fs-xs); color: var(--panel-muted); margin-top: 4px; }
+.harm-map { display: block; width: 100%; min-width: 640px; height: auto; border: 1px solid var(--panel-line); border-radius: var(--r-1); }
+.harm-map__sea { fill: var(--screen); }
+.harm-map__land { fill: var(--panel-2, var(--panel)); }
+.harm-map__coast { fill: none; stroke: var(--panel-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.harm-map__grid line { stroke: var(--panel-line); stroke-width: 1; }
+.harm-map__gl text { fill: var(--panel-muted); font: 10px var(--font-mono); }
+.harm-map__af rect { fill: var(--panel-muted); }
+.harm-map__af text { fill: var(--panel-muted); font: 10px var(--font-mono); }
+.harm-map__route { fill: none; stroke: var(--caution); stroke-width: 2.2; stroke-dasharray: 7 5; }
+.harm-map__sam polygon { fill: var(--warning); }
+.harm-map__sam text { fill: var(--warning); font: 700 11px var(--font-mono); }
+.harm-map__wp circle { fill: var(--screen); stroke: var(--caution); stroke-width: 2; }
+.harm-map__wp text { fill: var(--caution); font: 700 11px var(--font-mono); }
