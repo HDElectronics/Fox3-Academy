@@ -97,7 +97,8 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   the tuning workflow to refit it and regenerate the DLZ tables. Keep it gameplay-level (rule 1).
 - **Add a page:** folder in `src/pages/<name>/` default-exporting a `PageFactory` (`src/app/page.ts`), add a
   route in `src/app/routes.ts`, support `?ac=<id>` and `?shot=<state>` for screenshots, write progress with
-  `ctx.app.setProgress('<route>:<aircraft>:done', true)`.
+  `ctx.app.setProgress('<route>:<aircraft>:done', true)`. A lesson page also gets a `LESSON_LINKS` entry with its
+  Learn group in `src/app/navigation.ts`; the bar shows it only to jets the route accepts.
 - **Change a radar rule:** `src/sim/radar.ts` (`radarRules`, scan, detection, TWS, STT), then
   `src/sim/sensors.test.ts`. Launch rules are in `launch.ts`, the display model in `picture.ts`.
 - **Publish:** merging to `main` deploys `dist-web/` to Cloudflare Pages (https://fox3-academy.pages.dev);

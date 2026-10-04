@@ -75,10 +75,12 @@ kbd {
 }
 
 /* Secondary links follow the selected Learn / Practice destination. */
-.context-nav { display: flex; align-items: center; gap: 6px; padding: 6px 20px; overflow-x: auto; background: var(--panel-2); color: var(--panel-ink); border-bottom: 1px solid var(--panel-line); }
+.context-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 20px; background: var(--panel-2); color: var(--panel-ink); border-bottom: 1px solid var(--panel-line); }
 .context-nav a { flex: none; padding: 7px 10px; text-decoration: none; font-family: var(--font-mono); font-size: var(--fs-xs); border-radius: var(--r-1); }
 .context-nav a:hover { background: var(--panel-3); }
 .context-nav a[aria-current="page"] { color: var(--btn-on); background: var(--btn); }
+.context-nav__group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 10px; margin-left: 4px; border-left: 1px solid var(--panel-line); }
+.context-nav__label { flex: none; padding-right: 2px; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .06em; text-transform: uppercase; color: var(--panel-muted); }
 @media (max-width: 620px) {
   .modnav { justify-content: space-between; }
   .modnav a { padding: 9px 7px; font-size: .75rem; letter-spacing: 0; }

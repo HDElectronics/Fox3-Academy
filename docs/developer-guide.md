@@ -54,7 +54,10 @@ The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ..
 the top bar, keeps global state in `AppStore` (selected jet, units, lesson progress), and mounts one page at a
 time. Switching jets or units remounts the current page, so pages read the jet once on mount.
 
-`src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference. `#/learn` aliases the original
+`src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference. The selected jet comes first: the
+second row lists only links whose route accepts the jet (`linkOpensFor`, through `roleGate.ts`), and Learn groups
+them (`lessonGroups`: BVR, Close combat, Flying, then the jet's own pages under its name). A new lesson link
+needs a `group` in `LESSON_LINKS`. `#/learn` aliases the original
 `#/hangar`; a `lab=free` query selects the Practice context. The router compares normalized query parameters,
 so switching guided/free sessions remounts even on the same path. It consumes `ac` once before mounting.
 The shell measures both navigation rows into `--shell-h` for viewport sizing.

@@ -1,7 +1,9 @@
 /**
  * Learn (#/learn, legacy #/hangar): resume lessons for the globally selected jet, with a 3D scan-volume
- * hero and aircraft capability reference. Practice and Fly are separate entry points.
- * Query params: ?ac=<FighterId> selects a jet once (then is removed from the URL);
+ * hero and aircraft capability reference. Practice and Fly are separate entry points. A fighter with pages of its
+ * own (HARM & SEAD on the F/A-18C) gets a row of them under the path; an attack jet gets those pages alone
+ * (jetPages.ts).
+ * Query params: ?ac=<AircraftId> selects a jet once (then is removed from the URL);
  * ?shot=band|lessons|weapons|notes scrolls to a section (for screenshots).
  */
 import './style.css';
@@ -9,11 +11,12 @@ import type { Page, PageContext, PageFactory } from '../../app/page';
 import { ROUTES } from '../../app/routes';
 import { lessonPath } from '../../app/navigation';
 import { AIRCRAFT, AIRCRAFT_CAVEATS } from '../../data';
-import type { FighterId, AircraftSpec } from '../../data/types';
+import type { AircraftId, AircraftSpec } from '../../data/types';
 import type { Units } from '../../app/format';
 import { Stage } from '../../render';
 import { button, callout, cleanup, consolePanel, cx, h, kbd, readouts, screenBezel, setText, type Child } from '../../ui';
 import { mountHero } from './hero3d';
+import { attackLanding, jetPagesSection } from './jetPages';
 import {
   LESSON_PATH, LESSON_TITLE, capFacts, detectSource, detectionScale,
   doneElsewhere, fmtR, headlineBind, isDone, lessonLine, moduleLabel, nextLesson, primaryRadarMissile, rangeNum, refLegend,
@@ -32,10 +35,15 @@ const factory: PageFactory = (): Page => {
       const want = ctx.params.get('ac');
       if (want !== null) {
         replaceHashParams(p => p.delete('ac'));
-        if (want !== ctx.app.aircraft && want in AIRCRAFT) {
-          ctx.app.setAircraft(want as FighterId);   // the router remounts this page with the new jet
+        if (want !== ctx.app.jet && want in AIRCRAFT) {
+          ctx.app.setAircraft(want as AircraftId);   // the router remounts this page with the new jet
           return;
         }
+      }
+      const open = (href: string) => ctx.navigate(href.replace(/^#\//, ''));
+      if (ctx.app.jetSpec.role === 'attack') {
+        ctx.root.append(attackLanding(ctx.app.jet, k => ctx.app.getProgress(k), open));
+        return;
       }
 
       const spec = ctx.app.spec;
@@ -54,6 +62,7 @@ const factory: PageFactory = (): Page => {
       // ---------------------------------------------------------------- the rest
       const band = rulesBand(spec, units, () => ctx.navigate('tws'));
       const lessons = lessonsSection(spec, units, get, next, r => ctx.navigate(lessonPath(r)));
+      const own = jetPagesSection(spec.id, get, open, { heading: `${spec.short} cockpit`, lead: `Lessons only the ${spec.short} has.` });
       const weapons = weaponsSection(spec, units);
       const notes = notesSection(spec);
 
@@ -62,7 +71,7 @@ const factory: PageFactory = (): Page => {
           h('h2', null, 'Build the picture. Make the decision.'),
           h('p', null, 'Follow the lesson path for your selected jet, then practise freely or fly a sortie.')),
         h('div', { class: 'hg-entry-links' }, h('a', { href: '#/progress' }, 'Progress across jets →'), h('a', { href: '#/practice' }, 'Open practice labs →'), h('a', { href: '#/sortie' }, 'Fly a sortie →')));
-      const root = h('div', { class: 'hg', id: 'hangar' }, intro, hero.el, lessons, band, weapons, notes);
+      const root = h('div', { class: 'hg', id: 'hangar' }, intro, hero.el, lessons, own, band, weapons, notes);
       ctx.root.append(root);
 
       // 3D hero (pauses offscreen via the Stage's IntersectionObserver).
