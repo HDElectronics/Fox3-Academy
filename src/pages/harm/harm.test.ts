@@ -136,6 +136,18 @@ describe('TOO', () => {
     expect(av.formatView().too!.targets).toHaveLength(2);
   });
 
+  it('explains in clean text (no mis-encoded degree signs)', () => {
+    const sim = pair();
+    const av = new HarmAvionics(sim, []);
+    ready(av);
+    const too = av.osb(4).text;
+    av.osb(3);
+    const ac = av.osb(2).text;
+    expect(too).toContain('30° field of view');
+    expect(ac).toContain('45° nose up');
+    expect(too + ac).not.toMatch(/Â|â€|Ã/);
+  });
+
   it('class membership and threat order', () => {
     const sim = pair();
     const cs = sim.contacts();

@@ -272,7 +272,7 @@ export class HarmAvionics {
         if (this.mode !== 'PB') return refused('The pull-up choice only exists in PB.');
         this.pullup = n === 2 ? 'AC' : 'HRM';
         return done(this.pullup === 'AC'
-          ? 'A/C pull-up: you fly the loft (45Â° nose up at A/C RNG) and the HARM keeps its energy for a longer shot (p374-375).'
+          ? 'A/C pull-up: you fly the loft (45° nose up at A/C RNG) and the HARM keeps its energy for a longer shot (p374-375).'
           : 'HRM pull-up: the HARM does the lofting itself, so you must be closer; a small loft from you is enough (p374-375).');
       }
       case 11:
@@ -315,7 +315,7 @@ export class HarmAvionics {
     this.spKey = null;
     if (m !== 'PB') this.ufcOn = false;
     if (m === 'SP') return done('SP: the HARM cues itself to the highest radar threat. No range is shown in this mode (p364-367).');
-    if (m === 'TOO') return done('TOO: the HARM becomes a sensor. Radars inside its 30Â° field of view show as numbers; you choose one and hand it off (p368).');
+    if (m === 'TOO') return done('TOO: the HARM becomes a sensor. Radars inside its 30° field of view show as numbers; you choose one and hand it off (p368).');
     return done(this.pbCode === null
       ? 'PB: for a radar at a known place. HARM is crossed out until you enter its code on the UFC (p373-374).'
       : `PB with code ${this.pbCode}. Designate the waypoint on the radar and fly the HUD cues.`);
@@ -399,7 +399,7 @@ export class HarmAvionics {
     const s = this.pbState();
     if (!wp || !s) return say(refused('No target point: select the waypoint on the HSI and press WPDSG (p374).'));
     if (!s.inRange) return say(refused(`Not in range yet for a ${this.pullup === 'HRM' ? 'HARM' : 'A/C'} pull-up: wait for ${this.pullup === 'HRM' ? 'HRM' : 'A/C'} RNG.`));
-    if (Math.abs(s.aslX) > 1) return press ? refused('Keep holding, and put the flight path marker on the azimuth steering line (within 1Â°, p375).') : null;
+    if (Math.abs(s.aslX) > 1) return press ? refused('Keep holding, and put the flight path marker on the azimuth steering line (within 1°, p375).') : null;
     const fpmY = this.sim.jet.pitchRad * R2D;
     if (s.cue !== null && fpmY < s.cue) return press ? refused(`Keep holding and raise the nose: the flight path marker must reach the ${this.pullup === 'HRM' ? 'HARM' : 'A/C'} pull-up release cue (p375).`) : null;
     const code = this.pbCode;
