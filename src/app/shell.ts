@@ -1,9 +1,9 @@
-/** App chrome: brand, aircraft selector, module nav, units toggle. Cockpit skin follows the jet. */
+/** App chrome: brand, aircraft selector, module nav, units toggle. Cockpit skin follows the jet; the second row lists the jet's pages. */
 import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
 import { routeFor, type RouteDef } from './routes';
 import { pickerJets } from './roleGate';
-import { contextualLinks, DESTINATIONS, destinationFor } from './navigation';
+import { contextualLinks, DESTINATIONS, destinationFor, LEARN_HOME, lessonGroups, type NavLink } from './navigation';
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
 
@@ -51,22 +51,34 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     unitsBtn.textContent = app.units === 'metric' ? 'km · m' : 'nm · ft';
   };
   sync();
-  app.subscribe(sync);
 
-  const setActive = (next: RouteDef, params = new URLSearchParams(location.hash.split('?')[1] ?? '')) => {
-    route = next;
-    fillPicker();
+  let params = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const linkEl = (link: NavLink) => {
+    const path = link.path.split('?')[0];
+    const active = path === route.path || (path === 'learn' && route.path === 'hangar');
+    return h('a', { href: '#/' + link.path, 'aria-current': active ? 'page' : 'false' }, link.label);
+  };
+  // Second row: the selected jet's pages for the destination. Learn groups them (BVR, Close combat, Flying, the jet's own).
+  const renderContext = () => {
     const destination = destinationFor(route.path, params);
     for (const a of $$('a', nav)) a.setAttribute('aria-current', a.dataset.destination === destination ? 'page' : 'false');
-    const links = contextualLinks(destination);
+    const links = contextualLinks(destination, app.jet);
     contextNav.hidden = links.length === 0;
-    contextNav.setAttribute('aria-label', destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference pages' : 'Lessons');
-    contextNav.replaceChildren(...links.map(link => {
-      const path = link.path.split('?')[0];
-      const active = path === route.path || (path === 'learn' && route.path === 'hangar');
-      return h('a', { href: '#/' + link.path, 'aria-current': active ? 'page' : 'false' }, link.label);
-    }));
+    contextNav.setAttribute('aria-label', destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference pages' : `Lessons for the ${app.jetSpec.short}`);
+    if (destination === 'learn') {
+      contextNav.replaceChildren(...LEARN_HOME.map(linkEl), ...lessonGroups(app.jet).map(g =>
+        h('div', { class: 'context-nav__group', role: 'group', 'aria-label': g.label, dataset: { group: g.id } },
+          h('span', { class: 'context-nav__label', 'aria-hidden': 'true' }, g.label), ...g.links.map(linkEl))));
+    } else contextNav.replaceChildren(...links.map(linkEl));
     syncHeight();
+  };
+  app.subscribe((_, what) => { sync(); if (what === 'aircraft') renderContext(); });
+
+  const setActive = (next: RouteDef, nextParams = new URLSearchParams(location.hash.split('?')[1] ?? '')) => {
+    route = next;
+    params = nextParams;
+    fillPicker();
+    renderContext();
     document.title = route.path === 'hangar' ? 'Fox3 Academy' : route.label + ' · Fox3 Academy';
   };
   return { outlet, setActive };
