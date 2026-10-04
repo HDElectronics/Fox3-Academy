@@ -1,7 +1,8 @@
 /**
  * [OWNER: page-harm] The HARM page's 3D view. Draws a SceneView (types.ts): the F/A-18C, the SAM sites and their
  * vehicles, HARMs with trails, and blasts, at scene scale 1 unit = 1 km with the app's pixel floors (boostedScale) so
- * a jet 20 nm from a site stays visible. A transmitting site wears a pulsing translucent dome; a site whose tracking
+ * a jet 20 nm from a site stays visible. Each transmitting radar wears its own pulsing translucent dome, centred on
+ * the vehicle, so a dead or silent radar loses its dome while the others keep theirs; a site whose tracking
  * radar has locked the jet draws a flowing warning line to it. A HARM that lost guidance is drawn grey with a dim
  * trail; dead vehicles turn to soot. Camera: chase the jet, follow the newest HARM toward its target, look from the
  * first site toward the jet, or a top-down overview. Game view only (rule 1): no seeker or radar internals.
@@ -33,14 +34,12 @@ export interface HarmSceneOptions {
 type Site = SceneView['sites'][number];
 type Harm = SceneView['harms'][number];
 
-interface VehVis { id: VehicleId; group: Group; pos: Vector3 }
+interface VehVis { id: VehicleId; group: Group; pos: Vector3; dome: Mesh<SphereGeometry, MeshBasicMaterial>; pulse: Mesh<SphereGeometry, MeshBasicMaterial> }
 interface SiteVis {
   id: string;
   data: Site;
   vehicles: VehVis[];
-  dome: Mesh<SphereGeometry, MeshBasicMaterial>;
-  pulse: Mesh<SphereGeometry, MeshBasicMaterial>;
-  /** Largest vehicle display scale (units per metre), for the camera and the dome size. */
+  /** Largest vehicle display scale (units per metre), for the camera. */
   scale: number;
   seen: number;
 }
@@ -322,16 +321,7 @@ export class HarmScene implements EntitySource {
   }
 
   private createSite(s: Site): SiteVis {
-    const P = this.stage.palette;
-    const mat = (o: number) => new MeshBasicMaterial({
-      color: P.caution.clone(), transparent: true, opacity: o, depthWrite: false, side: DoubleSide, toneMapped: false,
-    });
-    const dome = new Mesh(this.domeGeo, mat(0.07));
-    const pulse = new Mesh(this.domeGeo, mat(0.2));
-    dome.name = 'emission'; pulse.name = 'emission-pulse';
-    dome.visible = pulse.visible = false;
-    this.root.add(dome, pulse);
-    const sv: SiteVis = { id: s.id, data: s, vehicles: [], dome, pulse, scale: UNIT_PER_M, seen: 0 };
+    const sv: SiteVis = { id: s.id, data: s, vehicles: [], scale: UNIT_PER_M, seen: 0 };
     this.sites.set(s.id, sv);
     return sv;
   }
@@ -341,19 +331,30 @@ export class HarmScene implements EntitySource {
     for (let i = 0; i < list.length; i++) {
       const cur = sv.vehicles[i];
       if (cur && cur.id === list[i].id) continue;
-      if (cur) disposeVehicle(cur.group);
+      if (cur) this.disposeVeh(cur);
       const group = buildVehicle(list[i].id, this.stage.palette, { onReady: () => this.stage.requestRender() });
-      this.root.add(group);
-      sv.vehicles[i] = { id: list[i].id, group, pos: new Vector3() };
+      const mat = (o: number) => new MeshBasicMaterial({
+        color: this.stage.palette.caution.clone(), transparent: true, opacity: o, depthWrite: false, side: DoubleSide, toneMapped: false,
+      });
+      const dome = new Mesh(this.domeGeo, mat(0.08));
+      const pulse = new Mesh(this.domeGeo, mat(0.2));
+      dome.name = 'emission'; pulse.name = 'emission-pulse';
+      dome.visible = pulse.visible = false;
+      this.root.add(group, dome, pulse);
+      sv.vehicles[i] = { id: list[i].id, group, pos: new Vector3(), dome, pulse };
     }
-    while (sv.vehicles.length > list.length) { const gone = sv.vehicles.pop(); if (gone) disposeVehicle(gone.group); }
+    while (sv.vehicles.length > list.length) { const gone = sv.vehicles.pop(); if (gone) this.disposeVeh(gone); }
+  }
+
+  private disposeVeh(veh: VehVis): void {
+    disposeVehicle(veh.group);
+    veh.dome.removeFromParent(); veh.pulse.removeFromParent();
+    veh.dome.material.dispose(); veh.pulse.material.dispose();
   }
 
   private disposeSite(sv: SiteVis): void {
-    for (const veh of sv.vehicles) disposeVehicle(veh.group);
+    for (const veh of sv.vehicles) this.disposeVeh(veh);
     sv.vehicles.length = 0;
-    sv.dome.removeFromParent(); sv.pulse.removeFromParent();
-    sv.dome.material.dispose(); sv.pulse.material.dispose();
     this.sites.delete(sv.id);
   }
 
@@ -396,8 +397,8 @@ export class HarmScene implements EntitySource {
     // Sites
     for (const sv of this.sites.values()) {
       const s = sv.data;
-      let maxSc = UNIT_PER_M, n = 0, tracker: VehVis | null = null, trackerH = 0;
-      const c = _w.set(0, 0, 0);
+      let maxSc = UNIT_PER_M, tracker: VehVis | null = null, trackerH = 0;
+      const k = (v.t / PULSE_S) % 1;
       s.vehicles.forEach((d, i) => {
         const veh = sv.vehicles[i];
         if (!veh) return;
@@ -409,29 +410,24 @@ export class HarmScene implements EntitySource {
         veh.group.rotation.y = -d.headingRad;
         veh.group.scale.setScalar(sc);
         setVehicleWreck(veh.group, !d.alive);
-        if (s.emitting && d.alive && d.emitter) {
-          animateVehicle(veh.group, v.t + i * 0.7);
-          c.add(veh.pos); n++;
-          if (!tracker || (TRACKERS.has(d.id) && !TRACKERS.has(tracker.id))) { tracker = veh; trackerH = H * sc; }
-        }
+        // One dome per transmitting radar, centred on it: about twice the model's length, never under 14 px.
+        const on = s.emitting && d.alive && d.emitter;
+        veh.dome.visible = veh.pulse.visible = on;
+        if (!on) return;
+        animateVehicle(veh.group, v.t + i * 0.7);
+        if (!tracker || (TRACKERS.has(d.id) && !TRACKERS.has(tracker.id))) { tracker = veh; trackerH = H * sc; }
+        const r = Math.max(L * sc * 1.1, 14 / this.ppuAt(veh.pos));
+        veh.dome.position.copy(veh.pos);
+        veh.dome.scale.set(r, r * 0.6, r);
+        veh.pulse.position.copy(veh.pos);
+        veh.pulse.scale.set(r * k, r * 0.6 * k, r * k);
+        veh.pulse.material.opacity = 0.22 * (1 - k);
+        veh.dome.material.color.copy(s.lockedJet && TRACKERS.has(d.id) ? P.warning : P.caution);
+        veh.pulse.material.color.copy(veh.dome.material.color);
       });
       sv.scale = maxSc;
-      const on = s.emitting && n > 0;
-      sv.dome.visible = sv.pulse.visible = on;
-      if (on) {
-        c.divideScalar(n);
-        const r = Math.max(maxSc * 40, 26 / this.ppuAt(c));
-        sv.dome.position.copy(c);
-        sv.dome.scale.set(r, r * 0.55, r);
-        const k = (v.t / PULSE_S) % 1;
-        sv.pulse.position.copy(c);
-        sv.pulse.scale.set(r * k, r * 0.55 * k, r * k);
-        sv.pulse.material.opacity = 0.22 * (1 - k);
-        sv.dome.material.color.copy(s.lockedJet ? P.warning : P.caution);
-        sv.pulse.material.color.copy(sv.dome.material.color);
-      }
       const tr = tracker as VehVis | null;
-      if (s.lockedJet && on && tr && v.jet.alive) {
+      if (s.lockedJet && tr && v.jet.alive) {
         const k = P.warning;
         lines.seg(tr.pos.x, tr.pos.y + trackerH, tr.pos.z, jetU.x, jetU.y, jetU.z, k.r, k.g, k.b, 0.9, k.r, k.g, k.b, 0.75, 2.2, 16, 50, 0.65);
       }
