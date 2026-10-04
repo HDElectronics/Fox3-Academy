@@ -27,6 +27,9 @@ import { HarmScene } from './scene3d';
 import { mountGallery, type GalleryHandle } from './gallery3d';
 import { buildBriefing } from './briefing';
 import { createPbExplainer } from './pbExplain';
+import { createSpExplainer } from './spExplain';
+import { createTooExplainer } from './tooExplain';
+import type { Explainer } from './explainer';
 import { buildAppendix } from './appendixView';
 import { HarmSim, bearingDeg, wrapDeg, type SimSetup } from './sim';
 import {
@@ -34,11 +37,11 @@ import {
 } from './lessons';
 import type { HarmClass, Osb, Pullup, SystemId, VehicleId } from './types';
 
-const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'appendix'] as const;
+const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'sp-explain', 'too-explain', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'appendix'] as const;
 type Shot = typeof SHOTS[number];
 type Cam = 'chase' | 'harm' | 'site' | 'top';
 const SHOT_LESSON: Record<Shot, HarmLessonId> = {
-  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live',
+  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', 'sp-explain': 'sp', 'too-explain': 'too', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live',
 };
 const NM = 1852;
 const R2D = 180 / Math.PI;
@@ -154,7 +157,11 @@ const factory: PageFactory = (): Page => {
     let steps = checklist({ steps: [] });
     const stepsHost = h('div', null, steps.el);
     const restartBtn = button({ label: 'Restart', size: 's', onClick: () => restart() });
-    const pbxBtn = button({ label: 'How PB works (animated)', size: 's', onClick: () => showDoc('pb') });
+    const animRow = h('div', { class: 'harm-row harm-anim' }, h('span', { class: 'harm-small' }, 'Animated:'),
+      button({ label: 'SP', size: 's', title: 'How an SP shot works', onClick: () => showDoc('sp') }).el,
+      button({ label: 'Pullback', size: 's', title: 'How Pullback works', onClick: () => showDoc('pullback') }).el,
+      button({ label: 'TOO', size: 's', title: 'How a TOO shot works', onClick: () => showDoc('too') }).el,
+      button({ label: 'PB', size: 's', title: 'How a PB shot works', onClick: () => showDoc('pb') }).el);
     const apxBtn = button({ label: 'Code appendix', size: 's', onClick: () => showDoc('appendix') });
     const speedSeg = segmented<number>({
       id: 'harm-speed', ariaLabel: 'Time', size: 's', value: 1,
@@ -215,9 +222,10 @@ const factory: PageFactory = (): Page => {
     const galleryHost = h('div', { class: 'harm-host' });
     const briefHost = h('div', { class: 'harm-host harm-host--brief' }, buildBriefing());
     // Animated PB explainer and the code appendix: documents over the view; the drill pauses while one is open.
-    let doc: 'pb' | 'appendix' | null = null;
-    const pbx = createPbExplainer({ reducedMotion: reduced, onClose: () => closeDoc() });
-    bag.add(() => pbx.dispose());
+    type DocKind = 'sp' | 'pullback' | 'too' | 'pb' | 'appendix';
+    let doc: DocKind | null = null;
+    let anim: Explainer | null = null;
+    bag.add(() => anim?.dispose());
     const apx = buildAppendix({ onClose: () => closeDoc() });
     const docHost = h('div', { class: 'harm-host harm-host--brief harm-host--doc', hidden: true });
     viewport.append(sceneHost, galleryHost, briefHost, docHost);
@@ -232,7 +240,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [hudBezel.el, ewBezel.el, ddiBezel.el, ufcBlock],
       console: [
-        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), h('div', { class: 'harm-row' }, pbxBtn.el, apxBtn.el)] }).el,
+        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), animRow, h('div', { class: 'harm-row' }, apxBtn.el)] }).el,
         radarPanel.el, filmPanel.el, log.el, missionsPanel.el, kneeboard, keysBox, caveats,
       ],
     });
@@ -292,21 +300,27 @@ const factory: PageFactory = (): Page => {
       if (r) act(r, 'Weapon release');
     }
 
-    function showDoc(kind: 'pb' | 'appendix'): void {
+    function showDoc(kind: DocKind): void {
       doc = kind;
-      docHost.replaceChildren(kind === 'pb' ? pbx.el : apx.el);
+      anim?.dispose();
+      anim = null;
+      const opts = { reducedMotion: reduced, onClose: () => closeDoc() };
+      if (kind === 'sp' || kind === 'pullback') anim = createSpExplainer({ ...opts, scenario: kind === 'sp' ? 'sp' : 'pullback' });
+      else if (kind === 'too') anim = createTooExplainer(opts);
+      else if (kind === 'pb') anim = createPbExplainer(opts);
+      docHost.replaceChildren(anim ? anim.el : apx.el);
       docHost.hidden = false;
       lab.el.classList.add('harm--doc');
       docHost.scrollTop = 0;
       hotas.hidden = hsi.hidden = camSeg.el.hidden = true;
-      if (kind === 'pb') pbx.play(); else pbx.stop();
-      log.push(kind === 'pb' ? 'How PB works: the drill is paused until you close it.' : 'Code appendix (ED guide pp420-422). The drill is paused.', { t: sim.t });
+      anim?.play();
+      log.push(anim ? 'Animated guide: the drill is paused until you close it.' : 'Code appendix (ED guide pp420-422). The drill is paused.', { t: sim.t });
     }
 
     function closeDoc(): void {
       if (!doc) return;
       doc = null;
-      pbx.stop();
+      anim?.stop();
       docHost.hidden = true;
       lab.el.classList.remove('harm--doc');
       const k = LESSONS[lesson].kind;
@@ -396,10 +410,12 @@ const factory: PageFactory = (): Page => {
       briefHost.hidden = def.kind !== 'brief';
       camSeg.el.hidden = def.kind === 'gallery' || def.kind === 'brief';
       hotas.hidden = hsi.hidden = def.kind === 'gallery' || def.kind === 'brief';
-      pbxBtn.el.hidden = lesson !== 'pb' && lesson !== 'live';
+      animRow.hidden = LESSONS[lesson].kind !== 'drill';
       if (doc) closeDoc();
       // Entering the PB lesson starts with the animated explainer (not on 'Again', not in scripted shots).
-      if (lesson === 'pb' && lastLesson !== 'pb' && !shotRunning) showDoc('pb');
+      const firstDoc: Partial<Record<HarmLessonId, DocKind>> = { sp: 'sp', too: 'too', pb: 'pb', pullback: 'pullback' };
+      const auto = firstDoc[lesson];
+      if (auto && lastLesson !== lesson && !shotRunning) showDoc(auto);
       lastLesson = lesson;
       if (def.kind === 'gallery') {
         if (!gallery) gallery = mountGallery(galleryHost, { reducedMotion: reduced, ariaLabel: 'SAM battery in 3D: drag to orbit' });
@@ -554,7 +570,9 @@ const factory: PageFactory = (): Page => {
         case 'sp': setup(); av.toggleEwHud(); run(2); av.setRelease(true); av.setRelease(false); run(14); break;
         case 'too': setup(); av.osb(4); av.tdcToHarm(); run(2); break;
         case 'too-hoff': setup(); av.osb(4); av.tdcToHarm(); av.osb(11); av.osb(9); av.cage(); run(1); break;
-        case 'pb-explain': showDoc('pb'); pbx.seek(Number(params.get('t') ?? 14.5)); break;
+        case 'pb-explain': showDoc('pb'); anim?.seek(Number(params.get('t') ?? 14.5)); break;
+        case 'sp-explain': showDoc(params.get('scn') === 'pullback' ? 'pullback' : 'sp'); anim?.seek(Number(params.get('t') ?? 13)); break;
+        case 'too-explain': showDoc('too'); anim?.seek(Number(params.get('t') ?? 15.5)); break;
         case 'appendix': showDoc('appendix'); break;
         case 'pb-ufc': setup(); av.osb(3); av.osb(14); av.ufcKey('OPT4'); av.ufcKey('1'); av.ufcKey('0'); av.ufcKey('7'); run(1); break;
         case 'pb-cue': setup(); av.osb(3); av.osb(14); av.ufcKey('OPT4'); ['1', '0', '7', 'ENT'].forEach(k => av.ufcKey(k as '1')); av.osb(1); pullupChosen = 'HRM'; av.selectWaypoint(1); av.wpdsg(); run(1); sim.jet.pitchCmd = 1; run(0.6); sim.jet.pitchCmd = 0; break;

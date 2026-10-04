@@ -5,7 +5,8 @@
 - HARM & SEAD for the F/A-18C: a new page with seven lessons. A 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10
   batteries (which vehicle carries the radar, its RWR symbol, TOO class and PB code), four films of how a HARM flies
   (and misses when the radar goes quiet), then SP, TOO (class filter and hand-off), PB (UFC code, WPDSG, pull-up
-  cues), Pullback and a live SEAD run on a clickable HARM format, EW page, HUD and UFC, with every press explained.
+  cues), Pullback and a live SEAD run on a clickable HARM format, with an animated guide for SP, Pullback, TOO and PB
+  (PB at an SA-11, SA-10 or SA-6 site, code by code) and the full ED code appendix, EW page, HUD and UFC, with every press explained.
   Two pydcs practice missions for DCS ship with it (`missions/harm/`, downloadable from the page). Research:
   `docs/research/fa18c-harm.md`.
 

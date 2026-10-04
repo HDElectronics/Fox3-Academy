@@ -276,10 +276,13 @@ mid-flight so the HARM misses, a PB shot that lofts to the point and then listen
 **SP** (Master Arm `M`, A/G `2`, HARM on the stores page, HUD on the EW page, weapon release RAlt + Space),
 **TOO** (TDC to the HARM display with RAlt + /, CLASS H2, box with `I`, hand off with `C`), **PB** (UFC, window 4 TGT,
 code 107 for the SA-11 Snow Drift, HRM pull-up, WPDSG on the HSI, then hold release and raise the nose to the cue;
-it opens with an animated explainer: pick a code and a pull-up and watch which radar the HARM chooses at the point),
+it opens with an animated explainer: pick the site at the waypoint (SA-11, SA-10 or SA-6 + SA-8), a code and a pull-up
+and watch which radar the HARM chooses at the point),
 **Pullback** (unbox HRM OVRD, let a live SA-6 lock you, shoot back and turn away) and **Live** (an SA-6 that goes
 quiet when it sees a HARM and a live SA-11). Click the DDI pushbuttons and the UFC keys on screen; the "What that
-did" log explains every press and points to the ED guide page. Every command also has an on-screen button
+did" log explains every press and points to the ED guide page. SP, Pullback and TOO open with their own animated guides too (cue and HARM Sequence, a lock
+and the shot back, a radar going quiet; the field of view, CLASS, hand-off), and the Animated row in the lesson panel
+replays any of them. Every command also has an on-screen button
 (HOTAS and panel overlays on the 3D view), and Code appendix opens the guide's full ALIC code and RWR symbol table. Arrows fly the jet on a simple autopilot; time runs
 ×1, ×2 or ×4. The Fly it in DCS panel downloads two matching practice missions (safe ranges and live SEAD).
 Trainer values (PB ranges, cue positions, most radar ranges) are listed under Simplified and not verified.

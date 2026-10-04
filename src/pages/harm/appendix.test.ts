@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { AIRBORNE, AIR_DEFENCE, NAVAL } from './appendix';
 import { ALIC_TABLE, SYSTEMS, SYSTEM_ORDER } from './data';
-import { pbOutcome } from './pbExplain';
+import { PB_SITES, pbOutcome, type PbSiteId } from './pbExplain';
 import { HarmSim } from './sim';
 
 describe('ALIC appendix', () => {
@@ -26,6 +26,21 @@ describe('ALIC appendix', () => {
 });
 
 describe('PB explainer outcomes match the sim', () => {
+  it('every site: each code picks a radar of that code, the absent code misses, codes agree with the appendix', () => {
+    for (const id of Object.keys(PB_SITES) as PbSiteId[]) {
+      const site = PB_SITES[id];
+      for (const e of site.emitters) {
+        expect(pbOutcome(e.code, id).hit?.code).toBe(e.code);
+        expect(AIR_DEFENCE.find(r => r.id === e.code)?.rwr, `${id} ${e.code}`).toBe(e.rwr);
+      }
+      expect(pbOutcome(site.absent.code, id).hit).toBeNull();
+      expect(site.emitters.some(e => e.code === site.absent.code)).toBe(false);
+    }
+    expect(pbOutcome(104, 'sa10').hit?.name).toBe('Big Bird');
+    expect(pbOutcome(110, 'sa10').text).toMatch(/cannot guide/);
+    expect(pbOutcome(117, 'sa6').hit?.rwr).toBe('8');
+  });
+
   it('107 picks the Snow Drift, 115 a Fire Dome, 108 finds nothing at an SA-11', () => {
     expect(pbOutcome(107).hit?.rwr).toBe('SD');
     expect(pbOutcome(115).hit?.rwr).toBe('11');

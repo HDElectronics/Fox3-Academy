@@ -142,3 +142,24 @@
 .harm-apx__table tr.is-noid td { color: var(--panel-muted); }
 .harm-apx__table tr[hidden] { display: none; }
 .harm--doc .ui-lab__strip { display: none; }
+
+/* SP and TOO explainers */
+.harm-anim > .harm-small { margin: 0; }
+.spx-beam { stroke: var(--caution); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.8; }
+.spx-beam.is-lock { stroke: var(--warning); stroke-width: 1.6; stroke-dasharray: none; }
+.spx-harm { fill: var(--caution); }
+.spx-harm.is-lost, .pbx-trail.is-lost { fill: var(--panel-muted); stroke: var(--panel-muted); }
+.spx-sam { fill: var(--warning); }
+.spx-sam.is-lost { fill: var(--panel-muted); }
+.spx-samtrail { stroke: var(--warning); stroke-width: 1.2; fill: none; }
+.spx-ring { fill: none; stroke: var(--sym); stroke-width: 1; }
+.spx-ring--in { stroke-dasharray: 3 3; }
+.spx-sym { font-size: 12px !important; font-weight: 700; }
+.spx-lamp rect { fill: var(--panel); stroke: var(--panel-line); }
+.spx-lamp text { fill: var(--panel-muted) !important; }
+.spx-lamp.is-on rect { fill: var(--warning); }
+.spx-lamp.is-on text { fill: var(--panel-ink) !important; }
+.tox-fov { fill: var(--sym); opacity: 0.1; stroke: var(--sym); stroke-width: 1; }
+.tox-t { stroke: var(--sym); stroke-width: 1.4; fill: none; }
+.tox-arrow { fill: var(--sym); }
+.harm-pbx__stage.is-single { grid-template-columns: minmax(0, 1fr); }

@@ -1,206 +1,209 @@
 /**
  * [OWNER: page-harm] Animated "How a PB shot works" for the PB lesson: the UFC code, WPDSG, the pull-up (HRM or A/C),
  * the flight to the point with the receiver off, the receiver coming on near the point, and which radar the code picks
- * in an SA-11 battery with an SA-15 next to it (or a miss when no radar of that code is there). Side view and top view
- * in SVG, coloured by design tokens. Steps follow ED's guide p373-375 and the code table p420; which radar is picked
- * when several share a code, and how far from the point the HARM listens, are trainer rules (HARM_CAVEATS).
+ * at the site you choose (an SA-11 battery with an SA-15 beside it, an SA-10 battery, an SA-6 battery with an SA-8
+ * beside it), or a miss when no radar of that code is there. Steps follow ED's guide p373-375 and the code table p420;
+ * which radar is picked when several share a code, and how far from the point the HARM listens, are trainer rules
+ * (HARM_CAVEATS). Built on explainer.ts.
  */
-import { h, segmented, button } from '../../ui';
+import { h, segmented } from '../../ui';
+import { createExplainer, svgEl, setAttrs, clamp01, ease, bezier, type Explainer } from './explainer';
 import type { Pullup } from './types';
 
-const NS = 'http://www.w3.org/2000/svg';
 const T = { ufc: 2.6, wp: 4.6, release: 7, seeker: 11.4, terminal: 13.6, end: 16.2, hold: 17.5 } as const;
-
-type Code = 107 | 115 | 119 | 108;
-interface Emitter { key: string; code: number; rwr: string; name: string; top: [number, number]; side: number }
-/** The battery at the designated point (top view px; side view x of the target). */
-const AT_POINT: Emitter[] = [
-  { key: 'sd', code: 107, rwr: 'SD', name: 'Snow Drift', top: [130, 120], side: 380 },
-  { key: 'fdA', code: 115, rwr: '11', name: 'Fire Dome', top: [98, 146], side: 368 },
-  { key: 'fdB', code: 115, rwr: '11', name: 'Fire Dome', top: [168, 150], side: 392 },
-  { key: 'tor', code: 119, rwr: '15', name: 'SA-15', top: [204, 70], side: 404 },
-];
-const CP: [number, number] = [150, 86];
 const POINT: [number, number] = [130, 120];
 
-const CODES: { code: Code; label: string }[] = [
-  { code: 107, label: '107 Snow Drift' }, { code: 115, label: '115 Fire Dome' }, { code: 119, label: '119 SA-15' }, { code: 108, label: '108 SA-6' },
-];
+export type PbSiteId = 'sa11' | 'sa10' | 'sa6';
+interface Emitter { key: string; code: number; rwr: string; name: string; job: string; after: string; top: [number, number] }
+interface Site { id: PbSiteId; label: string; emitters: Emitter[]; others: { name: string; top: [number, number] }[]; absent: { code: number; name: string } }
 
-const STEPS = [
-  'UFC, window 4 TGT, type the code, ENT: you tell the HARM what radar type to look for (guide p374; codes p420).',
-  'HSI, WPDSG on the waypoint over the site: you tell it where to go (p122, p374).',
-  'Hold release and fly the cue. HRM pull-up: the HARM climbs by itself, so you launch closer. A/C pull-up: you climb about 45° first and the HARM reaches further (p374-375).',
-  'Receiver off: the HARM flies to the point, not to a radar. It cannot see anything yet (p373).',
-  'Near the point the receiver comes on and listens for that one code (p373).',
-  'It homes on the radar with the code, or finds none and misses.',
-];
-
-function result(code: Code): { text: string; hit: Emitter | null } {
-  if (code === 108) return { hit: null, text: 'Code 108 is the SA-6 Straight Flush. There is none at this point: the HARM hears no radar of that code and falls near the point. A miss. It never homes on a radar it was not told about.' };
-  if (code === 119) return { hit: AT_POINT[3]!, text: 'Code 119 is the SA-15 parked next to the battery. The HARM goes for it, not for the SA-11 radars: the code chooses the target, not the waypoint.' };
-  if (code === 115) return { hit: AT_POINT[1]!, text: 'Code 115 is the Fire Dome, the tracking radar on each SA-11 launcher. Two match: the trainer takes the one nearest the point. The Snow Drift (107) is ignored.' };
-  return { hit: AT_POINT[0]!, text: 'Code 107 matched the Snow Drift, the battery\'s search radar: the HARM homes on it. The Fire Domes (115) and the SA-15 (119) have other codes: ignored.' };
-}
-
-const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, text?: string): SVGElementTagNameMap[K] => {
-  const e = document.createElementNS(NS, tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
-  if (text !== undefined) e.textContent = text;
-  return e;
+/** The sites the explainer can put at the designated point (top view px; WP4 at POINT). Codes: ED guide p420. */
+export const PB_SITES: Record<PbSiteId, Site> = {
+  sa11: {
+    id: 'sa11', label: 'SA-11 battery',
+    emitters: [
+      { key: 'sd', code: 107, rwr: 'SD', name: 'Snow Drift', job: 'the battery\'s search radar', after: 'The battery has lost its search radar; each launcher\'s Fire Dome can still find and lock you.', top: [130, 120] },
+      { key: 'fdA', code: 115, rwr: '11', name: 'Fire Dome', job: 'the tracking radar on a launcher', after: 'That launcher is blind; the other launcher and the Snow Drift still work.', top: [98, 146] },
+      { key: 'fdB', code: 115, rwr: '11', name: 'Fire Dome', job: 'the tracking radar on a launcher', after: 'That launcher is blind; the other launcher and the Snow Drift still work.', top: [168, 150] },
+      { key: 'tor', code: 119, rwr: '15', name: 'SA-15', job: 'a separate SA-15 parked beside the battery', after: 'The code chose the target, not the waypoint: the SA-11 is untouched.', top: [204, 70] },
+    ],
+    others: [{ name: 'CP', top: [150, 86] }],
+    absent: { code: 108, name: 'SA-6 Straight Flush' },
+  },
+  sa10: {
+    id: 'sa10', label: 'SA-10 battery',
+    emitters: [
+      { key: 'bb', code: 104, rwr: 'BB', name: 'Big Bird', job: 'the long-range surveillance radar', after: 'The battery has lost its long-range search; the Flap Lid can still find, track and guide.', top: [74, 146] },
+      { key: 'cs', code: 103, rwr: 'CS', name: 'Clam Shell', job: 'a second search radar (TAR, target acquisition, in the guide\'s table)', after: 'The battery has lost one search radar; the Big Bird and the Flap Lid still work.', top: [178, 156] },
+      { key: 'fl', code: 110, rwr: '10', name: 'Flap Lid', job: 'the tracking and guidance radar', after: 'Without it the launchers cannot guide their missiles: the battery can see you but cannot shoot.', top: [118, 70] },
+    ],
+    others: [{ name: '5P85', top: [56, 92] }, { name: '5P85', top: [206, 100] }],
+    absent: { code: 107, name: 'SA-11 Snow Drift' },
+  },
+  sa6: {
+    id: 'sa6', label: 'SA-6 + SA-8',
+    emitters: [
+      { key: 'sf', code: 108, rwr: '6', name: 'Straight Flush', job: 'the SA-6\'s search and track radar', after: 'The 2P25 launchers have no radar of their own: the whole SA-6 battery is blind.', top: [130, 120] },
+      { key: 'osa', code: 117, rwr: '8', name: 'SA-8', job: 'an SA-8 beside the battery, with its own radar', after: 'The SA-6 battery next to it is untouched: the code chose the target.', top: [198, 78] },
+    ],
+    others: [{ name: '2P25', top: [102, 100] }, { name: '2P25', top: [160, 98] }, { name: '2P25', top: [128, 156] }],
+    absent: { code: 115, name: 'SA-11 Fire Dome' },
+  },
 };
-const set = (e: Element, attrs: Record<string, string | number>) => { for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); };
-const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-const ease = (x: number) => x * x * (3 - 2 * x);
-function bez(p: number[][], s: number): [number, number] {
-  const u = 1 - s;
-  const a = u * u * u, b = 3 * u * u * s, c = 3 * u * s * s, d = s * s * s;
-  return [a * p[0]![0]! + b * p[1]![0]! + c * p[2]![0]! + d * p[3]![0]!, a * p[0]![1]! + b * p[1]![1]! + c * p[2]![1]! + d * p[3]![1]!];
+
+const dist = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+/** Side-view x of a top-view point (the side view looks along the line of flight). */
+const sideX = (p: [number, number]) => 380 + (p[0] - POINT[0]) * 0.35;
+
+/** Which radar a code picks at a site (nearest to the point when several share it), and the outcome text. */
+export function pbOutcome(code: number, siteId: PbSiteId = 'sa11'): { text: string; hit: Emitter | null } {
+  const site = PB_SITES[siteId];
+  const matches = site.emitters.filter(e => e.code === code).sort((a, b) => dist(a.top, POINT) - dist(b.top, POINT));
+  const hit = matches[0] ?? null;
+  if (!hit) {
+    const name = code === site.absent.code ? site.absent.name : `code ${code}`;
+    return { hit: null, text: `Code ${code} is the ${name}. There is none at this point: the HARM hears no radar of that code and falls near the point. A miss: it never homes on a radar it was not told about.` };
+  }
+  const others = [...new Set(site.emitters.filter(e => e.code !== code).map(e => `${e.name} (${e.code})`))];
+  const shared = matches.length > 1 ? ` ${matches.length} radars share code ${code}: the trainer takes the one nearest the point.` : '';
+  return { hit, text: `Code ${code} is the ${hit.name}, ${hit.job}. The HARM homes on it.${shared} ${others.join(', ')}: other codes, ignored. ${hit.after}` };
 }
 
-export interface PbExplainer { el: HTMLElement; play(): void; stop(): void; dispose(): void; /** Jump to a time (s) and hold there (screenshots). */ seek(at: number): void }
-
-export function createPbExplainer(o: { reducedMotion: boolean; onClose?: () => void }): PbExplainer {
-  let code: Code = 107;
+export function createPbExplainer(o: { reducedMotion: boolean; onClose?: () => void }): Explainer {
+  let siteId: PbSiteId = 'sa11';
+  let code = 107;
   let pullup: Pullup = 'HRM';
-  let t = 0, raf = 0, last = 0, running = false;
+  // Assigned below; the control handlers only run after that.
+  let ex!: Explainer;
 
   // ---- side view
-  const side = el('svg', { viewBox: '0 0 420 230', class: 'harm-pbx__svg', role: 'img', 'aria-label': 'Side view of the PB shot' });
-  side.append(
-    el('rect', { x: 0, y: 0, width: 420, height: 230, class: 'pbx-sky' }),
-    el('rect', { x: 0, y: 200, width: 420, height: 30, class: 'pbx-ground' }),
-  );
-  const rangeHrm = el('g', { class: 'pbx-range' });
-  const rangeAc = el('g', { class: 'pbx-range' });
-  const trail = el('path', { class: 'pbx-trail', d: '' });
-  const cone = el('path', { class: 'pbx-cone', d: '' });
-  const harm = el('g', {});
-  harm.append(el('path', { d: 'M -7 0 L 6 0 M 6 0 L 2 -2 M 6 0 L 2 2', class: 'pbx-harm' }));
-  const jet = el('g', {});
-  jet.append(el('path', { d: 'M -12 0 L 10 0 L 4 -3 L -6 -3 Z M -10 0 L -14 -6 L -8 -1 Z', class: 'pbx-jet' }));
-  const wp = el('g', { class: 'pbx-wp', opacity: 0 });
-  wp.append(el('path', { d: 'M 380 172 l 6 6 l -6 6 l -6 -6 Z' }), el('text', { x: 380, y: 166, 'text-anchor': 'middle' }, 'WP4 · TGT'));
-  const sideRadars = AT_POINT.map(e => {
-    const g = el('g', { class: 'pbx-radar' });
-    // Names are in the top view; here the radars are too close together to label.
-    g.append(el('rect', { x: e.side - 3, y: 194, width: 6, height: 6 }));
-    return g;
-  });
-  const flash = el('circle', { cx: 0, cy: 0, r: 0, class: 'pbx-flash', opacity: 0 });
-  const ufcBox = el('g', { class: 'pbx-ufc' });
-  const ufcText = el('text', { x: 14, y: 26 }, '');
-  ufcBox.append(el('rect', { x: 6, y: 10, width: 96, height: 24, rx: 3 }), ufcText);
-  const recv = el('text', { x: 210, y: 20, 'text-anchor': 'middle', class: 'pbx-recv' }, '');
-  side.append(rangeAc, rangeHrm, ...sideRadars, wp, trail, cone, jet, harm, flash, ufcBox, recv);
+  const side = svgEl('svg', { viewBox: '0 0 420 230', class: 'harm-pbx__svg', role: 'img', 'aria-label': 'Side view of the PB shot' });
+  side.append(svgEl('rect', { x: 0, y: 0, width: 420, height: 230, class: 'pbx-sky' }), svgEl('rect', { x: 0, y: 200, width: 420, height: 30, class: 'pbx-ground' }));
+  const rangeHrm = svgEl('g', { class: 'pbx-range' });
+  rangeHrm.append(svgEl('line', { x1: 118, y1: 224, x2: 380, y2: 224 }), svgEl('text', { x: 124, y: 220 }, 'HRM pull-up range'));
+  const rangeAc = svgEl('g', { class: 'pbx-range' });
+  rangeAc.append(svgEl('line', { x1: 70, y1: 212, x2: 380, y2: 212 }), svgEl('text', { x: 76, y: 208 }, 'A/C pull-up range: further'));
+  const sideRadars = svgEl('g', {});
+  const trail = svgEl('path', { class: 'pbx-trail', d: '' });
+  const cone = svgEl('path', { class: 'pbx-cone', d: '' });
+  const harm = svgEl('g', {});
+  harm.append(svgEl('path', { d: 'M -7 0 L 6 0 M 6 0 L 2 -2 M 6 0 L 2 2', class: 'pbx-harm' }));
+  const jet = svgEl('g', {});
+  jet.append(svgEl('path', { d: 'M -12 0 L 10 0 L 4 -3 L -6 -3 Z M -10 0 L -14 -6 L -8 -1 Z', class: 'pbx-jet' }));
+  const wp = svgEl('g', { class: 'pbx-wp', opacity: 0 });
+  wp.append(svgEl('path', { d: 'M 380 172 l 6 6 l -6 6 l -6 -6 Z' }), svgEl('text', { x: 380, y: 166, 'text-anchor': 'middle' }, 'WP4 · TGT'));
+  const flash = svgEl('circle', { cx: 0, cy: 0, r: 0, class: 'pbx-flash', opacity: 0 });
+  const ufcBox = svgEl('g', { class: 'pbx-ufc' });
+  const ufcText = svgEl('text', { x: 14, y: 26 }, '');
+  ufcBox.append(svgEl('rect', { x: 6, y: 10, width: 96, height: 24, rx: 3 }), ufcText);
+  const recv = svgEl('text', { x: 210, y: 20, 'text-anchor': 'middle', class: 'pbx-recv' }, '');
+  side.append(rangeAc, rangeHrm, sideRadars, wp, trail, cone, jet, harm, flash, ufcBox, recv);
 
   // ---- top view
-  const top = el('svg', { viewBox: '0 0 260 230', class: 'harm-pbx__svg', role: 'img', 'aria-label': 'Top view of the battery at the designated point' });
-  top.append(el('rect', { x: 0, y: 0, width: 260, height: 230, class: 'pbx-land' }));
-  const search = el('circle', { cx: POINT[0], cy: POINT[1], r: 0, class: 'pbx-search', opacity: 0 });
-  const searchLbl = el('text', { x: POINT[0], y: POINT[1] + 112, 'text-anchor': 'middle', class: 'pbx-lbl', opacity: 0 }, 'listening near the point');
-  const topWp = el('path', { d: `M ${POINT[0]} ${POINT[1] - 14} l 7 7 l -7 7 l -7 -7 Z`, class: 'pbx-wp-top', opacity: 0 });
-  const cp = el('g', { class: 'pbx-veh' });
-  cp.append(el('rect', { x: CP[0] - 4, y: CP[1] - 4, width: 8, height: 8 }), el('text', { x: CP[0] + 7, y: CP[1] + 3 }, 'CP · no radar'));
-  const topEm = AT_POINT.map(e => {
-    const g = el('g', { class: 'pbx-veh pbx-em' });
-    const ring = el('circle', { cx: e.top[0], cy: e.top[1], r: 9, class: 'pbx-ring', opacity: 0 });
-    const box = el('rect', { x: e.top[0] - 11, y: e.top[1] - 11, width: 22, height: 22, class: 'pbx-box', opacity: 0 });
-    g.append(ring, box, el('rect', { x: e.top[0] - 4, y: e.top[1] - 4, width: 8, height: 8 }),
-      el('text', { x: e.top[0] + 8, y: e.top[1] - 6 }, `${e.rwr} · ${e.code}`), el('text', { x: e.top[0] + 8, y: e.top[1] + 6, class: 'pbx-sub' }, e.name));
-    return { g, ring, box, e };
-  });
-  const topHarm = el('path', { class: 'pbx-trail', d: '' });
-  const topFlash = el('circle', { cx: 0, cy: 0, r: 0, class: 'pbx-flash', opacity: 0 });
-  top.append(search, searchLbl, cp, ...topEm.map(x => x.g), topWp, topHarm, topFlash);
+  const top = svgEl('svg', { viewBox: '0 0 260 230', class: 'harm-pbx__svg', role: 'img', 'aria-label': 'Top view of the site at the designated point' });
+  top.append(svgEl('rect', { x: 0, y: 0, width: 260, height: 230, class: 'pbx-land' }));
+  const search = svgEl('circle', { cx: POINT[0], cy: POINT[1], r: 0, class: 'pbx-search', opacity: 0 });
+  const searchLbl = svgEl('text', { x: POINT[0], y: POINT[1] + 106, 'text-anchor': 'middle', class: 'pbx-lbl', opacity: 0 }, 'listening near the point');
+  const topWp = svgEl('path', { d: `M ${POINT[0]} ${POINT[1] - 14} l 7 7 l -7 7 l -7 -7 Z`, class: 'pbx-wp-top', opacity: 0 });
+  const vehicles = svgEl('g', {});
+  const topHarm = svgEl('path', { class: 'pbx-trail', d: '' });
+  const topFlash = svgEl('circle', { cx: 0, cy: 0, r: 0, class: 'pbx-flash', opacity: 0 });
+  top.append(search, searchLbl, vehicles, topWp, topHarm, topFlash);
+  let topEm: { g: SVGGElement; ring: SVGCircleElement; box: SVGRectElement; e: Emitter }[] = [];
+  let sideEm: { r: SVGRectElement; e: Emitter }[] = [];
 
-  // ---- text
-  const steps = h('ol', { class: 'harm-pbx__steps' }, STEPS.map(s => h('li', null, s)));
-  const outcome = h('p', { class: 'harm-pbx__result', 'aria-live': 'polite' });
-  const codeSeg = segmented<Code>({ id: 'harm-pbx-code', label: 'Code on the UFC (TGT)', size: 's', value: code, options: CODES.map(c => ({ value: c.code, label: c.label })), onChange: c => { code = c; restart(); } });
-  const pullSeg = segmented<Pullup>({ id: 'harm-pbx-pull', label: 'Pull-up', size: 's', value: pullup, options: [{ value: 'HRM', label: 'HRM (HARM climbs)' }, { value: 'AC', label: 'A/C (you climb)' }], onChange: p => { pullup = p; restart(); } });
-  const playBtn = button({ label: 'Replay', size: 's', onClick: () => restart() });
-  const closeBtn = o.onClose ? button({ label: 'Close: fly the drill', variant: 'primary', size: 's', onClick: () => o.onClose?.() }) : null;
-
-  const root = h('section', { class: 'harm-pbx', 'aria-label': 'How a PB shot works' },
-    h('header', { class: 'harm-pbx__head' },
-      h('h2', null, 'How a PB shot works'),
-      h('p', null, 'Pick a code and a pull-up, then watch. Side view on the left (not to scale), the battery at the waypoint seen from above on the right.')),
-    h('div', { class: 'harm-pbx__controls' }, codeSeg.el, pullSeg.el, h('div', { class: 'harm-pbx__btns' }, playBtn.el, closeBtn?.el ?? null)),
-    h('div', { class: 'harm-pbx__stage' },
-      h('figure', null, side, h('figcaption', null, 'Side view')),
-      h('figure', null, top, h('figcaption', null, 'At the designated point, from above'))),
-    steps, outcome,
-    h('p', { class: 'harm-small' }, 'From the ED guide: PB flies to the location, then turns on the receiver and homes (p373); the code is the ALIC ID from the appendix (p420); HRM vs A/C pull-up (p374-375). Trainer rules, not in the guide: how far from the point it listens, and the nearest radar wins when two share a code.'),
-  );
-
-  // ---- frame
-  function geometry() {
-    const ac = pullup === 'AC';
-    const start: [number, number] = ac ? [26, 120] : [86, 92];
-    const rel: [number, number] = ac ? [70, 74] : [118, 92];
-    const r = result(code);
-    const end: [number, number] = r.hit ? [r.hit.side, 194] : [386, 199];
-    const path = ac
-      ? [rel, [rel[0] + 70, rel[1] - 70], [300, 6], end]
-      : [rel, [rel[0] + 40, rel[1] - 50], [290, 10], end];
-    return { ac, start, rel, end, path, r };
+  function buildSite(): void {
+    const site = PB_SITES[siteId];
+    vehicles.replaceChildren(...site.others.map(v => {
+      const g = svgEl('g', { class: 'pbx-veh' });
+      const right = v.top[0] > 200;
+      g.append(svgEl('rect', { x: v.top[0] - 4, y: v.top[1] - 4, width: 8, height: 8 }), svgEl('text', { x: v.top[0] + (right ? -7 : 7), y: v.top[1] + 3, class: 'pbx-sub', 'text-anchor': right ? 'end' : 'start' }, `${v.name} · no radar`));
+      return g;
+    }));
+    topEm = site.emitters.map(e => {
+      const g = svgEl('g', { class: 'pbx-veh pbx-em' });
+      const ring = svgEl('circle', { cx: e.top[0], cy: e.top[1], r: 9, class: 'pbx-ring', opacity: 0 });
+      const box = svgEl('rect', { x: e.top[0] - 11, y: e.top[1] - 11, width: 22, height: 22, class: 'pbx-box', opacity: 0 });
+      const right = e.top[0] > 200, lx = e.top[0] + (right ? -13 : 13), anchor = right ? 'end' : 'start';
+      g.append(ring, box, svgEl('rect', { x: e.top[0] - 4, y: e.top[1] - 4, width: 8, height: 8 }),
+        svgEl('text', { x: lx, y: e.top[1] - 2, 'text-anchor': anchor }, `${e.rwr} · ${e.code}`), svgEl('text', { x: lx, y: e.top[1] + 9, class: 'pbx-sub', 'text-anchor': anchor }, e.name));
+      vehicles.append(g);
+      return { g, ring, box, e };
+    });
+    sideEm = site.emitters.map(e => ({ r: svgEl('rect', { x: sideX(e.top) - 3, y: 194, width: 6, height: 6, class: 'pbx-radar' }), e }));
+    sideRadars.replaceChildren(...sideEm.map(x => x.r));
   }
 
-  function draw(): void {
-    const g = geometry();
-    // UFC typing
+  // ---- controls
+  const codeHost = h('div', null);
+  const codeOptions = () => {
+    const site = PB_SITES[siteId];
+    const seen = new Set<number>();
+    const opts = site.emitters.filter(e => !seen.has(e.code) && !!seen.add(e.code)).map(e => ({ value: e.code, label: `${e.code} ${e.name}` }));
+    return [...opts, { value: site.absent.code, label: `${site.absent.code} (not here)` }];
+  };
+  const buildCodes = () => {
+    const seg = segmented<number>({ id: 'harm-pbx-code', label: 'Code on the UFC (TGT)', size: 's', value: code, options: codeOptions(), onChange: c => { code = c; ex.play(); } });
+    codeHost.replaceChildren(seg.el);
+  };
+  const siteSeg = segmented<PbSiteId>({
+    id: 'harm-pbx-site', label: 'Site at the waypoint', size: 's', value: siteId,
+    options: (Object.keys(PB_SITES) as PbSiteId[]).map(id => ({ value: id, label: PB_SITES[id].label })),
+    onChange: id => { siteId = id; code = PB_SITES[id].emitters[0]!.code; buildSite(); buildCodes(); ex.play(); },
+  });
+  const pullSeg = segmented<Pullup>({ id: 'harm-pbx-pull', label: 'Pull-up', size: 's', value: pullup, options: [{ value: 'HRM', label: 'HRM (HARM climbs)' }, { value: 'AC', label: 'A/C (you climb)' }], onChange: p => { pullup = p; ex.play(); } });
+  buildSite();
+  buildCodes();
+
+  function draw(t: number) {
+    const ac = pullup === 'AC';
+    const r = pbOutcome(code, siteId);
+    const start: [number, number] = ac ? [26, 120] : [86, 92];
+    const rel: [number, number] = ac ? [70, 74] : [118, 92];
+    const end: [number, number] = r.hit ? [sideX(r.hit.top), 194] : [386, 199];
+    const path: [number, number][] = ac ? [rel, [rel[0] + 70, rel[1] - 70], [300, 6], end] : [rel, [rel[0] + 40, rel[1] - 50], [290, 10], end];
     const digits = String(code);
     const nTyped = Math.min(3, Math.floor(clamp01(t / (T.ufc - 0.4)) * 3.999));
     ufcText.textContent = `:TGT ${digits.slice(0, nTyped)}${t >= T.ufc - 0.4 ? '  ENT' : ''}`;
-    set(ufcBox, { opacity: t < T.release ? 1 : 0.35 });
-    // waypoint
+    setAttrs(ufcBox, { opacity: t < T.release ? 1 : 0.35 });
     const wpOn = clamp01((t - T.ufc) / 0.8);
-    set(wp, { opacity: wpOn });
-    set(topWp, { opacity: wpOn });
-    // launch ranges (to scale with each other, trainer values)
-    rangeHrm.replaceChildren(el('line', { x1: 118, y1: 224, x2: 380, y2: 224 }), el('text', { x: 124, y: 220 }, 'HRM pull-up range'));
-    rangeAc.replaceChildren(el('line', { x1: 70, y1: 212, x2: 380, y2: 212 }), el('text', { x: 76, y: 208 }, 'A/C pull-up range: further'));
-    set(rangeHrm, { opacity: g.ac ? 0.35 : 1 });
-    set(rangeAc, { opacity: g.ac ? 1 : 0.35 });
-    // jet
+    setAttrs(wp, { opacity: wpOn });
+    setAttrs(topWp, { opacity: wpOn });
+    setAttrs(rangeHrm, { opacity: ac ? 0.35 : 1 });
+    setAttrs(rangeAc, { opacity: ac ? 1 : 0.35 });
     const k = clamp01((t - T.wp) / (T.release - T.wp));
-    const jx = g.start[0] + (g.rel[0] - g.start[0]) * ease(k) + (t > T.release ? (t - T.release) * 14 : 0);
-    const jy = t > T.release ? g.rel[1] + (t - T.release) * (g.ac ? 6 : 0) : g.start[1] + (g.rel[1] - g.start[1]) * ease(k);
-    const pitch = g.ac && t > T.wp && t < T.release + 1.5 ? -45 * clamp01(k * 1.4) : 0;
-    set(jet, { transform: `translate(${jx.toFixed(1)} ${jy.toFixed(1)}) rotate(${pitch})` });
-    // HARM along the path
+    const jx = start[0] + (rel[0] - start[0]) * ease(k) + (t > T.release ? (t - T.release) * 14 : 0);
+    const jy = t > T.release ? rel[1] + (t - T.release) * (ac ? 6 : 0) : start[1] + (rel[1] - start[1]) * ease(k);
+    const pitch = ac && t > T.wp && t < T.release + 1.5 ? -45 * clamp01(k * 1.4) : 0;
+    setAttrs(jet, { transform: `translate(${jx.toFixed(1)} ${jy.toFixed(1)}) rotate(${pitch})` });
     const f = clamp01((t - T.release) / (T.end - T.release));
     const s = f < 0.75 ? ease(f / 0.75) * 0.82 : 0.82 + (f - 0.75) / 0.25 * 0.18;
     const flying = t >= T.release && t < T.end;
-    const [hx, hy] = bez(g.path, s);
-    const [px, py] = bez(g.path, Math.max(0, s - 0.01));
-    set(harm, { opacity: flying ? 1 : 0, transform: `translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${(Math.atan2(hy - py, hx - px) * 180 / Math.PI).toFixed(1)})` });
+    const [hx, hy] = bezier(path, s);
+    const [px, py] = bezier(path, Math.max(0, s - 0.01));
+    setAttrs(harm, { opacity: flying ? 1 : 0, transform: `translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${(Math.atan2(hy - py, hx - px) * 180 / Math.PI).toFixed(1)})` });
     let d = '';
-    if (t >= T.release) for (let i = 0; i <= 30; i++) { const [x, y] = bez(g.path, (i / 30) * s); d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `; }
-    set(trail, { d });
-    // receiver
+    if (t >= T.release) for (let i = 0; i <= 30; i++) { const [x, y] = bezier(path, (i / 30) * s); d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)} `; }
+    setAttrs(trail, { d });
     const on = t >= T.seeker;
     recv.textContent = t < T.release ? '' : on ? `Receiver ON: listening for code ${code}` : 'Receiver OFF: flying to the point';
-    set(recv, { class: `pbx-recv${on ? ' is-on' : ''}` });
-    set(cone, { d: on && flying ? `M ${hx} ${hy} L ${hx + 46} ${hy + 70} L ${hx - 10} ${hy + 80} Z` : '' });
-    // impact
+    setAttrs(recv, { class: `pbx-recv${on ? ' is-on' : ''}` });
+    setAttrs(cone, { d: on && flying ? `M ${hx} ${hy} L ${hx + 46} ${hy + 70} L ${hx - 10} ${hy + 80} Z` : '' });
     const imp = clamp01((t - T.end) / 0.6);
-    set(flash, { cx: g.end[0], cy: g.end[1], r: 4 + 16 * imp, opacity: t >= T.end ? (1 - imp) * 0.9 : 0 });
-    sideRadars.forEach((rg, i) => set(rg, { class: `pbx-radar${t >= T.end && g.r.hit === AT_POINT[i] ? ' is-dead' : ''}` }));
-    // top view: listening circle, matching radars, the HARM's line
+    setAttrs(flash, { cx: end[0], cy: end[1], r: 4 + 16 * imp, opacity: t >= T.end ? (1 - imp) * 0.9 : 0 });
+    for (const x of sideEm) setAttrs(x.r, { class: `pbx-radar${t >= T.end && r.hit === x.e ? ' is-dead' : ''}` });
     const sOn = clamp01((t - T.seeker) / 0.8);
-    set(search, { r: 95 * sOn, opacity: on ? 0.9 : 0 });
-    set(searchLbl, { opacity: on ? 1 : 0 });
+    setAttrs(search, { r: 95 * sOn, opacity: on ? 0.9 : 0 });
+    setAttrs(searchLbl, { opacity: on ? 1 : 0 });
     for (const x of topEm) {
       const match = x.e.code === code;
-      const chosen = g.r.hit === x.e;
+      const chosen = r.hit === x.e;
       const pulse = on && match ? 0.5 + 0.5 * Math.sin(t * 6) : 0;
-      set(x.ring, { opacity: pulse, r: 9 + 4 * pulse });
-      set(x.box, { opacity: t >= T.terminal && chosen ? 1 : 0 });
-      set(x.g, { class: `pbx-veh pbx-em${on && !match ? ' is-ignored' : ''}${t >= T.end && chosen ? ' is-dead' : ''}` });
+      setAttrs(x.ring, { opacity: pulse, r: 9 + 4 * pulse });
+      setAttrs(x.box, { opacity: t >= T.terminal && chosen ? 1 : 0 });
+      setAttrs(x.g, { class: `pbx-veh pbx-em${on && !match ? ' is-ignored' : ''}${t >= T.end && chosen ? ' is-dead' : ''}` });
     }
-    const topEnd = g.r.hit ? g.r.hit.top : [POINT[0] + 14, POINT[1] + 22] as [number, number];
+    const topEnd: [number, number] = r.hit ? r.hit.top : [POINT[0] + 14, POINT[1] + 22];
     const ft = clamp01((t - T.release) / (T.terminal - T.release));
     const tt = clamp01((t - T.terminal) / (T.end - T.terminal));
     const mid: [number, number] = [POINT[0] - 30 * (1 - ft), POINT[1]];
@@ -209,42 +212,30 @@ export function createPbExplainer(o: { reducedMotion: boolean; onClose?: () => v
       td = `M 0 ${POINT[1]} L ${(POINT[0] - 30) * ft} ${POINT[1]}`;
       if (t >= T.terminal) td += ` L ${mid[0] + (topEnd[0] - mid[0]) * tt} ${mid[1] + (topEnd[1] - mid[1]) * tt}`;
     }
-    set(topHarm, { d: td });
-    set(topFlash, { cx: topEnd[0], cy: topEnd[1], r: 4 + 14 * imp, opacity: t >= T.end ? (1 - imp) * 0.9 : 0 });
-    // steps and outcome
-    const cur = t < T.ufc ? 0 : t < T.wp ? 1 : t < T.release ? 2 : t < T.seeker ? 3 : t < T.terminal ? 4 : 5;
-    [...steps.children].forEach((li, i) => { if (i === cur) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); });
-    outcome.textContent = t >= T.terminal ? g.r.text : '';
-    outcome.classList.toggle('is-miss', !g.r.hit);
+    setAttrs(topHarm, { d: td });
+    setAttrs(topFlash, { cx: topEnd[0], cy: topEnd[1], r: 4 + 14 * imp, opacity: t >= T.end ? (1 - imp) * 0.9 : 0 });
+    return t >= T.terminal ? { outcome: r.text, miss: !r.hit } : {};
   }
 
-  function frame(now: number): void {
-    if (!running) return;
-    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
-    last = now;
-    t += dt;
-    draw();
-    if (t < T.hold) raf = requestAnimationFrame(frame);
-    else running = false;
-  }
-
-  function restart(): void {
-    cancelAnimationFrame(raf);
-    if (o.reducedMotion) { t = T.hold; draw(); return; }
-    t = 0; last = 0; running = true;
-    draw();
-    raf = requestAnimationFrame(frame);
-  }
-
-  draw();
-  return {
-    el: root,
-    play: restart,
-    stop() { running = false; cancelAnimationFrame(raf); },
-    seek(at: number) { running = false; cancelAnimationFrame(raf); t = at; draw(); },
-    dispose() { running = false; cancelAnimationFrame(raf); },
-  };
+  ex = createExplainer({
+    title: 'How a PB shot works',
+    intro: 'Pick the site at the waypoint, a code and a pull-up, then watch. Side view on the left (not to scale), the site from above on the right.',
+    controls: [siteSeg.el, codeHost, pullSeg.el],
+    figures: [[side, 'Side view'], [top, 'At the designated point, from above']],
+    steps: [
+      'UFC, window 4 TGT, type the code, ENT: you tell the HARM what radar type to look for (guide p374; codes p420).',
+      'HSI, WPDSG on the waypoint over the site: you tell it where to go (p122, p374).',
+      'Hold release and fly the cue. HRM pull-up: the HARM climbs by itself, so you launch closer. A/C pull-up: you climb about 45° first and the HARM reaches further (p374-375).',
+      'Receiver off: the HARM flies to the point, not to a radar. It cannot see anything yet (p373).',
+      'Near the point the receiver comes on and listens for that one code (p373).',
+      'It homes on the radar with the code, or finds none and misses.',
+    ],
+    marks: [0, T.ufc, T.wp, T.release, T.seeker, T.terminal],
+    end: T.hold,
+    draw,
+    note: 'From the ED guide: PB flies to the location, then turns on the receiver and homes (p373); the code is the ALIC ID from the appendix (p420); HRM vs A/C pull-up (p374-375). Trainer rules, not in the guide: how far from the point it listens, and the nearest radar wins when two share a code. What each radar does for its battery: DCS encyclopedia (research note S2).',
+    reducedMotion: o.reducedMotion,
+    onClose: o.onClose,
+  });
+  return ex;
 }
-
-/** For tests: the outcome text and target for a code. */
-export const pbOutcome = result;
