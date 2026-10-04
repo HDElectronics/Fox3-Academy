@@ -162,4 +162,8 @@
 .tox-fov { fill: var(--sym); opacity: 0.1; stroke: var(--sym); stroke-width: 1; }
 .tox-t { stroke: var(--sym); stroke-width: 1.4; fill: none; }
 .tox-arrow { fill: var(--sym); }
+.cgx-wire { stroke: var(--panel-muted); stroke-width: 1.4; stroke-dasharray: 4 4; }
+.cgx-wire.is-on { stroke: var(--sym); stroke-width: 2; stroke-dasharray: none; }
+.cgx-packet { fill: var(--sym); }
+.cgx-missile { fill: var(--panel-muted); stroke: var(--sym); stroke-width: 1; }
 .harm-pbx__stage.is-single { grid-template-columns: minmax(0, 1fr); }

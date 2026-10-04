@@ -282,7 +282,9 @@ and watch which radar the HARM chooses at the point),
 quiet when it sees a HARM and a live SA-11). Click the DDI pushbuttons and the UFC keys on screen; the "What that
 did" log explains every press and points to the ED guide page. SP, Pullback and TOO open with their own animated guides too (cue and HARM Sequence, a lock
 and the shot back, a radar going quiet; the field of view, CLASS, hand-off), and the Animated row in the lesson panel
-replays any of them. Every command also has an on-screen button
+replays any of them. Cage/Uncage in that row shows what a hand-off is: in TOO the box is only your jet's choice until
+Cage/Uncage gives it to the missile (H-OFF, STBY to RDY), in SP the button goes back to the highest threat, and PB has no
+hand-off. Each transmitting radar in the 3D view wears its own pulsing dome, so a radar that dies or goes quiet loses its dome. Every command also has an on-screen button
 (HOTAS and panel overlays on the 3D view), and Code appendix opens the guide's full ALIC code and RWR symbol table. Arrows fly the jet on a simple autopilot; time runs
 ×1, ×2 or ×4. The Fly it in DCS panel downloads two matching practice missions (safe ranges and live SEAD).
 Trainer values (PB ranges, cue positions, most radar ranges) are listed under Simplified and not verified.

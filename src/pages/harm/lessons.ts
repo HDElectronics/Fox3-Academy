@@ -203,7 +203,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
       },
       {
         id: 'handoff', text: 'Hand off: Cage/Uncage (CAGE).', keys: 'C',
-        why: 'H-OFF appears above the box, the others vanish, STBY becomes RDY: the HARM now knows exactly which radar to chase (guide p368).',
+        why: 'The box is only your jet\'s choice; Cage/Uncage hands it off to the missile. H-OFF appears above the box, the others vanish, STBY becomes RDY: the HARM now knows which radar to chase. A second press cancels. Animated: Cage/Uncage (guide p361, p368-369).',
         check: s => s.handoff === '15',
       },
       { id: 'fire', text: 'Fire: hold WEAPON RELEASE.', keys: 'RAlt+Space / R', why: 'With the hand-off done, weapon release sends the HARM at the SA-15.', check: s => s.launches > 0 },

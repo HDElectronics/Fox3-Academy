@@ -29,6 +29,7 @@ import { buildBriefing } from './briefing';
 import { createPbExplainer } from './pbExplain';
 import { createSpExplainer } from './spExplain';
 import { createTooExplainer } from './tooExplain';
+import { createCageExplainer } from './cageExplain';
 import type { Explainer } from './explainer';
 import { buildAppendix } from './appendixView';
 import { HarmSim, bearingDeg, wrapDeg, type SimSetup } from './sim';
@@ -37,11 +38,11 @@ import {
 } from './lessons';
 import type { HarmClass, Osb, Pullup, SystemId, VehicleId } from './types';
 
-const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'sp-explain', 'too-explain', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'appendix'] as const;
+const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'sp-explain', 'too-explain', 'cage-explain', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'appendix'] as const;
 type Shot = typeof SHOTS[number];
 type Cam = 'chase' | 'harm' | 'site' | 'top';
 const SHOT_LESSON: Record<Shot, HarmLessonId> = {
-  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', 'sp-explain': 'sp', 'too-explain': 'too', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live',
+  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', 'sp-explain': 'sp', 'too-explain': 'too', 'cage-explain': 'too', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live',
 };
 const NM = 1852;
 const R2D = 180 / Math.PI;
@@ -161,6 +162,7 @@ const factory: PageFactory = (): Page => {
       button({ label: 'SP', size: 's', title: 'How an SP shot works', onClick: () => showDoc('sp') }).el,
       button({ label: 'Pullback', size: 's', title: 'How Pullback works', onClick: () => showDoc('pullback') }).el,
       button({ label: 'TOO', size: 's', title: 'How a TOO shot works', onClick: () => showDoc('too') }).el,
+      button({ label: 'Cage/Uncage', size: 's', title: 'Cage/Uncage: what a hand-off is', onClick: () => showDoc('cage') }).el,
       button({ label: 'PB', size: 's', title: 'How a PB shot works', onClick: () => showDoc('pb') }).el);
     const apxBtn = button({ label: 'Code appendix', size: 's', onClick: () => showDoc('appendix') });
     const speedSeg = segmented<number>({
@@ -222,7 +224,7 @@ const factory: PageFactory = (): Page => {
     const galleryHost = h('div', { class: 'harm-host' });
     const briefHost = h('div', { class: 'harm-host harm-host--brief' }, buildBriefing());
     // Animated PB explainer and the code appendix: documents over the view; the drill pauses while one is open.
-    type DocKind = 'sp' | 'pullback' | 'too' | 'pb' | 'appendix';
+    type DocKind = 'sp' | 'pullback' | 'too' | 'cage' | 'pb' | 'appendix';
     let doc: DocKind | null = null;
     let anim: Explainer | null = null;
     bag.add(() => anim?.dispose());
@@ -307,6 +309,7 @@ const factory: PageFactory = (): Page => {
       const opts = { reducedMotion: reduced, onClose: () => closeDoc() };
       if (kind === 'sp' || kind === 'pullback') anim = createSpExplainer({ ...opts, scenario: kind === 'sp' ? 'sp' : 'pullback' });
       else if (kind === 'too') anim = createTooExplainer(opts);
+      else if (kind === 'cage') anim = createCageExplainer(opts);
       else if (kind === 'pb') anim = createPbExplainer(opts);
       docHost.replaceChildren(anim ? anim.el : apx.el);
       docHost.hidden = false;
@@ -572,6 +575,7 @@ const factory: PageFactory = (): Page => {
         case 'too-hoff': setup(); av.osb(4); av.tdcToHarm(); av.osb(11); av.osb(9); av.cage(); run(1); break;
         case 'pb-explain': showDoc('pb'); anim?.seek(Number(params.get('t') ?? 14.5)); break;
         case 'sp-explain': showDoc(params.get('scn') === 'pullback' ? 'pullback' : 'sp'); anim?.seek(Number(params.get('t') ?? 13)); break;
+        case 'cage-explain': showDoc('cage'); anim?.seek(Number(params.get('t') ?? 6.2)); break;
         case 'too-explain': showDoc('too'); anim?.seek(Number(params.get('t') ?? 15.5)); break;
         case 'appendix': showDoc('appendix'); break;
         case 'pb-ufc': setup(); av.osb(3); av.osb(14); av.ufcKey('OPT4'); av.ufcKey('1'); av.ufcKey('0'); av.ufcKey('7'); run(1); break;
