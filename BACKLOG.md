@@ -30,7 +30,7 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (#61) shipped.
 
-- **B40. Organise the site by jet.** The Learn bar now lists every lesson for every jet (Radar, TWS, Missiles, Defense,
+- **B40. Organise the site by jet** ([#83](https://github.com/HDElectronics/Fox3-Academy/issues/83)). The Learn bar now lists every lesson for every jet (Radar, TWS, Missiles, Defense,
   RWR, Pattern & landing, Merge & guns, HARM & SEAD, Shkval & Vikhr, Targeting pod & Mavericks, CAS & JTAC) and
   scrolls sideways; jet-only pages (HARM & SEAD for the F/A-18C, Shkval & Vikhr for the Su-25T, Targeting pod for the
   A-10C II) show up for every jet and then hit the role gate.
