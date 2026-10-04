@@ -161,7 +161,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.harmSelected && s.mode === 'SP' && s.spCue === '6',
       },
       {
-        id: 'fire', text: 'Fire: weapon release.', keys: 'RAlt+Space / R',
+        id: 'fire', text: 'Fire: hold WEAPON RELEASE.', keys: 'RAlt+Space / R',
         why: 'SP shows no range (guide p367): WP2 sits on the radar, so its HUD distance is your ruler. 30 nm at 25000 ft is a comfortable shot.',
         check: s => s.launches > 0,
       },
@@ -187,7 +187,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.mode === 'TOO', hint: { ddi: 4 },
       },
       {
-        id: 'tdc', text: 'Give the HARM display the TDC: Sensor Control right.', keys: 'RAlt+/',
+        id: 'tdc', text: 'Give the HARM display the TDC: Sensor Control right (SENSOR ► RIGHT DDI on the throttle panel).', keys: 'RAlt+/',
         why: 'HARM Sequence and Cage/Uncage act on the display that has the TDC: the small diamond top right (guide p368).',
         check: s => s.tdc,
       },
@@ -197,16 +197,16 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.cls === 'H2' && s.page === 'HARM', hint: { ddi: 11 },
       },
       {
-        id: 'box', text: 'Make sure 15 is boxed; HARM Sequence steps the box.', keys: 'I',
+        id: 'box', text: 'Make sure 15 is boxed; HARM Sequence (HARM SEQ) steps the box.', keys: 'I',
         why: 'The box is the priority target, the one a hand-off will give the HARM (guide p369).',
         check: s => s.tooBox === '15',
       },
       {
-        id: 'handoff', text: 'Hand off: Cage/Uncage.', keys: 'C',
+        id: 'handoff', text: 'Hand off: Cage/Uncage (CAGE).', keys: 'C',
         why: 'H-OFF appears above the box, the others vanish, STBY becomes RDY: the HARM now knows exactly which radar to chase (guide p368).',
         check: s => s.handoff === '15',
       },
-      { id: 'fire', text: 'Fire.', keys: 'RAlt+Space / R', why: 'With the hand-off done, weapon release sends the HARM at the SA-15.', check: s => s.launches > 0 },
+      { id: 'fire', text: 'Fire: hold WEAPON RELEASE.', keys: 'RAlt+Space / R', why: 'With the hand-off done, weapon release sends the HARM at the SA-15.', check: s => s.launches > 0 },
       { id: 'kill', text: 'Watch the SA-15 go.', why: 'Next time, try CLASS H1 for the SA-8.', check: s => s.kills.includes('sa15') },
     ],
   },
@@ -255,7 +255,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.inRange,
       },
       {
-        id: 'fire', text: 'Hold weapon release and raise the nose to the HARM pull-up cue.', keys: 'RAlt+Space / R, Down arrow',
+        id: 'fire', text: 'Hold WEAPON RELEASE and raise the nose (▼ on the stick pad) to the HARM pull-up cue.', keys: 'RAlt+Space / R, Down arrow',
         why: 'The HARM leaves the rail when the flight path marker meets the cue within 1° of the steering line (guide p375).',
         check: s => s.launches > 0,
       },
@@ -279,12 +279,12 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
         check: s => s.lockSeen,
       },
       {
-        id: 'fire', text: 'HARM in the HUD with no X: weapon release now.', keys: 'RAlt+Space / R',
+        id: 'fire', text: 'HARM in the HUD with no X: WEAPON RELEASE now.', keys: 'RAlt+Space / R',
         why: 'No mode to select, no target to pick: the jet has done it. Works in any master mode (guide p366-367).',
         check: s => s.pullbackShots > 0,
       },
       {
-        id: 'away', text: 'Turn away from the site.', keys: 'Left / Right arrow',
+        id: 'away', text: 'Turn away from the site (◄ or ► on the stick pad).', keys: 'Left / Right arrow',
         why: 'Do not fly into its missiles. Your HARM keeps homing as long as the radar transmits; their missile needs that same radar.',
         check: s => s.turnedAway,
       },

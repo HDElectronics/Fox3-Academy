@@ -95,30 +95,49 @@ const factory: PageFactory = (): Page => {
     const ufc = createUfc({ id: 'harm-ufc', onKey: k => act(av.ufcKey(k), `UFC ${k}`) });
     bag.add(() => { ddi.dispose(); ew.dispose(); hud.dispose(); ufc.dispose(); });
 
-    const hudBezel = screenBezel({ label: 'HUD', id: 'harm-hud', content: hudCanvas, aspect: '4 / 3', class: 'harm-hud-bezel' });
+    const hudBezel = screenBezel({ label: 'HUD', id: 'harm-hud', content: hudCanvas, aspect: '1', class: 'harm-hud-bezel' });
     const ewBezel = screenBezel({ label: 'LEFT DDI · EW', id: 'harm-ew', content: ewCanvas, aspect: '1', class: 'harm-ddi-bezel' });
     const ddiBezel = screenBezel({ label: 'RIGHT DDI · STORES', id: 'harm-ddi', content: ddiCanvas, aspect: '1', class: 'harm-ddi-bezel' });
 
     // Left panel: Master Arm, master mode. HSI: waypoint and WPDSG.
-    const armBtn = button({ label: 'MASTER ARM: SAFE', size: 's', onClick: () => act(av.toggleMasterArm(), 'Master Arm') });
-    const aaBtn = button({ label: 'A/A', size: 's', onClick: () => act(av.setMaster('AA'), 'A/A') });
-    const agBtn = button({ label: 'A/G', size: 's', onClick: () => act(av.setMaster('AG'), 'A/G') });
-    // Weapon release, held: RAlt+Space in DCS. Windows keeps Alt+Space for the window menu, so the browser also takes R
-    // and this button (trainer substitutes).
-    const releaseBtn = button({ label: 'WEAPON RELEASE', variant: 'primary', size: 's', lamp: true, keys: 'R', title: 'Hold to release (RAlt+Space in DCS)' });
-    bag.on(releaseBtn.el, 'pointerdown', (e: Event) => { (e as PointerEvent).preventDefault(); release(true); });
-    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bag.on(releaseBtn.el, ev, () => release(false));
+    const armBtn = button({ label: 'MASTER ARM: SAFE', size: 's', keys: 'M', onClick: () => act(av.toggleMasterArm(), 'Master Arm') });
+    const aaBtn = button({ label: 'A/A', size: 's', keys: '1', onClick: () => act(av.setMaster('AA'), 'A/A') });
+    const agBtn = button({ label: 'A/G', size: 's', keys: '2', onClick: () => act(av.setMaster('AG'), 'A/G') });
+    /** A button held like a HOTAS switch: down on press, up on release or when the pointer leaves. */
+    const hold = (label: string, keys: string | undefined, title: string, down: () => void, up: () => void, primary = false) => {
+      const b = button({ label, size: 's', keys, title, lamp: primary, variant: primary ? 'primary' : 'cap' });
+      bag.on(b.el, 'pointerdown', (e: Event) => { (e as PointerEvent).preventDefault(); down(); });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) bag.on(b.el, ev, up);
+      return b;
+    };
+    // Every command is on screen too: keyboard layouts differ (Right Alt is AltGr on many), and Windows keeps Alt+Space
+    // for the window menu. The DCS keys still work where the browser lets them through; R is a browser substitute.
+    const releaseBtn = hold('WEAPON RELEASE', 'R', 'Hold to release (RAlt+Space in DCS)', () => release(true), () => release(false), true);
+    const tap = (label: string, keys: string, title: string, run: () => void) => button({ label, size: 's', keys, title, onClick: run }).el;
+    const fly = (label: string, title: string, set: () => void, clear: () => void) => hold(label, undefined, title, set, clear).el;
+    const pitch0 = (d: number) => () => { if (sim.jet.pitchCmd === d) sim.jet.pitchCmd = 0; };
+    const turn0 = (d: number) => () => { if (sim.jet.turnCmd === d) sim.jet.turnCmd = 0; };
+    // Overlays on the 3D view, so every control is visible without scrolling the strip.
+    const hotas = h('div', { class: 'harm-ov', id: 'harm-hotas', role: 'group', 'aria-label': 'HOTAS' },
+      h('div', { class: 'harm-ov__row' }, h('span', { class: 'harm-ov__label' }, 'THROTTLE'),
+        tap('SENSOR ► RIGHT DDI', 'RAlt+/', 'Sensor Control right: TDC to the HARM display', () => act(av.tdcToHarm(), 'Sensor Control right')),
+        tap('HARM SEQ', 'I', 'HARM Sequence: step emitters (SP) or targets (TOO)', () => act(av.sequence(), 'HARM Sequence')),
+        tap('CAGE', 'C', 'Cage/Uncage: hand off (TOO), highest threat (SP)', () => act(av.cage(), 'Cage/Uncage')),
+        tap('CHAFF', 'E', 'Dispense switch forward', () => { if (sim.dropChaff()) log.push('Chaff', { t: sim.t }); })),
+      h('div', { class: 'harm-ov__row' }, h('span', { class: 'harm-ov__label' }, 'STICK'), releaseBtn.el,
+        fly('◄', 'Turn left (Left arrow)', () => { sim.jet.turnCmd = -1; }, turn0(-1)),
+        fly('▲', 'Nose down (Up arrow)', () => { sim.jet.pitchCmd = -1; }, pitch0(-1)),
+        fly('▼', 'Nose up (Down arrow)', () => { sim.jet.pitchCmd = 1; }, pitch0(1)),
+        fly('►', 'Turn right (Right arrow)', () => { sim.jet.turnCmd = 1; }, turn0(1))));
     const wpText = h('span', { class: 'harm-hsi__wp', 'aria-live': 'polite' }, '—');
-    const hsi = h('div', { class: 'ui-strip-block harm-panel' },
-      placard('Stick'), releaseBtn.el,
-      placard('RWR lamps'), lamps.el, placard('Left panel'), h('div', { class: 'harm-panel__row' }, armBtn.el), h('div', { class: 'harm-panel__row' }, aaBtn.el, agBtn.el),
-      placard('HSI · WYPT'),
-      h('div', { class: 'harm-panel__row' },
+    const hsi = h('div', { class: 'harm-ov', id: 'harm-panel', role: 'group', 'aria-label': 'Cockpit panels' },
+      h('div', { class: 'harm-ov__row' }, h('span', { class: 'harm-ov__label' }, 'RWR'), lamps.el),
+      h('div', { class: 'harm-ov__row' }, h('span', { class: 'harm-ov__label' }, 'LEFT PANEL'), armBtn.el, aaBtn.el, agBtn.el),
+      h('div', { class: 'harm-ov__row' }, h('span', { class: 'harm-ov__label' }, 'HSI'),
         button({ label: '◄', size: 's', ariaLabel: 'Previous waypoint', onClick: () => act(av.selectWaypoint(-1), 'HSI') }).el,
         wpText,
-        button({ label: '►', size: 's', ariaLabel: 'Next waypoint', onClick: () => act(av.selectWaypoint(1), 'HSI') }).el),
-      button({ label: 'WPDSG', size: 's', onClick: () => act(av.wpdsg(), 'HSI WPDSG') }).el,
-      callout({ kind: 'simplified', body: 'Click the DDI pushbuttons on the displays; these panels stand in for the cockpit switches.' }));
+        button({ label: '►', size: 's', ariaLabel: 'Next waypoint', onClick: () => act(av.selectWaypoint(1), 'HSI') }).el,
+        button({ label: 'WPDSG', size: 's', onClick: () => act(av.wpdsg(), 'HSI WPDSG') }).el));
     const ufcBlock = h('div', { class: 'ui-strip-block harm-ufc-block' }, placard('UFC'), ufc.el);
 
     // ------------------------------------------------------------------ console
@@ -199,13 +218,15 @@ const factory: PageFactory = (): Page => {
         meta: 'F/A-18C · AGM-88C HARM',
       },
       viewport,
-      strip: [hudBezel.el, ewBezel.el, ddiBezel.el, ufcBlock, hsi],
+      strip: [hudBezel.el, ewBezel.el, ddiBezel.el, ufcBlock],
       console: [
         consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el)] }).el,
         radarPanel.el, filmPanel.el, log.el, missionsPanel.el, kneeboard, keysBox, caveats,
       ],
     });
     lab.overlay('tl', camSeg.el);
+    lab.overlay('bl', hotas);
+    lab.overlay('br', hsi);
     ctx.root.append(lab.el);
 
     // ------------------------------------------------------------------ 3D
@@ -341,6 +362,7 @@ const factory: PageFactory = (): Page => {
       galleryHost.hidden = def.kind !== 'gallery';
       briefHost.hidden = def.kind !== 'brief';
       camSeg.el.hidden = def.kind === 'gallery' || def.kind === 'brief';
+      hotas.hidden = hsi.hidden = def.kind === 'gallery' || def.kind === 'brief';
       if (def.kind === 'gallery') {
         if (!gallery) gallery = mountGallery(galleryHost, { reducedMotion: reduced, ariaLabel: 'SAM battery in 3D: drag to orbit' });
         newSim({ jet: { x: 0, z: 0, altFt: 25000, headingDeg: 0, speedKt: 450 }, sites: [] }, null);
