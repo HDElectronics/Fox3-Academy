@@ -28,7 +28,20 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 ## P2 — Display, UX and API cleanup
 
-Nothing open. Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (#61) shipped.
+Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (#61) shipped.
+
+- **B40. Organise the site by jet.** The Learn bar now lists every lesson for every jet (Radar, TWS, Missiles, Defense,
+  RWR, Pattern & landing, Merge & guns, HARM & SEAD, Shkval & Vikhr, Targeting pod & Mavericks, CAS & JTAC) and
+  scrolls sideways; jet-only pages (HARM & SEAD for the F/A-18C, Shkval & Vikhr for the Su-25T, Targeting pod for the
+  A-10C II) show up for every jet and then hit the role gate.
+  - Make the selected jet the first level: pick a jet, then see only its lessons, grouped (for example Sensors,
+    Weapons, Defence, Flight, its own cockpit pages).
+  - Keep every deep link (`#/<route>?ac=<id>`) working; the router already reads `?ac`.
+  - Work in `src/app/navigation.ts` (`LESSON_LINKS`, `contextualLinks`), `src/app/routes.ts` (`roles`, `jets`),
+    the hangar lesson path (`src/app/learningProgress.ts`) and the progress page.
+  - Done when each jet's Learn bar shows only the pages that jet can open, fits without sideways scrolling at
+    1440 px, `navigation.test.ts` and the route tests cover the per-jet lists, and the 1440 and 820 px shots are
+    checked for a fighter (f15c), the F/A-18C and both attack jets.
 
 ## P3 — Quality and infrastructure
 
