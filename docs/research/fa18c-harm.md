@@ -135,8 +135,10 @@ the HUD (p410).
 ## Emitter codes (S1 ALIC appendix, p420)
 
 ID = the code for PB. CLASS = the TOO filter. RWR = the symbol on the azimuth indicator and the TOO format.
-The PDF text of this table is misaligned below the SA-15 row (AAA, Western and naval systems), so only the rows
-whose columns line up are recorded here; read the rest in the guide.
+The PDF's plain text export misaligns this table below the SA-15 row, so the page's full copy
+(`src/pages/harm/appendix.ts`: air defence, naval, airborne and other symbols, pp420-422) was rebuilt from the word
+positions on the PDF pages; RWR symbols printed half a line off belong to the row next to them. The rows below are
+the ones the page's lessons use.
 
 | System | Radar | RWR | Class | ID |
 |---|---|---|---|---|

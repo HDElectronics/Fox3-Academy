@@ -177,6 +177,7 @@ export const TRAINER = {
 
 /** What the page simplifies; shown in the "Simplified and not verified" disclosure. */
 export const HARM_CAVEATS: string[] = [
+  'PB: the HARM listens within 4 km of the designated point and takes the nearest radar of the code when several match. The guide only says it flies to the location, turns its receiver on and homes (p373).',
   'The HARM flies an arcade path: a fixed speed curve, a loft that shrinks as it closes, and a turn-rate limit. It homes while the radar transmits and goes ballistic when it stops (ED guide p367).',
   'In-range distances for PB (40 nm for a HARM pull-up at 25000 ft, 30 % more for an A/C pull-up, 5 nm minimum) are trainer values, not DCS figures. The guide only says up to 80 nm depending on altitude.',
   'The HUD release cues are placed by a trainer rule: the A/C pull-up cue near 45° at long range, the HARM pull-up cue a few degrees up. Fly the cues the same way as in DCS; their exact positions differ.',

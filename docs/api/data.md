@@ -339,6 +339,8 @@ and shown on the page:
   positions are trainer values; the guide gives only "out to 80 nm depending on altitude".
 - RWR detection and lock ranges: SA-6 75 km / 28 km from the DCS encyclopedia; SA-8, SA-11, SA-15 and SA-10 are
   round trainer numbers (`TRAINER.detectM`, `TRAINER.lockM`).
+- PB: the HARM listens within 4 km of the point and the nearest radar of the code wins (also in the animated
+  explainer, `pbExplain.ts`).
 - Radar evasion (quiet at 15 km for 45 s) stands in for the Mission Editor's "Evasion of ARM" AI.
 - TOO: only azimuth limits the 30° field of view; heights on the format are drawn at half the depression angle.
 - The EW page is a single ring; the pullback label's HUD position and several DDI layout details are trainer
