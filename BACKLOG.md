@@ -34,6 +34,13 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 
 Flight-ops polish (#33), SAM follow-ups (#34), CAS follow-ups (#61) and the per-jet Learn bar (#83) shipped.
 
+- **B42. Fly and Reference for the attack jets** ([#84](https://github.com/HDElectronics/Fox3-Academy/issues/84)).
+  The top-bar Fly (`#/sortie`) and Reference (`#/reference`) accept fighters only, so the Su-25T and A-10C II get the
+  role gate there. Hide Fly for attack jets or point it at their own sortie lessons; let the kneeboard accept them
+  (`PROCEDURES` already has their binds and procedures). Work in `src/app/navigation.ts` (`DESTINATIONS`),
+  `src/app/routes.ts` and `src/pages/reference/`. Done when no top-bar link sends an attack jet to the gate, with a
+  test in `navigation.test.ts` and 1440 and 820 px shots for both attack jets.
+
 
 ## P3 — Quality and infrastructure
 
