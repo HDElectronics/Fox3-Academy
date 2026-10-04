@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The site is organised by jet (#83). The Learn bar lists only the pages the selected jet can open, grouped as BVR,
+  Close combat, Flying and the jet's own pages under its name, and fits on one row at 1440 px. Practice drops labs the
+  jet cannot fly. The Su-25T and A-10C II get a Learn landing with their own pages and a Continue button instead of
+  the pick-a-fighter panel; the F/A-18C Learn page adds a row for HARM & SEAD.
 - HARM & SEAD for the F/A-18C: a new page with seven lessons. A 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10
   batteries (which vehicle carries the radar, its RWR symbol, TOO class and PB code), four films of how a HARM flies
   (and misses when the radar goes quiet), then SP, TOO (class filter and hand-off), PB (UFC code, WPDSG, pull-up

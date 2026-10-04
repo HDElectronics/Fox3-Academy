@@ -25,23 +25,15 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
 - **B27. Verify the JTAC and CCIP trainer values in game** ([#63](https://github.com/HDElectronics/Fox3-Academy/issues/63)).
   AI JTAC wording, radio menu labels outside the ED manual, when the AI clears or aborts, smoke lifetime, the
   Su-25T 1113 laser report, the Shkval frame minimum and the S-8 / S-13 dispersion. Labelled until checked.
+- **B41. Verify the HARM trainer values in game** ([#82](https://github.com/HDElectronics/Fox3-Academy/issues/82)).
+  PB listening radius and nearest-radar rule, PB in-range distances, HUD release cue positions, RWR ranges for the
+  SA-8/11/15/10, when DCS AI radars go quiet against a HARM, the TOO elevation limits and the pullback label
+  (`HARM_CAVEATS` in `src/pages/harm/data.ts`). Labelled until checked.
 
 ## P2 — Display, UX and API cleanup
 
-Flight-ops polish (#33), SAM follow-ups (#34) and CAS follow-ups (#61) shipped.
+Flight-ops polish (#33), SAM follow-ups (#34), CAS follow-ups (#61) and the per-jet Learn bar (#83) shipped.
 
-- **B40. Organise the site by jet** ([#83](https://github.com/HDElectronics/Fox3-Academy/issues/83)). The Learn bar now lists every lesson for every jet (Radar, TWS, Missiles, Defense,
-  RWR, Pattern & landing, Merge & guns, HARM & SEAD, Shkval & Vikhr, Targeting pod & Mavericks, CAS & JTAC) and
-  scrolls sideways; jet-only pages (HARM & SEAD for the F/A-18C, Shkval & Vikhr for the Su-25T, Targeting pod for the
-  A-10C II) show up for every jet and then hit the role gate.
-  - Make the selected jet the first level: pick a jet, then see only its lessons, grouped (for example Sensors,
-    Weapons, Defence, Flight, its own cockpit pages).
-  - Keep every deep link (`#/<route>?ac=<id>`) working; the router already reads `?ac`.
-  - Work in `src/app/navigation.ts` (`LESSON_LINKS`, `contextualLinks`), `src/app/routes.ts` (`roles`, `jets`),
-    the hangar lesson path (`src/app/learningProgress.ts`) and the progress page.
-  - Done when each jet's Learn bar shows only the pages that jet can open, fits without sideways scrolling at
-    1440 px, `navigation.test.ts` and the route tests cover the per-jet lists, and the 1440 and 820 px shots are
-    checked for a fighter (f15c), the F/A-18C and both attack jets.
 
 ## P3 — Quality and infrastructure
 

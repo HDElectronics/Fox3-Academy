@@ -47,7 +47,7 @@ describe('the selected jet comes first', () => {
   const paths = (id: Parameters<typeof lessonGroups>[0]) => lessonGroups(id).flatMap(g => g.links.map(l => l.path.split('?')[0]));
   it('lists only pages the jet can open, so no Learn link lands on a role gate', () => {
     for (const id of AIRCRAFT_ORDER) {
-      for (const link of contextualLinks('learn', id).slice(2)) expect(jetAllowed(routeFor(link.path.split('?')[0]!), id), `${id} ${link.path}`).toBe(true);
+      for (const link of contextualLinks('learn', id)) expect(jetAllowed(routeFor(link.path.split('?')[0]!), id), `${id} ${link.path}`).toBe(true);
       for (const link of contextualLinks('practice', id).slice(1)) expect(linkOpensFor(link, id), `${id} ${link.path}`).toBe(true);
     }
   });

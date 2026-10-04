@@ -13,7 +13,9 @@ displays and the lesson steps, which a phone screen cannot show together.
    turquoise for Flankers and Fulcrums, grey for Western jets.
 2. Set units with the button next to it (km and m, or nm and ft). Russian jets start metric.
 3. Open **Learn** and follow the lesson path: Radar, TWS, Missiles, Defense and RWR. Each lesson remembers
-   when you finish it for that jet (stored in your browser only).
+   when you finish it for that jet (stored in your browser only). The second row lists only the pages your jet
+   can open, grouped as BVR, Close combat, Flying and the jet's own pages under its name (HARM & SEAD on the
+   F/A-18C; Shkval & Vikhr or Targeting pod, and CAS & JTAC, on the attack jets).
 4. Open **Practice** for the manual TWS lab and configurable Radar, Missile and Defense experiments.
 5. Open **Fly** for a sortie, or **Reference** for bindings, procedures and aircraft facts.
 
@@ -29,7 +31,8 @@ Supported jets: Su-27, Su-33, J-11A, MiG-29S, F-15C (Flaming Cliffs 3), F/A-18C,
 What your jet can and cannot do in BVR: radar modes with the cockpit's own labels (for example ОБЗ, СНП, АТК
 on the Su-27), how many tracks and how many targets can have missiles at once, whether you can launch from TWS,
 detection range, RWR, chaff and flares, and one card per missile with its launch-zone ranges and the rule you
-must obey to guide it. Use the Jet selector in the top bar to switch aircraft.
+must obey to guide it. Use the Jet selector in the top bar to switch aircraft. With the Su-25T or A-10C II
+selected, Learn shows that jet's own pages with how many lessons you have done and a Continue button.
 
 ### Radar
 The scan volume in 3D. Change azimuth width, bars, antenna elevation and range and watch what the radar can
