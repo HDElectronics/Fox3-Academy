@@ -123,6 +123,8 @@ export function mountGallery(host: HTMLElement, opts: GalleryOptions): GalleryHa
   const clear = () => {
     for (const it of items) {
       it.tag.dispose();
+      // The pulse sits on the root, not on the vehicle group: take it out of the scene too.
+      it.pulse?.removeFromParent();
       it.pulse?.material.dispose();
       disposeVehicle(it.group);
     }
