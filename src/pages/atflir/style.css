@@ -33,3 +33,26 @@
 .atflir-slew .ui-btn { touch-action: none; user-select: none; }
 .atflir-delivery-readout { white-space: pre-line; font: 13px var(--font-mono); color: var(--panel-ink); line-height: 1.8; }
 .atflir-controls select { display: block; margin-top: 5px; padding: 7px; font: 13px var(--font-mono); color: var(--panel-ink); background: var(--panel); border: 1px solid var(--panel-line); }
+/* Same world-over-instruments composition as HARM & SEAD. */
+.atflir { --lab-console-w: clamp(320px, 26vw, 390px); --lab-strip-h: clamp(270px, 34vh, 350px); }
+.atflir .ui-lab__strip { grid-column: 1 / -1; }
+.atflir-stores { background: var(--screen); color: var(--sym); font: 14px var(--font-mono); display: flex; flex-direction: column; justify-content: space-between; padding: 10px; }
+.atflir-ddi-top, .atflir-ddi-bottom { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
+.atflir-ddi-top .ui-btn, .atflir-ddi-bottom .ui-btn { color: var(--sym); background: var(--screen); border-color: var(--screen-line); }
+.atflir-stores-readout { white-space: pre-line; text-align: center; line-height: 1.7; }
+.atflir-stores-bottom { text-align: center; font-size: 11px; }
+.atflir-flir { display: flex; flex-direction: column; background: var(--screen); }
+.atflir-ddi-pod { position: relative; flex: 1; min-height: 0; }
+.atflir-ddi-pod .atflir-screen { border-radius: 2px; }
+.atflir-ddi-bottom { padding: 3px 6px; }
+.atflir .ui-lab__strip > .atflir-ufc-block { min-width: 225px; max-width: 350px; }
+.atflir-ufc-hint { font: 11px var(--font-mono); color: var(--panel-muted); margin: 0; }
+@media (max-width: 900px) {
+  .atflir .ui-lab__strip > .ui-bezel { flex: 1 1 300px; max-width: 400px; }
+  .atflir .ui-lab__strip > .atflir-ufc-block { flex: 1 1 300px; max-width: 400px; }
+}
+@media (min-width: 901px) {
+  .atflir.ui-lab.has-head.has-strip { grid-template-areas: 'head console' 'view console' 'strip strip'; }
+}
+.atflir .ui-bezel__glass > .atflir-flir,
+.atflir .ui-bezel__glass > .atflir-stores { display: flex; }

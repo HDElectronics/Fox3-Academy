@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rework the ATFLIR trainer with a 3D range above a HUD, STORES DDI, FLIR DDI and clickable UFC strip; enter codes through the UFC keypad.
 - Add Hornet laser setup, GBU-12 AUTO consent and three LGB troubleshooting cases, with independent codes, saved progress and sourced training limits.
 - Make ATFLIR slewing continuous while a direction key or button is held, with small tap adjustments
   and finer rates in narrower views. Release, pointer cancellation and focus loss stop the input.

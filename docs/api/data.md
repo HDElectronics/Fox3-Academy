@@ -563,3 +563,7 @@ lesson pacing, not DCS measurements. Only the two-second manual trigger pulse is
 exercise presets, not a complete code validator. Masking, track/laser transitions and release conditions
 need in-game observations. The page-local model captures bomb code at release; LTDC remains independently
 adjustable. Release guards for an assigned target and configured code are training requirements.
+
+The ATFLIR cockpit strip reuses the HARM bezel and UFC components. The abbreviated SMS, UFC option
+placement and HUD geometry are training layouts, not verified cockpit geometry. `LaserCodeEntry` keeps
+LTDC and bomb CODE entry separate and commits supported exercise codes only on ENT.

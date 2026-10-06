@@ -28,6 +28,7 @@ export const LGB_FACTS = {
 } as const;
 
 export const LGB_CAVEATS = [
+  'The abbreviated STORES page, UFC option placement and HUD geometry are trainer layouts, not a full cockpit replica. Only the exercised code and laser controls are interactive.',
   'Manual review, not current-game verification: these procedures follow the ED guide dated 24 March 2024.',
   'The aircraft is preconfigured in A/G with one GBU-12, AUTO, MFUZ OFF and EFUZ INST. The training pass is aligned; aircraft handling and bomb ballistics are omitted.',
   'The 8-second approach, 12-second flight and last-6-second automatic laser window are arbitrary lesson timings, not DCS release or lasing schedules.',

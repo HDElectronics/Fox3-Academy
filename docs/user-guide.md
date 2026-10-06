@@ -285,14 +285,16 @@ failed acquisitions: Undesignate and reposition before trying again. The recover
 optional scripted obstruction. Its clear button restores visibility, not the track.
 
 The pod now looks into a 3D depot with Blender-authored trucks, buildings, fences and textured ground.
-**3D overview** opens an orbitable view for orientation; **Return to pod** restores the targeting image.
+The orbitable 3D range stays above the cockpit strip. Below it, the HUD, left STORES DDI, right FLIR DDI
+and UFC stay together, using the same layout components as HARM & SEAD.
 **Night vision look** toggles a green phosphor filter with grain and vignette, independently of IR/TV and
 WHT/BLK. This is a visual aid, not an additional Hornet mode. Reticles, FOV and acquisition remain simplified. Source and limits are available inside the page.
 
 #### Hornet laser and GBU-12 exercises
 
 After pod recovery, **Set up the laser** teaches independent FLIR UFC → LTDC and SMS → CODE entries.
-Choose a preset and press its ENT button; the readout shows the committed codes. Arm LTD/R, box TRIG,
+Click CODE on the left DDI for the bomb, or UFC on the right DDI for the pod. Select the displayed UFC
+option, enter 1688 or 1687 on the keypad, then ENT. The readouts show the committed codes. Arm LTD/R, box TRIG,
 then press or hold the trigger (Space). A tap emits for two seconds.
 
 **GBU-12 AUTO** starts with the assigned truck acquired. A/G, 82LG, AUTO, MFUZ OFF, EFUZ INST and

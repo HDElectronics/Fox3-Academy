@@ -8,6 +8,7 @@ import { SlewInput, SLEW_TAP } from './slew';
 import { LaserDeliverySession, type TroubleCase } from './delivery';
 import { deliveryControls } from './deliveryControls';
 import { LGB_CAVEATS, LGB_SOURCE } from '../../data/fa18cLgb';
+import { createLaserCockpit } from './cockpit';
 import { PodView } from './display';
 import './style.css';
 const page: PageFactory = () => {
@@ -35,9 +36,9 @@ const page: PageFactory = () => {
         session.message = 'AUTO acquired: single truck. Synthetic image preview; progress is not saved.';
       }
       const podHost = h('div', { class: 'atflir-pod-host' });
-      let pod: PodView | null = null;
+      let pod: PodView | null = null, range: PodView | null = null;
       let nightVision = ctx.params.get('look') !== 'clean';
-      let overview = ctx.params.get('shot') === 'overview';
+      const overview = false;
       if (ctx.params.get('image') === 'tv') session.ir = false;
       if (ctx.params.get('image') === 'black') session.whiteHot = false;
       const message = h('p', { class: 'atflir-feedback', role: 'status', 'aria-live': 'polite' });
@@ -48,7 +49,8 @@ const page: PageFactory = () => {
       const next = button({ label: nextId ? 'Next lesson' : 'View progress', onClick: () => ctx.navigate(nextId ? `atflir?lesson=${nextId}` : 'progress') });
       const act = (fn: () => void) => { fn(); update(); };
       const look = button({ label: 'Night vision look', lamp: true, onClick: () => act(() => { nightVision = !nightVision; }) });
-      const view = button({ label: '3D overview', size: 's', onClick: () => act(() => { overview = !overview; }) });
+      const cockpit = createLaserCockpit(() => delivery, () => session, () => update());
+      clean.add(() => cockpit.dispose());
       const scs = button({ label: 'SCS Right', keys: 'RAlt+/', onClick: () => act(() => session.scs()) });
       const un = button({ label: 'Undesignate', keys: 'S', onClick: () => act(() => session.undesignate()) });
       const dep = button({ label: 'Hold TDC depress', lamp: true, onClick: () => act(() => session.depress(!session.depressed)) });
@@ -107,17 +109,18 @@ const page: PageFactory = () => {
         group({ label: 'Image', children: [row(fov.el, sensor.el, polarity.el)] }),
         group({ label: 'Viewing aid', children: [look.el], hint: 'Green phosphor filter. A visual aid, not a separate ATFLIR mode.' }),
         (id === 'recover' || isDelivery) ? group({ label: 'Optional lost-track practice', children: [obstruction.el], hint: 'A scripted obstruction, not DCS masking behavior.' }) : null,
-        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { input.clear(); session = new AtflirSession(id); delivery = isDelivery ? new LaserDeliverySession(id, troubleCase) : null; preparePod(); saved = false; update(); } }).el,
+        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { input.clear(); session = new AtflirSession(id); delivery = isDelivery ? new LaserDeliverySession(id, troubleCase) : null; preparePod(); cockpit.reset(); saved = false; update(); } }).el,
         h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE), delivery ? h('p', null, LGB_SOURCE) : null,
           h('ul', null, [...ATFLIR_CAVEATS, ...(delivery ? LGB_CAVEATS : [])].map(text => h('li', null, text)))));
       const viewport = h('div', { class: 'atflir-view' },
-        h('div', { class: 'atflir-viewhead' }, h('span', null, 'RIGHT DDI / FLIR'), h('span', { class: 'atflir-view-tools' }, h('span', null, '3D TRAINING RANGE'), view.el)),
+        h('div', { class: 'atflir-viewhead' }, h('span', null, '3D TRAINING RANGE'), h('span', { class: 'atflir-view-tools' }, 'Drag to orbit · scroll to zoom')),
         podHost, status, message);
       const layout = labLayout({ id: 'atflir', class: 'atflir', header: { title: 'ATFLIR', meta: 'F/A-18C · Pod & laser weapons',
-        lede: 'Find, designate and track. Set laser codes, deliver a GBU-12 and troubleshoot the shot.' }, viewport, console: controls });
+        lede: 'Find, designate and track. Set laser codes, deliver a GBU-12 and troubleshoot the shot.' }, viewport, strip: cockpit.blocks, console: controls });
       ctx.root.append(layout.el); clean.add(() => layout.destroy());
       try {
-        pod = new PodView(session); podHost.append(pod.el); clean.add(() => pod?.dispose());
+        range = new PodView(session); podHost.append(range.el); clean.add(() => range?.dispose());
+        pod = new PodView(session); cockpit.podHost.append(pod.el); clean.add(() => pod?.dispose());
       } catch (error) {
         podHost.append(h('p', { class: 'atflir-webgl-error', role: 'alert' }, 'The 3D pod view needs WebGL. Enable graphics acceleration and reload to use this trainer.'));
         console.error('ATFLIR 3D view failed to initialise', error);
@@ -132,7 +135,7 @@ const page: PageFactory = () => {
           } else ctx.app.setProgress(progressKey(id), true);
           saved = true;
         }
-        deliveryPanel?.update();
+        deliveryPanel?.update(); cockpit.update();
         pod?.setDelivery(delivery);
         setText(message, delivery ? `${delivery.message} ${session.message}` : session.message);
         setText(status, `TDC ${session.focused ? 'FLIR' : 'NOT ASSIGNED'} · ${FOVS[session.fov]} · ${session.mode === 'AUTO' && !session.tracked ? 'INR AUTO' : session.mode}`);
@@ -144,10 +147,10 @@ const page: PageFactory = () => {
         polarity.setDisabled(!session.ir); fov.setLabel(FOVS[session.fov]!);
         obstruction.setLabel(session.obscured ? 'Clear obstruction' : 'Obscure target');
         look.setLit(nightVision); look.el.setAttribute('aria-pressed', String(nightVision));
-        look.setDisabled(overview); view.setLabel(overview ? 'Return to pod' : '3D overview');
-        view.el.setAttribute('aria-pressed', String(overview));
+        look.setDisabled(false);
         sensor.setLabel(session.ir ? 'IR' : 'TV'); polarity.setLabel(session.whiteHot ? 'WHT' : 'BLK');
         pod?.update(session, nightVision, overview, preview, continuous);
+        range?.update(session, false, true, preview, continuous);
       }
       clean.add(bindKeys({
         Space: { down: () => act(() => delivery?.setTrigger(true)), up: () => act(() => delivery?.setTrigger(false)) },
