@@ -1,0 +1,3 @@
+.jdam .atflir-ddi-bottom { font: 11px var(--font-mono); color: var(--sym); }
+.jdam .atflir-stores .ui-row { flex-wrap: wrap; justify-content: space-between; }
+.jdam .harm-ufc button:disabled { opacity: .4; cursor: default; }
