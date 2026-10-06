@@ -247,8 +247,7 @@ const factory: PageFactory = (): Page => {
       ],
     });
     lab.overlay('tl', camSeg.el);
-    lab.overlay('bl', hotas);
-    lab.overlay('br', hsi);
+    lab.overlay('bl', hotas, hsi).classList.add('harm-controls');
     ctx.root.append(lab.el);
 
     // ------------------------------------------------------------------ 3D

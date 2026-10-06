@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep HARM HOTAS and cockpit controls from overlapping in narrow windows.
+
 - HARM SP now cues the next missile to the highest-priority threat after firing at a manually selected radar.
 
 - Fix the HARM Live lesson: each SAM site makes one scripted shutdown, so waiting for its radar to return

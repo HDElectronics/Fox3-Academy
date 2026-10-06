@@ -81,8 +81,10 @@
 .harm-map__wp circle { fill: var(--screen); stroke: var(--caution); stroke-width: 2; }
 .harm-map__wp text { fill: var(--caution); font: 700 11px var(--font-mono); }
 
-/* HOTAS and cockpit panels: overlays at the bottom corners of the 3D view (every command on screen) */
+/* Share one wrapping row so the HOTAS and cockpit panels cannot overlap in narrow views. */
+.harm-controls { right: 0; max-width: none; justify-content: space-between; align-items: flex-end; }
 .harm-ov {
+  min-width: 0; max-width: 100%;
   display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: var(--r-2);
   background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--panel-line);
 }
