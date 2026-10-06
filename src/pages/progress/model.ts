@@ -1,3 +1,4 @@
+import { LESSON_ORDER as ATFLIR_ORDER, LESSONS as ATFLIR_LESSONS, progressKey as atflirKey } from '../atflir/lessons';
 /** Read existing saved completions without changing or inferring lesson results. */
 import { AIRCRAFT_ORDER, isFighter } from '../../data/aircraft';
 import type { AircraftId } from '../../data/types';
@@ -45,6 +46,8 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
     // HARM & SEAD is the F/A-18C's own cockpit (routes.ts `jets`).
     if (id === 'fa18c') for (const lesson of HARM_PROGRESS_ORDER) goals.push({ id: `harm-${lesson}`, label: `HARM: ${HARM_LESSONS[lesson].title}`,
       href: progressHref(`harm?lesson=${lesson}`, id), done: get(harmProgressKey(lesson)) === true });
+    if (id === 'fa18c') for (const lesson of ATFLIR_ORDER) goals.push({ id: `atflir-${lesson}`, label: `ATFLIR: ${ATFLIR_LESSONS[lesson].title}`,
+      href: progressHref(`atflir?lesson=${lesson}`, id), done: get(atflirKey(lesson)) === true });
     const rwr = get(`rwr:${id}:best`);
     const sortie = get(`sortie:${id}:best`);
     if (typeof rwr === 'number' && Number.isFinite(rwr) && rwr >= 0) scores.push({ label: 'Best RWR run', value: `${Math.floor(rwr)} correct` });

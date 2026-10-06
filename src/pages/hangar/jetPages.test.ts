@@ -6,8 +6,8 @@ import { jetPages, nextJetGoal } from './jetPages';
 const none = () => undefined;
 
 describe('Learn cards for a jet\'s own pages', () => {
-  it('gives the F/A-18C its HARM page and the other fighters none', () => {
-    expect(jetPages('fa18c', none).map(p => p.path)).toEqual(['harm']);
+  it('gives the F/A-18C its HARM and ATFLIR pages and the other fighters none', () => {
+    expect(jetPages('fa18c', none).map(p => p.path)).toEqual(['harm', 'atflir']);
     for (const id of FIGHTER_ORDER.filter(x => x !== 'fa18c')) expect(jetPages(id, none), id).toEqual([]);
   });
 

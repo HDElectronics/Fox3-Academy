@@ -53,7 +53,7 @@ describe('the selected jet comes first', () => {
   });
   it('gives each jet its own list', () => {
     expect(paths('f15c')).toEqual(['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'flight-ops']);
-    expect(paths('fa18c')).toEqual(['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'flight-ops', 'harm']);
+    expect(paths('fa18c')).toEqual(['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'flight-ops', 'harm', 'atflir']);
     expect(paths('su25t')).toEqual(['strike', 'cas']);
     expect(paths('a10c')).toEqual(['tgp', 'cas']);
     for (const id of FIGHTER_ORDER) expect(paths(id).slice(0, 7), id).toEqual(paths('f15c'));

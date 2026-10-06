@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add four F/A-18C ATFLIR foundation exercises: sensor control, target search, designation and SCENE/AUTO
+  tracking, and wrong-track recovery. Includes a synthetic pod view, individual progress and an optional
+  scripted obstruction. Manual-sourced controls and training limitations are documented.
+
 - Add five Hornet HARM troubleshooting exercises: missing TOO hand-off, wrong PB code, wrong target point,
   a silent radar and a last-weapon target choice. Each uses the existing cockpit controls, checks the hit,
   and saves case progress; all five are required to complete the lesson.

@@ -271,6 +271,21 @@ the SPI, MAV page as SOI with Coolie Right, lock with TMS Forward Short, fire in
 strafe** (GUNS mode, the pipper on a truck inside 2 nm, Space). Weapon release (RAlt + Space) and the gun (Space) are
 community keys, labelled not verified; the pod starts on and the Maverick aligned (trainer shortcuts).
 
+### ATFLIR (F/A-18C)
+Four foundation exercises: give FLIR TDC control, find a truck and narrow the field of view, move a
+waypoint designation and track it in SCENE/AUTO, then recover from tracking the wrong truck. Open
+ATFLIR from the Hornet Learn bar. Each exercise saves its own result and appears on Progress.
+
+The pod starts warmed up in A/G with FLIR on the right DDI. **SCS Right** (`RAlt + /`) assigns TDC;
+subsequent presses cycle tracking modes. **Undesignate** (`S`) returns to INR, where `; . , /` slew.
+In designation mode, hold **TDC depress** (`Enter`) while slewing; the on-screen button latches this
+hold until clicked again. **FOV** (`I`) cycles WFOV/MFOV/NAR. AUTO inhibits ordinary slew, including
+failed acquisitions: Undesignate and reposition before trying again. The recovery exercise also has an
+optional scripted obstruction. Its clear button restores visibility, not the track.
+
+The overhead image, reticles, FOV scale and acquisition are explicitly simplified. No laser or weapon
+delivery is included. Source and limits are available inside the page.
+
 ### HARM & SEAD (F/A-18C)
 The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Eight lessons:
 **Radars** (a 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10 batteries: which vehicle carries the radar, its
