@@ -26,6 +26,7 @@ export class PodView {
   private aim = new Vector3();
   private fov = POD_FOV[0] as number;
   private nightVision = true;
+  private obscured = false;
   private isOverview = false;
   private width = 1;
   private height = 1;
@@ -86,14 +87,15 @@ export class PodView {
     this.raf = requestAnimationFrame(tick);
   }
 
-  update(session: AtflirSession, nightVision: boolean, overview: boolean, snap = false): void {
+  update(session: AtflirSession, nightVision: boolean, overview: boolean, snap = false, deferRender = false): void {
     this.session = session; this.nightVision = nightVision; this.isOverview = overview;
     this.orbit.enabled = overview; this.el.dataset.view = overview ? 'range' : 'pod';
     this.range.setObscured(session.obscured); this.range.setInfrared(session.ir && !overview);
     // Obstruction and channel changes are rare; refresh static shadows only on user actions.
-    this.renderer.shadowMap.needsUpdate = true;
+    if (this.obscured !== session.obscured) this.renderer.shadowMap.needsUpdate = true;
+    this.obscured = session.obscured;
     if (snap || this.reducedMotion) { this.aim.copy(podAim(session)); this.fov = POD_FOV[session.fov]!; }
-    this.render(snap ? 1 : 0, 0);
+    if (!deferRender) this.render(snap ? 1 : 0, 0);
   }
   private resize(): void {
     if (this.disposed) return;

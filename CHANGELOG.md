@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make ATFLIR slewing continuous while a direction key or button is held, with small tap adjustments
+  and finer rates in narrower views. Release, pointer cancellation and focus loss stop the input.
+
 - Replace the ATFLIR flat diagram with a 3D depot, existing Blender truck assets, textured scenery and
   shadows. Add a stabilized pod camera, orbitable overview and optional green night-vision look with
   grain and vignette; retain independent IR/TV and white/black-hot controls.

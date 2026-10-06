@@ -546,7 +546,7 @@ The web-verification evidence and remaining current-game checks are in
 ### Hornet ATFLIR foundations
 
 `src/data/atflir.ts` exports `ATFLIR_SOURCE` and `ATFLIR_CAVEATS`; manual evidence is in
-`docs/research/fa18c-atflir.md`. Uncertain values: camera FOVs 28/9/2.4 degrees, slew increments 20/5/1 scene metres, 6-scene-metre
+`docs/research/fa18c-atflir.md`. Uncertain values: camera FOVs 28/9/2.4 degrees, continuous slew rates 32/10/2.5 scene metres per second and tap nudges 1/0.3/0.08 metres, 6-scene-metre
 acquisition tolerance, instantaneous track acquisition and scripted obstruction/reacquisition. These are
 teaching values, not verified DCS measurements. The prewarmed A/G setup, static aircraft, simplified
 reticles and VVSLV reset are explicit abstractions. Offset designation, laser and delivery are omitted.

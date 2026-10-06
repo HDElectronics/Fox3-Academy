@@ -279,7 +279,8 @@ ATFLIR from the Hornet Learn bar. Each exercise saves its own result and appears
 The pod starts warmed up in A/G with FLIR on the right DDI. **SCS Right** (`RAlt + /`) assigns TDC;
 subsequent presses cycle tracking modes. **Undesignate** (`S`) returns to INR, where `; . , /` slew.
 In designation mode, hold **TDC depress** (`Enter`) while slewing; the on-screen button latches this
-hold until clicked again. **FOV** (`I`) cycles WFOV/MFOV/NAR. AUTO inhibits ordinary slew, including
+hold until clicked again. **FOV** (`I`) cycles WFOV/MFOV/NAR. Hold a direction button or key for continuous slewing;
+short taps make fine adjustments. Narrower FOV slows the movement. Rates are trainer tuning, not verified DCS values. AUTO inhibits ordinary slew, including
 failed acquisitions: Undesignate and reposition before trying again. The recovery exercise also has an
 optional scripted obstruction. Its clear button restores visibility, not the track.
 

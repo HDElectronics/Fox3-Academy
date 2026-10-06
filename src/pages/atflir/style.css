@@ -29,3 +29,5 @@
 .atflir-controls small, .atflir-controls details { font-size: 12px; color: var(--panel-muted); }
 .atflir-controls details li { margin-bottom: 8px; }
 @media (max-width: 900px) { .atflir .ui-lab__view { min-height: 500px; max-height: none; } }
+
+.atflir-slew .ui-btn { touch-action: none; user-select: none; }

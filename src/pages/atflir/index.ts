@@ -4,6 +4,7 @@ import { h, button, row, group, labLayout, bindKeys, cleanup, setText } from '..
 import { ATFLIR_CAVEATS, ATFLIR_SOURCE } from '../../data/atflir';
 import { LESSON_ORDER, LESSONS, lessonId, progressKey } from './lessons';
 import { AtflirSession, FOVS } from './model';
+import { SlewInput, SLEW_TAP } from './slew';
 import { PodView } from './display';
 import './style.css';
 const page: PageFactory = () => {
@@ -40,12 +41,34 @@ const page: PageFactory = () => {
       const fov = button({ label: 'FOV', keys: 'I', onClick: () => act(() => session.cycleFov()) });
       const sensor = button({ label: 'IR / TV', onClick: () => act(() => { session.ir = !session.ir; }) });
       const polarity = button({ label: 'WHT / BLK', onClick: () => act(() => { session.whiteHot = !session.whiteHot; }) });
-      const slew = (x: number, y: number) => act(() => session.slew(x * [20, 5, 1][session.fov]!, y * [20, 5, 1][session.fov]!));
+      const input = new SlewInput();
+      const tap = (x: number, y: number) => act(() => session.slew(x * SLEW_TAP[session.fov]!, y * SLEW_TAP[session.fov]!));
+      const hold = (source: string, x: number, y: number) => { if (input.press(source, x, y)) tap(x, y); };
+      const direction = (label: string, keys: string, x: number, y: number) => {
+        const b = button({ label, keys, onClick: e => { if (e.detail === 0) tap(x, y); } }).el;
+        clean.on<PointerEvent>(b, 'pointerdown', e => {
+          if (e.button !== 0) return;
+          b.setPointerCapture(e.pointerId); hold(`pointer:${e.pointerId}`, x, y);
+        });
+        const release = (e: PointerEvent) => input.release(`pointer:${e.pointerId}`);
+        clean.on<PointerEvent>(b, 'pointerup', release);
+        clean.on<PointerEvent>(b, 'pointercancel', release);
+        clean.on<PointerEvent>(b, 'lostpointercapture', release);
+        return b;
+      };
       const directions = h('div', { class: 'atflir-slew' },
-        button({ label: 'Up', keys: ';', onClick: () => slew(0, -1) }).el,
-        button({ label: 'Left', keys: ',', onClick: () => slew(-1, 0) }).el,
-        button({ label: 'Down', keys: '.', onClick: () => slew(0, 1) }).el,
-        button({ label: 'Right', keys: '/', onClick: () => slew(1, 0) }).el);
+        direction('Up', ';', 0, -1), direction('Left', ',', -1, 0),
+        direction('Down', '.', 0, 1), direction('Right', '/', 1, 0));
+      clean.on(window, 'blur', () => input.clear());
+      clean.on(document, 'visibilitychange', () => { if (document.hidden) input.clear(); });
+      let slewFrame = 0, previous = performance.now();
+      const advanceSlew = (now: number) => {
+        const [dx, dy] = input.step((now - previous) / 1000, session.fov); previous = now;
+        if (dx || dy) { session.slew(dx, dy); update(true); }
+        slewFrame = requestAnimationFrame(advanceSlew);
+      };
+      slewFrame = requestAnimationFrame(advanceSlew);
+      clean.add(() => { cancelAnimationFrame(slewFrame); input.clear(); });
       const obstruction = button({ label: 'Obscure target', onClick: () => act(() => {
         if (session.obscured) { session.obscured = false; session.message = 'Obstruction cleared. Reposition in INR/SCENE and request AUTO again.'; }
         else session.loseTrack();
@@ -58,11 +81,11 @@ const page: PageFactory = () => {
           h('h2', null, lesson.title), h('p', null, lesson.goal), h('ol', { class: 'atflir-steps' }, steps), result, next.el),
         group({ label: 'Right DDI · Sensor control', children: [row(scs.el, un.el), dep.el,
           h('small', null, 'TDC depress: hold Enter, or use the on-screen latch.')] }),
-        group({ label: 'TDC slew', children: [directions], hint: 'Each click nudges the view. Hold a keyboard direction for repeated inputs.' }),
+        group({ label: 'TDC slew', children: [directions], hint: 'Hold a direction button or key to slew smoothly. Tap for fine adjustments; narrower FOV slows the slew.' }),
         group({ label: 'Image', children: [row(fov.el, sensor.el, polarity.el)] }),
         group({ label: 'Viewing aid', children: [look.el], hint: 'Green phosphor filter. A visual aid, not a separate ATFLIR mode.' }),
         id === 'recover' ? group({ label: 'Optional lost-track practice', children: [obstruction.el], hint: 'A scripted obstruction, not DCS masking behavior.' }) : null,
-        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { session = new AtflirSession(id); saved = false; update(); } }).el,
+        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { input.clear(); session = new AtflirSession(id); saved = false; update(); } }).el,
         h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE),
           h('ul', null, ATFLIR_CAVEATS.map(text => h('li', null, text)))));
       const viewport = h('div', { class: 'atflir-view' },
@@ -77,7 +100,7 @@ const page: PageFactory = () => {
         podHost.append(h('p', { class: 'atflir-webgl-error', role: 'alert' }, 'The 3D pod view needs WebGL. Enable graphics acceleration and reload to use this trainer.'));
         console.error('ATFLIR 3D view failed to initialise', error);
       }
-      function update() {
+      function update(continuous = false) {
         if (session.complete && !saved && !preview) { ctx.app.setProgress(progressKey(id), true); saved = true; }
         setText(message, session.message);
         setText(status, `TDC ${session.focused ? 'FLIR' : 'NOT ASSIGNED'} · ${FOVS[session.fov]} · ${session.mode === 'AUTO' && !session.tracked ? 'INR AUTO' : session.mode}`);
@@ -92,14 +115,16 @@ const page: PageFactory = () => {
         look.setDisabled(overview); view.setLabel(overview ? 'Return to pod' : '3D overview');
         view.el.setAttribute('aria-pressed', String(overview));
         sensor.setLabel(session.ir ? 'IR' : 'TV'); polarity.setLabel(session.whiteHot ? 'WHT' : 'BLK');
-        pod?.update(session, nightVision, overview, preview);
+        pod?.update(session, nightVision, overview, preview, continuous);
       }
       clean.add(bindKeys({
         'RAlt+/': () => act(() => session.scs()), S: () => act(() => session.undesignate()),
         I: () => act(() => session.cycleFov()),
         Enter: { down: () => act(() => session.depress(true)), up: () => act(() => session.depress(false)) },
-        ';': { down: () => slew(0, -1), repeat: true }, ',': { down: () => slew(-1, 0), repeat: true },
-        '.': { down: () => slew(0, 1), repeat: true }, '/': { down: () => slew(1, 0), repeat: true },
+        ';': { down: () => hold('up', 0, -1), up: () => input.release('up') },
+        ',': { down: () => hold('left', -1, 0), up: () => input.release('left') },
+        '.': { down: () => hold('down', 0, 1), up: () => input.release('down') },
+        '/': { down: () => hold('right', 1, 0), up: () => input.release('right') },
       }));
       update();
     },
