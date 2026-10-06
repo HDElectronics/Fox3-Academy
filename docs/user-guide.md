@@ -272,7 +272,7 @@ strafe** (GUNS mode, the pipper on a truck inside 2 nm, Space). Weapon release (
 community keys, labelled not verified; the pod starts on and the Maverick aligned (trainer shortcuts).
 
 ### HARM & SEAD (F/A-18C)
-The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Seven lessons:
+The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Eight lessons:
 **Radars** (a 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10 batteries: which vehicle carries the radar, its
 RWR symbol, TOO class and PB code), **Homing** (four films: a straight SP / TOO shot, the radar switching off
 mid-flight so the HARM misses, a PB shot that lofts to the point and then listens, and an A/C pull-up),
@@ -281,8 +281,14 @@ mid-flight so the HARM misses, a PB shot that lofts to the point and then listen
 code 107 for the SA-11 Snow Drift, HRM pull-up, WPDSG on the HSI, then hold release and raise the nose to the cue;
 it opens with an animated explainer: pick the site at the waypoint (SA-11, SA-10 or SA-6 + SA-8), a code and a pull-up
 and watch which radar the HARM chooses at the point),
-**Pullback** (unbox HRM OVRD, let a live SA-6 lock you, shoot back and turn away) and **Live** (an SA-6 that goes
-quiet when it sees a HARM and a live SA-11). Click the DDI pushbuttons and the UFC keys on screen; the "What that
+**Pullback** (unbox HRM OVRD, let a live SA-6 lock you, shoot back and turn away), **Live** (an SA-6 that goes
+quiet once per run and a live SA-11, also with one scripted shutdown), and **Troubleshoot**.
+Troubleshoot offers five preconfigured faults: TOO without a hand-off, a wrong PB code, a wrong PB point,
+a radar that has gone silent, and one HARM left with two targets. Use the cockpit controls to correct the
+setup and confirm the assigned radar was destroyed. Cases save separately; all five complete the lesson.
+The silent-radar case holds fire and uses a scripted 30 s shutdown. A wasted last weapon requires Restart.
+
+Click the DDI pushbuttons and the UFC keys on screen; the "What that
 did" log explains every press and points to the ED guide page. SP, Pullback and TOO open with their own animated guides too (cue and HARM Sequence, a lock
 and the shot back, a radar going quiet; the field of view, CLASS, hand-off), and the Animated row in the lesson panel
 replays any of them. Cage/Uncage in that row shows what a hand-off is: in TOO the box is only your jet's choice until

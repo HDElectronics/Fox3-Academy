@@ -1,13 +1,14 @@
 /**
  * [OWNER: page-harm] HARM & SEAD (#/harm, the F/A-18C only). The pilot learns the radars the AGM-88C hunts, watches
  * how a HARM flies, then works the Hornet's HARM as DCS presents it: the stores page, the HARM format (SP, TOO with the
- * class filter and hand-off, PB with the UFC code, WPDSG and the HUD pull-up cues), Pullback, and a live SEAD run.
+ * class filter and hand-off, PB with the UFC code, WPDSG and the HUD pull-up cues), Pullback, a live SEAD run, and five troubleshooting cases.
  * Every press is explained in the "What that did" log. Page-local logic (avionics.ts, sim.ts), drawing (ddi.ts,
  * ew.ts, hud.ts, ufc.ts), 3D (scene3d.ts, gallery3d.ts, models.ts). Facts: docs/research/fa18c-harm.md; trainer
  * rules in HARM_CAVEATS. Progress: harm:<lesson>:fa18c. Practice missions: public/missions.
  *
- * URL params: ?lesson=radars|homing|sp|too|pb|pullback|live, ?shot=radars|homing|sp|too|too-hoff|pb-ufc|pb-cue|
- * pullback|live (scripted pre-rolls for screenshots, never saved as progress), ?cam=chase|harm|site|top.
+ * URL params: ?lesson=radars|homing|sp|too|pb|pullback|live|troubleshoot, ?shot=radars|homing|sp|too|too-hoff|pb-ufc|pb-cue|
+ * pullback|live|troubleshoot (scripted pre-rolls for screenshots, never saved as progress), ?cam=chase|harm|site|top.
+ * Troubleshooting deep links: ?lesson=troubleshoot&case=handoff|code|waypoint|silent|last.
  */
 import './cockpit.css';
 import './style.css';
@@ -36,13 +37,14 @@ import { HarmSim, bearingDeg, wrapDeg, type SimSetup } from './sim';
 import {
   FILMS, FILM_ORDER, HARM_LESSON_ORDER, LESSONS, MISSIONS, progressKey, type FilmId, type HarmLessonId, type HarmSnap,
 } from './lessons';
+import { TROUBLE_CASES, TROUBLE_ORDER, troubleId, troubleProgressKey, troubleComplete, type TroubleId } from './troubleshooting';
 import type { HarmClass, Osb, Pullup, SystemId, VehicleId } from './types';
 
-const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'sp-explain', 'too-explain', 'cage-explain', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'appendix'] as const;
+const SHOTS = ['radars', 'homing', 'sp', 'too', 'too-hoff', 'sp-explain', 'too-explain', 'cage-explain', 'pb-explain', 'pb-ufc', 'pb-cue', 'pullback', 'live', 'troubleshoot', 'appendix'] as const;
 type Shot = typeof SHOTS[number];
 type Cam = 'chase' | 'harm' | 'site' | 'top';
 const SHOT_LESSON: Record<Shot, HarmLessonId> = {
-  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', 'sp-explain': 'sp', 'too-explain': 'too', 'cage-explain': 'too', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live',
+  radars: 'radars', homing: 'homing', sp: 'sp', too: 'too', 'too-hoff': 'too', 'pb-explain': 'pb', 'sp-explain': 'sp', 'too-explain': 'too', 'cage-explain': 'too', appendix: 'pb', 'pb-ufc': 'pb', 'pb-cue': 'pb', pullback: 'pullback', live: 'live', troubleshoot: 'troubleshoot',
 };
 const NM = 1852;
 const R2D = 180 / Math.PI;
@@ -75,6 +77,9 @@ const factory: PageFactory = (): Page => {
     const shot = SHOTS.find(s => s === params.get('shot')) ?? null;
     const lessonParam = params.get('lesson') as HarmLessonId | null;
     let lesson: HarmLessonId = shot ? SHOT_LESSON[shot] : lessonParam && HARM_LESSON_ORDER.includes(lessonParam) ? lessonParam : 'radars';
+    let trouble: TroubleId = params.has('case') ? troubleId(params.get('case'))
+      : TROUBLE_ORDER.find(id => ctx.app.getProgress(troubleProgressKey(id)) !== true) ?? 'handoff';
+    const currentLesson = () => lesson === 'troubleshoot' ? TROUBLE_CASES[trouble].lesson : LESSONS[lesson];
     let cam: Cam = (['chase', 'harm', 'site', 'top'] as const).find(c => c === params.get('cam')) ?? 'chase';
     const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -154,6 +159,14 @@ const factory: PageFactory = (): Page => {
       options: HARM_LESSON_ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
       onChange: id => { lesson = id; restart(); },
     });
+    const troubleSeg = segmented<TroubleId>({
+      id: 'harm-trouble-case', label: 'Troubleshooting case', fill: true, value: trouble,
+      options: TROUBLE_ORDER.map(id => ({ value: id, label: TROUBLE_CASES[id].label })),
+      onChange: id => { trouble = id; restart(); },
+    });
+    const troubleBrief = h('p', { class: 'harm-small' });
+    const troubleStatus = h('p', { class: 'harm-small', 'aria-live': 'polite' });
+    const troublePanel = h('div', { hidden: true }, troubleSeg.el, troubleBrief, troubleStatus);
     const coach = coachBox({ id: 'harm-coach' });
     let steps = checklist({ steps: [] });
     const stepsHost = h('div', null, steps.el);
@@ -242,7 +255,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [hudBezel.el, ewBezel.el, ddiBezel.el, ufcBlock],
       console: [
-        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), animRow, h('div', { class: 'harm-row' }, apxBtn.el)] }).el,
+        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, troublePanel, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), animRow, h('div', { class: 'harm-row' }, apxBtn.el)] }).el,
         radarPanel.el, filmPanel.el, log.el, missionsPanel.el, kneeboard, keysBox, caveats,
       ],
     });
@@ -325,7 +338,7 @@ const factory: PageFactory = (): Page => {
       anim?.stop();
       docHost.hidden = true;
       lab.el.classList.remove('harm--doc');
-      const k = LESSONS[lesson].kind;
+      const k = currentLesson().kind;
       hotas.hidden = hsi.hidden = camSeg.el.hidden = k === 'gallery' || k === 'brief';
     }
 
@@ -394,11 +407,20 @@ const factory: PageFactory = (): Page => {
     }
 
     // ------------------------------------------------------------------ lesson lifecycle
+    function updateTroubleStatus(): void {
+      const completed = TROUBLE_ORDER.filter(id => ctx.app.getProgress(troubleProgressKey(id)) === true);
+      troubleStatus.textContent = `Completed ${completed.length}/${TROUBLE_ORDER.length}${completed.length ? ': ' + completed.map(id => TROUBLE_CASES[id].label).join(', ') : '. Fix each setup, then confirm the hit.'}`;
+    }
+
     function restart(): void {
       result?.destroy(); result = null;
       ended = false; scripted = false; stepIdx = 0; film = null;
-      const def = LESSONS[lesson];
+      const def = currentLesson();
       lessonSeg.set(lesson, false);
+      troublePanel.hidden = lesson !== 'troubleshoot';
+      troubleSeg.set(trouble, false);
+      troubleBrief.textContent = def.goal;
+      updateTroubleStatus();
       steps = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(steps.el);
       log.clear();
@@ -412,7 +434,7 @@ const factory: PageFactory = (): Page => {
       briefHost.hidden = def.kind !== 'brief';
       camSeg.el.hidden = def.kind === 'gallery' || def.kind === 'brief';
       hotas.hidden = hsi.hidden = def.kind === 'gallery' || def.kind === 'brief';
-      animRow.hidden = LESSONS[lesson].kind !== 'drill';
+      animRow.hidden = currentLesson().kind !== 'drill';
       if (doc) closeDoc();
       // Entering the PB lesson starts with the animated explainer (not on 'Again', not in scripted shots).
       const firstDoc: Partial<Record<HarmLessonId, DocKind>> = { sp: 'sp', too: 'too', pb: 'pb', pullback: 'pullback' };
@@ -432,6 +454,7 @@ const factory: PageFactory = (): Page => {
       } else {
         const s = def.setup!();
         newSim(s.sim, s.waypoints);
+        if (lesson === 'troubleshoot') { TROUBLE_CASES[trouble].prepare(av); readEvents(); }
       }
       scene?.setCamera(def.kind === 'film' ? 'harm' : cam);
       stage?.requestRender();
@@ -457,7 +480,7 @@ const factory: PageFactory = (): Page => {
     }
 
     function tick(dt: number): void {
-      const def = LESSONS[lesson];
+      const def = currentLesson();
       if (def.kind !== 'gallery' && def.kind !== 'brief' && !ended && !doc) {
         const sdt = dt * timeScale;
         stepFilm(sdt);
@@ -491,7 +514,7 @@ const factory: PageFactory = (): Page => {
     }
 
     function drawDisplays(): void {
-      const cur = LESSONS[lesson].steps[stepIdx];
+      const cur = currentLesson().steps[stepIdx];
       const hint = !ended ? cur?.hint : undefined;
       ddi.draw(av.formatView(hint?.ddi ?? null));
       ew.draw(av.ewView(hint?.ew ?? null));
@@ -501,7 +524,7 @@ const factory: PageFactory = (): Page => {
     }
 
     function updateUi(force: boolean): void {
-      const def = LESSONS[lesson];
+      const def = currentLesson();
       const snap = snapshot();
       while (!ended && stepIdx < def.steps.length && def.steps[stepIdx]!.check(snap)) { steps.setDone(def.steps[stepIdx]!.id); stepIdx++; }
       steps.setCurrent(def.steps[stepIdx]?.id ?? null);
@@ -512,6 +535,10 @@ const factory: PageFactory = (): Page => {
       const pb = av.pullbackLabel();
       if (!ended && pb === 'HARM') { why = 'Pullback ready: HARM in the HUD. Weapon release now.'; tone = 'warning'; }
       else if (!ended && pb === 'PLBK') { why = 'A radar has locked you. PLBK: Pullback is inhibited (HRM OVRD boxed).'; tone = 'caution'; }
+      if (!ended && lesson === 'troubleshoot' && av.station === null && !sim.harms.some(m => m.alive)) {
+        why = 'No HARMs remain and the assigned radar was not destroyed. Restart this case to rearm, then check the target and setup before firing.';
+        tone = 'caution';
+      }
       if (force || cur) coach.set(cur ? cur.text : def.steps.length ? 'Lesson complete.' : 'Read the guide, download a mission, then fly it.', why, tone);
       armBtn.el.textContent = `MASTER ARM: ${av.masterArm ? 'ARM' : 'SAFE'}`;
       armBtn.el.classList.toggle('is-active', av.masterArm);
@@ -525,8 +552,15 @@ const factory: PageFactory = (): Page => {
     function complete(): void {
       if (ended) return;
       ended = true;
-      const def = LESSONS[lesson];
-      if (!scripted) ctx.app.setProgress(progressKey(lesson), true);
+      const def = currentLesson();
+      if (!scripted) {
+        if (lesson === 'troubleshoot') {
+          ctx.app.setProgress(troubleProgressKey(trouble), true);
+          if (troubleComplete(key => ctx.app.getProgress(key))) ctx.app.setProgress(progressKey(lesson), true);
+        } else ctx.app.setProgress(progressKey(lesson), true);
+      }
+      updateTroubleStatus();
+      const nextCase = lesson === 'troubleshoot' ? TROUBLE_ORDER.find(id => id !== trouble && ctx.app.getProgress(troubleProgressKey(id)) !== true) : undefined;
       const next = HARM_LESSON_ORDER[HARM_LESSON_ORDER.indexOf(lesson) + 1];
       const lines = def.kind === 'drill'
         ? [`HARMs fired: ${av.launches}`, `Radars killed: ${kills.length}`, ...(misses.length ? [`Misses: ${misses.map(m => m === 'lost' ? 'radar went quiet' : m === 'no-emitter' ? 'no radar of that code' : 'hit the ground').join(', ')}`] : [])]
@@ -536,7 +570,7 @@ const factory: PageFactory = (): Page => {
         body: h('div', null, h('ul', null, lines.map(l => h('li', null, l)))),
         actions: [
           { label: 'Again', onClick: () => restart(), id: 'harm-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'harm-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(nextCase ? [{ label: `Next: ${TROUBLE_CASES[nextCase].label}`, primary: true, id: 'harm-next-case', onClick: () => { trouble = nextCase; restart(); } }] : next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'harm-next', onClick: () => { lesson = next; restart(); } }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -580,6 +614,7 @@ const factory: PageFactory = (): Page => {
         case 'pb-ufc': setup(); av.osb(3); av.osb(14); av.ufcKey('OPT4'); av.ufcKey('1'); av.ufcKey('0'); av.ufcKey('7'); run(1); break;
         case 'pb-cue': setup(); av.osb(3); av.osb(14); av.ufcKey('OPT4'); ['1', '0', '7', 'ENT'].forEach(k => av.ufcKey(k as '1')); av.osb(1); pullupChosen = 'HRM'; av.selectWaypoint(1); av.wpdsg(); run(1); sim.jet.pitchCmd = 1; run(0.6); sim.jet.pitchCmd = 0; break;
         case 'pullback': av.toggleMasterArm(); av.osb(16); run(60, () => av.pullbackLabel() === 'HARM'); run(1); break;
+        case 'troubleshoot': run(0.1); break;
         case 'live': setup(); av.osb(4); av.tdcToHarm(); run(40); break;
       }
       if (!params.get('cam') && s !== 'radars') scene?.setCamera(s === 'homing' ? 'harm' : 'chase');

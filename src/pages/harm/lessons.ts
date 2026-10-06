@@ -7,8 +7,8 @@ import type { Waypoint } from './avionics';
 import type { SimSetup, Vec3 } from './sim';
 import type { HarmClass, HarmMode, MasterMode, Osb, Pullup, SystemId, UfcKey, VehicleId } from './types';
 
-export type HarmLessonId = 'radars' | 'homing' | 'sp' | 'too' | 'pb' | 'pullback' | 'live' | 'missions';
-export const HARM_LESSON_ORDER: HarmLessonId[] = ['radars', 'homing', 'sp', 'too', 'pb', 'pullback', 'live', 'missions'];
+export type HarmLessonId = 'radars' | 'homing' | 'sp' | 'too' | 'pb' | 'pullback' | 'live' | 'troubleshoot' | 'missions';
+export const HARM_LESSON_ORDER: HarmLessonId[] = ['radars', 'homing', 'sp', 'too', 'pb', 'pullback', 'live', 'troubleshoot', 'missions'];
 export const progressKey = (l: HarmLessonId): string => `harm:${l}:fa18c`;
 
 /** Homing films (lesson 'homing'). */
@@ -318,6 +318,11 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
       },
       { id: 'alive', text: 'Stay alive.', why: 'Beam a launch and drop chaff (E), or kill the radar guiding it.', check: s => s.jetAlive && s.kills.includes('sa6-str') && s.kills.includes('sa11-sr') },
     ],
+  },
+  troubleshoot: {
+    id: 'troubleshoot', title: 'HARM troubleshooting', short: 'Troubleshoot', kind: 'drill',
+    goal: 'Recover from five common HARM setup and targeting problems using the cockpit controls.',
+    steps: [], // The selected case supplies its own setup and checklist (troubleshooting.ts).
   },
   missions: {
     id: 'missions', title: 'Fly it in DCS', short: 'Missions', kind: 'brief',

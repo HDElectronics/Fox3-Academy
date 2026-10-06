@@ -349,6 +349,17 @@ and shown on the page:
   layout (comments in `ddi.ts`, `ew.ts`, `hud.ts`).
 - Encyclopedia vehicle sizes and ranges (S2 in the research note) are not checked in game.
 
+### HARM troubleshooting cases (`src/pages/harm/troubleshooting.ts`)
+
+Five deterministic page-local exercises reuse `HarmSim` and `HarmAvionics`; they do not change weapon or
+sensor rules. Each case supplies a lesson setup, checklist and avionics preparation. All sites hold fire.
+The silent case starts after a demonstration shot lost guidance and keeps the radar quiet for 30 s, then
+transmitting; this is an explicit training script, not a DCS AI timing claim. The last-weapon case loads
+only station 3. Case progress uses `harm:troubleshoot:<case>:fa18c`; `harm:troubleshoot:fa18c` is awarded only
+after all five cases. `?lesson=troubleshoot&case=handoff|code|waypoint|silent|last` selects a case;
+`?shot=troubleshoot&case=...` provides an unsaved screenshot setup.
+
+
 ### Datalink (`src/data/datalink.ts`)
 
 Verified: Hornet MIDS F/F, PPLI and SURV on the attack radar and SA page with the HAFU halves; Viper MIDS on the FCR
