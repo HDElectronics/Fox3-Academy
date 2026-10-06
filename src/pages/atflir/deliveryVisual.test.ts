@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bombPosition, RELEASE_POINT, HIT_POINT, MISS_POINT, DeliveryVisual } from './deliveryVisual';
+import { bombPosition, RELEASE_POINT, HIT_POINT, MISS_POINT, DeliveryVisual } from '../../render/attack/deliveryVisual';
 import { LaserDeliverySession } from './delivery';
 import { AtflirSession } from './model';
 import type { Theme } from '../../ui/theme';
@@ -21,5 +21,16 @@ describe('delivery visual sequence', () => {
   it('places a miss away from the assigned truck', () => {
     const view=new DeliveryVisual(theme), d=new LaserDeliverySession('delivery'); d.phase='miss';
     view.update(d,new AtflirSession('delivery'),.05); expect(view.impact.position).toEqual(MISS_POINT); expect(view.label).toContain('MISS'); view.dispose();
+  });
+});
+
+describe('shared JDAM delivery rendering', () => {
+  it('uses the released target rather than the current pod designation or laser state', () => {
+    const view = new DeliveryVisual(theme, 'gbu38');
+    const pod = new AtflirSession('delivery');
+    const state = { phase: 'flight', timer: 6, releasedTarget: 'assigned' as const };
+    view.update(state, pod, .05);
+    expect(view.bomb.position.distanceTo(bombPosition(.5, HIT_POINT))).toBeLessThan(1e-8);
+    expect(view.label).toContain('GBU-38'); view.dispose();
   });
 });

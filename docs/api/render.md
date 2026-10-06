@@ -787,9 +787,13 @@ controls, context listeners and all owned GPU resources. No World simulation is 
 
 ### ATFLIR delivery visuals
 
-`src/pages/atflir/deliveryVisual.ts` attaches the existing original `gbu12.glb` through `AssetVisual`,
+`src/render/attack/deliveryVisual.ts` attaches the existing original `gbu12.glb` through `AssetVisual`,
 with a procedural fallback and a four-times visibility scale. It follows the page-local delivery
 phase/countdown, draws an illustrative trail, and places hit/miss effects at distinct scripted points.
 These visuals do not determine the lesson result or model ballistics/damage. Each pod/range view owns
 and disposes its effect geometry/materials and asset handle. The upper view follows the bomb by default;
 Range camera restores orbit controls. Reset removes both flight and impact visuals.
+
+The shared `DeliveryVisualState` is structural and does not import page logic. GBU-38 visuals use the
+released-target snapshot, independent of the current FLIR or laser state. `PodView` accepts the exterior
+ID and an optional store-delivery state for the JDAM page; the laser-specific ATFLIR overlay stays separate.
