@@ -784,3 +784,12 @@ green phosphor, highlight softness, grain and vignette. Text stays in a separate
 uses unfiltered color. Resize includes DPR (capped 1.5); offscreen/hidden pages skip drawing, reduced-motion
 users get immediate camera changes and static grain. Unmount cancels RAF and disconnects observers,
 controls, context listeners and all owned GPU resources. No World simulation is run by this page.
+
+### ATFLIR delivery visuals
+
+`src/pages/atflir/deliveryVisual.ts` attaches the existing original `gbu12.glb` through `AssetVisual`,
+with a procedural fallback and a four-times visibility scale. It follows the page-local delivery
+phase/countdown, draws an illustrative trail, and places hit/miss effects at distinct scripted points.
+These visuals do not determine the lesson result or model ballistics/damage. Each pod/range view owns
+and disposes its effect geometry/materials and asset handle. The upper view follows the bomb by default;
+Range camera restores orbit controls. Reset removes both flight and impact visuals.

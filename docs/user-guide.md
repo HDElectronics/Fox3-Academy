@@ -300,7 +300,10 @@ then press or hold the trigger (Space). A tap emits for two seconds.
 **GBU-12 AUTO** starts with the assigned truck acquired. A/G, 82LG, AUTO, MFUZ OFF, EFUZ INST and
 aligned flight are preset. Set matching codes, arm LTD/R and Master Arm, leave TRIG unboxed, start the
 training pass, then hold Weapon Release (RAlt+Space or the on-screen button) through REL zero.
-Watch LASER count to automatic emission, then TTI to the training result.
+Watch LASER count to automatic emission, then TTI to the training result. The upper 3D view follows the
+visible GBU-12 after release and frames the flash, expanding ring and smoke at impact. **Camera: follow
+bomb / range** switches to an orbitable overview. A miss impacts away from the assigned truck. The bomb
+is enlarged four times, and its path and effects are visual teaching aids. Reload clears the effects.
 
 **Troubleshoot LGB** has code mismatch, lost track and laser-off cases. Each completed delivery saves
 its case; all three finish the lesson. For lost track, clear the scripted obstruction, Undesignate,

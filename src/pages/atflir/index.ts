@@ -35,10 +35,17 @@ const page: PageFactory = () => {
         session.mode = 'AUTO'; session.tracked = 'assigned';
         session.message = 'AUTO acquired: single truck. Synthetic image preview; progress is not saved.';
       }
+      if (delivery && ['bomb', 'impact', 'miss'].includes(ctx.params.get('shot') ?? '')) {
+        delivery.setBombCode('1688'); delivery.armed = true; delivery.masterArm = true;
+        delivery.startRun(); delivery.setRelease(true); delivery.step(8, { onTarget: true });
+        if (ctx.params.get('shot') === 'miss') delivery.armed = false;
+        delivery.step(ctx.params.get('shot') === 'bomb' ? 5 : 12, { onTarget: true });
+      }
       const podHost = h('div', { class: 'atflir-pod-host' });
       let pod: PodView | null = null, range: PodView | null = null;
       let nightVision = ctx.params.get('look') !== 'clean';
       const overview = false;
+      let followBomb = true;
       if (ctx.params.get('image') === 'tv') session.ir = false;
       if (ctx.params.get('image') === 'black') session.whiteHot = false;
       const message = h('p', { class: 'atflir-feedback', role: 'status', 'aria-live': 'polite' });
@@ -49,6 +56,7 @@ const page: PageFactory = () => {
       const next = button({ label: nextId ? 'Next lesson' : 'View progress', onClick: () => ctx.navigate(nextId ? `atflir?lesson=${nextId}` : 'progress') });
       const act = (fn: () => void) => { fn(); update(); };
       const look = button({ label: 'Night vision look', lamp: true, onClick: () => act(() => { nightVision = !nightVision; }) });
+      const cameraButton = button({ label: 'Camera: follow bomb', size: 's', onClick: () => act(() => { followBomb = !followBomb; }) });
       const cockpit = createLaserCockpit(() => delivery, () => session, () => update());
       clean.add(() => cockpit.dispose());
       const scs = button({ label: 'SCS Right', keys: 'RAlt+/', onClick: () => act(() => session.scs()) });
@@ -85,7 +93,7 @@ const page: PageFactory = () => {
         const dt = document.hidden ? 0 : Math.min(.05, (now - previous) / 1000);
         const [dx, dy] = input.step(dt, session.fov); previous = now;
         if (dx || dy) session.slew(dx, dy);
-        if (delivery) delivery.step(dt, { onTarget: session.target === 'assigned' && session.designation !== null && (session.mode === 'SCENE' || session.tracked === 'assigned') });
+        if (delivery && !preview) delivery.step(dt, { onTarget: session.target === 'assigned' && session.designation !== null && (session.mode === 'SCENE' || session.tracked === 'assigned') });
         if (dx || dy || delivery) update(true);
         slewFrame = requestAnimationFrame(advanceSlew);
       };
@@ -113,7 +121,7 @@ const page: PageFactory = () => {
         h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE), delivery ? h('p', null, LGB_SOURCE) : null,
           h('ul', null, [...ATFLIR_CAVEATS, ...(delivery ? LGB_CAVEATS : [])].map(text => h('li', null, text)))));
       const viewport = h('div', { class: 'atflir-view' },
-        h('div', { class: 'atflir-viewhead' }, h('span', null, '3D TRAINING RANGE'), h('span', { class: 'atflir-view-tools' }, 'Drag to orbit · scroll to zoom')),
+        h('div', { class: 'atflir-viewhead' }, h('span', null, '3D TRAINING RANGE'), h('span', { class: 'atflir-view-tools' }, cameraButton.el)),
         podHost, status, message);
       const layout = labLayout({ id: 'atflir', class: 'atflir', header: { title: 'ATFLIR', meta: 'F/A-18C · Pod & laser weapons',
         lede: 'Find, designate and track. Set laser codes, deliver a GBU-12 and troubleshoot the shot.' }, viewport, strip: cockpit.blocks, console: controls });
@@ -136,7 +144,8 @@ const page: PageFactory = () => {
           saved = true;
         }
         deliveryPanel?.update(); cockpit.update();
-        pod?.setDelivery(delivery);
+        pod?.setDelivery(delivery); range?.setDelivery(delivery);
+        range?.setFollowBomb(followBomb); cameraButton.setLabel(followBomb ? 'Camera: follow bomb' : 'Camera: range');
         setText(message, delivery ? `${delivery.message} ${session.message}` : session.message);
         setText(status, `TDC ${session.focused ? 'FLIR' : 'NOT ASSIGNED'} · ${FOVS[session.fov]} · ${session.mode === 'AUTO' && !session.tracked ? 'INR AUTO' : session.mode}`);
         steps.forEach((step, i) => { step.dataset.done = String(done[i]); step.setAttribute('aria-label', `${done[i] ? 'Complete' : 'Pending'}: ${lesson.steps[i]}`); });

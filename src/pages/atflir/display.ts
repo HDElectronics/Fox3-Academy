@@ -1,3 +1,4 @@
+import { DeliveryVisual } from './deliveryVisual';
 import type { LaserDeliverySession } from './delivery';
 /** 3D pod view with a separate crisp instrument overlay. Owns and disposes its GPU resources. */
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderer, PCFShadowMap, SRGBColorSpace, ACESFilmicToneMapping } from 'three';
@@ -19,6 +20,7 @@ export class PodView {
   private readonly overview = new PerspectiveCamera(48, 1, .001, 5);
   private readonly orbit: OrbitControls;
   private readonly range: AtflirRange;
+  private readonly deliveryVisual: DeliveryVisual;
   private readonly filter: SensorFilter;
   private readonly observer: ResizeObserver;
   private readonly visibility: IntersectionObserver;
@@ -31,6 +33,9 @@ export class PodView {
   private nightVision = true;
   private obscured = false;
   private isOverview = false;
+  private followBomb = true;
+  private following = false;
+  setFollowBomb(value: boolean): void { this.followBomb = value; }
   private width = 1;
   private height = 1;
   private dpr = 1;
@@ -69,6 +74,7 @@ export class PodView {
     this.filter = new SensorFilter(this.renderer, this.theme);
     this.range = new AtflirRange(this.theme, () => { if (!this.disposed) this.renderer.shadowMap.needsUpdate = true; });
     this.range.scale.setScalar(.001); this.scene.add(this.range);
+    this.deliveryVisual = new DeliveryVisual(this.theme); this.scene.add(this.deliveryVisual);
     this.renderer.shadowMap.needsUpdate = true;
     this.overview.position.set(.32, .28, .36);
     this.orbit = new OrbitControls(this.overview, this.renderer.domElement);
@@ -116,7 +122,19 @@ export class PodView {
     const a = this.reducedMotion ? 1 : 1 - Math.exp(-dt * 14);
     this.aim.lerp(podAim(s), a); this.fov += (POD_FOV[s.fov]! - this.fov) * a;
     setPodCamera(this.camera, this.aim, this.fov);
-    if (this.isOverview) this.orbit.update();
+    this.deliveryVisual.update(this.delivery, s, dt);
+    if (this.isOverview) {
+      const active = this.followBomb && this.deliveryVisual.label !== '';
+      this.orbit.minDistance = active ? .02 : .12;
+      if (active) {
+        const point = this.deliveryVisual.positionCue;
+        const offset = this.delivery?.phase === 'flight' ? new Vector3(.026,.016,.038) : new Vector3(.075,.055,.09);
+        this.overview.position.copy(point).add(offset); this.orbit.target.copy(point); this.orbit.enabled = false;
+      } else if (this.following) {
+        this.overview.position.set(.32,.28,.36); this.orbit.target.set(0,0,0);
+      }
+      this.following = active; this.orbit.enabled = !active; this.orbit.update();
+    }
     this.filter.render(this.scene, this.isOverview ? this.overview : this.camera, {
       infrared: s.ir && !this.isOverview, whiteHot: s.whiteHot, nightVision: this.nightVision && !this.isOverview,
       time: this.reducedMotion ? 0 : time,
@@ -133,8 +151,18 @@ export class PodView {
     const text = (v: string, x: number, y: number) => c.fillText(v, x, y);
     if (this.isOverview) {
       text('TRAINING RANGE', 24, 34);
-      c.font = `12px ${t.fontMono}`; text('Drag to orbit · scroll to zoom', 24, h - 24);
+      c.font = `11px ${t.fontMono}`; text('Bomb enlarged ×4 · illustrative path / impact', 24, 54);
+      if (this.deliveryVisual.label) {
+        const p = this.deliveryVisual.positionCue.clone().project(this.overview);
+        const x = (p.x + 1) * w / 2, y = (1 - p.y) * h / 2;
+        c.strokeStyle = t.caution; c.fillStyle = t.caution;
+        c.beginPath(); c.arc(x,y,11,0,Math.PI*2); c.stroke();
+        c.textAlign = 'center'; text(this.deliveryVisual.label, Math.max(100,Math.min(w-110,x)), Math.max(78,y-20));
+        c.textAlign = 'left'; c.strokeStyle = t.sym; c.fillStyle = t.sym;
+      }
+      c.font = `12px ${t.fontMono}`; text(this.following ? 'FOLLOW BOMB · select Range camera to orbit' : 'Drag to orbit · scroll to zoom', 24, h - 24);
       for (const truck of TARGETS) {
+        if (truck.id === 'assigned' && (this.delivery?.phase === 'hit')) continue;
         const p = new Vector3(truck.x * .001, .007, truck.y * .001).project(this.overview);
         if (p.z > 1 || Math.abs(p.x) > .9 || Math.abs(p.y) > .9) continue;
         const x = (p.x + 1) * w / 2, y = (1 - p.y) * h / 2;
@@ -184,7 +212,7 @@ export class PodView {
     cancelAnimationFrame(this.raf); this.observer.disconnect(); this.visibility.disconnect(); this.orbit.dispose();
     this.renderer.domElement.removeEventListener('webglcontextlost', this.onLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this.onRestored);
-    this.range.dispose(); this.filter.dispose();
+    this.deliveryVisual.dispose(); this.range.dispose(); this.filter.dispose();
     this.scene.traverse(o => { if (o instanceof DirectionalLight) o.shadow.dispose(); });
     this.scene.clear(); this.renderer.dispose(); this.renderer.forceContextLoss(); this.el.remove();
   }

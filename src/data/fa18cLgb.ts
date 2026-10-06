@@ -28,6 +28,7 @@ export const LGB_FACTS = {
 } as const;
 
 export const LGB_CAVEATS = [
+  'The GBU-12 exterior is enlarged four times for visibility. Its displayed flight path, miss offset, blast and smoke are illustrative effects, not weapon performance or damage simulation.',
   'The abbreviated STORES page, UFC option placement and HUD geometry are trainer layouts, not a full cockpit replica. Only the exercised code and laser controls are interactive.',
   'Manual review, not current-game verification: these procedures follow the ED guide dated 24 March 2024.',
   'The aircraft is preconfigured in A/G with one GBU-12, AUTO, MFUZ OFF and EFUZ INST. The training pass is aligned; aircraft handling and bomb ballistics are omitted.',
