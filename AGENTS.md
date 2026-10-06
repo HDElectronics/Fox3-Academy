@@ -105,6 +105,21 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   pull requests get preview URLs. See `docs/deployment.md`. No deploy token or personal endpoint belongs in the
   repository.
 
+## Shared 3D assets
+
+- Keep all production aircraft, missile, bomb/store and ground-unit GLBs in `src/assets/models/`,
+  alongside the existing fleet. Reuse an existing asset before creating or downloading another copy.
+  Do not place model files in lesson folders or create page-specific asset libraries.
+- Keep reproducible Blender generators under `scripts/assets/source/` in the matching category:
+  `aircraft/`, `missiles/`, `stores/` (including bombs such as GBU-12 and GBU-38), or `ground/`.
+  Update `scripts/assets/catalog.json`, the rebuild list when applicable, and
+  `src/assets/models/manifest.json` with origin, licence, reference and approximation notes.
+- Register and load models through `src/render/assetRegistry.ts` and `AssetVisual` in
+  `src/render/assets.ts`. Preserve fallbacks, shared resource ownership and unmount cleanup.
+  Shared rendering belongs in `src/render/`; lesson-specific choreography may stay with its page.
+- Keep `.blend` files, renders and audit outputs in ignored review locations unless the repository's
+  asset packaging explicitly requires them. Audit GLB exports and verify both production build modes.
+
 ## Visual checks
 
 ```
