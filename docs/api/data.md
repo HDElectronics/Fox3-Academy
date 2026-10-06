@@ -553,3 +553,13 @@ reticles and VVSLV reset are explicit abstractions. Offset designation, laser an
 
 ATFLIR IR material contrast and the optional green phosphor filter are visual teaching aids, not modeled
 thermal or night-vision performance. Original 3D scenery uses the repository asset library.
+
+### Hornet laser and GBU-12 lessons
+
+`src/data/fa18cLgb.ts` exports sourced cockpit procedures, code presets, timing constants and caveats.
+Evidence: [fa18c-lgb.md](../research/fa18c-lgb.md). Uncertain values: the 8-second approach, 12-second
+flight, 6-second automatic-laser window and continuous final-3-second illumination rule are arbitrary
+lesson pacing, not DCS measurements. Only the two-second manual trigger pulse is sourced. 1688/1687 are
+exercise presets, not a complete code validator. Masking, track/laser transitions and release conditions
+need in-game observations. The page-local model captures bomb code at release; LTDC remains independently
+adjustable. Release guards for an assigned target and configured code are training requirements.
