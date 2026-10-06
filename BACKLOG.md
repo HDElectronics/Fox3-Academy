@@ -30,6 +30,10 @@ v0.1.0 validation baseline: 413 tests pass, typecheck clean, all 8 pages load wi
   SA-8/11/15/10, when DCS AI radars go quiet against a HARM, the TOO elevation limits and the pullback label
   (`HARM_CAVEATS` in `src/pages/harm/data.ts`). Labelled until checked.
 
+- **B43. Verify Hornet ATFLIR laser and GBU-12 behavior in DCS** ([#88](https://github.com/HDElectronics/Fox3-Academy/issues/88)).
+  Check code entry, release consent, REL/LASER/TTI transitions, masking and interrupted illumination against
+  current DCS. Evidence and arbitrary trainer timings are in [fa18c-lgb.md](docs/research/fa18c-lgb.md).
+
 ## P2 — Display, UX and API cleanup
 
 Flight-ops polish (#33), SAM follow-ups (#34), CAS follow-ups (#61) and the per-jet Learn bar (#83) shipped.

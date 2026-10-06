@@ -1,10 +1,13 @@
-/** F/A-18C ATFLIR foundations. Page-local synthetic pod; no flight or weapon simulation. */
+/** F/A-18C ATFLIR foundations. Page-local synthetic pod and simplified laser delivery exercises. */
 import type { PageFactory } from '../../app/page';
 import { h, button, row, group, labLayout, bindKeys, cleanup, setText } from '../../ui';
 import { ATFLIR_CAVEATS, ATFLIR_SOURCE } from '../../data/atflir';
 import { LESSON_ORDER, LESSONS, lessonId, progressKey } from './lessons';
 import { AtflirSession, FOVS } from './model';
 import { SlewInput, SLEW_TAP } from './slew';
+import { LaserDeliverySession, type TroubleCase } from './delivery';
+import { deliveryControls } from './deliveryControls';
+import { LGB_CAVEATS, LGB_SOURCE } from '../../data/fa18cLgb';
 import { PodView } from './display';
 import './style.css';
 const page: PageFactory = () => {
@@ -14,6 +17,18 @@ const page: PageFactory = () => {
       const id = lessonId(ctx.params.get('lesson')), lesson = LESSONS[id];
       let session = new AtflirSession(id), saved = false;
       const preview = ctx.params.has('shot');
+      const cases = ['code', 'track', 'laser'] as const;
+      const troubleCase: TroubleCase = cases.find(c => c === ctx.params.get('case')) ?? 'code';
+      const isDelivery = id === 'laser' || id === 'delivery' || id === 'troubleshoot';
+      let delivery = isDelivery ? new LaserDeliverySession(id, troubleCase) : null;
+      const preparePod = () => {
+        if (!delivery) return;
+        session.focused = true; session.x = 140; session.y = -70; session.fov = 2;
+        session.message = 'Assigned truck acquired. Use Undesignate if you need to reposition.';
+        session.mode = 'AUTO'; session.tracked = 'assigned'; session.designation = { x: 140, y: -70 };
+        if (id === 'troubleshoot' && troubleCase === 'track') session.loseTrack();
+      };
+      preparePod();
       if (ctx.params.get('shot') === 'track') {
         session.focused = true; session.x = 140; session.y = -70; session.fov = 2;
         session.mode = 'AUTO'; session.tracked = 'assigned';
@@ -41,6 +56,7 @@ const page: PageFactory = () => {
       const fov = button({ label: 'FOV', keys: 'I', onClick: () => act(() => session.cycleFov()) });
       const sensor = button({ label: 'IR / TV', onClick: () => act(() => { session.ir = !session.ir; }) });
       const polarity = button({ label: 'WHT / BLK', onClick: () => act(() => { session.whiteHot = !session.whiteHot; }) });
+      const deliveryPanel = delivery ? deliveryControls(() => delivery!, () => update(), clean) : null;
       const input = new SlewInput();
       const tap = (x: number, y: number) => act(() => session.slew(x * SLEW_TAP[session.fov]!, y * SLEW_TAP[session.fov]!));
       const hold = (source: string, x: number, y: number) => { if (input.press(source, x, y)) tap(x, y); };
@@ -59,12 +75,16 @@ const page: PageFactory = () => {
       const directions = h('div', { class: 'atflir-slew' },
         direction('Up', ';', 0, -1), direction('Left', ',', -1, 0),
         direction('Down', '.', 0, 1), direction('Right', '/', 1, 0));
-      clean.on(window, 'blur', () => input.clear());
-      clean.on(document, 'visibilitychange', () => { if (document.hidden) input.clear(); });
+      const releaseInputs = () => { input.clear(); session.depress(false); delivery?.setTrigger(false); delivery?.setRelease(false); };
+      clean.on(window, 'blur', releaseInputs);
+      clean.on(document, 'visibilitychange', () => { if (document.hidden) releaseInputs(); });
       let slewFrame = 0, previous = performance.now();
       const advanceSlew = (now: number) => {
-        const [dx, dy] = input.step((now - previous) / 1000, session.fov); previous = now;
-        if (dx || dy) { session.slew(dx, dy); update(true); }
+        const dt = document.hidden ? 0 : Math.min(.05, (now - previous) / 1000);
+        const [dx, dy] = input.step(dt, session.fov); previous = now;
+        if (dx || dy) session.slew(dx, dy);
+        if (delivery) delivery.step(dt, { onTarget: session.target === 'assigned' && session.designation !== null && (session.mode === 'SCENE' || session.tracked === 'assigned') });
+        if (dx || dy || delivery) update(true);
         slewFrame = requestAnimationFrame(advanceSlew);
       };
       slewFrame = requestAnimationFrame(advanceSlew);
@@ -77,22 +97,24 @@ const page: PageFactory = () => {
         href: `#/atflir?lesson=${key}`, 'aria-current': key === id ? 'page' : undefined,
       }, `${i + 1}. ${LESSONS[key].title}`)));
       const controls = h('div', { class: 'atflir-controls' }, tabs,
-        h('section', { class: 'atflir-brief' }, h('div', { class: 'ui-placard' }, `Exercise ${LESSON_ORDER.indexOf(id) + 1} / 4`),
+        h('section', { class: 'atflir-brief' }, h('div', { class: 'ui-placard' }, `Exercise ${LESSON_ORDER.indexOf(id) + 1} / ${LESSON_ORDER.length}`),
           h('h2', null, lesson.title), h('p', null, lesson.goal), h('ol', { class: 'atflir-steps' }, steps), result, next.el),
+        id === 'troubleshoot' ? h('nav', { class: 'atflir-lessons', 'aria-label': 'Troubleshooting cases' }, cases.map(c => h('a', { href: `#/atflir?lesson=troubleshoot&case=${c}`, 'aria-current': troubleCase === c ? 'page' : undefined }, `${c === 'code' ? 'Code mismatch' : c === 'track' ? 'Lost track' : 'Laser off'}${ctx.app.getProgress(`atflir:troubleshoot:${c}:fa18c`) ? ' · Done' : ''}`))) : null,
+        deliveryPanel?.el,
         group({ label: 'Right DDI · Sensor control', children: [row(scs.el, un.el), dep.el,
           h('small', null, 'TDC depress: hold Enter, or use the on-screen latch.')] }),
         group({ label: 'TDC slew', children: [directions], hint: 'Hold a direction button or key to slew smoothly. Tap for fine adjustments; narrower FOV slows the slew.' }),
         group({ label: 'Image', children: [row(fov.el, sensor.el, polarity.el)] }),
         group({ label: 'Viewing aid', children: [look.el], hint: 'Green phosphor filter. A visual aid, not a separate ATFLIR mode.' }),
-        id === 'recover' ? group({ label: 'Optional lost-track practice', children: [obstruction.el], hint: 'A scripted obstruction, not DCS masking behavior.' }) : null,
-        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { input.clear(); session = new AtflirSession(id); saved = false; update(); } }).el,
-        h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE),
-          h('ul', null, ATFLIR_CAVEATS.map(text => h('li', null, text)))));
+        (id === 'recover' || isDelivery) ? group({ label: 'Optional lost-track practice', children: [obstruction.el], hint: 'A scripted obstruction, not DCS masking behavior.' }) : null,
+        button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { input.clear(); session = new AtflirSession(id); delivery = isDelivery ? new LaserDeliverySession(id, troubleCase) : null; preparePod(); saved = false; update(); } }).el,
+        h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE), delivery ? h('p', null, LGB_SOURCE) : null,
+          h('ul', null, [...ATFLIR_CAVEATS, ...(delivery ? LGB_CAVEATS : [])].map(text => h('li', null, text)))));
       const viewport = h('div', { class: 'atflir-view' },
         h('div', { class: 'atflir-viewhead' }, h('span', null, 'RIGHT DDI / FLIR'), h('span', { class: 'atflir-view-tools' }, h('span', null, '3D TRAINING RANGE'), view.el)),
         podHost, status, message);
-      const layout = labLayout({ id: 'atflir', class: 'atflir', header: { title: 'ATFLIR', meta: 'F/A-18C · Foundation lessons',
-        lede: 'Give the pod control. Find, designate and track. Recover when the image stops following.' }, viewport, console: controls });
+      const layout = labLayout({ id: 'atflir', class: 'atflir', header: { title: 'ATFLIR', meta: 'F/A-18C · Pod & laser weapons',
+        lede: 'Find, designate and track. Set laser codes, deliver a GBU-12 and troubleshoot the shot.' }, viewport, console: controls });
       ctx.root.append(layout.el); clean.add(() => layout.destroy());
       try {
         pod = new PodView(session); podHost.append(pod.el); clean.add(() => pod?.dispose());
@@ -101,12 +123,22 @@ const page: PageFactory = () => {
         console.error('ATFLIR 3D view failed to initialise', error);
       }
       function update(continuous = false) {
-        if (session.complete && !saved && !preview) { ctx.app.setProgress(progressKey(id), true); saved = true; }
-        setText(message, session.message);
+        const done = delivery?.done ?? session.done;
+        const complete = delivery?.complete ?? session.complete;
+        if (complete && !saved && !preview) {
+          if (id === 'troubleshoot') {
+            ctx.app.setProgress(`atflir:troubleshoot:${troubleCase}:fa18c`, true);
+            if (cases.every(c => ctx.app.getProgress(`atflir:troubleshoot:${c}:fa18c`) === true)) ctx.app.setProgress(progressKey(id), true);
+          } else ctx.app.setProgress(progressKey(id), true);
+          saved = true;
+        }
+        deliveryPanel?.update();
+        pod?.setDelivery(delivery);
+        setText(message, delivery ? `${delivery.message} ${session.message}` : session.message);
         setText(status, `TDC ${session.focused ? 'FLIR' : 'NOT ASSIGNED'} · ${FOVS[session.fov]} · ${session.mode === 'AUTO' && !session.tracked ? 'INR AUTO' : session.mode}`);
-        steps.forEach((step, i) => { step.dataset.done = String(session.done[i]); step.setAttribute('aria-label', `${session.done[i] ? 'Complete' : 'Pending'}: ${lesson.steps[i]}`); });
-        setText(result, session.complete ? preview ? 'Preview — progress not saved.' : 'Exercise complete. Progress saved.' : ctx.app.getProgress(progressKey(id)) === true ? 'Previously completed. This attempt starts fresh.' : 'Complete all three checks to save this lesson.');
-        next.el.hidden = !session.complete;
+        steps.forEach((step, i) => { step.dataset.done = String(done[i]); step.setAttribute('aria-label', `${done[i] ? 'Complete' : 'Pending'}: ${lesson.steps[i]}`); });
+        setText(result, complete ? preview ? 'Preview — progress not saved.' : id === 'troubleshoot' ? 'Case complete. Choose the next case above; all three finish this lesson.' : 'Exercise complete. Progress saved.' : ctx.app.getProgress(progressKey(id)) === true ? 'Previously completed. This attempt starts fresh.' : 'Complete all three checks to save this lesson.');
+        next.el.hidden = !complete || (id === 'troubleshoot' && ctx.app.getProgress(progressKey(id)) !== true);
         dep.setLit(session.depressed); dep.el.setAttribute('aria-pressed', String(session.depressed));
         dep.setLabel(session.depressed ? 'Release TDC depress' : 'Hold TDC depress');
         polarity.setDisabled(!session.ir); fov.setLabel(FOVS[session.fov]!);
@@ -118,6 +150,8 @@ const page: PageFactory = () => {
         pod?.update(session, nightVision, overview, preview, continuous);
       }
       clean.add(bindKeys({
+        Space: { down: () => act(() => delivery?.setTrigger(true)), up: () => act(() => delivery?.setTrigger(false)) },
+        'RAlt+Space': { down: () => act(() => delivery?.setRelease(true)), up: () => act(() => delivery?.setRelease(false)) },
         'RAlt+/': () => act(() => session.scs()), S: () => act(() => session.undesignate()),
         I: () => act(() => session.cycleFov()),
         Enter: { down: () => act(() => session.depress(true)), up: () => act(() => session.depress(false)) },

@@ -1,3 +1,4 @@
+import type { LaserDeliverySession } from './delivery';
 /** 3D pod view with a separate crisp instrument overlay. Owns and disposes its GPU resources. */
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderer, PCFShadowMap, SRGBColorSpace, ACESFilmicToneMapping } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -22,6 +23,8 @@ export class PodView {
   private readonly observer: ResizeObserver;
   private readonly visibility: IntersectionObserver;
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private delivery: LaserDeliverySession | null = null;
+  setDelivery(value: LaserDeliverySession | null): void { this.delivery = value; }
   private session: AtflirSession;
   private aim = new Vector3();
   private fov = POD_FOV[0] as number;
@@ -142,6 +145,14 @@ export class PodView {
     }
     text(FOVS[s.fov]!, 24, 34); text(s.ir ? `IR  ${s.whiteHot ? 'WHT' : 'BLK'}` : 'TV', 24, 55);
     c.textAlign = 'right'; text(s.focused ? 'TDC ◇' : 'NO TDC', w - 24, 34);
+    if (this.delivery) {
+      const d = this.delivery;
+      text(`LTDC ${d.laserCode}`, w - 24, 58);
+      text(d.armed ? 'L ARM' : 'L SAFE', w - 24, 82);
+      if (d.cue) text(`${d.cue} ${Math.ceil(d.cueTime)}`, w - 24, 106);
+      c.textAlign = 'left'; text(d.laserOn ? 'LASING · TRAINING' : 'LASER OFF', 24, 82);
+      c.textAlign = 'right';
+    }
     text('A/G', w - 24, h - 26); c.textAlign = 'left'; text('OPR', 24, h - 26);
     c.textAlign = 'center'; text(s.mode === 'AUTO' && !s.tracked ? 'INR AUTO' : s.mode, w / 2, h - 26);
     const cx = w / 2, cy = h / 2;

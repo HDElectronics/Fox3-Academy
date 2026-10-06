@@ -31,3 +31,5 @@
 @media (max-width: 900px) { .atflir .ui-lab__view { min-height: 500px; max-height: none; } }
 
 .atflir-slew .ui-btn { touch-action: none; user-select: none; }
+.atflir-delivery-readout { white-space: pre-line; font: 13px var(--font-mono); color: var(--panel-ink); line-height: 1.8; }
+.atflir-controls select { display: block; margin-top: 5px; padding: 7px; font: 13px var(--font-mono); color: var(--panel-ink); background: var(--panel); border: 1px solid var(--panel-line); }

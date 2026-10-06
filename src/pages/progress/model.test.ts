@@ -16,9 +16,9 @@ const read = (values: Record<string, number | boolean | string> = {}): ProgressR
 afterEach(() => vi.unstubAllGlobals());
 
 describe('fleet progress', () => {
-  it('counts the four Hornet ATFLIR exercises independently', () => {
+  it('counts the seven Hornet ATFLIR exercises independently', () => {
     const goals = jetProgress('fa18c', read({ 'atflir:track:fa18c': true })).goals.filter(g => g.id.startsWith('atflir-'));
-    expect(goals).toHaveLength(4);
+    expect(goals).toHaveLength(7);
     expect(goals.filter(g => g.done).map(g => g.id)).toEqual(['atflir-track']);
     expect(goals[0]!.href).toBe('#/atflir?lesson=control&ac=fa18c');
     expect(jetProgress('f16c', read()).goals.some(g => g.id.startsWith('atflir-'))).toBe(false);

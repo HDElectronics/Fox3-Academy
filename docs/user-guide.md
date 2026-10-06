@@ -287,13 +287,30 @@ optional scripted obstruction. Its clear button restores visibility, not the tra
 The pod now looks into a 3D depot with Blender-authored trucks, buildings, fences and textured ground.
 **3D overview** opens an orbitable view for orientation; **Return to pod** restores the targeting image.
 **Night vision look** toggles a green phosphor filter with grain and vignette, independently of IR/TV and
-WHT/BLK. This is a visual aid, not an additional Hornet mode. Reticles, FOV and acquisition remain simplified. No laser or weapon
-delivery is included. Source and limits are available inside the page.
+WHT/BLK. This is a visual aid, not an additional Hornet mode. Reticles, FOV and acquisition remain simplified. Source and limits are available inside the page.
+
+#### Hornet laser and GBU-12 exercises
+
+After pod recovery, **Set up the laser** teaches independent FLIR UFC → LTDC and SMS → CODE entries.
+Choose a preset and press its ENT button; the readout shows the committed codes. Arm LTD/R, box TRIG,
+then press or hold the trigger (Space). A tap emits for two seconds.
+
+**GBU-12 AUTO** starts with the assigned truck acquired. A/G, 82LG, AUTO, MFUZ OFF, EFUZ INST and
+aligned flight are preset. Set matching codes, arm LTD/R and Master Arm, leave TRIG unboxed, start the
+training pass, then hold Weapon Release (RAlt+Space or the on-screen button) through REL zero.
+Watch LASER count to automatic emission, then TTI to the training result.
+
+**Troubleshoot LGB** has code mismatch, lost track and laser-off cases. Each completed delivery saves
+its case; all three finish the lesson. For lost track, clear the scripted obstruction, Undesignate,
+then request SCENE and AUTO with SCS Right. Reload retains corrected settings; Restart restores the fault.
+
+The 8/12-second run and final-three-second illumination check are arbitrary training rules, not DCS
+ballistics or laser performance. A full flight model, cockpit UFC replica and pod masking are omitted.
 
 ### HARM & SEAD (F/A-18C)
 The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Eight lessons:
 **Radars** (a 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10 batteries: which vehicle carries the radar, its
-RWR symbol, TOO class and PB code), **Homing** (four films: a straight SP / TOO shot, the radar switching off
+RWR symbol, TOO class and PB code), **Homing** (seven films: a straight SP / TOO shot, the radar switching off
 mid-flight so the HARM misses, a PB shot that lofts to the point and then listens, and an A/C pull-up),
 **SP** (Master Arm `M`, A/G `2`, HARM on the stores page, HUD on the EW page, weapon release RAlt + Space),
 **TOO** (TDC to the HARM display with RAlt + /, CLASS H2, box with `I`, hand off with `C`), **PB** (UFC, window 4 TGT,
