@@ -170,7 +170,7 @@ export const TRAINER = {
   pbSeekerOnM: 12_000,
   /** PB: the HARM finds an emitter of the coded type within this distance of the point (m). */
   pbSearchRadiusM: 4_000,
-  /** A radar with evasion on goes quiet when a HARM homing on it is this close (m), for this long (s). */
+  /** Once per run, a site with evasion on goes quiet when a HARM homing on it is this close (m), for this long (s). */
   evadeAtM: 15_000,
   evadeForS: 45,
 } as const;
@@ -182,7 +182,7 @@ export const HARM_CAVEATS: string[] = [
   'In-range distances for PB (40 nm for a HARM pull-up at 25000 ft, 30 % more for an A/C pull-up, 5 nm minimum) are trainer values, not DCS figures. The guide only says up to 80 nm depending on altitude.',
   'The HUD release cues are placed by a trainer rule: the A/C pull-up cue near 45° at long range, the HARM pull-up cue a few degrees up. Fly the cues the same way as in DCS; their exact positions differ.',
   'RWR detection and lock ranges: the SA-6 uses the DCS encyclopedia (75 km, 28 km); the others are round trainer numbers.',
-  'A radar that "evades" goes quiet when your HARM is 15 km away and stays off 45 s. DCS AI decides this itself (Mission Editor option "Evasion of ARM").',
+  'Each evading site shuts down once per run when a homing HARM is 15 km away, stays off 45 s, then keeps transmitting so you can retry. This is a scripted training simplification; DCS AI decides when to shut down itself (Mission Editor option "Evasion of ARM").',
   'TOO format: only azimuth limits the 30° field of view here; each emitter is drawn at half its angle below the nose, clamped inside the T marks.',
   'The EW page is one ring with symbols at their bearing; the ALR-67 display in DCS has more detail.',
   'The pullback label position in the HUD is not verified.',

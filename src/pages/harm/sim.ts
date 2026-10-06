@@ -37,8 +37,10 @@ export interface Site {
   active: boolean;
   /** Locks the jet and shoots (mission 2); false = weapons hold (mission 1). */
   live: boolean;
-  /** Goes quiet when a HARM homes on it (Mission Editor "Evasion of ARM"). */
+  /** Enables one scripted shutdown per run; a trainer stand-in for DCS ARM evasion. */
   evades: boolean;
+  /** This site has used its scripted shutdown, shared by all its emitters. */
+  evaded: boolean;
   quietUntil: number;
   /** Continuous lock time on the jet (s). */
   lockS: number;
@@ -76,7 +78,6 @@ export interface Harm {
   range0: number;
   lost: boolean;
   alive: boolean;
-  evaded: boolean;
 }
 
 export interface SamMissile { id: string; siteId: string; pos: Vec3; vel: Vec3; t0: number; guided: boolean; alive: boolean }
@@ -144,7 +145,7 @@ export class HarmSim {
         id: l.id, pos: v3(s.at.x + l.dx, 0, s.at.z - l.dn), headingRad: Math.PI * 1.5, radar: radarOf(s.system, l.id), alive: true,
       })),
       active: s.active ?? true, live: s.live ?? false, evades: s.evades ?? false,
-      quietUntil: -1, lockS: 0, notchUntil: -1, missiles: 4,
+      evaded: false, quietUntil: -1, lockS: 0, notchUntil: -1, missiles: 4,
     }));
   }
 
@@ -213,7 +214,7 @@ export class HarmSim {
     const s = this.jet.speed;
     const h: Harm = {
       id: `harm-${this.nextId++}`, pos: { ...this.jet.pos, y: this.jet.pos.y - 2 }, vel: v3(d.x * s, d.y * s, d.z * s), t0: this.t,
-      kind, targetKey: key, pbPoint: point, pbCode: code, loftDeg, range0, lost: false, alive: true, evaded: false,
+      kind, targetKey: key, pbPoint: point, pbCode: code, loftDeg, range0, lost: false, alive: true,
     };
     this.harms.push(h);
     this.events.push({ t: this.t, type: 'harm-launch', harmId: h.id, text: 'Magnum: HARM away' });
@@ -347,9 +348,9 @@ export class HarmSim {
       this.events.push({ t: this.t, type: 'harm-lost', harmId: m.id, text: `The ${target.radar.name} went quiet: HARM lost guidance` });
     }
 
-    // Evasion: a site that evades goes quiet when the HARM homing on it gets close.
-    if (target && !m.lost && !m.evaded && target.site.evades && len(sub(target.vehicle.pos, m.pos)) < TRAINER.evadeAtM) {
-      m.evaded = true;
+    // One scripted shutdown per site/run lets the lesson's wait-and-retry instruction succeed.
+    if (target && !m.lost && !target.site.evaded && target.site.evades && len(sub(target.vehicle.pos, m.pos)) < TRAINER.evadeAtM) {
+      target.site.evaded = true;
       target.site.quietUntil = this.t + TRAINER.evadeForS;
       this.events.push({ t: this.t, type: 'radar-quiet', siteId: target.site.id, text: `${target.site.name} switched its radar off` });
     }

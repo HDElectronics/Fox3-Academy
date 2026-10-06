@@ -1,9 +1,10 @@
 // HARM page logic: the page-local sim and the Hornet HARM avionics (SP, TOO, PB, Pullback, UFC), against the rules in
 // docs/research/fa18c-harm.md.
 import { describe, expect, it } from 'vitest';
-import { HarmSim, type SimSetup } from './sim';
+import { HarmSim, bearingDeg, type SimSetup } from './sim';
 import { HarmAvionics, inClass, pbCues, pbRanges, threatOrder } from './avionics';
 import { ALIC_TABLE, HARM_STATIONS, SYSTEMS, SYSTEM_ORDER } from './data';
+import { LESSONS } from './lessons';
 import { CLASS_OSB } from './types';
 
 const NM = 1852;
@@ -85,6 +86,64 @@ describe('SP', () => {
     run(sim, av, 120, () => types(sim).includes('harm-miss') || types(sim).includes('harm-kill'));
     expect(types(sim)).toContain('radar-quiet');
     expect(types(sim)).not.toContain('harm-kill');
+  });
+});
+
+describe('Live SEAD retry', () => {
+  it.each(['SP', 'TOO'] as const)('kills the SA-6 with a second %s shot after its shutdown', mode => {
+    const lesson = LESSONS.live.setup!();
+    const sim = new HarmSim(lesson.sim);
+    const av = new HarmAvionics(sim, lesson.waypoints(id => sim.sites.find(s => s.id === id)!.vehicles[0]!.pos));
+    const radar = sim.emitters().find(e => e.site.id === 'sa6')!;
+    ready(av);
+    if (mode === 'TOO') { av.osb(4); av.tdcToHarm(); }
+    const fire = () => {
+      if (mode === 'TOO') expect(av.cage().ok).toBe(true);
+      expect(av.setRelease(true)?.ok).toBe(true);
+      av.setRelease(false);
+    };
+    fire();
+    run(sim, av, 150, () => types(sim).includes('harm-lost'));
+    expect(types(sim)).toContain('radar-quiet');
+    expect(sim.harms[0]!.lost).toBe(true);
+    run(sim, av, 50, () => sim.transmitting(radar));
+    expect(sim.transmitting(radar)).toBe(true);
+    fire();
+    run(sim, av, 120, () => !radar.vehicle.alive);
+    expect(radar.vehicle.alive).toBe(false);
+    expect(sim.events.filter(e => e.type === 'radar-quiet' && e.siteId === 'sa6')).toHaveLength(1);
+    expect(av.launches).toBe(2);
+
+    // Finish the actual Live setup with the two remaining HARMs in PB.
+    const snowDrift = sim.emitters().find(e => e.vehicle.id === 'sa11-sr')!;
+    av.osb(3);
+    av.osb(14);
+    av.ufcKey('OPT4');
+    for (const key of ['1', '0', '7', 'ENT'] as const) av.ufcKey(key);
+    av.selectWaypoint(1);
+    av.wpdsg();
+    const firePb = () => {
+      sim.jet.turnCmd = 0;
+      sim.jet.headingRad = bearingDeg(sim.jet.pos, snowDrift.vehicle.pos) * Math.PI / 180;
+      sim.jet.pitchRad = av.pbState()!.cue! * Math.PI / 180;
+      expect(av.setRelease(true)?.ok).toBe(true);
+      av.setRelease(false);
+      // Orbit while the weapon flies to keep the test pilot outside the launch zone.
+      sim.jet.turnCmd = 1;
+    };
+    firePb();
+    run(sim, av, 150, () => sim.harms[2]!.lost);
+    expect(sim.harms[2]!.lost).toBe(true);
+    run(sim, av, 50, () => sim.transmitting(snowDrift));
+    expect(sim.transmitting(snowDrift)).toBe(true);
+    firePb();
+    run(sim, av, 180, () => !snowDrift.vehicle.alive);
+    expect(snowDrift.vehicle.alive).toBe(false);
+    expect(sim.jet.alive).toBe(true);
+    expect(av.launches).toBe(4);
+    expect(av.stations).toHaveLength(0);
+    expect(sim.events.filter(e => e.type === 'radar-quiet')).toHaveLength(2);
+    expect(new HarmSim(lesson.sim).sites.every(s => !s.evaded)).toBe(true);
   });
 });
 

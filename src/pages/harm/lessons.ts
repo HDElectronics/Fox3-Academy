@@ -293,7 +293,7 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
   },
   live: {
     id: 'live', title: 'Live SEAD run', short: 'Live', kind: 'drill',
-    goal: 'Mission 2 in small: a live SA-6 that switches off when it sees a HARM, and a live SA-11 at WP4. Kill both radars and come home.',
+    goal: 'A live SA-6 and a live SA-11 at WP4. Each site makes one scripted shutdown, then stays on for your retry. Kill both radars and survive.',
     setup: () => ({
       sim: {
         jet,
@@ -308,12 +308,12 @@ export const LESSONS: Record<HarmLessonId, HarmLesson> = {
       ...armed,
       {
         id: 'sa6', text: 'Kill the SA-6 radar from outside its reach (TOO or SP).',
-        why: 'If the 6 goes quiet while your HARM flies, it switched off and the HARM will probably miss: wait for it to come back and shoot again.',
+        why: 'The first HARM triggers a 45 s shutdown. Keep outside its reach, wait for 6 to return, then shoot again. Each site shuts down only once in this simplified drill.',
         check: s => s.kills.includes('sa6-str'),
       },
       {
         id: 'sa11', text: 'Kill the SA-11 Snow Drift with a PB shot (code 107, WPDSG on WP4).',
-        why: 'From stand-off the SA-11 cannot reach you; PB gives you a range and a time of flight.',
+        why: 'Stay outside its reach. The SA-11 also shuts down once: wait for SD to return, then repeat the PB shot. Save two HARMs for this site.',
         check: s => s.kills.includes('sa11-sr'),
       },
       { id: 'alive', text: 'Stay alive.', why: 'Beam a launch and drop chaff (E), or kill the radar guiding it.', check: s => s.jetAlive && s.kills.includes('sa6-str') && s.kills.includes('sa11-sr') },

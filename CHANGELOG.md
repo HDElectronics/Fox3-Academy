@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix the HARM Live lesson: each SAM site makes one scripted shutdown, so waiting for its radar to return
+  and firing again can destroy the SA-6 and SA-11 within the four-HARM loadout. The lesson labels this simplification.
+
 - The site is organised by jet (#83). The Learn bar lists only the pages the selected jet can open, grouped as BVR,
   Close combat, Flying and the jet's own pages under its name, and fits on one row at 1440 px. Practice drops labs the
   jet cannot fly. The Su-25T and A-10C II get a Learn landing with their own pages and a Continue button instead of

@@ -341,7 +341,9 @@ and shown on the page:
   round trainer numbers (`TRAINER.detectM`, `TRAINER.lockM`).
 - PB: the HARM listens within 4 km of the point and the nearest radar of the code wins (also in the animated
   explainer, `pbExplain.ts`).
-- Radar evasion (quiet at 15 km for 45 s) stands in for the Mission Editor's "Evasion of ARM" AI.
+- Radar evasion (quiet at 15 km for 45 s, once per site per run) is a scripted teaching rule, not a verified
+  DCS AI policy. `Site.evaded` records the shutdown across all its emitters and resets with a new `HarmSim`.
+  Returning radars stay on so the Live lesson can be completed with the four loaded HARMs.
 - TOO: only azimuth limits the 30° field of view; heights on the format are drawn at half the depression angle.
 - The EW page is a single ring; the pullback label's HUD position and several DDI layout details are trainer
   layout (comments in `ddi.ts`, `ew.ts`, `hud.ts`).
