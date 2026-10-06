@@ -23,3 +23,7 @@ The manual's quick procedure says to press Weapon Release; no JDAM-specific mini
 The bomb snapshots the designated target on release. A later designation change does not move the released bomb. The exercise succeeds when the assigned target was selected, otherwise it depicts a miss of the assigned target. Laser controls have no role. Paths, enlarged exterior and impact effects are visual teaching aids only.
 
 The abbreviated cockpit omits PP coordinate entry, multi-store sequencing, alignment-quality progression and advanced delivery modes. Current-DCS button-hold details, display fidelity and readiness behaviour remain to be checked in game. Export these caveats from `src/data/fa18cJdam.ts` and show them in the lesson; list uncertainties in the shared data API documentation.
+
+### STORES display consistency
+
+The trainer reuses the Hornet HARM display’s legend drawing, button numbering, phosphor typography and stylised wingform. ED guide pp. 331–334 places weapon selection on the top row, MODE at PB5, and EFUZ at PB3. The EFUZ submenu offers OFF at PB5 and INST at PB3; unsupported fuze options are omitted. Spacing and the single-store planform are simplified; the mission-format and PP programming pages are not implemented.

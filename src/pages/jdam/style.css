@@ -1,3 +1,9 @@
 .jdam .atflir-ddi-bottom { font: 11px var(--font-mono); color: var(--sym); }
 .jdam .atflir-stores .ui-row { flex-wrap: wrap; justify-content: space-between; }
 .jdam .harm-ufc button:disabled { opacity: .4; cursor: default; }
+.jdam-stores { position: relative; background: var(--screen); }
+.jdam-stores .harm-ddi-canvas { width: 100%; height: 100%; }
+.jdam-osb { position: absolute; padding: 0; border: 0; background: transparent; cursor: pointer; color: var(--sym); }
+.jdam-osb--top { width: 14%; height: 12%; transform: translate(-50%, -37.5%); }
+.jdam-osb--left { width: 12%; height: 14%; transform: translate(-25%, -50%); }
+.jdam-osb:hover, .jdam-osb:focus-visible { outline: 1px solid var(--sym); outline-offset: -2px; }

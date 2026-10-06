@@ -32,7 +32,12 @@ for normal static hosts.
 5. **Design system only.** Colours come from `src/styles/tokens.css` (or `readTheme()` in canvas/WebGL code).
    Fonts: Russo One for page titles only, IBM Plex Sans for prose, B612 Mono for every instrument, label and
    button. Copy is pilot-to-pilot: short, concrete, correct DCS vocabulary, no exclamation marks, no emoji.
-6. **Pages clean up.** `unmount()` stops the loop, disposes the Stage, removes every listener, stops audio.
+6. **Keep cockpit displays consistent with the aircraft and earlier lessons.** Before building or changing a
+   lesson, inspect the existing lessons for that aircraft and reuse their display components, bezels, fonts,
+   symbology and pushbutton numbering. Follow the aircraft's sourced DCS layouts and control behavior; do not
+   replace DDIs with generic web buttons or invent a new cockpit style per course. For Hornet lessons, retain
+   the established 3D view above the HUD, DDIs and UFC. Label simplified layouts and unimplemented functions.
+7. **Pages clean up.** `unmount()` stops the loop, disposes the Stage, removes every listener, stops audio.
 
 ## Commands
 

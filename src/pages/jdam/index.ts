@@ -7,6 +7,9 @@ import { PodView } from '../atflir/display';
 import { AtflirSession } from '../atflir/model';
 import { bindKeyboardHold } from '../atflir/hold';
 import { JdamSession } from './model';
+import { JdamStoresDdi } from './ddi';
+import { hornetOsbAnchor } from '../harm/ddi';
+import type { Osb } from '../harm/types';
 import { JDAM_CAVEATS, JDAM_SOURCE } from '../../data/fa18cJdam';
 import { JDAM_ORDER, JDAM_LESSONS, jdamKey, jdamLesson } from './lessons';
 import '../atflir/style.css';
@@ -21,9 +24,7 @@ const page: PageFactory = () => {
     const worldHost = h('div', { class: 'atflir-pod-host' }), podHost = h('div', { class: 'atflir-ddi-pod' });
     let world: PodView | null = null, pod: PodView | null = null;
     const act = (fn:()=>void) => { fn(); update(); };
-    const select = button({ label:'J-82',lamp:true,onClick:()=>act(()=>session.selectWeapon(!session.selected)) });
-    const mode = button({ label:'MODE TOO',onClick:()=>act(()=> {session.mode=session.mode==='TOO'?'PP':'TOO';}) });
-    const fuze = button({ label:'EFUZ OFF',onClick:()=>act(()=> {session.efuz=session.efuz==='OFF'?'INST':'OFF';}) });
+    let fuzeMenu = false;
     const master = button({label:'MASTER ARM SAFE',lamp:true,onClick:()=>act(()=>{session.masterArm=!session.masterArm;})});
     const ag = button({label:'A/G',lamp:true,onClick:()=>act(()=>{session.ag=!session.ag;})});
     const skip = button({label:'Skip warmup · training aid',onClick:()=>act(()=>session.skipWarmup())});
@@ -43,8 +44,22 @@ const page: PageFactory = () => {
     const next=JDAM_ORDER[JDAM_ORDER.indexOf(id)+1];
     const nextButton=button({label:next?'Next lesson':'View progress',onClick:()=>ctx.navigate(next?`jdam?lesson=${next}`:'progress')});
     const hud=h('canvas',{width:400,height:400,'aria-label':'JDAM HUD: manual release and range status'});
-    const storesText=h('div',{class:'atflir-stores-readout'});
-    const stores=h('div',{class:'atflir-stores ui-fill'},row(select.el,mode.el),storesText,row(fuze.el,h('span',null,'QTY 1 · MAN')));
+    const storesCanvas = h('canvas', { class: 'harm-ddi-canvas', 'aria-label': 'Hornet JDAM stores display' });
+    const stores = h('div', { class: 'jdam-stores ui-fill' }, storesCanvas);
+    const storesDdi = new JdamStoresDdi(storesCanvas); clean.add(() => storesDdi.dispose());
+    const osbButtons = new Map<Osb, HTMLButtonElement>();
+    for (const n of [3,5,6] as Osb[]) {
+      const a = hornetOsbAnchor(n,100);
+      const control = h('button', { class: `jdam-osb jdam-osb--${a.side}`, type: 'button' });
+      control.style.left = `${a.x}%`; control.style.top = `${a.y}%`;
+      clean.on(control,'click',()=>act(()=>{
+        if(n===6){session.selectWeapon(!session.selected);fuzeMenu=false;}
+        else if(fuzeMenu){session.efuz=n===5?'OFF':'INST';fuzeMenu=false;}
+        else if(n===5)session.mode=session.mode==='TOO'?'PP':'TOO';
+        else fuzeMenu=true;
+      }));
+      osbButtons.set(n,control);stores.append(control);
+    }
     const podContent=h('div',{class:'atflir-flir ui-fill'},podHost,h('div',{class:'atflir-ddi-bottom'},h('span',null,'FLIR · WPDSG')));
     const ufc=createUfc({id:'jdam-ufc',onKey:()=>{}}); clean.add(()=>ufc.dispose());
     ufc.draw({scratch:'TOO',options:[],hint:null});
@@ -56,10 +71,10 @@ const page: PageFactory = () => {
     const controls=h('div',{class:'atflir-controls'},
       h('nav',{class:'atflir-lessons','aria-label':'JDAM lessons'},JDAM_ORDER.map((key,i)=>h('a',{href:`#/jdam?lesson=${key}`,'aria-current':key===id?'page':undefined},`${i+1}. ${JDAM_LESSONS[key].title}`))),
       h('section',{class:'atflir-brief'},h('div',{class:'ui-placard'},'GBU-38 · TOO'),h('h2',null,lesson.title),h('p',null,lesson.goal),h('ol',{class:'atflir-steps'},steps),result,nextButton.el),
-      group({label:'Aircraft & weapon',children:[row(ag.el,master.el),skip.el],hint:'Select J-82, MODE TOO and EFUZ INST on the left DDI. Warmup is 2:30; skipping is a labelled training aid.'}),
+      group({label:'Aircraft & weapon',children:[row(ag.el,master.el),skip.el],hint:'On the left DDI: select J-82 at the top, MODE on the upper left for TOO, then EFUZ and INST. Warmup is 2:30; skipping is a labelled training aid.'}),
       group({label:'HSI · target designation',children:[row(button({label:'WP2 · assigned truck',onClick:()=>act(()=>{waypoint='assigned';})}).el,button({label:'WP3 · other truck',onClick:()=>act(()=>{waypoint='wrong';})}).el),row(wpText,designation.el)],hint:'Selecting a waypoint does not designate it. Press WPDSG and inspect FLIR. These are fictional training waypoints.'}),
       id !== 'setup' ? group({label:'Training pass',children:[start.el,release.el,button({label:'Reload for another pass',onClick:()=>act(()=>session.retry())}).el],hint:'R is the browser substitute for Weapon Release; RAlt+Space is also supported. Flight and range gates are scripted.'}) : null,
-      button({label:'Restart lesson',variant:'ghost',onClick:()=>{session=new JdamSession(id);waypoint='assigned';saved=false;update();}}).el,
+      button({label:'Restart lesson',variant:'ghost',onClick:()=>{session=new JdamSession(id);fuzeMenu=false;waypoint='assigned';saved=false;update();}}).el,
       h('details',null,h('summary',null,'Sources & training limits'),h('p',null,JDAM_SOURCE),h('ul',null,JDAM_CAVEATS.map(t=>h('li',null,t)))));
     const viewport=h('div',{class:'atflir-view'},h('div',{class:'atflir-viewhead'},h('span',null,'3D TRAINING RANGE'),camera.el),worldHost,status,message);
     const layout=labLayout({id:'jdam',class:'atflir jdam',header:{title:'JDAM',meta:'F/A-18C · GBU-38 TOO',lede:'Prepare J-82, designate the target, release on IN RNG. Follow the bomb to impact.'},viewport,console:controls,strip});
@@ -74,14 +89,14 @@ const page: PageFactory = () => {
       const target=session.designation;
       sensor.x=target==='wrong'?-140:140;sensor.y=target==='wrong'?30:-70;sensor.mode=target?'AUTO':'INR';sensor.tracked=target;sensor.designation=target?{x:sensor.x,y:sensor.y}:null;
       if(!target){sensor.fov=0;sensor.x=0;sensor.y=0;}else sensor.fov=2;
-      select.setLit(session.selected);mode.setLabel(`MODE ${session.mode}`);fuze.setLabel(`EFUZ ${session.efuz}`);ag.setLit(session.ag);master.setLit(session.masterArm);master.setLabel(`MASTER ARM ${session.masterArm?'ARM':'SAFE'}`);
+      storesDdi.draw({session,fuzeMenu});
+      for(const [n,b] of osbButtons){b.hidden=n!==6&&!session.selected;b.setAttribute('aria-label',n===6?'Select J-82':fuzeMenu?(n===5?'EFUZ OFF':'EFUZ INST'):(n===5?`MODE ${session.mode}`:`EFUZ ${session.efuz}`));}
+      ag.setLit(session.ag);master.setLit(session.masterArm);master.setLabel(`MASTER ARM ${session.masterArm?'ARM':'SAFE'}`);
       skip.setDisabled(!session.timing);start.setDisabled(session.phase==='flight'||session.phase==='approach');camera.setLabel(follow?'Camera: follow bomb':'Camera: range');
       const spent=['flight','hit','miss'].includes(session.phase);
       const station=spent?'—':session.status, rangeCue=spent?'RELEASED':session.inRange?'IN RNG':'OUT OF RANGE';
       setText(wpText,`Selected ${waypoint==='assigned'?'WP2':'WP3'}`);setText(message,session.message);
       setText(status,`${station} · ${rangeCue} · ${target?'TGT '+(target==='assigned'?'WP2':'WP3'):'NO TGT'} · NO LASER REQUIRED`);
-      const clock=session.alignmentClock; const clockText=typeof clock==='number'?`${Math.floor(clock/60)}:${String(Math.floor(clock%60)).padStart(2,'0')}`:String(clock);
-      setText(storesText,`J-82\n${station}${!spent&&session.timing?'\nTIMING '+clockText:''}\n${session.mode} · MAN\n${target?'TGT '+(target==='assigned'?'WP2':'WP3'):'NO TGT'}\n${rangeCue}\n${spent?'0':'1'} STORE`);
       steps.forEach((el,i)=>{el.dataset.done=String(session.done[i]);el.setAttribute('aria-label',`${session.done[i]?'Complete':'Pending'}: ${lesson.steps[i]}`);});
       setText(result,session.complete?(preview?'Preview — progress not saved.':'Lesson complete. Progress saved.'):'Complete all three checks.');nextButton.el.hidden=!session.complete;
       for(const view of [world,pod])view?.setStoreDelivery(session);world?.setFollowBomb(follow);world?.update(sensor,false,true,preview,continuous);pod?.update(sensor,true,false,preview,continuous);
