@@ -542,3 +542,11 @@ tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomc
 
 The web-verification evidence and remaining current-game checks are in
 [verification-status.md](../research/verification-status.md). No current DCS build was run for that review.
+
+### Hornet ATFLIR foundations
+
+`src/data/atflir.ts` exports `ATFLIR_SOURCE` and `ATFLIR_CAVEATS`; manual evidence is in
+`docs/research/fa18c-atflir.md`. Uncertain values: synthetic FOV scales 1/2/4, slew increments, 14-scene-unit
+acquisition tolerance, instantaneous track acquisition and scripted obstruction/reacquisition. These are
+teaching values, not verified DCS measurements. The prewarmed A/G setup, static aircraft, simplified
+reticles and VVSLV reset are explicit abstractions. Offset designation, laser and delivery are omitted.
