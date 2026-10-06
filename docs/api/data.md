@@ -567,3 +567,12 @@ adjustable. Release guards for an assigned target and configured code are traini
 The ATFLIR cockpit strip reuses the HARM bezel and UFC components. The abbreviated SMS, UFC option
 placement and HUD geometry are training layouts, not verified cockpit geometry. `LaserCodeEntry` keeps
 LTDC and bomb CODE entry separate and commits supported exercise codes only on ENT.
+
+### Hornet JDAM TOO
+
+`src/data/fa18cJdam.ts` holds manual facts and caveats; source notes are in
+[fa18c-jdam.md](../research/fa18c-jdam.md). Uncertain values: the 8-second approach, 12-second
+flight and range gate are arbitrary lesson pacing. Alignment-quality timing is inconsistent in the
+manual and omitted; only the documented 150-second warmup is modeled. Minimum release-button hold
+time needs current-game verification. HUD/DDI layout, fictional WP2/WP3 targets, four-times exterior
+scale and effects are training aids. No PP programming, flight dynamics or ballistics are simulated.
