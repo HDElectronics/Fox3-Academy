@@ -29,7 +29,7 @@ export class AtflirSession {
     }
   }
   get target(): TargetId | null {
-    return TARGETS.find(t => !(this.obscured && t.id === 'assigned') && Math.hypot(t.x - this.x, t.y - this.y) <= 14)?.id ?? null;
+    return TARGETS.find(t => !(this.obscured && t.id === 'assigned') && Math.hypot(t.x - this.x, t.y - this.y) <= 6)?.id ?? null;
   }
   get complete(): boolean { return this.done.every(Boolean); }
   scs(): void {

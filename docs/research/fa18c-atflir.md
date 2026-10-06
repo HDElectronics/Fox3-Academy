@@ -23,10 +23,13 @@ labelled accordingly. The keyboard Enter binding is hold/release.
 
 ## Teaching abstractions
 
-`src/pages/atflir/model.ts` is a deterministic page-local training model. The image is an overhead drawing,
-not optical or thermal sensor modeling. FOV scales (1/2/4), slew increments, target acquisition within 14
-scene units, instantaneous tracks, stationary trucks and manual obstruction are invented training values.
-No angular FOVs, ranges, real-world sensor performance or weapon engineering are claimed. The synthetic
+`src/pages/atflir/model.ts` is a deterministic page-local training model. The image is a real-time 3D rendering of an original depot using the existing MIT Blender-authored truck
+asset with procedural fallbacks. Camera fields of view (28/9/2.4 degrees), slew increments (20/5/1 scene
+metres), acquisition within 6 scene metres, instantaneous tracks, stationary trucks and manual obstruction
+are invented training values. IR contrast and the independently selectable green night-vision look are
+artistic treatments, not optical or thermal sensor modeling. The overview is an explicitly labeled training
+aid with orbit controls and target labels; these are absent from the pod image.
+No DCS-accurate angular FOVs, ranges, real-world sensor performance or weapon engineering are claimed. The synthetic
 VVSLV view resets to the centre, since this module has no aircraft flight model. Reticle graphics are simplified.
 All limitations are exported in `src/data/atflir.ts` and shown on the page.
 

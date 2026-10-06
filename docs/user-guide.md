@@ -283,7 +283,10 @@ hold until clicked again. **FOV** (`I`) cycles WFOV/MFOV/NAR. AUTO inhibits ordi
 failed acquisitions: Undesignate and reposition before trying again. The recovery exercise also has an
 optional scripted obstruction. Its clear button restores visibility, not the track.
 
-The overhead image, reticles, FOV scale and acquisition are explicitly simplified. No laser or weapon
+The pod now looks into a 3D depot with Blender-authored trucks, buildings, fences and textured ground.
+**3D overview** opens an orbitable view for orientation; **Return to pod** restores the targeting image.
+**Night vision look** toggles a green phosphor filter with grain and vignette, independently of IR/TV and
+WHT/BLK. This is a visual aid, not an additional Hornet mode. Reticles, FOV and acquisition remain simplified. No laser or weapon
 delivery is included. Source and limits are available inside the page.
 
 ### HARM & SEAD (F/A-18C)

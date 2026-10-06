@@ -17,6 +17,11 @@ describe('Hornet ATFLIR foundations', () => {
     const s = new AtflirSession('track'); s.scs(); s.depress(true); s.slew(-140, 30); s.depress(false); s.scs(); s.scs();
     expect(s.tracked).toBe('wrong'); expect(s.complete).toBe(false);
   });
+  it('does not acquire empty ground beside an 8 m truck in the narrow 3D view', () => {
+    const s = new AtflirSession('track'); s.scs(); s.undesignate(); s.slew(140, -60);
+    s.scs(); s.scs(); expect(s.tracked).toBeNull();
+    s.undesignate(); s.slew(0, -10); s.scs(); s.scs(); expect(s.tracked).toBe('assigned');
+  });
   it('requires finding the target and narrowing the FOV', () => {
     const s = new AtflirSession('find'); s.cycleFov(); s.cycleFov(); expect(s.complete).toBe(false);
     s.scs(); s.undesignate(); s.slew(140, -70); expect(s.complete).toBe(true);

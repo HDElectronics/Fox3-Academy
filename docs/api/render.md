@@ -769,3 +769,18 @@ Pure helpers (tested in `attack.test.ts`): `createAttackField`, `terrainHook`, `
 `smokePuff`, `markFade`, `approachBearingsDeg`. Harness: `sandbox/render-marks.html` (`?cam=target|close|jet`,
 `&t=<pre-roll s>`, `&ir=1`): Su-25T, blue and red units, white and orange smoke, a laser spot, an IR pointer, the
 attack geometry and the Shkval TV picture.
+
+## ATFLIR page-local 3D view
+
+`src/pages/atflir/display.ts` owns `PodView`: a kilometre-scale three.js scene, stabilized perspective pod
+camera, orbitable overview camera, crisp overlay and 30 Hz visual loop. `range.ts` builds original
+metre-scale batched depot geometry and uses `AssetVisual('truck')` with a procedural fallback. Owned
+textures/materials are disposed with the range; cached model resources remain owned by AssetVisual.
+The range root scales by 0.001. `camera.ts` maps lesson coordinates and acquired truck centres to the
+pod line of sight. These camera fields of view are teaching choices, not ATFLIR specifications.
+
+`sensorFilter.ts` renders to a sized HDR target, then applies artistic grayscale IR/polarity and optional
+green phosphor, highlight softness, grain and vignette. Text stays in a separate canvas. Overview always
+uses unfiltered color. Resize includes DPR (capped 1.5); offscreen/hidden pages skip drawing, reduced-motion
+users get immediate camera changes and static grain. Unmount cancels RAF and disconnects observers,
+controls, context listeners and all owned GPU resources. No World simulation is run by this page.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replace the ATFLIR flat diagram with a 3D depot, existing Blender truck assets, textured scenery and
+  shadows. Add a stabilized pod camera, orbitable overview and optional green night-vision look with
+  grain and vignette; retain independent IR/TV and white/black-hot controls.
+
 - Add four F/A-18C ATFLIR foundation exercises: sensor control, target search, designation and SCENE/AUTO
   tracking, and wrong-track recovery. Includes a synthetic pod view, individual progress and an optional
   scripted obstruction. Manual-sourced controls and training limitations are documented.

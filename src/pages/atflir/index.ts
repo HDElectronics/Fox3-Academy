@@ -4,7 +4,7 @@ import { h, button, row, group, labLayout, bindKeys, cleanup, setText } from '..
 import { ATFLIR_CAVEATS, ATFLIR_SOURCE } from '../../data/atflir';
 import { LESSON_ORDER, LESSONS, lessonId, progressKey } from './lessons';
 import { AtflirSession, FOVS } from './model';
-import { drawPod } from './display';
+import { PodView } from './display';
 import './style.css';
 const page: PageFactory = () => {
   const clean = cleanup();
@@ -18,7 +18,12 @@ const page: PageFactory = () => {
         session.mode = 'AUTO'; session.tracked = 'assigned';
         session.message = 'AUTO acquired: single truck. Synthetic image preview; progress is not saved.';
       }
-      const canvas = h('canvas', { 'aria-label': 'Synthetic ATFLIR image: warehouse at centre, assigned truck above and right, other truck left.', role: 'img' });
+      const podHost = h('div', { class: 'atflir-pod-host' });
+      let pod: PodView | null = null;
+      let nightVision = ctx.params.get('look') !== 'clean';
+      let overview = ctx.params.get('shot') === 'overview';
+      if (ctx.params.get('image') === 'tv') session.ir = false;
+      if (ctx.params.get('image') === 'black') session.whiteHot = false;
       const message = h('p', { class: 'atflir-feedback', role: 'status', 'aria-live': 'polite' });
       const status = h('p', { class: 'atflir-state' });
       const result = h('p', { class: 'atflir-result', role: 'status' });
@@ -26,6 +31,8 @@ const page: PageFactory = () => {
       const nextId = LESSON_ORDER[LESSON_ORDER.indexOf(id) + 1];
       const next = button({ label: nextId ? 'Next lesson' : 'View progress', onClick: () => ctx.navigate(nextId ? `atflir?lesson=${nextId}` : 'progress') });
       const act = (fn: () => void) => { fn(); update(); };
+      const look = button({ label: 'Night vision look', lamp: true, onClick: () => act(() => { nightVision = !nightVision; }) });
+      const view = button({ label: '3D overview', size: 's', onClick: () => act(() => { overview = !overview; }) });
       const scs = button({ label: 'SCS Right', keys: 'RAlt+/', onClick: () => act(() => session.scs()) });
       const un = button({ label: 'Undesignate', keys: 'S', onClick: () => act(() => session.undesignate()) });
       const dep = button({ label: 'Hold TDC depress', lamp: true, onClick: () => act(() => session.depress(!session.depressed)) });
@@ -33,7 +40,7 @@ const page: PageFactory = () => {
       const fov = button({ label: 'FOV', keys: 'I', onClick: () => act(() => session.cycleFov()) });
       const sensor = button({ label: 'IR / TV', onClick: () => act(() => { session.ir = !session.ir; }) });
       const polarity = button({ label: 'WHT / BLK', onClick: () => act(() => { session.whiteHot = !session.whiteHot; }) });
-      const slew = (x: number, y: number) => act(() => session.slew(x * [20, 10, 5][session.fov]!, y * [20, 10, 5][session.fov]!));
+      const slew = (x: number, y: number) => act(() => session.slew(x * [20, 5, 1][session.fov]!, y * [20, 5, 1][session.fov]!));
       const directions = h('div', { class: 'atflir-slew' },
         button({ label: 'Up', keys: ';', onClick: () => slew(0, -1) }).el,
         button({ label: 'Left', keys: ',', onClick: () => slew(-1, 0) }).el,
@@ -53,16 +60,23 @@ const page: PageFactory = () => {
           h('small', null, 'TDC depress: hold Enter, or use the on-screen latch.')] }),
         group({ label: 'TDC slew', children: [directions], hint: 'Each click nudges the view. Hold a keyboard direction for repeated inputs.' }),
         group({ label: 'Image', children: [row(fov.el, sensor.el, polarity.el)] }),
+        group({ label: 'Viewing aid', children: [look.el], hint: 'Green phosphor filter. A visual aid, not a separate ATFLIR mode.' }),
         id === 'recover' ? group({ label: 'Optional lost-track practice', children: [obstruction.el], hint: 'A scripted obstruction, not DCS masking behavior.' }) : null,
         button({ label: 'Restart exercise', variant: 'ghost', onClick: () => { session = new AtflirSession(id); saved = false; update(); } }).el,
         h('details', null, h('summary', null, 'Sources & training limits'), h('p', null, ATFLIR_SOURCE),
           h('ul', null, ATFLIR_CAVEATS.map(text => h('li', null, text)))));
       const viewport = h('div', { class: 'atflir-view' },
-        h('div', { class: 'atflir-viewhead' }, h('span', null, 'RIGHT DDI / FLIR'), h('span', null, 'SYNTHETIC TRAINING VIEW')),
-        canvas, status, message);
+        h('div', { class: 'atflir-viewhead' }, h('span', null, 'RIGHT DDI / FLIR'), h('span', { class: 'atflir-view-tools' }, h('span', null, '3D TRAINING RANGE'), view.el)),
+        podHost, status, message);
       const layout = labLayout({ id: 'atflir', class: 'atflir', header: { title: 'ATFLIR', meta: 'F/A-18C · Foundation lessons',
         lede: 'Give the pod control. Find, designate and track. Recover when the image stops following.' }, viewport, console: controls });
       ctx.root.append(layout.el); clean.add(() => layout.destroy());
+      try {
+        pod = new PodView(session); podHost.append(pod.el); clean.add(() => pod?.dispose());
+      } catch (error) {
+        podHost.append(h('p', { class: 'atflir-webgl-error', role: 'alert' }, 'The 3D pod view needs WebGL. Enable graphics acceleration and reload to use this trainer.'));
+        console.error('ATFLIR 3D view failed to initialise', error);
+      }
       function update() {
         if (session.complete && !saved && !preview) { ctx.app.setProgress(progressKey(id), true); saved = true; }
         setText(message, session.message);
@@ -74,7 +88,11 @@ const page: PageFactory = () => {
         dep.setLabel(session.depressed ? 'Release TDC depress' : 'Hold TDC depress');
         polarity.setDisabled(!session.ir); fov.setLabel(FOVS[session.fov]!);
         obstruction.setLabel(session.obscured ? 'Clear obstruction' : 'Obscure target');
-        drawPod(canvas, session);
+        look.setLit(nightVision); look.el.setAttribute('aria-pressed', String(nightVision));
+        look.setDisabled(overview); view.setLabel(overview ? 'Return to pod' : '3D overview');
+        view.el.setAttribute('aria-pressed', String(overview));
+        sensor.setLabel(session.ir ? 'IR' : 'TV'); polarity.setLabel(session.whiteHot ? 'WHT' : 'BLK');
+        pod?.update(session, nightVision, overview, preview);
       }
       clean.add(bindKeys({
         'RAlt+/': () => act(() => session.scs()), S: () => act(() => session.undesignate()),
