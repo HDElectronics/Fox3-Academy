@@ -409,6 +409,8 @@ export class HarmAvionics {
   private fire(launch: () => void, text: string): ActionResult {
     launch();
     this.launches += 1;
+    // The next HARM returns to the highest SP threat after launch (ED guide p365).
+    this.spKey = null;
     const sta = this.stations.shift();
     this.releaseHeld = false;
     return { ok: true, tone: 'ok', text: `${text} Station ${sta} away${this.station ? `; station ${this.station} is next (order 8, 2, 7, 3)` : '; no HARM left'}.` };

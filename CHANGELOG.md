@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- HARM SP now cues the next missile to the highest-priority threat after firing at a manually selected radar.
+
 - Fix the HARM Live lesson: each SAM site makes one scripted shutdown, so waiting for its radar to return
   and firing again can destroy the SA-6 and SA-11 within the four-HARM loadout. The lesson labels this simplification.
 

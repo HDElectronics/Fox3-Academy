@@ -65,6 +65,22 @@ describe('SP', () => {
     expect(av.contacts()).toHaveLength(0); // a dead radar is silent
   });
 
+  it('cues the next HARM to the highest threat after a manually selected SP shot', () => {
+    const sim = new HarmSim(setup([
+      { id: 'near', system: 'sa6', nm: 25 },
+      { id: 'far', system: 'sa6', nm: 30, eastNm: 1 },
+    ]));
+    const av = new HarmAvionics(sim, []);
+    ready(av);
+    expect(av.spCue()?.emitter.site.id).toBe('near');
+    expect(av.sequence().ok).toBe(true);
+    expect(av.spCue()?.emitter.site.id).toBe('far');
+    expect(av.setRelease(true)?.ok).toBe(true);
+    expect(sim.harms[0]!.targetKey).toBe('far:0');
+    expect(av.spCue()?.emitter.site.id).toBe('near');
+    expect(av.ewView().emitters.find(e => e.boxed)?.azDeg).toBe(av.spCue()?.azDeg);
+  });
+
   it('misses when the radar switches off during the flight (guide p367)', () => {
     const sim = new HarmSim(setup([{ id: 'r1', system: 'sa6', nm: 25 }]));
     const av = new HarmAvionics(sim, []);
