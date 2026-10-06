@@ -13,7 +13,7 @@ const records = JSON.parse(await readFile(new URL('../assets/models/manifest.jso
 describe('production exterior files', () => {
   it('covers the app catalogs and generic ground classes with bundled URLs', () => {
     const ids = new Set(records.map(r => r.id));
-    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t' && id !== 'gau8'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tgp', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa']
+    const expected = [...Object.keys(AIRCRAFT), 'su25t', ...Object.keys(MISSILES), ...Object.keys(AG_WEAPONS).filter(id => id !== 'gun25t' && id !== 'gau8'), ...Object.keys(SAMS), ...Object.keys(SAMS).map(id => id + '-missile'), 'r60', 'tgp', 'gbu38', 'tank', 'apc', 'truck', 'bunker', 'building', 'sam-site', 'aaa']
       .map(id => assetFileId(id as AssetId));
     expect(ids).toEqual(new Set(expected));
     // Cannon rounds are tracers, not standalone store models.

@@ -61,3 +61,12 @@ The original 51-model integration had desktop and 390 CSS-pixel browser checks. 
 see [A-10/CAS exterior art](a10c.md) for measurements and verification. These checks do not
 establish physical-phone or low-end-GPU frame rates; device QA remains tracked in
 [#6](https://github.com/HDElectronics/Fox3-Academy/issues/6).
+
+## Hornet JDAM store
+
+`src/assets/models/gbu38.glb` is the original GBU-38 exterior used by the Hornet JDAM trainer.
+Its source is `scripts/assets/source/stores/generate_stores.py` (`--only gbu38`), with the same
+catalog, rebuild and optimization pipeline as the other bombs. The production manifest records
+reference, MIT authorship and artist approximations. Audit: 2292 triangles, 4 mesh/material draws,
+92656 bytes; original approximate exterior, not engineering geometry. Shared flight/impact rendering
+is in `src/render/attack/deliveryVisual.ts`; page code chooses the lesson state.

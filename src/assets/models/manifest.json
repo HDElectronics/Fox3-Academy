@@ -1288,5 +1288,32 @@
       "Three gear, two flap and four deceleron pivots; no gear-door sequencing or aileron-roll animation."
     ],
     "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
+  },
+  {
+    "id": "gbu38",
+    "category": "store",
+    "name": "GBU-38 JDAM",
+    "source_sha256": "d4022e6febacb6287714c1ea57ed63cc793747798e82669917476624b8c83d15",
+    "sha256": "c178c69205c92a0c127106c9a1abf7ed435dea75f8f908e3a9a5864e1fbd0997",
+    "bytes": 92656,
+    "references": [
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/downloads/documentation/dcs-hornet_early_access_guide_en/",
+        "publisher": "Eagle Dynamics",
+        "source": "DCS F/A-18C Early Access Guide, 24 March 2024",
+        "pdf_pages": [
+          35,
+          329
+        ],
+        "use": "JDAM family exterior photograph and GBU-38 identity. Perspective family reference, not a GBU-38 three-view or measurement source."
+      }
+    ],
+    "source_caveats": [
+      "Original simplified exterior for a game tutorial; artist proportions, not certified dimensions or exact DCS mesh parity.",
+      "GBU-38 family silhouette uses a rounded bomb shell, shallow body strakes and compact tail fins. Exact variant fittings and rear geometry are approximations.",
+      "No weapon internals, performance data, moving fins, stencils, textures or LODs.",
+      "Review size 2.32 m is an artistic display normalization, not a verified weapon measurement."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   }
 ]

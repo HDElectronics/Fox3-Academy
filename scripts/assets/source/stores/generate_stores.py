@@ -136,7 +136,7 @@ def studio(out):
  cam.location=Vector(views['front'][0])*L;aim(cam,(0,0,0));d.ortho_scale=views['front'][1]
 
 # Preserved CAS exterior recipes; share the normal per-store output/export path.
-CAS_SPECS={'gbu12': 'GBU-12 Paveway II', 'agm65': 'AGM-65 Maverick family (D/H/L shared exterior)', 'apkws': 'LAU-131 seven-tube APKWS carriage pod', 'mk82': 'Mk 82 low-drag bomb', 'cbu97': 'CBU-97 closed canister', 'tgp': 'Litening targeting pod'}
+CAS_SPECS={'gbu38': 'GBU-38 JDAM', 'gbu12': 'GBU-12 Paveway II', 'agm65': 'AGM-65 Maverick family (D/H/L shared exterior)', 'apkws': 'LAU-131 seven-tube APKWS carriage pod', 'mk82': 'Mk 82 low-drag bomb', 'cbu97': 'CBU-97 closed canister', 'tgp': 'Litening targeting pod'}
 
 def radial_fins(a,name,outline,material=4):
     for k in range(4):
@@ -177,6 +177,16 @@ def build_cas(key):
         a.loft('Bomb body',[(-1.10,.02,.02,0),(-1.02,.09,.09,0),(-.83,.13,.13,0),(-.55,.145,.145,0),(.46,.145,.145,0),(.76,.074,.074,0),(1.10,.046,.046,0)],4)
         radial_fins(a,'Tail fin',[(.58,.12),(.76,.25),(1.10,.25),(1.10,.045)])
         a.loft('Yellow identification band',[(-.70,.140,.140,0),(-.65,.143,.143,0)],5)
+    elif key=='gbu38':
+        # Original visual approximation: rounded Mk 82 family body, long shallow
+        # exterior strakes and compact grey tail kit. No internal parts or dynamics.
+        a.loft('JDAM nose cap',[(-1.16,.040,.040,0),(-1.13,.060,.060,0),(-1.08,.065,.065,0)],0)
+        a.loft('JDAM bomb shell',[(-1.08,.065,.065,0),(-.99,.10,.10,0),(-.80,.135,.135,0),(-.56,.145,.145,0),(.37,.145,.145,0),(.60,.105,.105,0)],4)
+        a.loft('Grey exterior tail kit',[(.39,.143,.143,0),(.55,.126,.126,0),(.72,.085,.085,0),(1.16,.068,.068,0)],0)
+        radial_fins(a,'Shallow body strake',[(-.71,.140),(-.54,.182),(.23,.182),(.40,.141)],0)
+        radial_fins(a,'JDAM tail fin',[(.70,.080),(.90,.245),(1.14,.245),(1.16,.065)],0)
+        a.loft('Identification band',[(-.85,.126,.126,0),(-.80,.137,.137,0)],5)
+        a.loft('Tail kit join',[(.388,.145,.145,0),(.410,.145,.145,0)],3)
     elif key=='gbu12':
         a.loft('Paveway body',[(-1.56,.04,.04,0),(-1.46,.07,.07,0),(-1.11,.084,.084,0),(-.90,.11,.11,0),(-.60,.145,.145,0),(.63,.145,.145,0),(.88,.095,.095,0),(1.56,.08,.08,0)],4)
         a.loft('Nose window',[(-1.60,.035,.035,0),(-1.55,.045,.045,0)],1)
@@ -198,6 +208,11 @@ for k,spec in {**SPECS,**CAS_SPECS}.items():
   bpy.context.scene.unit_settings.system='METRIC';bpy.context.scene.unit_settings.scale_length=1
   model=build_cas(k);bpy.context.view_layer.update();stats=model.export(out/'model.glb')
   write_manifest(model,out,spec,'store','../generate_stores.py',stats)
+  if k=='gbu38':
+   meta=json.loads((out/'manifest.json').read_text())
+   meta['references']=[{'url':'https://www.digitalcombatsimulator.com/en/downloads/documentation/dcs-hornet_early_access_guide_en/','publisher':'Eagle Dynamics','source':'DCS F/A-18C Early Access Guide, 24 March 2024','pdf_pages':[35,329],'use':'JDAM family exterior photograph and GBU-38 identity. Perspective family reference, not a GBU-38 three-view or measurement source.'}]
+   meta['caveats']=['Original simplified exterior for a game tutorial; artist proportions, not certified dimensions or exact DCS mesh parity.','GBU-38 family silhouette uses a rounded bomb shell, shallow body strakes and compact tail fins. Exact variant fittings and rear geometry are approximations.','No weapon internals, performance data, moving fins, stencils, textures or LODs.','Review size 2.32 m is an artistic display normalization, not a verified weapon measurement.']
+   (out/'manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
   exterior_studio(model,out,not A.no_render);bpy.ops.wm.save_as_mainfile(filepath=str(out/'model.blend'))
   print('COMPLETED',k,flush=True)
   continue
