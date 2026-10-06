@@ -38,14 +38,14 @@ describe('fighter and attack roles', () => {
 
 describe('route role gate and picker', () => {
   it('keeps lesson role gates while Learn and progress accept every jet', () => {
-    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'harm', 'atflir', 'hangar'].includes(x.path))) {
+    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'harm', 'atflir', 'jdam', 'hangar'].includes(x.path))) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);
     }
   });
 
-  it.each(['harm', 'atflir'])('keeps %s to the F/A-18C', path => {
+  it.each(['harm', 'atflir', 'jdam'])('keeps %s to the F/A-18C', path => {
     const harm = ROUTES.find(r => r.path === path)!;
     expect(routeRoles(harm)).toEqual(['fighter']);
     expect(AIRCRAFT_ORDER.filter(id => jetAllowed(harm, id))).toEqual(['fa18c']);

@@ -1,3 +1,4 @@
+import { JDAM_ORDER, JDAM_LESSONS, jdamKey } from '../jdam/lessons';
 import { LESSON_ORDER as ATFLIR_ORDER, LESSONS as ATFLIR_LESSONS, progressKey as atflirKey } from '../atflir/lessons';
 /** Read existing saved completions without changing or inferring lesson results. */
 import { AIRCRAFT_ORDER, isFighter } from '../../data/aircraft';
@@ -48,6 +49,7 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
       href: progressHref(`harm?lesson=${lesson}`, id), done: get(harmProgressKey(lesson)) === true });
     if (id === 'fa18c') for (const lesson of ATFLIR_ORDER) goals.push({ id: `atflir-${lesson}`, label: `ATFLIR: ${ATFLIR_LESSONS[lesson].title}`,
       href: progressHref(`atflir?lesson=${lesson}`, id), done: get(atflirKey(lesson)) === true });
+    if (id === 'fa18c') for (const lesson of JDAM_ORDER) goals.push({ id: `jdam-${lesson}`, label: `JDAM: ${JDAM_LESSONS[lesson].title}`, href: progressHref(`jdam?lesson=${lesson}`, id), done: get(jdamKey(lesson)) === true });
     const rwr = get(`rwr:${id}:best`);
     const sortie = get(`sortie:${id}:best`);
     if (typeof rwr === 'number' && Number.isFinite(rwr) && rwr >= 0) scores.push({ label: 'Best RWR run', value: `${Math.floor(rwr)} correct` });

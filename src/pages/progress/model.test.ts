@@ -16,6 +16,11 @@ const read = (values: Record<string, number | boolean | string> = {}): ProgressR
 afterEach(() => vi.unstubAllGlobals());
 
 describe('fleet progress', () => {
+  it('counts JDAM lessons only for the Hornet', () => {
+    const goals = jetProgress('fa18c', read({ 'jdam:delivery:fa18c': true })).goals.filter(g => g.id.startsWith('jdam-'));
+    expect(goals).toHaveLength(3); expect(goals.filter(g=>g.done).map(g=>g.id)).toEqual(['jdam-delivery']);
+    expect(jetProgress('f16c', read()).goals.some(g=>g.id.startsWith('jdam-'))).toBe(false);
+  });
   it('counts the seven Hornet ATFLIR exercises independently', () => {
     const goals = jetProgress('fa18c', read({ 'atflir:track:fa18c': true })).goals.filter(g => g.id.startsWith('atflir-'));
     expect(goals).toHaveLength(7);

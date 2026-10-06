@@ -32,6 +32,7 @@ export const LESSON_LINKS: readonly LessonLink[] = [
   { path: 'flight-ops', label: 'Pattern & landing', group: 'flying' },
   { path: 'harm', label: 'HARM & SEAD', group: 'jet' },
   { path: 'atflir', label: 'ATFLIR', group: 'jet' },
+  { path: 'jdam', label: 'JDAM', group: 'jet' },
   { path: 'strike', label: 'Shkval & Vikhr', group: 'jet' },
   { path: 'tgp', label: 'Targeting pod & Mavericks', group: 'jet' },
   { path: 'cas', label: 'CAS & JTAC', group: 'jet' },
