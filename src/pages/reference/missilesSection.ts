@@ -11,7 +11,7 @@ import {
   ALL_MISSILES, MIDCOURSE_LABEL, SEEKER_LABEL, carriersOfMissile, filterMissiles, rangeNum, rangeUnit, sortMissiles,
   type MissileFilter, type MissileSort, type MissileSortKey,
 } from './model';
-import { hl, tag, type RefCtx } from './common';
+import { hl, tag, type FighterRefCtx } from './common';
 
 interface Col { key: MissileSortKey | 'rule'; label: string; sub?: string; num?: boolean; title?: string }
 
@@ -20,7 +20,7 @@ const NUMERIC: MissileSortKey[] = ['fox', 'loft', 'pitbull', 'hi', 'cold', 'lo']
 
 export interface MissilesSection { el: HTMLElement; expand(id: MissileId): void }
 
-export function missilesSection(rc: RefCtx): MissilesSection {
+export function missilesSection(rc: FighterRefCtx): MissilesSection {
   const { ac, spec, units } = rc;
   const u = rangeUnit(units);
   const own = new Set(spec.missiles);

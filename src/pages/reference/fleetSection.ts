@@ -7,11 +7,11 @@ import { callout } from '../../ui/panels';
 import { AIRCRAFT, FIGHTER_ORDER, MISSILES, RWRS } from '../../data';
 import type { FighterId } from '../../data/types';
 import { aircraftHaystack, fox3Of, matches, rangeNum, rangeUnit, simultaneousText } from './model';
-import { hl, tag, type RefCtx } from './common';
+import { hl, tag, type FighterRefCtx } from './common';
 
 const rwrShort = (name: string) => name.replace(/\s*".*"/, '').replace(/\s*\(.*\)/, '');
 
-export function fleetSection(rc: RefCtx): HTMLElement {
+export function fleetSection(rc: FighterRefCtx): HTMLElement {
   const u = rangeUnit(rc.units);
   const rows = FIGHTER_ORDER.map(id => {
     const s = AIRCRAFT[id];

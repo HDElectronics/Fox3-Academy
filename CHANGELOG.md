@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Point Fly at the Su-25T and A-10C II sortie lessons, hide the BVR-only Practice destination for attack jets, and
+  open the Reference kneeboard for them (keys, procedures, RWR, glossary and sources; no radar or missile tables).
 - Add Hornet JDAM preparation, TOO manual delivery and wrong-designation lessons, with a shared GBU-38 exterior and explicit training limits.
 - Show the GBU-12 in flight with a follow camera, trail and distinct hit/miss impact effects in the ATFLIR lesson. Reuse the original Blender exterior asset.
 - Rework the ATFLIR trainer with a 3D range above a HUD, STORES DDI, FLIR DDI and clickable UFC strip; enter codes through the UFC keypad.

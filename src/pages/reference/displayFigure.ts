@@ -12,7 +12,7 @@ import { twsDrill } from '../../sim/scenarios';
 import { buildRadarPicture } from '../../sim/picture';
 import { radarRules } from '../../sim/radar';
 import type { FighterId, DisplayFormat } from '../../data/types';
-import type { RefCtx } from './common';
+import type { FighterRefCtx } from './common';
 
 interface Legend { label: string; lines: string[]; simplified?: string }
 
@@ -107,7 +107,7 @@ export function displayLabel(ac: FighterId, format: DisplayFormat): string {
 export interface DisplayFigure { el: HTMLElement; dispose(): void }
 
 /** Build the figure; the frame is computed after mount so the page paints first. */
-export function displayFigure(rc: RefCtx): DisplayFigure {
+export function displayFigure(rc: FighterRefCtx): DisplayFigure {
   const { ac, spec, units } = rc;
   const legend = legendFor(ac, spec.display);
   const canvas = h('canvas', { class: 'ref-display__canvas', role: 'img', 'aria-label': `${spec.short} ${legend.label}: a still frame with bandits ahead` });

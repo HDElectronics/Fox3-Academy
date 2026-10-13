@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AIRCRAFT_ORDER, FIGHTER_ORDER } from '../data/aircraft';
-import { contextualLinks, destinationFor, LESSON_LINKS, lessonGroups, lessonPath, linkOpensFor, PRACTICE_LINKS, queryIdentity } from './navigation';
+import { ATTACK_SORTIE, contextualLinks, destinationFor, destinationsFor, LESSON_LINKS, lessonGroups, lessonPath, linkOpensFor, PRACTICE_LINKS, queryIdentity } from './navigation';
 import { jetAllowed } from './roleGate';
 import { routeFor } from './routes';
 
@@ -68,5 +68,36 @@ describe('the selected jet comes first', () => {
   it('drops fighter labs from Practice for the attack jets', () => {
     expect(contextualLinks('practice', 'su25t')).toEqual([{ path: 'practice', label: 'All practice' }]);
     expect(contextualLinks('practice', 'f16c')).toHaveLength(PRACTICE_LINKS.length + 1);
+  });
+});
+
+describe('top-bar destinations for every jet', () => {
+  it('never sends a jet to the role gate', () => {
+    for (const id of AIRCRAFT_ORDER) {
+      for (const d of destinationsFor(id)) expect(linkOpensFor(d, id), `${id} ${d.id} ${d.path}`).toBe(true);
+    }
+  });
+  it('keeps all four destinations and the BVR sortie for fighters', () => {
+    for (const id of FIGHTER_ORDER) {
+      expect(destinationsFor(id).map(d => d.id)).toEqual(['learn', 'practice', 'fly', 'reference']);
+      expect(destinationsFor(id).find(d => d.id === 'fly')?.path).toBe('sortie');
+    }
+  });
+  it('flies an attack jet to its own sortie lesson and hides the BVR practice labs', () => {
+    expect(destinationsFor('su25t').map(d => [d.id, d.path])).toEqual([['learn', 'learn'], ['fly', 'strike?lesson=sortie'], ['reference', 'reference']]);
+    expect(destinationsFor('a10c').find(d => d.id === 'fly')?.path).toBe('cas?lesson=sortie');
+    expect(destinationsFor('a10c').some(d => d.id === 'practice')).toBe(false);
+  });
+  it('lights Fly on the jet\'s own sortie lesson only', () => {
+    for (const [jet, path] of Object.entries(ATTACK_SORTIE) as [keyof typeof ATTACK_SORTIE, string][]) {
+      const [route, query] = path.split('?');
+      expect(destinationFor(route!, new URLSearchParams(query), jet)).toBe('fly');
+      expect(destinationFor(route!, new URLSearchParams('lesson=nine-line'), jet)).toBe('learn');
+    }
+    // The Su-25T also flies the CAS sortie lesson, but Fly points at its Shkval & Vikhr sortie.
+    expect(destinationFor('cas', new URLSearchParams('lesson=sortie'), 'su25t')).toBe('learn');
+  });
+  it('opens the reference kneeboard for the attack jets', () => {
+    for (const id of AIRCRAFT_ORDER) expect(jetAllowed(routeFor('reference'), id), id).toBe(true);
   });
 });

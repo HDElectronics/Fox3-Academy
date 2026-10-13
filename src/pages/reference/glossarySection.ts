@@ -6,13 +6,14 @@ import { h } from '../../ui/dom';
 import { SOURCES, sourcesFor } from '../../data';
 import { GLOSSARY, GLOSSARY_CATS, glossaryHaystack } from './glossary';
 import { matches } from './model';
+import type { AircraftId } from '../../data/types';
 import { hl, tag, type RefCtx } from './common';
 
 export function glossarySection(rc: RefCtx): HTMLElement {
   const entries = GLOSSARY.map(g => {
     const term = h('span', { class: 'ref-term' }, g.term);
     const def = h('dd', null, g.def);
-    const mine = g.jets?.includes(rc.ac) ?? false;
+    const mine = (g.jets as readonly AircraftId[] | undefined)?.includes(rc.ac) ?? false;
     const dt = h('dt', null, term, g.aka ? h('span', { class: 'ref-aka' }, g.aka) : null, mine ? tag(`${rc.spec.short}`, 'jet') : null);
     return { g, dt, dd: def, term, hay: glossaryHaystack(g) };
   });
