@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JdamSession } from './model';
+import { JdamSession, manualHudCue, pressStoresOsb } from './model';
 function ready(lesson: 'setup' | 'delivery' | 'troubleshoot' = 'delivery'): JdamSession {
   const session = new JdamSession(lesson);
   session.ag = true; session.masterArm = true; session.selected = true;
@@ -114,5 +114,39 @@ describe('corrected target release check', () => {
   it('does not award the release check for bombing the wrong designation', () => {
     const s = new JdamSession('troubleshoot'); s.startRun(); s.setRelease(true); s.step(9);
     expect(s.releasedTarget).toBe('wrong'); expect(s.done[1]).toBe(false);
+  });
+  it('keeps J-82 selected when PB6 is pressed inside the EFUZ submenu', () => {
+    const session = ready();
+    let menu = pressStoresOsb(session, 3, false);
+    expect(menu).toBe(true);
+    menu = pressStoresOsb(session, 6, menu);
+    expect(menu).toBe(false);
+    expect(session.selected).toBe(true);
+    expect(session.timing).toBe(false);
+    expect(session.status).toBe('RDY');
+    expect(pressStoresOsb(session, 6, false)).toBe(false);
+    expect(session.selected).toBe(false);
+  });
+  it('sets EFUZ and MODE from the STORES pushbuttons', () => {
+    const session = new JdamSession('setup');
+    session.selected = true;
+    expect(pressStoresOsb(session, 3, pressStoresOsb(session, 3, false))).toBe(false);
+    expect(session.efuz).toBe('INST');
+    expect(pressStoresOsb(session, 5, pressStoresOsb(session, 3, false))).toBe(false);
+    expect(session.efuz).toBe('OFF');
+    pressStoresOsb(session, 5, false);
+    expect(session.mode).toBe('TOO');
+  });
+  it('shows only the sourced MANUAL range cues on the HUD', () => {
+    const session = ready();
+    expect(manualHudCue(session)).toBe('');
+    session.startRun();
+    expect(manualHudCue(session)).toBe('TMR 8');
+    session.step(8);
+    expect(manualHudCue(session)).toBe('IN RNG');
+    session.setRelease(true); session.step(.01); session.setRelease(false);
+    session.step(20);
+    expect(session.phase).toBe('hit');
+    expect(manualHudCue(session)).toBe('');
   });
 });

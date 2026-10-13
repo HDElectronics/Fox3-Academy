@@ -6,11 +6,11 @@ import { createUfc } from '../harm/ufc';
 import { PodView } from '../atflir/display';
 import { AtflirSession } from '../atflir/model';
 import { bindKeyboardHold } from '../atflir/hold';
-import { JdamSession } from './model';
+import { JdamSession, manualHudCue, pressStoresOsb } from './model';
 import { JdamStoresDdi } from './ddi';
 import { hornetOsbAnchor } from '../harm/ddi';
 import type { Osb } from '../harm/types';
-import { JDAM_CAVEATS, JDAM_SOURCE } from '../../data/fa18cJdam';
+import { JDAM_CAVEATS, JDAM_SOURCE, JDAM_TIMING } from '../../data/fa18cJdam';
 import { JDAM_ORDER, JDAM_LESSONS, jdamKey, jdamLesson } from './lessons';
 import '../atflir/style.css';
 import '../harm/cockpit.css';
@@ -52,12 +52,7 @@ const page: PageFactory = () => {
       const a = hornetOsbAnchor(n,100);
       const control = h('button', { class: `jdam-osb jdam-osb--${a.side}`, type: 'button' });
       control.style.left = `${a.x}%`; control.style.top = `${a.y}%`;
-      clean.on(control,'click',()=>act(()=>{
-        if(n===6){session.selectWeapon(!session.selected);fuzeMenu=false;}
-        else if(fuzeMenu){session.efuz=n===5?'OFF':'INST';fuzeMenu=false;}
-        else if(n===5)session.mode=session.mode==='TOO'?'PP':'TOO';
-        else fuzeMenu=true;
-      }));
+      clean.on(control,'click',()=>act(()=>{fuzeMenu=pressStoresOsb(session,n as 3|5|6,fuzeMenu);}));
       osbButtons.set(n,control);stores.append(control);
     }
     const podContent=h('div',{class:'atflir-flir ui-fill'},podHost,h('div',{class:'atflir-ddi-bottom'},h('span',null,'FLIR · WPDSG')));
@@ -73,13 +68,13 @@ const page: PageFactory = () => {
       h('section',{class:'atflir-brief'},h('div',{class:'ui-placard'},'GBU-38 · TOO'),h('h2',null,lesson.title),h('p',null,lesson.goal),h('ol',{class:'atflir-steps'},steps),result,nextButton.el),
       group({label:'Aircraft & weapon',children:[row(ag.el,master.el),skip.el],hint:'On the left DDI: select J-82 at the top, MODE on the upper left for TOO, then EFUZ and INST. Warmup is 2:30; skipping is a labelled training aid.'}),
       group({label:'HSI · target designation',children:[row(button({label:'WP2 · assigned truck',onClick:()=>act(()=>{waypoint='assigned';})}).el,button({label:'WP3 · other truck',onClick:()=>act(()=>{waypoint='wrong';})}).el),row(wpText,designation.el)],hint:'Selecting a waypoint does not designate it. Press WPDSG and inspect FLIR. These are fictional training waypoints.'}),
-      id !== 'setup' ? group({label:'Training pass',children:[start.el,release.el,button({label:'Reload for another pass',onClick:()=>act(()=>session.retry())}).el],hint:'R is the browser substitute for Weapon Release; RAlt+Space is also supported. Flight and range gates are scripted.'}) : null,
+      id !== 'setup' ? group({label:'Training pass',children:[start.el,release.el,button({label:'Reload for another pass',onClick:()=>act(()=>session.retry())}).el],hint:'R is the browser substitute for Weapon Release; RAlt+Space is also supported. Flight and range gates are scripted. Reloading is a training aid, not a cockpit control.'}) : null,
       button({label:'Restart lesson',variant:'ghost',onClick:()=>{session=new JdamSession(id);fuzeMenu=false;waypoint='assigned';saved=false;update();}}).el,
       h('details',null,h('summary',null,'Sources & training limits'),h('p',null,JDAM_SOURCE),h('ul',null,JDAM_CAVEATS.map(t=>h('li',null,t)))));
     const viewport=h('div',{class:'atflir-view'},h('div',{class:'atflir-viewhead'},h('span',null,'3D TRAINING RANGE'),camera.el),worldHost,status,message);
     const layout=labLayout({id:'jdam',class:'atflir jdam',header:{title:'JDAM',meta:'F/A-18C · GBU-38 TOO',lede:'Prepare J-82, designate the target, release on IN RNG. Follow the bomb to impact.'},viewport,console:controls,strip});
     ctx.root.append(layout.el); clean.add(()=>layout.destroy());
-    try { world=new PodView(sensor,'gbu38');worldHost.append(world.el);clean.add(()=>world?.dispose());pod=new PodView(sensor,'gbu38');podHost.append(pod.el);clean.add(()=>pod?.dispose()); }
+    try { world=new PodView(sensor,'gbu38',JDAM_TIMING.flight);worldHost.append(world.el);clean.add(()=>world?.dispose());pod=new PodView(sensor,'gbu38',JDAM_TIMING.flight);podHost.append(pod.el);clean.add(()=>pod?.dispose()); }
     catch(error){worldHost.append(h('p',{role:'alert'},'WebGL unavailable. Enable graphics acceleration for the 3D delivery.'));console.error(error);}
     const theme=readTheme();
     if(preview){session.selectWeapon(true);session.skipWarmup();session.ag=true;session.masterArm=true;session.mode='TOO';session.efuz='INST';session.designation=ctx.params.get('shot')==='miss'?'wrong':'assigned';session.step(.01);
@@ -103,7 +98,7 @@ const page: PageFactory = () => {
       const c=hud.getContext('2d');if(c){c.fillStyle=theme.screen;c.fillRect(0,0,400,400);c.fillStyle=theme.sym;c.strokeStyle=theme.sym;c.lineWidth=2;c.font=`18px ${theme.fontMono}`;c.textAlign='center';
         c.fillText(session.ag?'A/G':'NAV',200,35);c.fillText('J-82 · MAN',200,65);c.beginPath();c.moveTo(100,145);c.lineTo(300,145);c.moveTo(200,133);c.lineTo(200,157);c.stroke();
         c.beginPath();c.arc(200,220,10,0,Math.PI*2);c.moveTo(170,220);c.lineTo(190,220);c.moveTo(210,220);c.lineTo(230,220);c.stroke();
-        c.fillText(session.inRange?'IN RNG':session.phase==='approach'?`TMR ${Math.ceil(session.timer)}`:session.phase.toUpperCase(),200,300);c.font=`13px ${theme.fontMono}`;c.fillText('SCRIPTED RANGE · MANUAL RELEASE',200,375);}}
+        c.fillText(manualHudCue(session),200,300);c.font=`13px ${theme.fontMono}`;c.fillText('SCRIPTED RANGE · MANUAL RELEASE',200,375);}}
     let frame=0,prev=performance.now();const tick=(now:number)=>{const dt=document.hidden?0:Math.min(.1,(now-prev)/1000);prev=now;if(!preview)session.step(dt);update(true);frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);clean.add(()=>cancelAnimationFrame(frame));
     const held={down:()=>session.setRelease(true),up:()=>session.setRelease(false)};
     clean.add(bindKeys({R:held,'RAlt+Space':held}));update();

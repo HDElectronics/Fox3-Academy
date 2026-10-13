@@ -57,7 +57,7 @@ export class JdamSession {
   }
   retry(): void {
     this.phase = 'idle'; this.timer = 0; this.releaseHeld = false; this.targetAtRelease = null;
-    this.message = 'New training store. Check the TOO target before starting another pass.';
+    this.message = 'Training reload: one GBU-38 is loaded again. Check the TOO target before starting another pass.';
   }
   private checkSteps(): void {
     if (this.lesson === 'setup') {
@@ -100,4 +100,22 @@ export class JdamSession {
     }
     this.checkSteps();
   }
+}
+
+/** MANUAL HUD range status: only the sourced TMR / IN RNG cues; blank otherwise. */
+export function manualHudCue(session: JdamSession): string {
+  if (session.inRange) return 'IN RNG';
+  return session.phase === 'approach' ? `TMR ${Math.ceil(session.timer)}` : '';
+}
+
+/** STORES pushbuttons used by the lesson. Returns whether the EFUZ submenu stays open.
+ * PB6 inside the submenu only closes it, so a misclick cannot deselect J-82 and restart the warmup. */
+export function pressStoresOsb(session: JdamSession, osb: 3 | 5 | 6, fuzeMenu: boolean): boolean {
+  if (osb === 6) {
+    if (!fuzeMenu) session.selectWeapon(!session.selected);
+    return false;
+  }
+  if (fuzeMenu) { session.efuz = osb === 5 ? 'OFF' : 'INST'; return false; }
+  if (osb === 5) { session.mode = session.mode === 'TOO' ? 'PP' : 'TOO'; return false; }
+  return true;
 }

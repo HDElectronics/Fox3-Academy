@@ -28,5 +28,6 @@ export const JDAM_CAVEATS = [
   'The manual gives inconsistent alignment-quality timing statements. This lesson models the documented 150-second warmup interlock, without asserting a GOOD quality threshold.',
   'The held release control releases immediately when the training prerequisites and IN RNG are satisfied. A current-DCS minimum button-hold duration has not been verified and is not simulated.',
   'Impact is a simple exercise result: the bomb retains the target designated at release. Changing the designation afterwards does not move that released bomb. No laser or seeker model is used.',
+  'Pressing J-82 while the EFUZ submenu is open only closes the submenu, so a misclick does not restart the warmup. This is trainer behavior, not verified DCS behavior.',
   'The weapon exterior, path and impact effects are illustrative and enlarged for readability, not weapon performance or damage simulation.',
 ] as const;

@@ -1,5 +1,6 @@
 import { DeliveryVisual, type DeliveryVisualState } from '../../render/attack/deliveryVisual';
 import type { LaserDeliverySession } from './delivery';
+import { LGB_TRAINING_TIMING } from '../../data/fa18cLgb';
 /** 3D pod view with a separate crisp instrument overlay. Owns and disposes its GPU resources. */
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderer, PCFShadowMap, SRGBColorSpace, ACESFilmicToneMapping } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -49,7 +50,7 @@ export class PodView {
   private readonly onLost = (e: Event) => { e.preventDefault(); this.contextLost = true; this.el.dataset.unavailable = 'true'; };
   private readonly onRestored = () => { this.contextLost = false; delete this.el.dataset.unavailable; this.resize(); };
 
-  constructor(session: AtflirSession, weapon: 'gbu12' | 'gbu38' = 'gbu12') {
+  constructor(session: AtflirSession, weapon: 'gbu12' | 'gbu38' = 'gbu12', flightSeconds: number = LGB_TRAINING_TIMING.flight) {
     this.session = session; this.aim.copy(podAim(session)); this.fov = POD_FOV[session.fov]!;
     this.renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -76,7 +77,7 @@ export class PodView {
     this.filter = new SensorFilter(this.renderer, this.theme);
     this.range = new AtflirRange(this.theme, () => { if (!this.disposed) this.renderer.shadowMap.needsUpdate = true; });
     this.range.scale.setScalar(.001); this.scene.add(this.range);
-    this.deliveryVisual = new DeliveryVisual(this.theme, weapon); this.scene.add(this.deliveryVisual);
+    this.deliveryVisual = new DeliveryVisual(this.theme, weapon, flightSeconds); this.scene.add(this.deliveryVisual);
     this.renderer.shadowMap.needsUpdate = true;
     this.overview.position.set(.32, .28, .36);
     this.orbit = new OrbitControls(this.overview, this.renderer.domElement);

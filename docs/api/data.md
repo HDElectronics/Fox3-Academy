@@ -515,6 +515,14 @@ tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomc
   The Merge page labels `Space` to fire and `C` to uncage separately as trainer controls; actionable coaching
   uses `C`, while the reference retains the DCS controls (F-15C `6`, JF-17 `T2`).
 
+### Hornet JDAM TOO (`JDAM_CAVEATS` in `src/data/fa18cJdam.ts`)
+- The 8 s approach, 12 s bomb flight and the IN RNG gate are arbitrary lesson pacing, not a DCS launch zone.
+- Alignment-quality timing is inconsistent in the ED guide (p330 vs p331) and is not modeled; only the
+  documented 150 s warmup and the 10:00 to 7:30 TIMING clock are.
+- Minimum Weapon Release hold time is not verified; the trainer releases as soon as IN RNG and RDY hold.
+- PB6 inside the EFUZ submenu only closes the submenu, and the reload control is a training aid.
+- STORES and HUD layout, the WP2/WP3 targets, the 4x exterior and the impact effects are training aids.
+
 ## Requests (to the architect)
 
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
