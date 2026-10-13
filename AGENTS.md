@@ -35,8 +35,8 @@ for normal static hosts.
 6. **Keep cockpit displays consistent with the aircraft and earlier lessons.** Before building or changing a
    lesson, inspect the existing lessons for that aircraft and reuse their display components, bezels, fonts,
    symbology and pushbutton numbering. Follow the aircraft's sourced DCS layouts and control behavior; do not
-   replace DDIs with generic web buttons or invent a new cockpit style per course. For Hornet lessons, retain
-   the established 3D view above the HUD, DDIs and UFC. Label simplified layouts and unimplemented functions.
+   replace DDIs with generic web buttons or invent a new cockpit style per course. For Hornet cockpit lessons
+   (HARM, ATFLIR, JDAM), retain the established 3D view above the HUD, DDIs and UFC. Label simplified layouts and unimplemented functions.
 7. **Pages clean up.** `unmount()` stops the loop, disposes the Stage, removes every listener, stops audio.
 
 ## Commands
