@@ -27,7 +27,7 @@ export const CAS_PAGE_CAVEATS = [
 export const A10C_PAGE_CAVEATS = [
   'A-10C II: cleared hot needs the pod point track, or an SPI you set from the pod, on a briefed target. The TAD triangle alone is coordinates, not eyes on the target.',
   'A-10C II: the pod is already on and timed out in A-G at the start; the AHCP switches, the CNTL page and the DSMS are not modelled. Codes are 1688 everywhere.',
-  'A-10C II: weapon release fires on the press. In DCS you hold release through the CCRP cue; the trainer does not model the cue timing.',
+  'A-10C II: bombs in CCRP drop when you hold release until the cue reaches the reticle; other stores, and CCIP bombs, fire on the press (CCIP consent is not modelled). The cue timing is a trainer solution, not the DCS computation.',
   'A-10C II: what the JTAC says after Spot, Shift and Terminate, and when it stops lasing, is trainer wording and a trainer rule.',
   'A-10C II: WILCO and CNTCO are buttons (OSB 19 and OSB 7 on the MSG page); no keyboard default was found.',
 ];
@@ -168,7 +168,7 @@ export const LESSONS: Record<CasLessonId, LessonDef> = {
       { id: 'slave', text: 'Make the pod the SOI (hold K), then point it at the SPI: hold V (Slave to SPI).', keys: 'K (hold 1 s), V (hold 1 s)', check: s => s.milestones.has('slave') },
       { id: 'track', text: 'Move the crosshair onto a tank (; . , /) and lock it: tap LCtrl+Up. POINT appears.', keys: '; . , /, LCtrl+Up', check: s => s.milestones.has('point-target') },
       { id: 'spi-tgp', text: 'Make the tank the SPI: hold LCtrl+Up.', keys: 'LCtrl+Up (hold 1 s)', check: s => s.milestones.has('spi-tgp') },
-      { id: 'release', text: 'You are cleared to engage. Make the HUD the SOI (U), choose GBU-12 or APKWS (PageDown), set CCRP (M) and release on the attack heading (RAlt+Space).', keys: 'U, PageDown, M, RAlt+Space', check: s => s.clearedReleases > 0 },
+      { id: 'release', text: 'You are cleared to engage. Make the HUD the SOI (U), choose GBU-12 or APKWS (PageDown), set CCRP (M) and hold release on the attack heading (RAlt+Space). A GBU-12 drops when the cue reaches the reticle; APKWS fires on the press.', keys: 'U, PageDown, M, RAlt+Space (hold)', check: s => s.clearedReleases > 0 },
       { id: 'lase', text: 'Fire the laser and keep it on until impact: hold Insert, or press Laser. (For APKWS, start lasing before you fire.)', keys: 'Insert (hold)', check: s => s.milestones.has('laser-release') || s.targetsKilled > 0 },
       { id: 'complete', text: 'Radio: Attack Complete. The JTAC reports the damage.', keys: '\\, F1', check: s => s.attacks > 0 },
     ],

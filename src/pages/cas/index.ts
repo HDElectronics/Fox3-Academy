@@ -593,7 +593,7 @@ const factory: PageFactory = (): Page => {
         say('in');
         ho.tap('coolieU');
         run(40, () => w.canAgLaunch(id).ok);
-        ho.releaseWeapon();
+        if (ho.pressRelease() && ho.holding) { run(40, () => !ho.holding); ho.letGoRelease(); }
         run(60, () => ![...w.agWeapons.values()].some(x => x.alive));
         say('off'); run(6);
         finish();

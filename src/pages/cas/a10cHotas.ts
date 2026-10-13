@@ -2,10 +2,11 @@
  * [OWNER: page-cas] A-10C II HOTAS logic for the CAS page, pure (no DOM, no three.js), so tests can fly it: the sensor
  * of interest (SOI), short and long presses (Long = held 1 s or more, ED manual p. 107), TMS / DMS / China Hat /
  * Coolie per SOI, the TGP slew and the TAD cursor, hooking the digital 9-line triangle, the SPI, slave-all-to-SPI,
- * LSS (OSB 6), the laser (Nosewheel Steering button), the master mode cycle and weapon release. The right MFCD shows
+ * LSS (OSB 6), the laser (Nosewheel Steering button), the master mode cycle and weapon release, held through the
+ * solution cue for bombs in CCRP (research §5, M p. 455-459). The right MFCD shows
  * the TGP or the MAV page (Coolie Right Short cycles them, Right Long makes the shown page the SOI); with the MAV page
  * as SOI the slew moves the Maverick gate, TMS Forward Short locks, China Hat Aft Short recages (research §6).
- * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Not modelled: HMCS, markpoints, the
+ * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Not modelled: HMCS, markpoints, CCIP consent (CCIP is manual release), the
  * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
  * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
  */
@@ -14,6 +15,7 @@ import type { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import type { AgWeaponId } from '../../data/types';
 import { AG_WEAPONS } from '../../data/agWeapons';
+import { CCRP_TOL_DEG, releaseSolution, type ReleaseSolution } from '../../sim/agWeapons';
 import type { A10cMasterMode } from '../../ui/displays';
 import type { JtacController } from './jtac';
 import type { A10cMilestone } from './lessons';
@@ -32,6 +34,10 @@ const CURSOR_SCALE_PER_S = 0.35;
 const HOOK_SCALE = 0.07;
 /** An SPI or a pod point within this distance of a live briefed target is "on the target" (m). Trainer value. */
 export const ON_TARGET_M = 25;
+
+/** A laser bomb's CCRP release point: this share of its trainer range band (the band is not verified). */
+const LGB_RELEASE_BAND = 0.95;
+const D2R = Math.PI / 180;
 
 export type Soi = 'hud' | 'tad' | 'tgp' | 'mav';
 export type LeftPage = 'tad' | 'msg';
@@ -80,6 +86,8 @@ export class A10cHotas {
   private slewIn = { x: 0, y: 0 };
   /** Store selected before GUNS, restored when leaving it. */
   private storeBeforeGuns: AgWeaponId | null = null;
+  /** Weapon release held in CCRP: the bomb drops when the cue reaches the reticle (stepHold). */
+  holding = false;
 
   constructor(private readonly host: HotasHost) {}
 
@@ -88,7 +96,7 @@ export class A10cHotas {
     this.soi = 'hud'; this.leftPage = 'tad'; this.rightPage = 'tgp'; this.mavFov = 'wide'; this.slaveCount = 0;
     this.master = 'NAV'; this.spiSource = 'steer';
     this.tadScaleNm = 10; this.hooked = null; this.laserHeld = false; this.laserLatched = false;
-    this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null;
+    this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null; this.holding = false;
     const ac = this.host.me();
     const d = this.tadScaleNm * NM * 0.3;
     this.cursor = { x: ac.pos.x + Math.sin(ac.heading) * d, z: ac.pos.z - Math.cos(ac.heading) * d };
@@ -128,6 +136,7 @@ export class A10cHotas {
       const r = w.tgpLaser(ac.id, want);
       if (!r.ok && want) { this.laserHeld = false; this.laserLatched = false; this.host.log(r.reason, 'caution'); }
     }
+    if (this.holding) this.stepHold();
     this.updateMilestones();
   }
 
@@ -354,7 +363,56 @@ export class A10cHotas {
     w.setAgMaster(ac.id, m === 'NAV' ? 'nav' : 'ag');
   }
 
-  /** Weapon release (community key RAlt+Space). The trainer releases on the press (no CCRP cue timing). */
+  /**
+   * Weapon release pressed (community key RAlt+Space). A bomb in CCRP starts a held release that drops when the cue
+   * reaches the reticle (stepHold, M p. 455-459); everything else, CCIP bombs included, releases now.
+   */
+  pressRelease(): boolean {
+    if (!this.host.canFire()) return false;
+    const ac = this.host.me(), sel = ac.ag!.selected;
+    if (this.master === 'CCRP' && sel && AG_WEAPONS[sel].kind === 'bomb' && (ac.ag!.stores[sel] ?? 0) > 0) {
+      this.holding = true;
+      this.host.log('Release held: fly the ASL and keep holding until the cue reaches the reticle');
+      return true;
+    }
+    return this.releaseWeapon();
+  }
+
+  /** Weapon release let go: a CCRP release that has not dropped yet is cancelled. */
+  letGoRelease(): void {
+    if (!this.holding) return;
+    this.holding = false;
+    this.host.log('Release let go before the cue: no bomb', 'caution');
+  }
+
+  /**
+   * CCRP release solution for the selected bomb against the SPI. Free-fall bombs use the impact prediction; a laser
+   * bomb releases at a trainer share of its range band. Null outside CCRP or without a bomb.
+   */
+  solution(): ReleaseSolution | null {
+    const w = this.host.world(), ac = this.host.me(), sel = ac.ag?.selected;
+    if (this.master !== 'CCRP' || !sel || AG_WEAPONS[sel].kind !== 'bomb') return null;
+    const aim = this.spiXZ();
+    if (AG_WEAPONS[sel].guidance === 'ballistic') return releaseSolution(w, ac, sel, aim);
+    const gs = Math.hypot(ac.vel.x, ac.vel.z);
+    if (gs < 1) return null;
+    const tx = aim.x - ac.pos.x, tz = aim.z - ac.pos.z, ux = ac.vel.x / gs, uz = ac.vel.z / gs;
+    const errDeg = Math.atan2(ux * tz - uz * tx, tx * ux + tz * uz) / D2R;
+    const band = AG_WEAPONS[sel].rangeKm, rng = Math.hypot(tx, tz);
+    return { ttrS: (rng - band.max * 1000 * LGB_RELEASE_BAND) / gs, errDeg, inCircle: Math.abs(errDeg) <= CCRP_TOL_DEG, passed: rng < band.min * 1000 };
+  }
+
+  /** A held release drops at time to release 0 with the steering in tolerance; a passed release point ends it. */
+  private stepHold(): void {
+    const s = this.solution();
+    if (!s) { this.holding = false; this.host.log('No release solution', 'caution'); return; }
+    if (s.passed) { this.holding = false; this.host.log('Release point passed: go around', 'caution'); return; }
+    if (s.ttrS > 0 || !s.inCircle) return;
+    this.holding = false;
+    this.releaseWeapon();
+  }
+
+  /** Release now: the press for rockets, Mavericks, the gun and CCIP; the end of a held CCRP release. */
   releaseWeapon(): boolean {
     if (!this.host.canFire()) return false;
     const w = this.host.world(), ac = this.host.me();

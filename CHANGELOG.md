@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A-10C II: hold weapon release in CCRP. GBU-12, Mk-82 and CBU-97 drop by themselves when the cue reaches the reticle
+  with the steering in tolerance; letting go early cancels. CCIP and other stores still release on the press.
 - Point Fly at the Su-25T and A-10C II sortie lessons, hide the BVR-only Practice destination for attack jets, and
   open the Reference kneeboard for them (keys, procedures, RWR, glossary and sources; no radar or missile tables).
 - Add Hornet JDAM preparation, TOO manual delivery and wrong-designation lessons, with a shared GBU-38 exterior and explicit training limits.

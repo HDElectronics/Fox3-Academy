@@ -50,7 +50,8 @@ function track(p: Pilot, pos: { x: number; y: number; z: number }, spi: boolean)
 function releaseWhenReady(p: Pilot, maxS = 90): void {
   const w = p.session.sc.world, id = p.session.sc.me.id;
   p.run(maxS, () => w.canAgLaunch(id).ok);
-  p.hotas.releaseWeapon();
+  // Bombs in CCRP hold release until the cue drops them; other stores fire on the press.
+  if (p.hotas.pressRelease() && p.hotas.holding) { p.run(maxS, () => !p.hotas.holding); p.hotas.letGoRelease(); }
   settle(p);
 }
 
