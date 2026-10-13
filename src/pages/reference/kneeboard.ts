@@ -60,21 +60,23 @@ export function bindingsSection(rc: RefCtx): HTMLElement {
   });
   const empty = h('p', { class: 'ref-empty', hidden: true }, 'No bindings match the filter.');
 
-  const fox3 = fox3Of(spec).map(id => MISSILES[id].name);
+  const fox3 = spec.role === 'fighter' ? fox3Of(spec).map(id => MISSILES[id].name) : [];
   const facts = h('dl', { class: 'ref-kb__facts' },
-    fact('Radar', spec.radar.name),
-    fact('TWS', twsFact(spec)),
-    fact('Fox 3', fox3.length ? fox3.join(', ') : 'None'),
+    ...(spec.role === 'fighter'
+      ? [fact('Radar', spec.radar.name), fact('TWS', twsFact(spec)), fact('Fox 3', fox3.length ? fox3.join(', ') : 'None')]
+      : [fact('Role', 'Air-to-ground'), fact('Radar', 'None (no air-to-air radar)')]),
     fact('RWR', RWRS[spec.rwr].name.replace(/\s*".*"/, '')),
     fact('Chaff / flares', `${spec.cms.chaff} / ${spec.cms.flares}`));
 
+  // The sensor group leads the grid: the radar on a fighter, the targeting system on an attack jet.
+  const lead: BindGroup = spec.role === 'fighter' ? 'radar' : 'targeting';
   const card = consolePanel({
     title: `${spec.short} kneeboard`,
     class: 'ref-kb',
     actions: tag(full ? 'HOTAS · keyboard' : 'FC3 keyboard', 'dim'),
     children: [facts, h('div', { class: 'ref-kb__grid' },
-      groupEls.filter(x => x.g === 'radar').map(x => x.el),
-      h('div', { class: 'ref-kb__stack' }, groupEls.filter(x => x.g !== 'radar').map(x => x.el))), empty],
+      groupEls.filter(x => x.g === lead).map(x => x.el),
+      h('div', { class: 'ref-kb__stack' }, groupEls.filter(x => x.g !== lead).map(x => x.el))), empty],
   });
 
   rc.filterable({
@@ -192,9 +194,11 @@ export function proceduresSection(rc: RefCtx): { el: HTMLElement; tabs: TabsHand
   });
 
   const blocks: Child[] = [
-    h('p', null, `The BVR flow in the ${spec.short}, one step per action, with the key and the HOTAS function for each. Search, shoot, support, defend.`),
+    h('p', null, spec.role === 'fighter'
+      ? `The BVR flow in the ${spec.short}, one step per action, with the key and the HOTAS function for each. Search, shoot, support, defend.`
+      : `The attack flow in the ${spec.short}, one step per action, with the key and the HOTAS function for each.`),
   ];
-  if (!procedureFor(rc.ac, 'tws-multi')) {
+  if (spec.role === 'fighter' && !procedureFor(rc.ac, 'tws-multi')) {
     const tws = spec.radar.tws;
     const why = !tws
       ? `The ${spec.short} has no multi-target TWS: its PSID tracks one target and cannot guide the Super 530D, so every shot leaves from PSIC (STT), one target at a time, and he gets a lock warning each time.`

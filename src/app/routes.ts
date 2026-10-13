@@ -32,7 +32,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'harm', label: 'HARM & SEAD', title: 'F/A-18C: know the SAM radars, see how a HARM flies, fire it in SP, TOO and PB, and shoot back with Pullback', load: () => import('../pages/harm/index'), jets: ['fa18c'] },
   { path: 'rwr', label: 'RWR', title: 'Read your warning receiver: who is searching, locking, launching', load: () => import('../pages/rwr-trainer/index') },
   { path: 'sortie', label: 'Sortie', title: 'Fly a full BVR engagement against AI that shoots back, then debrief it', load: () => import('../pages/sortie/index') },
-  { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index') },
+  { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index'), roles: ['fighter', 'attack'] },
 ];
 
 export function routeFor(path: string): RouteDef {

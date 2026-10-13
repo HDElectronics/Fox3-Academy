@@ -3,7 +3,7 @@
  * tags, links to other lessons and the filter contract every filterable block implements.
  */
 import { h } from '../../ui/dom';
-import type { FighterId, AircraftSpec } from '../../data/types';
+import type { AircraftId, AircraftSpec, FighterId, JetSpec } from '../../data/types';
 import type { Units } from './model';
 import { splitHits } from './model';
 
@@ -16,13 +16,25 @@ export interface Filterable {
 
 /** Shared state every section needs. */
 export interface RefCtx {
-  ac: FighterId;
-  spec: AircraftSpec;
+  /** The selected jet: a fighter or an attack jet. Narrow on `spec.role` before reading radar or missile fields. */
+  ac: AircraftId;
+  spec: JetSpec;
   units: Units;
   /** Switch the selected jet, returning the reader to a section after the remount. */
-  switchJet(id: FighterId, returnTo: string): void;
+  switchJet(id: AircraftId, returnTo: string): void;
   /** Register a block with the quick filter. */
   filterable(f: Filterable): void;
+}
+
+/** Context for the radar, missile and fleet sections, which only a fighter has. */
+export interface FighterRefCtx extends RefCtx {
+  ac: FighterId;
+  spec: AircraftSpec;
+}
+
+/** The fighter view of the context, or null for an attack jet (no air-to-air radar or missiles). */
+export function fighterCtx(rc: RefCtx): FighterRefCtx | null {
+  return rc.spec.role === 'fighter' ? rc as FighterRefCtx : null;
 }
 
 /** Text with the query words wrapped in <mark>. */

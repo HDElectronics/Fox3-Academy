@@ -13,9 +13,9 @@ import { h, cleanup, setText, type Child } from '../../ui/dom';
 import { docLayout, type DocLayoutHandle } from '../../ui/layout';
 import { bindKeys, kbd } from '../../ui/keys';
 import { AIRCRAFT, RWRS } from '../../data';
-import type { FighterId, MissileId } from '../../data/types';
+import type { AircraftId, MissileId } from '../../data/types';
 import { queryTokens } from './model';
-import type { Filterable, RefCtx } from './common';
+import { fighterCtx, type Filterable, type RefCtx } from './common';
 import { bindingsSection, proceduresSection } from './kneeboard';
 import { radarSection } from './radarSection';
 import { missilesSection } from './missilesSection';
@@ -65,15 +65,15 @@ const factory: PageFactory = (): Page => {
     const params = ctx.params;
 
     // ?ac=<id>: select that jet once. The router remounts us synchronously, so stop here.
-    const want = params.get('ac') as FighterId | null;
+    const want = params.get('ac') as AircraftId | null;
     if (want) {
       cleanHash(['ac']);
-      if (AIRCRAFT[want] && want !== ctx.app.aircraft) { ctx.app.setAircraft(want); return; }
+      if (AIRCRAFT[want] && want !== ctx.app.jet) { ctx.app.setAircraft(want); return; }
     }
 
     rendered = true;
-    const ac = ctx.app.aircraft;
-    const spec = ctx.app.spec;
+    const ac = ctx.app.jet;
+    const spec = ctx.app.jetSpec;
     const units = ctx.app.units;
     const key = `reference:${ac}:done`;
     if (!ctx.app.getProgress(key)) ctx.app.setProgress(key, true);
@@ -92,17 +92,21 @@ const factory: PageFactory = (): Page => {
     // ---- sections
     const binds = bindingsSection(rc);
     const procs = proceduresSection(rc);
-    const radar = radarSection(rc);
-    bag.add(() => radar.figure.dispose());
-    const missiles = missilesSection(rc);
+    // Radar, missiles and the fleet table are fighter BVR kit; an attack jet's reference skips them.
+    const fighter = fighterCtx(rc);
+    const radar = fighter ? radarSection(fighter) : null;
+    if (radar) bag.add(() => radar.figure.dispose());
+    const missiles = fighter ? missilesSection(fighter) : null;
     const rwrName = RWRS[spec.rwr].name.replace(/\s*".*"/, '').replace(/\s*\(.*\)/, '');
 
     const sections: { id: string; title: string; content: Child }[] = [
       { id: 'ref-binds', title: `${spec.short} kneeboard`, content: binds },
       { id: 'ref-procs', title: 'Procedures', content: procs.el },
-      { id: 'ref-radar', title: `Radar: ${spec.radar.name}`, content: radar.el },
-      { id: 'ref-missiles', title: 'Missiles', content: missiles.el },
-      { id: 'ref-jets', title: 'All ten jets', content: fleetSection(rc) },
+      ...(fighter && radar && missiles ? [
+        { id: 'ref-radar', title: `Radar: ${fighter.spec.radar.name}`, content: radar.el },
+        { id: 'ref-missiles', title: 'Missiles', content: missiles.el },
+        { id: 'ref-jets', title: 'All ten jets', content: fleetSection(fighter) },
+      ] : []),
       { id: 'ref-rwr', title: `RWR: ${rwrName}`, content: rwrSection(rc) },
       { id: 'ref-glossary', title: 'Glossary', content: glossarySection(rc) },
       { id: 'ref-sources', title: 'Sources', content: sourcesSection(rc) },
@@ -111,7 +115,7 @@ const factory: PageFactory = (): Page => {
     // ---- quick filter (lives at the top of the sticky contents panel)
     const input = h('input', {
       type: 'search', id: 'ref-filter', class: 'ref-filter__input', autocomplete: 'off', spellcheck: 'false',
-      placeholder: 'notch, R-77, TWS…', 'aria-describedby': 'ref-filter-status', 'aria-keyshortcuts': '/',
+      placeholder: fighter ? 'notch, R-77, TWS…' : 'laser, release, chaff…', 'aria-describedby': 'ref-filter-status', 'aria-keyshortcuts': '/',
     });
     const status = h('p', { class: 'ref-filter__status', id: 'ref-filter-status', 'aria-live': 'polite' });
     const clearBtn = h('button', { type: 'button', class: 'ref-filter__clear', 'aria-label': 'Clear the filter', hidden: true, onclick: () => { input.value = ''; run(); input.focus(); } }, '×');
@@ -124,8 +128,10 @@ const factory: PageFactory = (): Page => {
     doc = docLayout({
       id: 'ref-doc', class: 'ref-doc',
       title: 'Cockpit reference',
-      meta: `${spec.short} · ${spec.radar.name} · ${mode} · ${units === 'metric' ? 'km' : 'nm'}`,
-      lede: `The kneeboard for your ${spec.short}: keys, procedures and radar numbers, plus lookup tables for every missile, jet, RWR symbol and BVR term in this trainer.`,
+      meta: `${spec.short} · ${fighter ? fighter.spec.radar.name : 'No air-to-air radar'} · ${mode} · ${units === 'metric' ? 'km' : 'nm'}`,
+      lede: fighter
+        ? `The kneeboard for your ${spec.short}: keys, procedures and radar numbers, plus lookup tables for every missile, jet, RWR symbol and BVR term in this trainer.`
+        : `The kneeboard for your ${spec.short}: keys and procedures, plus its RWR symbols, the glossary and the sources.`,
       sections,
     });
     const tocLinks = doc.toc ? [...doc.toc.querySelectorAll<HTMLButtonElement>('.ui-doc__toc-link')] : [];
@@ -179,7 +185,7 @@ const factory: PageFactory = (): Page => {
 
     // ---- one-shot params: expand a missile, open a procedure, scroll to a section
     const open = params.get('open') as MissileId | null;
-    if (open) missiles.expand(open);
+    if (open) missiles?.expand(open);
     const proc = params.get('proc');
     if (proc && procs.tabs.panels[proc]) procs.tabs.set(proc);
     const shot = params.get('shot');

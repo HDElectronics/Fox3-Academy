@@ -9,7 +9,7 @@ import { AIRCRAFT_CAVEATS } from '../../data';
 import type { AircraftSpec, RadarModeId } from '../../data/types';
 import { radarRules } from '../../sim/radar';
 import { beamWindowDeg, capUnpublished, fox3Of, matches, rangeText, rangeUnit, rangeNum, scanMatrix, speedText, twsPatternText, twsPatternsOf } from './model';
-import { hl, lessonLink, tag, type RefCtx } from './common';
+import { hl, lessonLink, tag, type FighterRefCtx } from './common';
 import { displayFigure, type DisplayFigure } from './displayFigure';
 
 const BEAM_GS_KTS = 450;
@@ -50,7 +50,7 @@ function modeWhat(spec: AircraftSpec, mode: RadarModeId): string {
 const MODE_NAME: Partial<Record<RadarModeId, string>> = { rws: 'RWS', tws: 'TWS', stt: 'STT', vs: 'Velocity search', acm: 'ACM' };
 
 /** A label / value list the quick filter can narrow (the value text is searched and highlighted). */
-function facts(rows: [string, string][], rc: RefCtx, what: string): HTMLElement {
+function facts(rows: [string, string][], rc: FighterRefCtx, what: string): HTMLElement {
   const items = rows.map(([k, v]) => {
     const dd = h('dd', null, v);
     return { k, v, dd, el: h('div', { class: 'ref-fact' }, h('dt', null, k), dd) };
@@ -72,7 +72,7 @@ function facts(rows: [string, string][], rc: RefCtx, what: string): HTMLElement 
   return h('div', null, h('dl', { class: 'ref-facts' }, items.map(i => i.el)), empty);
 }
 
-export function radarSection(rc: RefCtx): { el: HTMLElement; figure: DisplayFigure } {
+export function radarSection(rc: FighterRefCtx): { el: HTMLElement; figure: DisplayFigure } {
   const { spec, units, ac } = rc;
   const r = spec.radar, tws = r.tws;
   const rules = radarRules(ac);
