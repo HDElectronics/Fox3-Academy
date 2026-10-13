@@ -1,10 +1,13 @@
 /** Scripted visual choreography only; no bomb ballistics or guidance model. Scene units are kilometres. */
 import { BufferGeometry, CylinderGeometry, Group, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, RingGeometry, SphereGeometry, Vector3 } from 'three';
-import { AssetVisual } from '../../render/assets';
+import { AssetVisual } from '../assets';
 import type { Theme } from '../../ui/theme';
-import type { LaserDeliverySession } from './delivery';
-import type { AtflirSession } from './model';
-import { LGB_TRAINING_TIMING } from '../../data/fa18cLgb';
+export interface DeliveryVisualState {
+  phase: string; timer: number; bombCode?: string; laserOn?: boolean; laserCode?: string;
+  releasedTarget?: 'assigned' | 'wrong' | null;
+}
+interface PodState { target: string | null; obscured: boolean }
+export const WRONG_POINT = new Vector3(-.14, .002, .03);
 export const RELEASE_POINT = new Vector3(-.13, .16, .16);
 export const HIT_POINT = new Vector3(.14, .002, -.07);
 export const MISS_POINT = new Vector3(.20, .002, -.025);
@@ -33,13 +36,13 @@ export class DeliveryVisual extends Group {
   private phase = 'idle';
   private code = '1688';
   private age = 0;
-  private session: LaserDeliverySession | null = null;
+  private session: DeliveryVisualState | null = null;
   private disposed = false;
-  constructor(theme: Theme) {
+  constructor(theme: Theme, private readonly weapon: 'gbu12' | 'gbu38' = 'gbu12', private readonly flightSeconds = 12) {
     super();
     this.bodyMaterial = new MeshStandardMaterial({ color: theme.earth });
     this.fallback = new Mesh(this.geometry[0], this.bodyMaterial); this.fallback.rotation.x = Math.PI / 2;
-    this.asset = new AssetVisual('gbu12', { onReady: () => { this.fallback.visible = false; } });
+    this.asset = new AssetVisual(weapon, { onReady: () => { this.fallback.visible = false; } });
     // Four-times exterior scale keeps the prop visible in the overview; it is a labelled teaching aid.
     this.asset.scale.setScalar(.004); this.bomb.add(this.fallback, this.asset);
     this.trailMaterial = new LineBasicMaterial({ color: theme.caution, transparent: true, opacity: .85, depthTest: false });
@@ -52,26 +55,26 @@ export class DeliveryVisual extends Group {
     this.ring = new Mesh(this.geometry[2], this.ringMaterial); this.ring.rotation.x = -Math.PI/2; this.impact.add(this.ring);
     this.add(this.bomb, this.trail, this.impact); this.bomb.visible = this.trail.visible = this.impact.visible = false;
   }
-  update(delivery: LaserDeliverySession | null, pod: AtflirSession, dt: number): void {
+  update(delivery: DeliveryVisualState | null, pod: PodState, dt: number): void {
     const phase = delivery?.phase ?? 'idle';
     if (this.session !== delivery || phase === 'idle' || phase === 'approach') {
       this.age = 0; this.bomb.visible = this.trail.visible = this.impact.visible = false; this.label = '';
     }
     if (delivery && phase === 'flight') {
-      if (this.phase !== 'flight' || this.session !== delivery) this.code = delivery.bombCode;
-      const p = 1 - delivery.timer / LGB_TRAINING_TIMING.flight;
-      const matching = delivery.laserOn && delivery.laserCode === this.code && pod.target === 'assigned' && !pod.obscured;
-      const endpoint = p < .5 || matching ? HIT_POINT : MISS_POINT;
+      if (this.phase !== 'flight' || this.session !== delivery) this.code = delivery.bombCode ?? '';
+      const p = 1 - delivery.timer / this.flightSeconds;
+      const matching = this.weapon === 'gbu38' ? delivery.releasedTarget === 'assigned' : delivery.laserOn && delivery.laserCode === this.code && pod.target === 'assigned' && !pod.obscured;
+      const endpoint = this.weapon === 'gbu38' ? (matching ? HIT_POINT : WRONG_POINT) : p < .5 || matching ? HIT_POINT : MISS_POINT;
       this.bomb.position.copy(bombPosition(p, endpoint));
       const direction = bombPosition(Math.min(1,p+.01), endpoint).sub(this.bomb.position).normalize();
       this.bomb.quaternion.copy(new Quaternion().setFromUnitVectors(new Vector3(0,0,-1), direction));
       this.bomb.visible = this.trail.visible = true; this.impact.visible = false;
       this.trailGeometry.setFromPoints(Array.from({length:32},(_,i)=>bombPosition(p*i/31,endpoint)));
-      this.positionCue.copy(this.bomb.position); this.label = `GBU-12 · ${Math.ceil(delivery.timer)} s`;
+      this.positionCue.copy(this.bomb.position); this.label = `${this.weapon === 'gbu38' ? 'GBU-38' : 'GBU-12'} · ${Math.ceil(delivery.timer)} s`;
     } else if (phase === 'hit' || phase === 'miss') {
       if (this.phase !== phase || this.session !== delivery) this.age = 0;
       this.age += Math.max(0,Math.min(dt,.1)); this.bomb.visible = false; this.impact.visible = true;
-      this.impact.position.copy(phase === 'hit' ? HIT_POINT : MISS_POINT);
+      this.impact.position.copy(phase === 'hit' ? HIT_POINT : this.weapon === 'gbu38' ? WRONG_POINT : MISS_POINT);
       this.positionCue.copy(this.impact.position); this.label = phase === 'hit' ? 'IMPACT · HIT' : 'IMPACT · MISS';
       const a = this.age;
       this.flash.visible = a < 1.4; this.flash.scale.setScalar(.003 + Math.min(a,.5)*.035); this.flash.position.y = .006;

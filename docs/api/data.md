@@ -515,6 +515,14 @@ tones, fire key). Research: `ru-fc3.md`, `f15c-fc3.md`, `hornet-viper.md`, `tomc
   The Merge page labels `Space` to fire and `C` to uncage separately as trainer controls; actionable coaching
   uses `C`, while the reference retains the DCS controls (F-15C `6`, JF-17 `T2`).
 
+### Hornet JDAM TOO (`JDAM_CAVEATS` in `src/data/fa18cJdam.ts`)
+- The 8 s approach, 12 s bomb flight and the IN RNG gate are arbitrary lesson pacing, not a DCS launch zone.
+- Alignment-quality timing is inconsistent in the ED guide (p330 vs p331) and is not modeled; only the
+  documented 150 s warmup and the 10:00 to 7:30 TIMING clock are.
+- Minimum Weapon Release hold time is not verified; the trainer releases as soon as IN RNG and RDY hold.
+- PB6 inside the EFUZ submenu only closes the submenu, and the reload control is a training aid.
+- STORES and HUD layout, the WP2/WP3 targets, the 4x exterior and the impact effects are training aids.
+
 ## Requests (to the architect)
 
 - Consider `notes?: string[]` on `RadarSpec` / `RwrSpec` so caveats can live on the spec instead of the side maps.
@@ -567,3 +575,12 @@ adjustable. Release guards for an assigned target and configured code are traini
 The ATFLIR cockpit strip reuses the HARM bezel and UFC components. The abbreviated SMS, UFC option
 placement and HUD geometry are training layouts, not verified cockpit geometry. `LaserCodeEntry` keeps
 LTDC and bomb CODE entry separate and commits supported exercise codes only on ENT.
+
+### Hornet JDAM TOO
+
+`src/data/fa18cJdam.ts` holds manual facts and caveats; source notes are in
+[fa18c-jdam.md](../research/fa18c-jdam.md). Uncertain values: the 8-second approach, 12-second
+flight and range gate are arbitrary lesson pacing. Alignment-quality timing is inconsistent in the
+manual and omitted; only the documented 150-second warmup is modeled. Minimum release-button hold
+time needs current-game verification. HUD/DDI layout, fictional WP2/WP3 targets, four-times exterior
+scale and effects are training aids. No PP programming, flight dynamics or ballistics are simulated.

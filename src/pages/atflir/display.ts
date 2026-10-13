@@ -1,5 +1,6 @@
-import { DeliveryVisual } from './deliveryVisual';
+import { DeliveryVisual, type DeliveryVisualState } from '../../render/attack/deliveryVisual';
 import type { LaserDeliverySession } from './delivery';
+import { LGB_TRAINING_TIMING } from '../../data/fa18cLgb';
 /** 3D pod view with a separate crisp instrument overlay. Owns and disposes its GPU resources. */
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderer, PCFShadowMap, SRGBColorSpace, ACESFilmicToneMapping } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -26,6 +27,8 @@ export class PodView {
   private readonly visibility: IntersectionObserver;
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private delivery: LaserDeliverySession | null = null;
+  private storeDelivery: DeliveryVisualState | null = null;
+  setStoreDelivery(value: DeliveryVisualState | null): void { this.storeDelivery = value; }
   setDelivery(value: LaserDeliverySession | null): void { this.delivery = value; }
   private session: AtflirSession;
   private aim = new Vector3();
@@ -47,7 +50,7 @@ export class PodView {
   private readonly onLost = (e: Event) => { e.preventDefault(); this.contextLost = true; this.el.dataset.unavailable = 'true'; };
   private readonly onRestored = () => { this.contextLost = false; delete this.el.dataset.unavailable; this.resize(); };
 
-  constructor(session: AtflirSession) {
+  constructor(session: AtflirSession, weapon: 'gbu12' | 'gbu38' = 'gbu12', flightSeconds: number = LGB_TRAINING_TIMING.flight) {
     this.session = session; this.aim.copy(podAim(session)); this.fov = POD_FOV[session.fov]!;
     this.renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -74,7 +77,7 @@ export class PodView {
     this.filter = new SensorFilter(this.renderer, this.theme);
     this.range = new AtflirRange(this.theme, () => { if (!this.disposed) this.renderer.shadowMap.needsUpdate = true; });
     this.range.scale.setScalar(.001); this.scene.add(this.range);
-    this.deliveryVisual = new DeliveryVisual(this.theme); this.scene.add(this.deliveryVisual);
+    this.deliveryVisual = new DeliveryVisual(this.theme, weapon, flightSeconds); this.scene.add(this.deliveryVisual);
     this.renderer.shadowMap.needsUpdate = true;
     this.overview.position.set(.32, .28, .36);
     this.orbit = new OrbitControls(this.overview, this.renderer.domElement);
@@ -122,13 +125,13 @@ export class PodView {
     const a = this.reducedMotion ? 1 : 1 - Math.exp(-dt * 14);
     this.aim.lerp(podAim(s), a); this.fov += (POD_FOV[s.fov]! - this.fov) * a;
     setPodCamera(this.camera, this.aim, this.fov);
-    this.deliveryVisual.update(this.delivery, s, dt);
+    this.deliveryVisual.update(this.storeDelivery ?? this.delivery, s, dt);
     if (this.isOverview) {
       const active = this.followBomb && this.deliveryVisual.label !== '';
       this.orbit.minDistance = active ? .02 : .12;
       if (active) {
         const point = this.deliveryVisual.positionCue;
-        const offset = this.delivery?.phase === 'flight' ? new Vector3(.026,.016,.038) : new Vector3(.075,.055,.09);
+        const offset = (this.storeDelivery ?? this.delivery)?.phase === 'flight' ? new Vector3(.026,.016,.038) : new Vector3(.075,.055,.09);
         this.overview.position.copy(point).add(offset); this.orbit.target.copy(point); this.orbit.enabled = false;
       } else if (this.following) {
         this.overview.position.set(.32,.28,.36); this.orbit.target.set(0,0,0);
@@ -162,7 +165,7 @@ export class PodView {
       }
       c.font = `12px ${t.fontMono}`; text(this.following ? 'FOLLOW BOMB · select Range camera to orbit' : 'Drag to orbit · scroll to zoom', 24, h - 24);
       for (const truck of TARGETS) {
-        if (truck.id === 'assigned' && (this.delivery?.phase === 'hit')) continue;
+        if (truck.id === 'assigned' && ((this.storeDelivery ?? this.delivery)?.phase === 'hit')) continue;
         const p = new Vector3(truck.x * .001, .007, truck.y * .001).project(this.overview);
         if (p.z > 1 || Math.abs(p.x) > .9 || Math.abs(p.y) > .9) continue;
         const x = (p.x + 1) * w / 2, y = (1 - p.y) * h / 2;

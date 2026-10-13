@@ -32,7 +32,12 @@ for normal static hosts.
 5. **Design system only.** Colours come from `src/styles/tokens.css` (or `readTheme()` in canvas/WebGL code).
    Fonts: Russo One for page titles only, IBM Plex Sans for prose, B612 Mono for every instrument, label and
    button. Copy is pilot-to-pilot: short, concrete, correct DCS vocabulary, no exclamation marks, no emoji.
-6. **Pages clean up.** `unmount()` stops the loop, disposes the Stage, removes every listener, stops audio.
+6. **Keep cockpit displays consistent with the aircraft and earlier lessons.** Before building or changing a
+   lesson, inspect the existing lessons for that aircraft and reuse their display components, bezels, fonts,
+   symbology and pushbutton numbering. Follow the aircraft's sourced DCS layouts and control behavior; do not
+   replace DDIs with generic web buttons or invent a new cockpit style per course. For Hornet cockpit lessons
+   (HARM, ATFLIR, JDAM), retain the established 3D view above the HUD, DDIs and UFC. Label simplified layouts and unimplemented functions.
+7. **Pages clean up.** `unmount()` stops the loop, disposes the Stage, removes every listener, stops audio.
 
 ## Commands
 
@@ -104,6 +109,21 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
 - **Publish:** merging to `main` deploys `dist-web/` to Cloudflare Pages (https://fox3-academy.pages.dev);
   pull requests get preview URLs. See `docs/deployment.md`. No deploy token or personal endpoint belongs in the
   repository.
+
+## Shared 3D assets
+
+- Keep all production aircraft, missile, bomb/store and ground-unit GLBs in `src/assets/models/`,
+  alongside the existing fleet. Reuse an existing asset before creating or downloading another copy.
+  Do not place model files in lesson folders or create page-specific asset libraries.
+- Keep reproducible Blender generators under `scripts/assets/source/` in the matching category:
+  `aircraft/`, `missiles/`, `stores/` (including bombs such as GBU-12 and GBU-38), or `ground/`.
+  Update `scripts/assets/catalog.json`, the rebuild list when applicable, and
+  `src/assets/models/manifest.json` with origin, licence, reference and approximation notes.
+- Register and load models through `src/render/assetRegistry.ts` and `AssetVisual` in
+  `src/render/assets.ts`. Preserve fallbacks, shared resource ownership and unmount cleanup.
+  Shared rendering belongs in `src/render/`; lesson-specific choreography may stay with its page.
+- Keep `.blend` files, renders and audit outputs in ignored review locations unless the repository's
+  asset packaging explicitly requires them. Audit GLB exports and verify both production build modes.
 
 ## Visual checks
 

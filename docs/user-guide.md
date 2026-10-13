@@ -312,6 +312,21 @@ then request SCENE and AUTO with SCS Right. Reload retains corrected settings; R
 The 8/12-second run and final-three-second illumination check are arbitrary training rules, not DCS
 ballistics or laser performance. A full flight model, cockpit UFC replica and pod masking are omitted.
 
+### JDAM (F/A-18C)
+
+Three GBU-38 TOO exercises use the same 3D-over-cockpit layout: prepare J-82, deliver in MAN, and
+correct a wrong designation. Select A/G and J-82, choose TOO and EFUZ INST on the left DDI, then
+wait for the documented 2:30 warmup (or use the labelled Skip warmup aid). Set Master Arm ARM.
+Select the fictional WP2 assigned truck and press WPDSG; confirm the target in FLIR and RDY on STORES.
+
+In the delivery lesson, start the aligned training pass, wait for IN RNG and use Weapon Release
+(on-screen or R; RAlt+Space is also supported). The 3D view follows the shared GBU-38 exterior to impact.
+The bomb retains the target designated at release; changing WPDSG afterwards does not change it.
+No laser is required. The wrong-designation lesson starts on WP3, the other truck.
+
+This is a simplified TOO exercise with arbitrary approach/flight timing and range gates. PP coordinate
+programming and other release modes are not included; the UFC is inactive. Each lesson saves progress.
+
 ### HARM & SEAD (F/A-18C)
 The Hornet's AGM-88C HARM, as DCS presents it (the route takes only the F/A-18C). Eight lessons:
 **Radars** (a 3D gallery of the SA-6, SA-8, SA-11, SA-15 and SA-10 batteries: which vehicle carries the radar, its

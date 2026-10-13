@@ -288,5 +288,10 @@
     "id": "sa15",
     "name": "SA-15 / Tor-family vehicle",
     "category": "ground"
+  },
+  {
+    "id": "gbu38",
+    "name": "GBU-38 JDAM",
+    "category": "store"
   }
 ]

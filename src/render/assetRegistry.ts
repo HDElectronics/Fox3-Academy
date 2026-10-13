@@ -2,7 +2,7 @@
 import type { AircraftId, AgWeaponId, GroundUnitKind, MissileId, SamId } from '../data/types';
 
 export type AssetId = AircraftId | MissileId | Exclude<AgWeaponId, 'gun25t'>
-  | GroundUnitKind | SamId | `${SamId}-missile` | 'r60' | 'agm65' | 'tgp';
+  | GroundUnitKind | SamId | `${SamId}-missile` | 'r60' | 'agm65' | 'tgp' | 'gbu38';
 
 const files = import.meta.glob<string>('../assets/models/*.glb', {
   eager: true,
