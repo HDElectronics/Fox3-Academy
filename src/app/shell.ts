@@ -3,7 +3,7 @@ import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
 import { routeFor, type RouteDef } from './routes';
 import { pickerJets } from './roleGate';
-import { contextualLinks, DESTINATIONS, destinationFor, LEARN_HOME, lessonGroups, type NavLink } from './navigation';
+import { contextualLinks, DESTINATIONS, destinationFor, destinationsFor, LEARN_HOME, lessonGroups, type NavLink } from './navigation';
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
 
@@ -60,8 +60,15 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   };
   // Second row: the selected jet's pages for the destination. Learn groups them (BVR, Close combat, Flying, the jet's own).
   const renderContext = () => {
-    const destination = destinationFor(route.path, params);
-    for (const a of $$('a', nav)) a.setAttribute('aria-current', a.dataset.destination === destination ? 'page' : 'false');
+    const destination = destinationFor(route.path, params, app.jet);
+    // Top bar for this jet: Fly may point at the jet's own sortie; a destination it cannot open is hidden.
+    const dests = destinationsFor(app.jet);
+    for (const a of $$('a', nav)) {
+      const d = dests.find(x => x.id === a.dataset.destination);
+      a.hidden = !d;
+      if (d) a.setAttribute('href', '#/' + d.path);
+      a.setAttribute('aria-current', a.dataset.destination === destination ? 'page' : 'false');
+    }
     const links = contextualLinks(destination, app.jet);
     contextNav.hidden = links.length === 0;
     contextNav.setAttribute('aria-label', destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference pages' : `Lessons for the ${app.jetSpec.short}`);

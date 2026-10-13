@@ -4,7 +4,7 @@
  * stable for existing deep links.
  */
 import { AIRCRAFT } from '../data/aircraft';
-import type { AircraftId } from '../data/types';
+import type { AircraftId, AttackId } from '../data/types';
 import { jetAllowed } from './roleGate';
 import { routeFor } from './routes';
 
@@ -23,6 +23,16 @@ export const DESTINATIONS: readonly (NavLink & { id: Destination })[] = [
   { id: 'fly', path: 'sortie', label: 'Fly' },
   { id: 'reference', path: 'reference', label: 'Reference' },
 ];
+
+/** Fly for an attack jet: its own scored sortie lesson, since the BVR sortie takes fighters only. */
+export const ATTACK_SORTIE: Readonly<Record<AttackId, string>> = { su25t: 'strike?lesson=sortie', a10c: 'cas?lesson=sortie' };
+
+/** The top-bar destinations for a jet: Fly points at the jet's own sortie, and a destination the jet cannot open
+ * (Practice, whose labs are all BVR, for an attack jet) is left out, so no top-bar link lands on the role gate. */
+export function destinationsFor(jet: AircraftId): (NavLink & { id: Destination })[] {
+  const sortie = AIRCRAFT[jet].role === 'attack' ? ATTACK_SORTIE[jet as AttackId] : undefined;
+  return DESTINATIONS.map(d => (d.id === 'fly' && sortie ? { ...d, path: sortie } : d)).filter(d => linkOpensFor(d, jet));
+}
 
 export const LESSON_LINKS: readonly LessonLink[] = [
   { path: 'radar?ex=low', label: 'Radar', group: 'bvr' }, { path: 'tws', label: 'TWS', group: 'bvr' },
@@ -57,8 +67,10 @@ export const PRACTICE_LINKS: readonly NavLink[] = [
   { path: 'flight-ops?lab=free&mode=fly', label: 'Fly the pattern', description: 'Fly the overhead break and the approach yourself, then read the graded debrief.' },
 ];
 
-export function destinationFor(path: string, params = new URLSearchParams()): Destination {
+export function destinationFor(path: string, params = new URLSearchParams(), jet?: AircraftId): Destination {
   if (path === 'sortie') return 'fly';
+  const sortie = jet && AIRCRAFT[jet].role === 'attack' ? ATTACK_SORTIE[jet as AttackId] : undefined;
+  if (sortie && sortie === `${path}?lesson=${params.get('lesson')}`) return 'fly';
   if (path === 'reference') return 'reference';
   if (path === 'practice' || (params.get('lab') === 'free' && LESSON_LINKS.some(link => link.path.split('?')[0] === path))) return 'practice';
   return 'learn';
