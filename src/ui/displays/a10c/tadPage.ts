@@ -4,7 +4,8 @@
  * ring) and the inner ring at half, the north tick on the outer ring, the scale number, the solid own-ship
  * symbol, the steerpoint, the SPI "wedding cake", friendly ground units over SADL as green crosses, the digital
  * 9-line tasking as a red triangle with a dot (flashing, with ATTACK flashing at the top, until WILCO), the NEW
- * TASKING banner, the TAD cursor, the hooked symbol with an OWN hook line and bearing / range, and the SOI box.
+ * TASKING banner, markpoints as the waypoint square with their letter (a10c-cdu.md §4, M p.355), the TAD cursor,
+ * the hooked symbol with an OWN hook line and bearing / range, and the SOI box.
  * OSB 10 NET is verified. North here is true north (DCS ticks magnetic north), bearings are true, and the
  * steerpoint circle, hook readout layout and banner position are the trainer's (not verified).
  */
@@ -49,6 +50,7 @@ export function fmtBrgRng(own: { x: number; z: number }, p: { x: number; z: numb
 export function hookedPoint(v: TadView): { x: number; z: number } | null {
   if (v.hooked === 'tasking') return v.tasking;
   if (v.hooked === 'spi') return v.spi;
+  if (v.hooked === 'mark') return v.marks?.find(m => m.letter === v.hookedMark) ?? null;
   if (v.hooked === 'friendly' && v.friendlies.length) {
     const c = v.cursor;
     if (!c) return v.friendlies[0];
@@ -88,6 +90,17 @@ export class A10cTadPage extends MfcdPage<TadView> {
         g.font(2.8, 400, 8);
         g.text(v.steerpoint.name, q.x + 2.2 * u, q.y, 'left');
       }
+    }
+    // Markpoints: the waypoint square with the letter (M p.355; the label placement is the trainer's).
+    for (const m of v.marks ?? []) {
+      const q = P(m);
+      if (!inPage(q)) continue;
+      const a = 1.3 * u;
+      g.ink(th.sym, 0, 0.3, 1);
+      g.poly([q.x - a, q.y - a, q.x + a, q.y - a, q.x + a, q.y + a, q.x - a, q.y + a], true);
+      g.font(2.8, 700, 8);
+      // Under the square: steerpoint and friendly labels sit to the right.
+      g.text(m.letter, q.x, q.y + a + 0.6 * u, 'center', 'top');
     }
     // Friendly ground units: green crosses.
     for (const f of v.friendlies) {

@@ -38,6 +38,9 @@ describe('TAD projection', () => {
     expect(hookedPoint(v)).toEqual({ x: 1000, z: 0 });
     expect(hookedPoint(tad({ hooked: 'tasking' }))).toEqual(tad().tasking);
     expect(hookedPoint(tad({ hooked: null }))).toBeNull();
+    const marks = [{ x: 10, z: 20, letter: 'A' }, { x: 30, z: 40, letter: 'Z' }];
+    expect(hookedPoint(tad({ hooked: 'mark', hookedMark: 'Z', marks }))).toEqual(marks[1]);
+    expect(hookedPoint(tad({ hooked: 'mark', hookedMark: 'B', marks }))).toBeNull();
   });
 });
 

@@ -290,6 +290,9 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
 - A-10C II CCRP (`A10cHotas.solution`): the same ±2° tolerance and 0.5 s cut-off; the GBU-12 release point at 95 % of
   its 1–9 km trainer band and the Mk-82 / CBU-97 timing from the trainer impact prediction are **not verified**.
   CCIP consent (3/9, 5 MIL) is not modelled: CCIP is manual release on the press.
+- A-10C II markpoints (`A10cHotas.markAt`): letters, the 25-slot overwrite and Z on release follow M p.202 and p.563;
+  Z at the jet's position is **inferred**; the TAD square size and letter placement are the trainer's. STEER PT MARK,
+  the HUD TDC mark and TMS Right Long are not modelled (a10c-cdu.md, open questions).
 - Sortie (`src/pages/strike/sortie.ts`): the ZSU-23-4 envelope (2.5 km, 2000 m above the site, about 6 s of
   exposure brings the jet down), the terrain-following autopilot, the steering cue, the score weights and the
   Delete flare key for the Su-25T are trainer values, **not verified**. The salvo selector follows S1

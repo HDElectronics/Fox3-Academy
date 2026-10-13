@@ -143,6 +143,9 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const tmsAs = cap('TMS Aft', 'TMS Aft Short: INR, unhook', tap('tmsA'), 'LCtrl+Down');
   const tmsAl = cap('TMS Aft Long', 'TMS Aft Long: SPI to the steerpoint', tap('tmsA', true));
   const tmsLs = cap('TMS Left', 'TMS Left Short: clear NEW TASKING', tap('tmsL'), 'LCtrl+Left');
+  const tmsRs = cap('TMS Right', 'TMS Right Short: markpoint at the TGP, MAV or TAD cursor point', tap('tmsR'), 'LCtrl+Right');
+  // CDU MK: overhead markpoint. No keyboard default was verified, so the key is a button only.
+  const mkBtn = cap('CDU MK', 'CDU MK key: overhead markpoint', () => { hotas.markOverhead(); });
   const slave = cap('Slave to SPI', 'China Hat Forward Long: slave all sensors to the SPI', tap('chF', true), 'V');
   const fovBtn = cap('FOV', 'China Hat Forward Short: TGP WIDE / NARO', tap('chF'));
   const zoomTo = (sw: 'dmsF' | 'dmsA') => () => { if (hotas.soi !== 'tgp') hotas.setSoi('tgp'); hotas.tap(sw); };
@@ -173,12 +176,12 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const slewPad = slewGrid('strk-pad cas-a10-pad');
   const controlRows = [
     placard('SOI (Coolie)'), row(soiHud.el, soiTad.el, soiTgp.el, soiMav.el), row(pageBtn.el, rPageBtn.el),
-    placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el), row(tmsLs.el),
+    placard('TMS'), row(tmsFs.el, tmsFl.el), row(tmsAs.el, tmsAl.el), row(tmsLs.el, tmsRs.el),
     placard('Slew'), slewPad,
     placard('China Hat · TGP · MAV'), row(slave.el, toStp.el), row(fovBtn.el, recage.el), row(zoomIn.el, zoomOut.el),
     placard('Laser'), row(lssBtn.el, laserBtn.el),
     ...(host.noMsg ? [] : [placard('MSG page'), row(wilcoBtn.el, cntcoBtn.el)]),
-    placard('Weapons'), row(masterBtn.el, profBtn.el), row(flareBtn.el), releaseBtn.el,
+    placard('Weapons'), row(masterBtn.el, profBtn.el), row(flareBtn.el, mkBtn.el), releaseBtn.el,
   ];
   const binds = PROCEDURES.a10c.binds;
   const keyList = disclosure({
@@ -313,7 +316,8 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       spi: hotas.spiXZ(), steerpoint: { x: sp.x, z: sp.z, name: sp.name },
       friendlies: host.friendlies().flatMap(f => { const u = w.groundUnits.get(f.id); return u?.alive ? [{ x: u.pos.x, z: u.pos.z, label: f.label }] : []; }),
       tasking: tk && tk.state !== 'cntco' ? { x: tk.pos.x, z: tk.pos.z, accepted: tk.state === 'wilco' } : null,
-      newTasking: !!tk?.newShown, cursor: hotas.cursor, hooked: hotas.hooked, soi: hotas.soi === 'tad',
+      newTasking: !!tk?.newShown, cursor: hotas.cursor, hooked: hotas.hooked, hookedMark: hotas.hookedMark,
+      marks: hotas.marks, soi: hotas.soi === 'tad',
     };
   }
   function msgView(): MsgPageView | null {

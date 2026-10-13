@@ -78,9 +78,12 @@ export interface TadView {
   tasking: { x: number; z: number; accepted: boolean } | null;
   /** NEW TASKING shown on both MFCDs until cleared (TMS Left Short). */
   newTasking: boolean;
-  /** TAD cursor and the hooked symbol. */
+  /** Markpoints (docs/research/a10c-cdu.md §4): the waypoint square with the mark letter. */
+  marks?: { x: number; z: number; letter: string }[];
+  /** TAD cursor and the hooked symbol; `hookedMark` is the letter when a markpoint is hooked. */
   cursor: { x: number; z: number } | null;
-  hooked: 'tasking' | 'spi' | 'friendly' | null;
+  hooked: 'tasking' | 'spi' | 'friendly' | 'mark' | null;
+  hookedMark?: string | null;
   soi: boolean;
 }
 

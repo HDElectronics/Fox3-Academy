@@ -50,8 +50,9 @@ top bar (#84) shipped.
 ## P4 — Ideas
 
 - More jets: F-15E (Razbam), F-4E (Heatblur), Mirage F1, the full-fidelity MiG-29A, Eurofighter when released.
-- A-10C II follow-ups: CDU coordinate entry from line 6 and markpoints, the Maverick page, CCIP consent (hold
-  through the solution cue), and in-game checks of the trainer values in [a10c.md](docs/research/a10c.md).
+- A-10C II follow-ups: CDU coordinate entry from 9-line line 6 (researched in
+  [a10c-cdu.md](docs/research/a10c-cdu.md)), STEER PT MARK, CCIP consent, and in-game checks of the trainer values in
+  [a10c.md](docs/research/a10c.md) and a10c-cdu.md.
 
 ## Community contributions — deferred from active implementation
 

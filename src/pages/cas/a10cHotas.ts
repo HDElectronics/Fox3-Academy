@@ -6,7 +6,9 @@
  * solution cue for bombs in CCRP (research §5, M p. 455-459). The right MFCD shows
  * the TGP or the MAV page (Coolie Right Short cycles them, Right Long makes the shown page the SOI); with the MAV page
  * as SOI the slew moves the Maverick gate, TMS Forward Short locks, China Hat Aft Short recages (research §6).
- * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Not modelled: HMCS, markpoints, CCIP consent (CCIP is manual release), the
+ * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Markpoints (a10c-cdu.md §4): TMS Right Short at the TGP, MAV or TAD cursor point, the CDU MK key overhead,
+ * Z at each store release; hook one on the TAD and TMS Forward Long makes it the SPI. Not modelled: HMCS, the HUD TDC
+ * mark, STEER PT MARK, TMS Right Long, CCIP consent (CCIP is manual release), the
  * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
  * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
  */
@@ -38,6 +40,11 @@ export const ON_TARGET_M = 25;
 /** A laser bomb's CCRP release point: this share of its trainer range band (the band is not verified). */
 const LGB_RELEASE_BAND = 0.95;
 const D2R = Math.PI / 180;
+
+/** A markpoint: letters A–Y in order, a 26th overwrites A; Z is made at each weapon release (M p.202, p.563). */
+export interface Markpoint { letter: string; x: number; z: number }
+/** User marks A–Y (M p.202). */
+const MARK_SLOTS = 25;
 
 export type Soi = 'hud' | 'tad' | 'tgp' | 'mav';
 export type LeftPage = 'tad' | 'msg';
@@ -77,7 +84,12 @@ export class A10cHotas {
   spiSource: SpiSource = 'steer';
   tadScaleNm = 10;
   cursor: XZ = { x: 0, z: 0 };
-  hooked: 'tasking' | 'spi' | 'friendly' | null = null;
+  hooked: 'tasking' | 'spi' | 'friendly' | 'mark' | null = null;
+  /** Letter of the hooked markpoint. */
+  hookedMark: string | null = null;
+  /** Markpoints in creation order (A–Y, then Z for the last weapon release). */
+  marks: Markpoint[] = [];
+  private nextMark = 0;
   /** Laser: held (LATCH OFF, the key) or latched (LATCH ON, the button). */
   laserHeld = false;
   laserLatched = false;
@@ -97,6 +109,7 @@ export class A10cHotas {
     this.master = 'NAV'; this.spiSource = 'steer';
     this.tadScaleNm = 10; this.hooked = null; this.laserHeld = false; this.laserLatched = false;
     this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null; this.holding = false;
+    this.marks = []; this.nextMark = 0; this.hookedMark = null;
     const ac = this.host.me();
     const d = this.tadScaleNm * NM * 0.3;
     this.cursor = { x: ac.pos.x + Math.sin(ac.heading) * d, z: ac.pos.z - Math.cos(ac.heading) * d };
@@ -157,7 +170,7 @@ export class A10cHotas {
       case 'tmsF': this.tmsForward(long); break;
       case 'tmsA': this.tmsAft(long); break;
       case 'tmsL': if (long) this.host.log('SPI broadcast on the datalink'); else this.host.jtac()?.clearNewTasking(); break;
-      case 'tmsR': this.host.log('Markpoint: not modelled', 'caution'); break;
+      case 'tmsR': if (long) this.host.log('Make last mark the SPI: verified only with the HMCS, not modelled', 'caution'); else this.markSensor(); break;
       case 'dmsF': case 'dmsA': this.dmsForwardAft(sw === 'dmsF'); break;
       case 'dmsL': case 'dmsR': this.dmsLeftRight(); break;
       case 'chF': this.chinaForward(long); break;
@@ -182,6 +195,37 @@ export class A10cHotas {
   private cycleLeft(): void {
     this.leftPage = this.leftPage === 'tad' ? 'msg' : 'tad';
     if (this.soi === 'tad' && this.leftPage !== 'tad') this.soi = 'hud';
+  }
+
+  // ------------------------------------------------------------------ markpoints
+  /** A new markpoint at a ground point: the next letter A–Y, or Z for a weapon release (replacing the last Z). */
+  markAt(p: XZ, weaponEvent = false): Markpoint {
+    const letter = weaponEvent ? 'Z' : String.fromCharCode(65 + this.nextMark);
+    if (!weaponEvent) this.nextMark = (this.nextMark + 1) % MARK_SLOTS;
+    const m: Markpoint = { letter, x: p.x, z: p.z };
+    this.marks = [...this.marks.filter(k => k.letter !== letter), m];
+    if (this.hookedMark === letter) this.hooked = this.hookedMark = null;
+    if (!weaponEvent) this.host.log(`MARK ${letter}`);
+    return m;
+  }
+
+  /** CDU MK key: an overhead markpoint at the aircraft position (M p.202). */
+  markOverhead(): Markpoint {
+    const ac = this.host.me();
+    return this.markAt({ x: ac.pos.x, z: ac.pos.z });
+  }
+
+  /** TMS Right Short: a markpoint at the SOI's point: the TGP crosshair, the Maverick seeker or the TAD cursor (M p.562). */
+  private markSensor(): void {
+    const ac = this.host.me(), ag = ac.ag;
+    if (this.soi === 'tgp') {
+      if (!ag?.tgp?.on) { this.host.log('Targeting pod is off', 'caution'); return; }
+      this.markAt(ag.tgp.aim);
+    } else if (this.soi === 'mav') {
+      if (!ag?.mav?.aim) { this.host.log('Maverick caged: no seeker point to mark', 'caution'); return; }
+      this.markAt(ag.mav.aim);
+    } else if (this.soi === 'tad') this.markAt(this.cursor);
+    else this.host.log('HUD TDC mark: not modelled. Mark with the TGP, the TAD or the CDU MK key', 'caution');
   }
 
   // ------------------------------------------------------------------ TMS
@@ -224,7 +268,7 @@ export class A10cHotas {
       ac.ag!.spi = vec(w, p);
       this.spiSource = this.hooked === 'tasking' ? 'tasking' : 'steer';
       if (this.hooked === 'tasking') this.milestones.add('spi-tasking');
-      this.host.log(this.hooked === 'tasking' ? 'SPI: the tasking triangle' : 'SPI: TAD hook');
+      this.host.log(this.hooked === 'tasking' ? 'SPI: the tasking triangle' : this.hooked === 'mark' ? `SPI: mark ${this.hookedMark}` : 'SPI: TAD hook');
       return;
     }
     this.host.log(long ? 'HUD TDC SPI: not modelled, use the TGP or the TAD' : 'HUD TDC: not modelled', 'caution');
@@ -239,20 +283,22 @@ export class A10cHotas {
       return;
     }
     if (this.soi === 'tgp') { const r = w.tgpTrack(ac.id, 'inr'); if (!r.ok) this.host.log(r.reason, 'caution'); }
-    else if (this.soi === 'tad') this.hooked = null;
+    else if (this.soi === 'tad') this.hooked = this.hookedMark = null;
   }
 
   /** TAD: hook the symbol nearest the cursor within the hook radius (tasking triangle, SPI, SADL friendly). */
   hook(): boolean {
     const c = this.cursor, r = this.tadScaleNm * NM * HOOK_SCALE;
     const tk = this.host.jtac()?.tasking;
-    const cands: { what: 'tasking' | 'spi' | 'friendly'; p: XZ }[] = [];
+    const cands: { what: 'tasking' | 'spi' | 'friendly' | 'mark'; p: XZ; letter?: string }[] = [];
     if (tk && tk.state !== 'cntco') cands.push({ what: 'tasking', p: tk.pos });
     cands.push({ what: 'spi', p: this.spiXZ() });
     for (const f of this.host.friendlies()) { const u = this.host.world().groundUnits.get(f.id); if (u) cands.push({ what: 'friendly', p: u.pos }); }
+    for (const m of this.marks) cands.push({ what: 'mark', p: m, letter: m.letter });
     let best: (typeof cands)[number] | null = null, bd = r;
     for (const k of cands) { const d = Math.hypot(k.p.x - c.x, k.p.z - c.z); if (d <= bd) { best = k; bd = d; } }
     this.hooked = best?.what ?? null;
+    this.hookedMark = best?.letter ?? null;
     if (this.hooked === 'tasking') this.milestones.add('hook-tasking');
     if (!best) this.host.log('Nothing under the cursor to hook', 'caution');
     return !!best;
@@ -261,6 +307,7 @@ export class A10cHotas {
   private hookedXZ(): XZ | null {
     if (this.hooked === 'tasking') { const tk = this.host.jtac()?.tasking; return tk && tk.state !== 'cntco' ? tk.pos : null; }
     if (this.hooked === 'spi') return this.spiXZ();
+    if (this.hooked === 'mark') { const m = this.marks.find(k => k.letter === this.hookedMark); return m ? { x: m.x, z: m.z } : null; }
     if (this.hooked === 'friendly') {
       const f = this.host.friendlies()[0];
       const u = f ? this.host.world().groundUnits.get(f.id) : undefined;
@@ -419,6 +466,8 @@ export class A10cHotas {
     if (this.master === 'NAV') { this.host.log('NAV master mode: press M for CCIP or CCRP', 'caution'); return false; }
     const out = w.agLaunch(ac.id);
     if (!Array.isArray(out)) { this.host.log(out.reason || 'No release', 'caution'); return false; }
+    // Each store release makes mark Z at the jet, replacing the last one (M p.563; the position is inferred). Not the gun.
+    if (out.length > 0 && this.master !== 'GUNS') this.markAt({ x: ac.pos.x, z: ac.pos.z }, true);
     return out.length > 0;
   }
 

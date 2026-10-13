@@ -380,7 +380,9 @@ digital 9-line: NEW TASKING, the red triangle on the TAD, the lines on the MSG p
 the SPI, slave the pod, point track, lase and drop a GBU-12 or fire an APKWS) and **JTAC laser** (IP Inbound, Laser
 On: the JTAC lases on code 1688; LSS on the pod finds the spot, LTRACK, Spot, make it the SPI, cleared hot, then an
 AGM-65L or GBU-12 on his spot). Talk-on, Cleared hot, Danger close and Sortie use the pod instead of the Shkval.
-Readouts follow the nm / km toggle. CDU coordinate entry and markpoints are not modelled yet.
+Readouts follow the nm / km toggle. In CCRP, hold weapon release: the bomb drops when the cue reaches the reticle.
+Markpoints: TMS Right Short marks the pod crosshair (or the TAD cursor), CDU MK marks overhead, and each release marks
+Z; hook a mark on the TAD and hold TMS Forward to make it the SPI. CDU coordinate entry is not modelled yet.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A-10C II markpoints: TMS Right Short marks the pod crosshair, the Maverick point or the TAD cursor, the CDU MK button
+  marks overhead, and each store release marks Z. Marks show on the TAD as lettered squares and a hooked mark can
+  become the SPI. New CDU research note for coordinates and markpoints.
 - A-10C II: hold weapon release in CCRP. GBU-12, Mk-82 and CBU-97 drop by themselves when the cue reaches the reticle
   with the steering in tolerance; letting go early cancels. CCIP and other stores still release on the press.
 - Point Fly at the Su-25T and A-10C II sortie lessons, hide the BVR-only Practice destination for attack jets, and
