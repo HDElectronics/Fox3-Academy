@@ -8,11 +8,12 @@
  * Flow from the ED A-10C II manual (docs/research/cas-jtac.md, a10c.md); clearance and friendly-safety rules are
  * trainer rules.
  * Lessons, Su-25T: nine-line (scored card), talk-on, geometry, danger-close, sortie (scored).
- * A-10C II: nine-line, digital, jtac-laser, talk-on, geometry, danger-close, sortie.
+ * A-10C II: nine-line, cdu-grid (line 6 into a CDU waypoint, steerpoint, pod), digital, jtac-laser, talk-on, geometry,
+ * danger-close, sortie.
  * Progress: cas:<lesson>:<jet>.
  *
  * URL params: ?lesson=<id>, ?shot=radio|card|smoke|smoke-tv|cleared|debrief (Su-25T) or
- * a10-radio|a10-tasking|a10-msg|a10-spi|a10-lss|a10-debrief (A-10C II, with ?ac=a10c) (scripted pre-rolls for
+ * a10-radio|a10-cdu|a10-tasking|a10-msg|a10-spi|a10-lss|a10-debrief (A-10C II, with ?ac=a10c) (scripted pre-rolls for
  * screenshots, never saved as progress), ?cam=chase|target|tv (A-10C II also cdu: the CDU and AAP over the 3D view),
  * ?touch=1.
  */
@@ -45,18 +46,18 @@ import type { CduInit } from './a10cCdu';
 import { a10cAim, casSnap } from './snap';
 
 const SHOTS = ['radio', 'card', 'smoke', 'smoke-tv', 'cleared', 'debrief'] as const;
-const A10_SHOTS = ['a10-radio', 'a10-tasking', 'a10-msg', 'a10-spi', 'a10-lss', 'a10-debrief'] as const;
+const A10_SHOTS = ['a10-radio', 'a10-cdu', 'a10-tasking', 'a10-msg', 'a10-spi', 'a10-lss', 'a10-debrief'] as const;
 type Shot = typeof SHOTS[number] | typeof A10_SHOTS[number];
 type Cam = 'chase' | 'target' | 'tv' | 'cdu';
 const SHOT_LESSON: Record<Shot, CasLessonId> = {
   radio: 'nine-line', card: 'nine-line', smoke: 'talk-on', 'smoke-tv': 'talk-on', cleared: 'geometry', debrief: 'geometry',
-  'a10-radio': 'jtac-laser', 'a10-tasking': 'digital', 'a10-msg': 'digital', 'a10-spi': 'digital', 'a10-lss': 'jtac-laser', 'a10-debrief': 'jtac-laser',
+  'a10-radio': 'jtac-laser', 'a10-cdu': 'cdu-grid', 'a10-tasking': 'digital', 'a10-msg': 'digital', 'a10-spi': 'digital', 'a10-lss': 'jtac-laser', 'a10-debrief': 'jtac-laser',
 };
 /** Aim point within this distance (m) of a briefed target counts as "on the target" without a lock (trainer). */
 const AIM_ON_TARGET_M = 60;
 /** Scored attack lessons end this long after the last weapon resolves (s), or at the time limit. */
 const END_DELAY_S = 3;
-const TIME_LIMIT_S: Record<CasLessonId, number> = { 'nine-line': 400, 'talk-on': 600, geometry: 420, 'danger-close': 420, sortie: 900, 'jtac-laser': 420, digital: 480 };
+const TIME_LIMIT_S: Record<CasLessonId, number> = { 'nine-line': 400, 'talk-on': 600, geometry: 420, 'danger-close': 420, sortie: 900, 'jtac-laser': 420, digital: 480, 'cdu-grid': 600 };
 
 /** What the page needs from either cockpit. */
 interface PageCockpit {
@@ -267,6 +268,8 @@ const factory: PageFactory = (): Page => {
 
     function setCam(c: Cam): void {
       cam = c;
+      // Pre-rolls and restarts switch the camera too: keep the camera buttons on it.
+      camSeg.set(c, false);
       lab.el.classList.toggle('strk--tvbig', c === 'tv');
       if (c === 'tv') lab.view.append(ck.big);
       else if (ck.big.parentElement !== lab.strip) ck.restoreBig(lab.strip);
@@ -349,7 +352,8 @@ const factory: PageFactory = (): Page => {
       if (lesson === 'nine-line') return;
       w.selectAgWeapon(me.id, 'gbu12');
       ho.setMaster('CCRP');
-      if (lesson !== 'digital' && lesson !== 'sortie') {
+      // The CDU grid lesson is coordinates by voice only: no datalink tasking, the SPI stays the steerpoint.
+      if (lesson !== 'digital' && lesson !== 'sortie' && lesson !== 'cdu-grid') {
         jtac.presetTasking();
         const tk = jtac.tasking!;
         me.ag!.spi = new Vector3(tk.pos.x, w.groundHeight(tk.pos.x, tk.pos.z), tk.pos.z);
@@ -365,7 +369,12 @@ const factory: PageFactory = (): Page => {
     }
 
     function snap(): CasSnap {
-      return casSnap({ sc, jtac, aim: aim(), menuOpen: menu.isOpen(), cardPassed, impacts, ...(a10 ? { milestones: a10.hotas.milestones } : {}) });
+      const cdu = a10?.cdu;
+      return casSnap({
+        sc, jtac, aim: aim(), menuOpen: menu.isOpen(), cardPassed, impacts,
+        ...(a10 ? { milestones: a10.hotas.milestones } : {}),
+        ...(cdu ? { cdu: { cdu, open: cam === 'cdu', grid: nl.grid } } : {}),
+      });
     }
 
     function tick(dt: number): void {
@@ -579,6 +588,19 @@ const factory: PageFactory = (): Page => {
       if (s === 'a10-radio') {
         say('ip-inbound'); run(4);
         menu.open(); menu.select(4); menu.select(1);
+      } else if (s === 'a10-cdu') {
+        // The ED flow on the CDU (docs/research/a10c-cdu.md §3), then the new waypoint's WAYPT page again.
+        const c = a10!.cdu!;
+        const type = (t: string) => { for (const ch of t) c.key(ch); };
+        c.fsk('WP'); c.lsk('R3'); c.lsk('R7'); c.lsk('R9');
+        type(nl.grid.replace(/\s+/g, '')); c.lsk('L9');
+        type('TGT'); c.lsk('R3');
+        const shown = c.shown(), n = shown.kind === 'waypoint' ? shown.number : null;
+        c.setDial('MISSION');
+        for (let i = 0; i < c.waypoints().length && c.steerpoint().number !== n; i++) c.steer(1);
+        c.fsk('WP'); c.lsk('L3');
+        run(1);
+        setCam('cdu');
       } else if (s === 'a10-tasking' || s === 'a10-msg' || s === 'a10-spi') {
         say('readback'); run(10, () => !!jtac.tasking);
         if (s === 'a10-msg') ho.tap('coolieL');

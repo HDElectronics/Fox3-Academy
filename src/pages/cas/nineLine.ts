@@ -16,7 +16,7 @@ export const NINE_LINE_ORDER: readonly NineLineField[] = ['ip', 'heading', 'dist
 /** Line 7 per jet and lesson: the Su-25T always gets smoke; the A-10C II gets the laser and coordinates-only lessons. */
 export function markFor(jet: CasJet, lesson: CasLessonId): NineLineMark {
   if (jet !== 'a10c') return 'wp';
-  return lesson === 'digital' ? 'none' : lesson === 'jtac-laser' || lesson === 'sortie' ? 'laser' : 'wp';
+  return lesson === 'digital' || lesson === 'cdu-grid' ? 'none' : lesson === 'jtac-laser' || lesson === 'sortie' ? 'laser' : 'wp';
 }
 
 export const M_PER_NM = 1852;
