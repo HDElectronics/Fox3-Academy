@@ -12,7 +12,7 @@ import { terrainHook } from '../../render/attack/terrainHook';
 import type { HeightField } from '../../render/terrain/heightmap';
 import { strikeField, THREAT_SAM_AT, SORTIE_AAA_AT } from '../strike/scenario';
 
-export type CasLessonId = 'nine-line' | 'talk-on' | 'geometry' | 'danger-close' | 'sortie' | 'jtac-laser' | 'digital';
+export type CasLessonId = 'nine-line' | 'talk-on' | 'geometry' | 'danger-close' | 'sortie' | 'jtac-laser' | 'digital' | 'cdu-grid';
 
 /** Jets the CAS page flies. */
 export type CasJet = AttackId;
@@ -40,8 +40,11 @@ const DECOYS: readonly (XZ & { kind: 'truck' | 'apc'; name: string })[] = [
   { x: -420, z: -260, kind: 'apc', name: 'APC' },
 ];
 
-/** Where the jet starts per lesson, as a point on the run-in (m before the target along 045) and a height AGL. */
-const START: Record<CasLessonId, { from: XZ | 'hold'; aglM: number; speed: number }> = {
+/**
+ * Where the jet starts per lesson: a point (heading for the target unless `hdgDeg` is given) or the holding point
+ * (heading for the IP), a height AGL and a speed.
+ */
+const START: Record<CasLessonId, { from: XZ | 'hold'; aglM: number; speed: number; hdgDeg?: number }> = {
   'nine-line': { from: 'hold', aglM: 2000, speed: 140 },
   // Inside 10 nm after IP inbound, so the smoke is down and the Shkval search can start.
   'talk-on': { from: { x: -6000, z: 6000 }, aglM: 1500, speed: 140 },
@@ -52,11 +55,15 @@ const START: Record<CasLessonId, { from: XZ | 'hold'; aglM: number; speed: numbe
   'jtac-laser': { from: { x: -8500, z: 8500 }, aglM: 2000, speed: 130 },
   // Digital 9-line: from the IP, with time for the tasking, the SPI and the pod before the bomb band.
   digital: { from: { x: -10600, z: 10600 }, aglM: 2200, speed: 125 },
+  // CDU grid entry: about 4 min of typing. A slow straight leg on 135 from 15 km west-north-west that passes 7 km
+  // south-west of the target after about 2.5 min (near the IP) and is about 12 km out at 4 min (21 km at 6 min), so
+  // the jet never overflies the target or the friendlies and the pod keeps the target in view throughout.
+  'cdu-grid': { from: { x: -14300, z: -4400 }, aglM: 2500, speed: 110, hdgDeg: 135 },
 };
 
 /** A-10C II loadout per lesson (A10C_LOADOUTS): AGM-65L and GBU-12 for the JTAC laser, GBU-12 and APKWS otherwise. */
 const A10C_LOADOUT: Record<CasLessonId, string> = {
-  'nine-line': 'pgm', 'talk-on': 'pgm', geometry: 'pgm', 'danger-close': 'pgm', sortie: 'laser', 'jtac-laser': 'laser', digital: 'pgm',
+  'nine-line': 'pgm', 'talk-on': 'pgm', geometry: 'pgm', 'danger-close': 'pgm', sortie: 'laser', 'jtac-laser': 'laser', digital: 'pgm', 'cdu-grid': 'pgm',
 };
 
 export interface CasScenarioOptions {
@@ -105,7 +112,7 @@ export function buildCasScenario(lesson: CasLessonId, seed = 11, opts: CasScenar
 
   const st = START[lesson];
   const at = st.from === 'hold' ? CONTROL_POINT : st.from;
-  const heading = (bearingDeg(at, st.from === 'hold' ? IP : CAS_TARGET) * Math.PI) / 180;
+  const heading = ((st.hdgDeg ?? bearingDeg(at, st.from === 'hold' ? IP : CAS_TARGET)) * Math.PI) / 180;
   const y = world.terrain.heightAt(at.x, at.z) + st.aglM;
   const jet: CasJet = opts.jet ?? 'su25t';
   const me = world.spawnAircraft({

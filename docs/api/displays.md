@@ -283,7 +283,7 @@ strike cursor picking share `projectArmHudPoint`, including the ±8.5° elevatio
 ## A-10C II displays (`src/ui/displays/a10c/`)
 
 Inputs are the fixed contracts in `a10c/types.ts` (`A10cHudView` with the optional `mav: HudMavCue`, `TgpPageView`,
-`MavPageView`, `TadView`, `MsgPageView`); the page builds them from the sim, the displays only draw. Facts:
+`MavPageView`, `TadView`, `MsgPageView`, `CduView`); the page builds them from the sim, the displays only draw. Facts:
 `docs/research/a10c.md` §2–6 and `cas-jets.md` §2. Harness: `sandbox/a10c.html` (`?only=hud,tgp,mav,tad,msg`, `?t=`, `?pause=1`). Blinking uses the view's `t`
 (the MSG page does not blink), so a paused page and the tests are deterministic.
 
@@ -294,6 +294,7 @@ const tgp = new A10cTgpPage(cv); tgp.draw(tgpView);    // square MFCD canvases
 const mav = new A10cMavPage(cv); mav.draw(mavView);
 const tad = new A10cTadPage(cv); tad.draw(tadView);
 const msg = new A10cMsgPage(cv); msg.draw(msgView);
+const cdu = new A10cCduScreen(cv); cdu.draw(cduView);  // canvas at aspect-ratio CDU_ASPECT
 tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the centred square (for cursor picking)
 ```
 
@@ -335,11 +336,22 @@ tad.toPage(clientX, clientY) → { x, y, s }             // page px inside the c
   SOI box. The hooked friendly is the one nearest the cursor.
 - **A10cMsgPage**: title and the 9-line fields (label dim, value shrunk to fit), WILCO at OSB 19 and CNTCO at OSB 7;
   the answer given is a filled legend and the other one dims.
+- **A10cCduScreen** (`CduView`: `t`, `lines`, `cursorCol`; facts `docs/research/a10c-cdu.md` §1): the CDU screen,
+  10 lines x 24 characters (`CDU_ROWS`, `CDU_COLS`) in `--sym` on `--screen`. The page model lays the text out; the
+  display has no CDU logic. Each character sits in its own cell of a fixed grid (cell = usable width / 24, font fitted
+  to the cell), so columns line up exactly. Lines past 24 characters are cut, missing lines are blank (`cduGrid`).
+  `cursorCol` (0-based) draws a steady filled block on line 10 (the scratchpad) with the character under it inverse.
+  Size the canvas with `aspect-ratio: CDU_ASPECT` (1.12: B612 Mono advance 0.65 em, rows 1.4 em, padding 0.6 em left
+  and right, 0.5 em top and bottom). `cduRowCentre(row)` gives the vertical centre of row 1..10 as a fraction of the
+  canvas height (`CDU_PAD_Y` = 1/30 top and bottom, equal rows; RangeError outside 1..10), so the page can place the
+  line select keys beside rows 3, 5, 7, 9 with plain CSS percentages. Glyphs: B612 Mono has `± ° [ ] / . :` and A-Z
+  0-9; it lacks `→ ← ↕ ⊕` (`CDU_VECTOR_GLYPHS`), which are drawn as vector strokes in their cell instead of a
+  fallback font.
 
 Pure helpers (tested in `a10c/a10c.test.ts` and `a10c/mav.test.ts`): `tadProject(own, scaleNm, cx, cy, radiusPx, p)`, `bearingRange`,
 `fmtBrgRng`, `hookedPoint`, `fmtTgpRange(rangeM, source, units)`, `lssText`, `lssOsbLabel`, `fovText`, `trackText`,
 `coverSource`, `mavStaple(rangeM, dlz)` (fractions of the 15 nm scale, `inZone`, `beyond`), `mavBreakSpread(sinceBreakS)`
-(0..1 in the first 2 s, else null), `mavProfileLabel`, `fmtMavRange`, `drawMavStaple` (shared with the HUD), `fmtTtr`, `ccrpCueFraction`, `headingTapeLabel`, `a10cHudPoint`, `osbAnchor(n, pageSide)`, `msgOsbLabels`.
+(0..1 in the first 2 s, else null), `mavProfileLabel`, `fmtMavRange`, `drawMavStaple` (shared with the HUD), `fmtTtr`, `ccrpCueFraction`, `headingTapeLabel`, `a10cHudPoint`, `osbAnchor(n, pageSide)`, `msgOsbLabels`, `cduRowCentre(row)`, `cduGrid(lines)`.
 
 Not verified (trainer layout, say "simplified" in the UI where it matters): CNTL on OSB 1; the LSS code under
 OSB 6; positions of NOT SOI, SPI, NEW TASKING and the hook readout; the HUD layout (positions of speed, altitude,

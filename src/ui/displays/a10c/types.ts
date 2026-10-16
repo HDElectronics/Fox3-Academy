@@ -130,3 +130,12 @@ export interface HudMavCue {
   /** Below minimum range: X over the reticle. */
   tooClose: boolean;
 }
+
+/** CDU screen (docs/research/a10c-cdu.md §1): 10 lines of up to 24 characters, laid out by the page model. */
+export interface CduView {
+  t: number;
+  /** The 10 screen lines, top to bottom; each at most 24 characters (longer ones are cut, missing lines are blank). */
+  lines: readonly string[];
+  /** Scratchpad cursor column on line 10 (0-based), or null for none. */
+  cursorCol: number | null;
+}

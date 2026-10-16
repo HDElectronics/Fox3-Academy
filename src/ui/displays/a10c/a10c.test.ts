@@ -1,11 +1,12 @@
 /** [OWNER: displays] A-10C II displays: pure helpers and draw smoke tests on a recording canvas. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { A10cHudView, MsgPageView, TadView, TgpPageView } from './types';
+import type { A10cHudView, CduView, MsgPageView, TadView, TgpPageView } from './types';
 import { A10cHud, ccrpCueFraction, fmtTtr, headingTapeLabel, hudPoint } from './hud';
 import { A10cTgpPage, coverSource, fmtTgpRange, fovText, lssOsbLabel, lssText, trackText } from './tgpPage';
 import { A10cTadPage, bearingRange, fmtBrgRng, hookedPoint, tadProject } from './tadPage';
 import { A10cMsgPage, msgOsbLabels } from './msgPage';
 import { osbAnchor } from './mfcd';
+import { A10cCduScreen, cduGrid, cduRowCentre, CDU_ASPECT, CDU_COLS, CDU_PAD_Y, CDU_ROWS, CDU_VECTOR_GLYPHS } from './cduScreen';
 
 const NM = 1852;
 
@@ -240,5 +241,67 @@ describe('A-10C II displays draw', () => {
     const ccrp: Call[] = [];
     new A10cHud(fakeCanvas(ccrp)).draw(hud({ master: 'CCRP', ccrp: { ttrS: 12.5, errRad: -0.03 } }));
     expect(texts(ccrp)).toContain('13');
+  });
+});
+
+describe('CDU screen geometry', () => {
+  it('is a 24 x 10 grid with equal rows between the paddings', () => {
+    expect([CDU_COLS, CDU_ROWS]).toEqual([24, 10]);
+    expect(CDU_ASPECT).toBeCloseTo(1.12, 6);
+    expect(CDU_PAD_Y).toBeCloseTo(1 / 30, 9);
+    const rh = (1 - 2 * CDU_PAD_Y) / 10;
+    expect(cduRowCentre(1)).toBeCloseTo(CDU_PAD_Y + rh / 2, 9);
+    expect(cduRowCentre(10)).toBeCloseTo(1 - CDU_PAD_Y - rh / 2, 9);
+    for (let r = 2; r <= 10; r++) expect(cduRowCentre(r) - cduRowCentre(r - 1)).toBeCloseTo(rh, 9);
+    expect(cduRowCentre(5) + cduRowCentre(6)).toBeCloseTo(1, 9);
+  });
+  it('throws outside rows 1..10', () => {
+    for (const r of [0, 11, -1, 2.5, NaN]) expect(() => cduRowCentre(r)).toThrow(RangeError);
+  });
+  it('cuts long lines to 24 characters and fills missing lines with blanks', () => {
+    const g = cduGrid(['WAYPT', 'X'.repeat(30)]);
+    expect(g).toHaveLength(10);
+    expect(g[0].join('')).toBe('WAYPT');
+    expect(g[1]).toHaveLength(24);
+    expect(g[9]).toEqual([]);
+  });
+});
+
+describe('CDU screen draw', () => {
+  beforeEach(() => {
+    vi.stubGlobal('document', { documentElement: { dataset: {} } });
+    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '#33cc66' }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  const view = (p: Partial<CduView> = {}): CduView => ({
+    t: 0, lines: ['WAYPT  F1  1   D5/B1', '', '\u2190WAYPT  [ ]  \u00b1 A10', 'N 41\u00b012.345  \u2195MGRS\u2192', '\u2295 COPY', 'A VERY LONG LINE THAT RUNS PAST TWENTY FOUR', '12:30 / .5', ':'], cursorCol: 3, ...p,
+  });
+  it('draws long, short and missing lines with a cursor, one character per cell', () => {
+    const c: Call[] = [];
+    const cdu = new A10cCduScreen(fakeCanvas(c, 448, 400));
+    expect(() => cdu.draw(view({ lines: [...view().lines, '', 'ABCDE'] }))).not.toThrow();
+    const t = texts(c);
+    expect(t.every(s => [...s].length === 1)).toBe(true);
+    expect(t).not.toContain(' ');
+    for (const g of CDU_VECTOR_GLYPHS) expect(t).not.toContain(g);
+    expect(t).toEqual(expect.arrayContaining(['W', '\u00b1', '\u00b0', '[', ']', '/', '.', ':']));
+    // Exactly the non-blank, font-drawn cells of the cut grid (line 6 stops at 24 characters).
+    const lines = [...view().lines, '', 'ABCDE'];
+    const cells = cduGrid(lines).flat().filter(ch => ch !== ' ' && !CDU_VECTOR_GLYPHS.includes(ch));
+    expect(t).toEqual(cells);
+    expect(cduGrid(lines)[5].join('')).toBe('A VERY LONG LINE THAT RU');
+    expect(c.some(x => x.name === 'fillRect' && (x.args[2] as number) < 50)).toBe(true); // the block cursor
+    expect(() => cdu.draw(view({ cursorCol: null, lines: [] }))).not.toThrow();
+    expect(() => cdu.draw(view({ cursorCol: 40 }))).not.toThrow();
+    cdu.refreshTheme();
+    cdu.dispose();
+  });
+  it('draws each vector glyph with strokes and no text', () => {
+    for (const g of CDU_VECTOR_GLYPHS) {
+      const c: Call[] = [];
+      new A10cCduScreen(fakeCanvas(c, 448, 400)).draw(view({ lines: [g], cursorCol: null }));
+      expect(texts(c)).toEqual([]);
+      expect(c.some(x => x.name === 'stroke')).toBe(true);
+    }
   });
 });

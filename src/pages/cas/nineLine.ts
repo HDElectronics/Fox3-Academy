@@ -16,7 +16,7 @@ export const NINE_LINE_ORDER: readonly NineLineField[] = ['ip', 'heading', 'dist
 /** Line 7 per jet and lesson: the Su-25T always gets smoke; the A-10C II gets the laser and coordinates-only lessons. */
 export function markFor(jet: CasJet, lesson: CasLessonId): NineLineMark {
   if (jet !== 'a10c') return 'wp';
-  return lesson === 'digital' ? 'none' : lesson === 'jtac-laser' || lesson === 'sortie' ? 'laser' : 'wp';
+  return lesson === 'digital' || lesson === 'cdu-grid' ? 'none' : lesson === 'jtac-laser' || lesson === 'sortie' ? 'laser' : 'wp';
 }
 
 export const M_PER_NM = 1852;
@@ -56,6 +56,57 @@ export function trainerGrid(p: XZ): string {
   const e = Math.round((p.x + 50000) / 10), n = Math.round((50000 - p.z) / 10);
   const pad = (v: number) => String(Math.max(0, Math.min(9999, v))).padStart(4, '0');
   return `GH ${pad(e)} ${pad(n)}`;
+}
+
+/** The trainer's only grid square (the two letters of every trainer grid) and its grid zone (one zone, trainer). */
+export const TRAINER_SQUARE = 'GH';
+export const TRAINER_ZONE = '37T';
+
+/**
+ * The 5 + 5 digit (1 m) trainer grid as the A-10C II CDU shows it on the WAYPT page L9 (e.g. "GH 50000 49990";
+ * docs/research/a10c-cdu.md §3 step 7). Same square and offsets as trainerGrid.
+ */
+export function trainerGrid5(p: XZ): string {
+  const e = Math.round(p.x + 50000), n = Math.round(50000 - p.z);
+  const pad = (v: number) => String(Math.max(0, Math.min(99999, v))).padStart(5, '0');
+  return `${TRAINER_SQUARE} ${pad(e)} ${pad(n)}`;
+}
+
+/**
+ * Reads a trainer grid as typed into the CDU scratchpad: "GH" then 6, 8 or 10 digits (spaces and case ignored).
+ * The digits split in half and each half is padded on the right to 5 digits, as the CDU shows "DQ083998" as
+ * "DQ 08300 99800" (research §3 step 7). The 4 + 4 split for 8 digits is inferred (research, not verified).
+ * Returns the world point, or null for anything else.
+ */
+export function parseTrainerGrid(s: string): XZ | null {
+  const t = s.replace(/\s+/g, '').toUpperCase();
+  const m = /^([A-Z]{2})(\d+)$/.exec(t);
+  if (!m || m[1] !== TRAINER_SQUARE) return null;
+  const d = m[2]!;
+  if (d.length !== 6 && d.length !== 8 && d.length !== 10) return null;
+  const h = d.length / 2;
+  const e = Number(d.slice(0, h).padEnd(5, '0')), n = Number(d.slice(h).padEnd(5, '0'));
+  return { x: e - 50000, z: 50000 - n };
+}
+
+/** Trainer lat/long origin at x = z = 0 (not a real map position). */
+const LL_ORIGIN_DEG = 42;
+const M_PER_DEG_LAT = 111320;
+
+/**
+ * Trainer latitude and longitude for the CDU L/L fields (e.g. "N42°03.120", "E042°01.234"): flat earth around a
+ * fixed origin N42°00.000 E042°00.000 at x = z = 0. Not a real map position.
+ */
+export function trainerLatLon(p: XZ): { lat: string; lon: string } {
+  const latDeg = LL_ORIGIN_DEG + -p.z / M_PER_DEG_LAT;
+  const lonDeg = LL_ORIGIN_DEG + p.x / (M_PER_DEG_LAT * Math.cos((LL_ORIGIN_DEG * Math.PI) / 180));
+  const fmt = (deg: number, pos: string, neg: string, degDigits: number) => {
+    // Round once in thousandths of a minute so 59.9996' carries into the degrees.
+    const t = Math.round(Math.abs(deg) * 60000);
+    const d = Math.floor(t / 60000), mins = (t % 60000) / 1000;
+    return `${deg < 0 && t > 0 ? neg : pos}${String(d).padStart(degDigits, '0')}°${mins.toFixed(3).padStart(6, '0')}`;
+  };
+  return { lat: fmt(latDeg, 'N', 'S', 2), lon: fmt(lonDeg, 'E', 'W', 3) };
 }
 
 function centre(world: World, ids: readonly string[]): XZ {

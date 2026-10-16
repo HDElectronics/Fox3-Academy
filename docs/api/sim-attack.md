@@ -133,7 +133,10 @@ Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(
   `step` releases at `ttrS <= 0` inside `CCRP_TOL_DEG` and drops the hold once the point is passed. Everything
   else, CCIP bombs included, releases on the press. CCIP consent is not modelled. Markpoints (`marks`, `markAt`,
   `markOverhead`): TMS Right Short at the TGP, MAV or TAD cursor point, CDU MK overhead, Z at each store release;
-  a hooked mark becomes the SPI with TMS Forward Long (research `a10c-cdu.md` §4).
+  a hooked mark becomes the SPI with TMS Forward Long (research `a10c-cdu.md` §4). The page-local CDU
+  (`src/pages/cas/a10cCdu.ts`, screen in `src/ui/displays/a10c/cduScreen.ts`) adds mission waypoints from a grid
+  and picks the steerpoint with the STEER PT dial (FLT PLAN / MARK / MISSION); the CDU steerpoint drives the HUD,
+  the TAD, the SPI and the steering cue, and a mark made the steerpoint becomes the SPI (M p.563).
 - Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
 - Tested in `tgp.test.ts` and `laserSpot.test.ts`.
 

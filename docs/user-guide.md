@@ -382,7 +382,13 @@ On: the JTAC lases on code 1688; LSS on the pod finds the spot, LTRACK, Spot, ma
 AGM-65L or GBU-12 on his spot). Talk-on, Cleared hot, Danger close and Sortie use the pod instead of the Shkval.
 Readouts follow the nm / km toggle. In CCRP, hold weapon release: the bomb drops when the cue reaches the reticle.
 Markpoints: TMS Right Short marks the pod crosshair (or the TAD cursor), CDU MK marks overhead, and each release marks
-Z; hook a mark on the TAD and hold TMS Forward to make it the SPI. CDU coordinate entry is not modelled yet.
+Z; hook a mark on the TAD and hold TMS Forward to make it the SPI. The **CDU** camera shows the CDU and the AAP over
+the 3D view: WP on the CDU opens WP MENU, R3 the WAYPT page, R7 copies the shown point into a new mission waypoint, R9 switches L/L and
+UTM, then type the grid digits and press L9, the zone on L7, the elevation on L5 and a name on R3. Set the STEER PT
+dial to MISSION (or MARK for markpoints); the STEER toggle or DMS Fwd/Aft with the HUD as SOI steps the steerpoint.
+Click the CDU screen to type into the scratchpad from the keyboard (a trainer shortcut). The grid is one trainer
+square, not a real map. Another lesson, **Grid to steerpoint** (unscored), types 9-line line 6 into a new waypoint,
+names it, makes it the steerpoint, slaves the pod and POINT tracks.
 
 ### Sortie
 A full BVR fight: 1v1, 1v2, or 2v2 with an AI wingman, against AI that commits, locks, fires, cranks, notches and

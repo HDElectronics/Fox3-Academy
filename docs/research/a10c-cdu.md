@@ -144,6 +144,11 @@ Notes:
 10. Do STEER PT MISSION + DMS Fwd/Aft cycle mission points when a flight plan is loaded? The manual says this
     "assumes you do not have a Flight Plan loaded" (M p.552).
 
+## Implemented in the trainer
+
+The CAS & JTAC page models §3 and §4 in its CDU camera and the Grid to steerpoint lesson. Trainer choices and
+what is not modelled are listed in `docs/api/data.md` ("Uncertain values") and `docs/dcs-accuracy.md`.
+
 ## Sources (accessed 2026-10-14)
 
 1. [M] Eagle Dynamics, *DCS A-10C II Tank Killer Flight Manual* (EN, 814 pp.):

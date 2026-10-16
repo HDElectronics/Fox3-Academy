@@ -9,11 +9,12 @@ import type { Debrief } from '../strike/lessons';
 import type { CasJet, CasLessonId } from './scenario';
 import type { JtacState, Violation } from './jtac';
 import type { ImpactClass } from './safety';
+import type { CduMilestone } from './a10cCdu';
 
 export type { CasLessonId, Debrief };
 export const CAS_LESSON_ORDER: CasLessonId[] = ['nine-line', 'talk-on', 'geometry', 'danger-close', 'sortie'];
-/** A-10C II order: the brief, the digital 9-line, the JTAC laser, then the smoke lessons with the pod. */
-export const A10C_LESSON_ORDER: CasLessonId[] = ['nine-line', 'digital', 'jtac-laser', 'talk-on', 'geometry', 'danger-close', 'sortie'];
+/** A-10C II order: the brief, the grid into the CDU, the digital 9-line, the JTAC laser, then the smoke lessons with the pod. */
+export const A10C_LESSON_ORDER: CasLessonId[] = ['nine-line', 'cdu-grid', 'digital', 'jtac-laser', 'talk-on', 'geometry', 'danger-close', 'sortie'];
 export const lessonOrder = (jet: CasJet): CasLessonId[] => (jet === 'a10c' ? A10C_LESSON_ORDER : CAS_LESSON_ORDER);
 
 /** Trainer rules the page states in its caveats (on top of the data caveats). */
@@ -30,6 +31,7 @@ export const A10C_PAGE_CAVEATS = [
   'A-10C II: bombs in CCRP drop when you hold release until the cue reaches the reticle; other stores, and CCIP bombs, fire on the press (CCIP consent is not modelled). The cue timing is a trainer solution, not the DCS computation.',
   'A-10C II: what the JTAC says after Spot, Shift and Terminate, and when it stops lasing, is trainer wording and a trainer rule.',
   'A-10C II: WILCO and CNTCO are buttons (OSB 19 and OSB 7 on the MSG page); no keyboard default was found.',
+  'A-10C II CDU: the grid is the trainer square GH in zone 37T and L/L shows trainer coordinates, not a real map. An 8-digit grid splits 4 + 4 (not verified). L/L entry, the SYS, NAV, OSET and FPM pages, WAYPT page 2, the UFC and the PAGE dial info pages are not modelled.',
 ];
 
 /**
@@ -70,6 +72,12 @@ export interface CasSnap {
   /** The digital 9-line: none yet, new (ATTACK flashing), accepted or refused. */
   tasking: 'none' | 'new' | 'wilco' | 'cntco';
   milestones: ReadonlySet<A10cMilestone>;
+  /**
+   * A-10C II CDU (null on the Su-25T and on pages without a CDU). open: the CDU camera shows; gridOk: a copied
+   * waypoint lies on the 9-line grid (20 m); steerOnGrid: that waypoint is the steerpoint; podOnSteer: the pod is on
+   * and looks within 150 m of it.
+   */
+  cdu: { open: boolean; milestones: ReadonlySet<CduMilestone>; gridOk: boolean; steerOnGrid: boolean; podOnSteer: boolean } | null;
 }
 
 export interface LessonStep { id: string; text: string; keys?: string; check: (s: CasSnap) => boolean }
@@ -171,6 +179,22 @@ export const LESSONS: Record<CasLessonId, LessonDef> = {
       { id: 'release', text: 'You are cleared to engage. Make the HUD the SOI (U), choose GBU-12 or APKWS (PageDown), set CCRP (M) and hold release on the attack heading (RAlt+Space). A GBU-12 drops when the cue reaches the reticle; APKWS fires on the press.', keys: 'U, PageDown, M, RAlt+Space (hold)', check: s => s.clearedReleases > 0 },
       { id: 'lase', text: 'Fire the laser and keep it on until impact: hold Insert, or press Laser. (For APKWS, start lasing before you fire.)', keys: 'Insert (hold)', check: s => s.milestones.has('laser-release') || s.targetsKilled > 0 },
       { id: 'complete', text: 'Radio: Attack Complete. The JTAC reports the damage.', keys: '\\, F1', check: s => s.attacks > 0 },
+    ],
+  },
+  'cdu-grid': {
+    id: 'cdu-grid', title: 'Grid to steerpoint', short: 'CDU grid', scored: false,
+    goal: 'The JTAC gives you coordinates only. Put line 6 of the 9-line into a new CDU waypoint, make it the steerpoint, and find the tank with the pod at that point.',
+    steps: [
+      { id: 'open', text: 'Show the CDU: press CDU above the 3D view. Line 6 on your kneeboard is the grid.', keys: 'CDU button', check: s => !!s.cdu?.open },
+      { id: 'wp', text: 'Press WP under the screen: WP MENU.', keys: 'WP', check: s => !!s.cdu?.milestones.has('wp-menu') },
+      { id: 'waypt', text: 'Press R3, beside WAYPOINT: the WAYPT page of waypoint 0, INIT POSIT.', keys: 'R3', check: s => !!s.cdu?.milestones.has('waypt') },
+      { id: 'copy', text: 'Press R7, the copy key: the CDU copies the point into the next free waypoint and shows it (MSN003).', keys: 'R7', check: s => !!s.cdu?.milestones.has('copy') },
+      { id: 'utm', text: 'Press R9 to change L/L to UTM. L7 shows the grid zone, L9 the square and the grid.', keys: 'R9', check: s => !!s.cdu?.milestones.has('utm') },
+      { id: 'grid', text: 'Type line 6 without spaces (for example GH50004999) on the keypad, or click the screen and type, then press L9. EL updates from the ground: check it against line 4.', keys: 'keypad, L9', check: s => !!s.cdu?.gridOk },
+      { id: 'name', text: 'Type a name, for example TGT, and press R3.', keys: 'keypad, R3', check: s => !!s.cdu?.milestones.has('named') },
+      { id: 'steer', text: 'Set STEER PT to MISSION, then press STEER ▲ until line 1 shows the new waypoint number: it is now the steerpoint, and the HUD and TAD follow.', keys: 'STEER PT MISSION, STEER ▲', check: s => !!s.cdu?.steerOnGrid },
+      { id: 'slave', text: 'Make the pod the SOI (hold K), then slave it to the SPI (hold V). The SPI is the steerpoint, so the pod looks at the grid.', keys: 'K (hold 1 s), V (hold 1 s)', check: s => !!s.cdu?.podOnSteer },
+      { id: 'track', text: 'Find the tank near the crosshair (; . , /) and lock it: tap LCtrl+Up. POINT appears.', keys: '; . , /, LCtrl+Up', check: s => s.milestones.has('point-target') },
     ],
   },
 };

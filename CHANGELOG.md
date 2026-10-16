@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A-10C II CDU: a CDU camera on the CAS & JTAC page shows the CDU and the AAP over the 3D view. WP MENU and WAYPT
+  pages, R7 copy into a new mission waypoint, L9 grid entry (6, 8 or 10 digits), L7 zone, L5 elevation, R3 name,
+  L3 lookup, R9 L/L or UTM, the ± rocker and `CDU INPUT ERR`. STEER PT dial FLT PLAN / MARK / MISSION with the
+  STEER toggle; DMS Fwd/Aft with the HUD as SOI steps the steerpoint, and a mark made the steerpoint becomes the SPI.
+- New A-10C II lesson Grid to steerpoint: type 9-line line 6 into a new waypoint, name it, steer to it, slave the
+  pod and POINT track.
 - A-10C II markpoints: TMS Right Short marks the pod crosshair, the Maverick point or the TAD cursor, the CDU MK button
   marks overhead, and each store release marks Z. Marks show on the TAD as lettered squares and a hooked mark can
   become the SPI. New CDU research note for coordinates and markpoints.

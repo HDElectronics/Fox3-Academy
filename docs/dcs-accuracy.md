@@ -44,8 +44,14 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
   pod on a briefed target; the JTAC's replies after Spot, Shift and Terminate are trainer wording; bombs in CCRP drop
   when release is held through the cue (trainer timing), CCIP and other stores release on the press (CCIP consent is
   not modelled); markpoints follow the manual (TMS Right Short at the TGP, MAV or TAD point, CDU MK overhead, Z on
-  release, hook on the TAD for the SPI) without STEER PT MARK or the HUD TDC mark; CDU coordinate entry is not
-  modelled.
+  release, hook on the TAD for the SPI) without the HUD TDC mark or TMS Right Long. The CDU follows the manual for WP MENU, WAYPT,
+  R7 copy, L9 grid entry, L7 zone, L5 elevation, R3 name, L3 lookup, R9 L/L or UTM and `CDU INPUT ERR`, and the
+  STEER PT dial (FLT PLAN / MARK / MISSION) with the STEER toggle. Simplified: one trainer grid square (GH in 37T,
+  not a real map) with flat-earth L/L around N42°00.000 E042°00.000; the start page is blank, line 1 shows a static
+  `D5/B1`, PREV toggles the last two pages. Not verified: the 4 + 4 split of an 8-digit grid, R7 keeping the L/L or
+  UTM mode, the dial keeping the steerpoint, spaces in names, `MARK x` held until FA, and the CDU keyboard typing
+  (a trainer shortcut, no verified DCS default). Not modelled: L/L entry, SYS NAV OSET FPM pages, WAYPT page 2,
+  ANCHOR PT, FROM PT, DTOT, the UFC, the PAGE dial info pages, the CDU repeater and the L5 elevation sign flip.
 
 - **Flight**: you fly a tactical autopilot (commanded heading, altitude, speed), not a stick. All jets share the
   same handling limits apart from their performance numbers.

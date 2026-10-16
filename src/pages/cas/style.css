@@ -62,3 +62,62 @@
 .cas-a10-row .ui-btn__keys { white-space: nowrap; max-width: 100%; }
 /* Narrow windows: no free column beside the big TGP view; the Radio panel carries the same lines. */
 @media (max-width: 1100px) { .strk--tvbig .cas-subs { display: none; } }
+
+/* A-10C II CDU and AAP (?cam=cdu): over the 3D view like the big TGP; the HUD and both MFCDs stay in the strip. */
+.cas-cdu {
+  position: absolute; inset: 44px 12px 12px 12px; z-index: 1; overflow: auto;
+  container-type: size;
+  display: grid; grid-template-columns: minmax(0, 1fr) 200px; align-content: safe center;
+  gap: 8px 12px; padding: 10px 12px;
+  background: var(--panel); color: var(--panel-ink);
+  border: 1px solid var(--panel-line); border-radius: var(--r-2);
+}
+.cas--cdubig .cas-subs { display: none; }
+.cas-cdu__unit { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+/* Screen width from the panel height: the glass is 46 % of it (aspect 1.12), plus the frame that holds the LSKs. */
+.cas-cdu__head {
+  --cdu-lsk-w: 30px; --cdu-frame-x: calc(var(--cdu-lsk-w) + 12px);
+  display: flex; flex-direction: column; gap: 6px; width: min(100%, calc(46cqh * 1.12 + 2 * var(--cdu-frame-x) + 2px));
+}
+.cas-cdu__bezel { padding-inline: var(--cdu-frame-x); }
+/* The LSKs hang beside the glass, so the glass does not clip them (the canvas keeps the rounded corners). */
+.cas-cdu__bezel > .ui-bezel__glass { overflow: visible; }
+.cas-cdu__bezel > .ui-bezel__glass > canvas { border-radius: calc(var(--r-1) - 1px); cursor: text; }
+.cas-cdu__bezel.is-typing > .ui-bezel__glass { outline: 2px solid var(--sym-hi); outline-offset: 2px; }
+.cas-cdu__lsks { position: absolute; top: 0; bottom: 0; width: var(--cdu-lsk-w); }
+.cas-cdu__lsks--l { right: calc(100% + 6px); }
+.cas-cdu__lsks--r { left: calc(100% + 6px); }
+.cas-cdu__lsks > .ui-btn.cas-cdu__lsk {
+  position: absolute; left: 0; right: 0; transform: translateY(-50%);
+  /* LSKs are two rows apart (each row is 9.3 % of the screen height): never taller than 1.6 rows. */
+  min-width: 0; min-height: 0; height: clamp(12px, 15%, 28px); padding: 0;
+}
+.cas-cdu__lsks > .ui-btn.cas-cdu__lsk:active:not(:disabled) { padding-top: 0; }
+.cas-cdu .ui-btn { min-width: 0; padding: 0 4px; letter-spacing: 0.02em; }
+.cas-cdu__fsk { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.cas-cdu__pad { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; }
+.cas-cdu__digits, .cas-cdu__letters { display: grid; gap: 4px; grid-auto-rows: 30px; }
+.cas-cdu__digits { grid-template-columns: repeat(3, 38px); }
+.cas-cdu__letters { grid-template-columns: repeat(7, 38px); }
+.cas-cdu__digits > .ui-btn, .cas-cdu__letters > .ui-btn { --ui-cap-h: 30px; }
+.cas-cdu__fn { display: grid; grid-template-columns: repeat(7, minmax(44px, auto)); gap: 4px; }
+.cas-cdu__aap { display: flex; flex-direction: column; gap: 6px; min-width: 0; align-self: end; }
+.cas-cdu__aap > .ui-placard:not(:first-child) { margin-top: 6px; }
+.cas-cdu__fixed {
+  align-self: flex-start; padding: 4px 10px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); border: 1px solid var(--screen-line);
+  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em;
+}
+.cas-cdu__note { margin: 0; font-size: var(--fs-xs); line-height: 1.35; color: var(--panel-muted); }
+.cas-cdu__dial .ui-seg { flex-direction: column; }
+.cas-cdu__steer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.cas-cdu__hint { grid-column: 1 / -1; margin: 0; font-size: var(--fs-xs); line-height: 1.35; color: var(--panel-muted); }
+/* Visually hidden but focusable: the keyboard entry field. */
+.cas-cdu__kbd {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; opacity: 0;
+  overflow: hidden; clip-path: inset(50%); pointer-events: none;
+}
+/* Narrow window: the AAP column goes under the CDU. */
+@media (max-width: 640px) {
+  .cas-cdu { grid-template-columns: minmax(0, 1fr); }
+}
