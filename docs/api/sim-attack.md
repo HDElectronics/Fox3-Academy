@@ -131,7 +131,9 @@ Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(
   recages. Weapon release is held in CCRP for bombs (`pressRelease` / `letGoRelease`, `holding`): `solution()` aims
   at the SPI with `releaseSolution` for free-fall bombs, and for the GBU-12 at 95 % of its trainer range band;
   `step` releases at `ttrS <= 0` inside `CCRP_TOL_DEG` and drops the hold once the point is passed. Everything
-  else, CCIP bombs included, releases on the press. CCIP consent is not modelled.
+  else, CCIP bombs included, releases on the press. CCIP consent is not modelled. Markpoints (`marks`, `markAt`,
+  `markOverhead`): TMS Right Short at the TGP, MAV or TAD cursor point, CDU MK overhead, Z at each store release;
+  a hooked mark becomes the SPI with TMS Forward Long (research `a10c-cdu.md` §4).
 - Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
 - Tested in `tgp.test.ts` and `laserSpot.test.ts`.
 

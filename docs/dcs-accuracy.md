@@ -41,8 +41,11 @@ is in `docs/api/data.md` ("Uncertain values"); the research behind every fact is
 - **A-10C II**: the pod, the LSS and the digital 9-line follow the ED A-10C II manual, but the pod's fields of view,
   slew rate, track gates, LSS cone and timings are trainer values; laser-guided stores home on any spot on their code
   (pod or JTAC); the AGM-65D/H seeker slaves to the SPI and locks whatever is in its gate (no contrast model); cleared hot needs the
-  pod on a briefed target; the JTAC's replies after Spot, Shift and Terminate are trainer wording; release happens on
-  the press (no hold through the CCIP solution cue); CDU coordinates and markpoints are not modelled.
+  pod on a briefed target; the JTAC's replies after Spot, Shift and Terminate are trainer wording; bombs in CCRP drop
+  when release is held through the cue (trainer timing), CCIP and other stores release on the press (CCIP consent is
+  not modelled); markpoints follow the manual (TMS Right Short at the TGP, MAV or TAD point, CDU MK overhead, Z on
+  release, hook on the TAD for the SPI) without STEER PT MARK or the HUD TDC mark; CDU coordinate entry is not
+  modelled.
 
 - **Flight**: you fly a tactical autopilot (commanded heading, altitude, speed), not a stick. All jets share the
   same handling limits apart from their performance numbers.

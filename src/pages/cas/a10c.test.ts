@@ -335,3 +335,71 @@ describe('A-10C II held CCRP release (M p. 455-459)', () => {
     expect(w.canAgLaunch(sc.me.id).weapon).toBe('mk82');
   });
 });
+
+describe('A-10C II markpoints (docs/research/a10c-cdu.md §4)', () => {
+  it('marks the TGP crosshair with TMS Right Short, letters in order', () => {
+    const { sc, hotas } = setup('jtac-laser');
+    const tank = sc.world.groundUnits.get(sc.targets[0]!)!;
+    hotas.setSoi('tgp');
+    sc.world.tgpPointAt(sc.me.id, tank.pos);
+    LOG.length = 0;
+    hotas.tap('tmsR');
+    hotas.tap('tmsR');
+    expect(hotas.marks.map(m => m.letter)).toEqual(['A', 'B']);
+    expect(Math.hypot(hotas.marks[0]!.x - tank.pos.x, hotas.marks[0]!.z - tank.pos.z)).toBeLessThan(1);
+    expect(LOG).toContain('MARK A');
+  });
+
+  it('marks overhead with CDU MK and overwrites A with the 26th mark', () => {
+    const { sc, hotas } = setup('jtac-laser');
+    for (let i = 0; i < 25; i++) hotas.markOverhead();
+    expect(hotas.marks.map(m => m.letter).join('')).toBe('ABCDEFGHIJKLMNOPQRSTUVWXY');
+    sc.me.pos.x += 500;
+    const a = hotas.markOverhead();
+    expect(a.letter).toBe('A');
+    expect(hotas.marks).toHaveLength(25);
+    expect(hotas.marks.filter(m => m.letter === 'A')).toEqual([{ letter: 'A', x: sc.me.pos.x, z: sc.me.pos.z }]);
+  });
+
+  it('marks the TAD cursor, but not from the HUD (no HUD TDC)', () => {
+    const { hotas } = setup('jtac-laser');
+    hotas.setSoi('hud');
+    hotas.tap('tmsR');
+    expect(hotas.marks).toHaveLength(0);
+    hotas.setSoi('tad');
+    hotas.tap('tmsR');
+    expect(hotas.marks).toEqual([{ letter: 'A', x: hotas.cursor.x, z: hotas.cursor.z }]);
+  });
+
+  it('makes Z at each store release, replacing the last Z, but not with the gun', () => {
+    const { sc, hotas, run } = setup('jtac-laser');
+    sc.me.ag!.stores.mk82 = 2;
+    sc.world.selectAgWeapon(sc.me.id, 'mk82');
+    hotas.setMaster('CCIP');
+    expect(hotas.pressRelease()).toBe(true);
+    const z1 = hotas.marks.find(m => m.letter === 'Z')!;
+    expect(z1).toBeDefined();
+    run(2);
+    hotas.pressRelease();
+    expect(hotas.marks.filter(m => m.letter === 'Z')).toHaveLength(1);
+    expect(hotas.marks.find(m => m.letter === 'Z')).not.toEqual(z1);
+    hotas.setMaster('GUNS');
+    const before = hotas.marks.find(m => m.letter === 'Z');
+    hotas.gun();
+    expect(hotas.marks.find(m => m.letter === 'Z')).toBe(before);
+  });
+
+  it('hooks a mark on the TAD and makes it the SPI with TMS Forward Long', () => {
+    const { sc, hotas } = setup('jtac-laser');
+    hotas.setSoi('tad');
+    hotas.cursor = { x: sc.me.pos.x + 3000, z: sc.me.pos.z - 3000 };
+    hotas.tap('tmsR');
+    hotas.cursor = { x: hotas.cursor.x + 20, z: hotas.cursor.z };
+    expect(hotas.hook()).toBe(true);
+    expect(hotas.hooked).toBe('mark');
+    expect(hotas.hookedMark).toBe('A');
+    hotas.tap('tmsF', true);
+    const spi = hotas.spiXZ(), m = hotas.marks[0]!;
+    expect(Math.hypot(spi.x - m.x, spi.z - m.z)).toBeLessThan(1);
+  });
+});
