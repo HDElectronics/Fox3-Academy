@@ -135,7 +135,7 @@ export const LESSONS: Record<TgpLessonId, LessonDef> = {
       { id: 'spi', text: 'Make it the SPI: hold LCtrl+Up.', keys: 'LCtrl+Up (hold 1 s)', check: s => s.spiSource === 'tgp' && s.spiOnTarget },
       { id: 'gbu', text: 'Choose the GBU-12: tap PageDown (or press Profile) until GBU-12 shows in the HUD.', keys: 'PageDown', check: s => s.selected === 'gbu12' },
       { id: 'ccrp', text: 'Tap M until the HUD shows CCRP: the HUD now steers you to the release point.', keys: 'M', check: s => s.selected === 'gbu12' && s.master === 'CCRP' },
-      { id: 'release', text: 'Fly along the steering line and release when the HUD says so: RAlt+Space, or press RELEASE. (In DCS you hold release; here one press drops it.)', keys: 'RAlt+Space', check: s => n(s.fired, 'gbu12') >= 1 },
+      { id: 'release', text: 'Fly the steering line and hold release (RAlt+Space, or hold RELEASE) while the cue runs down to the reticle. The bomb drops by itself; let go early and nothing drops.', keys: 'RAlt+Space (hold)', check: s => n(s.fired, 'gbu12') >= 1 },
       { id: 'lase', text: 'While the bomb falls, fire the laser and keep it on: hold Insert, or press Laser.', keys: 'Insert (hold)', check: s => s.lasedWithWeapon || n(s.kills, 'gbu12') > 0 },
       { id: 'gbu-hit', text: 'The bomb follows your spot: a vehicle destroyed.', check: s => n(s.kills, 'gbu12') >= 1 },
       { id: 'apkws', text: 'Choose APKWS (PageDown) and set CCIP (M).', keys: 'PageDown, M', check: s => s.selected === 'apkws' && (s.master === 'CCIP' || s.master === 'CCRP') },
@@ -160,7 +160,7 @@ export const LESSONS: Record<TgpLessonId, LessonDef> = {
 /** Trainer rules and simplifications the page lists under "Simplified and not verified". */
 export const TGP_CAVEATS = [
   'The pod starts on and timed out in A-G, the Maverick aligned (no 3-minute ALN), and the AHCP switches are set: not modelled.',
-  'Weapon release fires on the press. In DCS you hold release (CCRP cue, Mavericks); the trainer does not time the cue.',
+  'Bombs in CCRP drop when you hold release until the cue reaches the reticle; CCIP bombs, rockets, Mavericks and the gun fire on the press (CCIP consent is not modelled). The cue timing is a trainer solution, not the DCS computation, and the GBU-12 release point is a share of its unverified range band.',
   'Weapon release RAlt+Space and gun trigger Space are the A-10C default list: community, not verified for the A-10C II.',
   'The CNTL page is simplified to two code fields (L on OSB 18, LSS on OSB 17). Codes 1111 to 1788, digits 1 to 8 after the first.',
   'LSS starts with OSB 6. China Hat Aft Short with the TGP as SOI is listed as "Toggle LSS" in the manual HOTAS table; DMS Right Long is conflicting in the manual. Not verified in game.',

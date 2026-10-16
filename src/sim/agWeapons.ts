@@ -373,7 +373,37 @@ export const CCRP_TOL_DEG = 2;
 /** S1: the time-to-release cue starts 10 s before release. */
 export const CCRP_CUE_S = 10;
 /** A release point passed by more than this (s) is missed: no release, go around. Trainer value. */
-const CCRP_LATE_S = 0.5;
+export const CCRP_LATE_S = 0.5;
+
+/** Release timing for a free-fall bomb aimed at a ground point: CCRP and CCIP consent share it. */
+export interface ReleaseSolution {
+  /** Seconds until the no-dispersion impact point reaches the aim point along the ground track (negative once passed). */
+  ttrS: number;
+  /** Ground-track error to the aim point (deg, + aim point right of the track). */
+  errDeg: number;
+  /** Steering is good enough to release: |errDeg| within CCRP_TOL_DEG. */
+  inCircle: boolean;
+  /** The release point is behind the jet: go around. */
+  passed: boolean;
+}
+
+/**
+ * Time to release and track error for the selected free-fall bomb against a ground point, or null without an
+ * impact prediction or ground speed. Gameplay rule: the predicted impact point slides along the ground track.
+ */
+export function releaseSolution(world: World, ac: Aircraft, w: AgWeaponId, target: { x: number; z: number }): ReleaseSolution | null {
+  const P = predictImpact(world, ac, w);
+  if (!P) return null;
+  const gs = Math.hypot(ac.vel.x, ac.vel.z);
+  if (gs < 1) return null;
+  const ux = ac.vel.x / gs, uz = ac.vel.z / gs;
+  const tx = target.x - ac.pos.x, tz = target.z - ac.pos.z;
+  const alongT = tx * ux + tz * uz, alongP = (P.x - ac.pos.x) * ux + (P.z - ac.pos.z) * uz;
+  const cross = ux * tz - uz * tx; // x east, z south: + = target right of the track
+  const errDeg = Math.atan2(cross, alongT) / D2R;
+  const ttrS = (alongT - alongP) / gs;
+  return { ttrS, errDeg, inCircle: Math.abs(errDeg) <= CCRP_TOL_DEG, passed: ttrS < -CCRP_LATE_S };
+}
 
 export interface CcrpSolution {
   /** A free-fall bomb is selected and the Shkval designates a ground point with the laser on. */
@@ -411,20 +441,10 @@ export function ccrpSolution(world: World, ac: Aircraft): CcrpSolution {
   if (!sh.laserOn) return fail('Laser off: switch on ЛД [RShift-O]');
   const T = shkvalAimPoint(world, ac);
   if (!T) return fail('No designated point');
-  const P = predictImpact(world, ac, w);
-  if (!P) return fail('No impact point');
-  const gs = Math.hypot(ac.vel.x, ac.vel.z);
-  if (gs < 1) return fail('No ground speed');
-  const ux = ac.vel.x / gs, uz = ac.vel.z / gs;
-  const tx = T.x - ac.pos.x, tz = T.z - ac.pos.z;
-  const alongT = tx * ux + tz * uz, alongP = (P.x - ac.pos.x) * ux + (P.z - ac.pos.z) * uz;
-  const cross = ux * tz - uz * tx; // x east, z south: + = target right of the track
-  const errDeg = Math.atan2(cross, alongT) / D2R;
-  const ttrS = (alongT - alongP) / gs;
-  return {
-    active: true, reason: '', target: T, ttrS, errDeg, inCircle: Math.abs(errDeg) <= CCRP_TOL_DEG,
-    passed: ttrS < -CCRP_LATE_S,
-  };
+  if (!predictImpact(world, ac, w)) return fail('No impact point');
+  const r = releaseSolution(world, ac, w, T);
+  if (!r) return fail('No ground speed');
+  return { active: true, reason: '', target: T, ...r };
 }
 
 /** Space held / let go in CCRP. Holding needs an active solution; letting go always works. */

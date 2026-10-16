@@ -287,6 +287,9 @@ Research: `docs/research/su25t.md` (ED Su-25T Flight Manual, S1). Mirrored in `A
   the ±30° zone across the HUD.
 - CCRP: S1 gives the procedure (hold release, keel into the circle, arrow 10 s before release, automatic release).
   The ±2° director tolerance (`CCRP_TOL_DEG`) and the 0.5 s late-release cut-off are trainer values, **not verified**.
+- A-10C II CCRP (`A10cHotas.solution`): the same ±2° tolerance and 0.5 s cut-off; the GBU-12 release point at 95 % of
+  its 1–9 km trainer band and the Mk-82 / CBU-97 timing from the trainer impact prediction are **not verified**.
+  CCIP consent (3/9, 5 MIL) is not modelled: CCIP is manual release on the press.
 - Sortie (`src/pages/strike/sortie.ts`): the ZSU-23-4 envelope (2.5 km, 2000 m above the site, about 6 s of
   exposure brings the jet down), the terrain-following autopilot, the steering cue, the score weights and the
   Delete flare key for the Su-25T are trainer values, **not verified**. The salvo selector follows S1

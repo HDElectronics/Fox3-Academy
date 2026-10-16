@@ -95,6 +95,8 @@ ignored for the gimbal), held `slew {x, y}`, `groundStab` + `stabPoint`, `zoom` 
   trainer value), then stops holding and latches `ccrpReleased`. Re-pressing cannot release again on that pass;
   the latch resets when an active solution is more than 0.5 s ahead again (another approach or designation). Outside the circle nothing releases; more than 0.5 s past the point the
   pass is lost (`passed`) and the hold drops. Letting go of release stops it.
+  `releaseSolution(world, ac, weapon, target)` is the shared math (`{ ttrS, errDeg, inCircle, passed }` for any
+  free-fall bomb and ground point, or null without an impact point or ground speed); the A-10C II CCRP uses it.
 - **Kh-58 targets**: `armLock` accepts only emitters the Kh-58 can attack (`kh58CanAttack`, data); the HUD type code
   is `KH58_TARGET_CODES` (trainer labels, not verified).
 - **SAM sites as ground targets**: any A-G impact within the kill radius of a site, or a kill of a ground unit linked
@@ -126,7 +128,10 @@ Research: `docs/research/a10c.md` §3 and `cas-jets.md` §2. `createAttackState(
 - Pages: the A-10C II HOTAS (`src/pages/cas/a10cHotas.ts`, shared by CAS & JTAC and Targeting pod & Mavericks) adds
   the MAV page as an SOI (Coolie Right Short switches the right MFCD, Right Long makes it SOI): slew moves the Maverick
   gate, TMS Forward Short locks, China Hat Forward Long slaves the pod and the Maverick to the SPI, China Hat Aft Short
-  recages.
+  recages. Weapon release is held in CCRP for bombs (`pressRelease` / `letGoRelease`, `holding`): `solution()` aims
+  at the SPI with `releaseSolution` for free-fall bombs, and for the GBU-12 at 95 % of its trainer range band;
+  `step` releases at `ttrS <= 0` inside `CCRP_TOL_DEG` and drops the hold once the point is passed. Everything
+  else, CCIP bombs included, releases on the press. CCIP consent is not modelled.
 - Marks: `followUnitId` keeps a laser spot on a moving unit (the JTAC lasing a vehicle); a jet's spot ends when it dies.
 - Tested in `tgp.test.ts` and `laserSpot.test.ts`.
 

@@ -14,7 +14,7 @@ import { PROCEDURES } from '../../data/procedures';
 import type { Aircraft, EntityId } from '../../sim/types';
 import type { World } from '../../sim/world';
 import { D2R, relBearing } from '../../sim/math';
-import { canAgLaunch, predictImpact, spotFor } from '../../sim/agWeapons';
+import { predictImpact, spotFor } from '../../sim/agWeapons';
 import { tgpFovDeg, tgpViewWidthM } from '../../sim/tgp';
 import type { ShkvalTv } from '../../render/attack';
 import { vFovDeg, type ForwardView } from '../../render/forwardView';
@@ -156,7 +156,10 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const cntcoBtn = button({ label: 'CNTCO · OSB 7', size: 's', keepCase: true, ariaLabel: 'MSG page OSB 7: cannot comply', onClick: () => { if (host.jtac()?.cntco()) log('CNTCO: tasking refused'); } });
   const masterBtn = cap('M Master', 'Master mode NAV, GUNS, CCIP, CCRP', () => { log(`Master mode ${hotas.cycleMaster()}`); }, 'M');
   const profBtn = cap('Profile', 'DMS Right Short with the HUD as SOI: next weapon profile', tap('dmsR'), 'PageDown');
-  const releaseBtn = button({ label: 'Release', variant: 'primary', lamp: true, keys: 'RAlt+Space', onClick: () => { hotas.releaseWeapon(); } });
+  // Weapon release is held: a bomb in CCRP drops when the cue reaches the reticle, letting go cancels.
+  const releaseBtn = button({ label: 'Release', variant: 'primary', lamp: true, keys: 'RAlt+Space', onClick: e => { if (e.detail === 0) hotas.pressRelease(); } });
+  bag.on<PointerEvent>(releaseBtn.el, 'pointerdown', e => { if (e.button !== 0) return; releaseBtn.el.setPointerCapture(e.pointerId); hotas.pressRelease(); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bag.on(releaseBtn.el, ev, () => hotas.letGoRelease());
   const flareBtn = cap('CMS flares', 'Countermeasures: flares', () => cms());
 
   /** 3 × 3 slew pad with TMS Forward Short in the middle (one in the strip for touch, one in Controls). */
@@ -200,7 +203,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     ';': slewKey('up'), '.': slewKey('down'), ',': slewKey('left'), '/': slewKey('right'),
     'Insert': { down: () => hotas.setLaserHeld(true), up: () => hotas.setLaserHeld(false) },
     'M': () => log(`Master mode ${hotas.cycleMaster()}`),
-    'RAlt+Space': { down: () => { hotas.releaseWeapon(); }, inModal: false },
+    'RAlt+Space': { down: () => { hotas.pressRelease(); }, up: () => hotas.letGoRelease(), inModal: false },
     'Space': { down: () => { triggerHeld = true; hotas.gun(); }, up: () => { triggerHeld = false; }, inModal: false },
     'Left': { down: () => steer(-2), repeat: true },
     'Right': { down: () => steer(2), repeat: true },
@@ -252,14 +255,9 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     const spi = hotas.spiXZ();
     const spiP = { x: spi.x, y: w.groundHeight(spi.x, spi.z), z: spi.z };
     const spiA = angles(ac, spiP);
-    let ccrp: A10cHudView['ccrp'] = null;
-    if (hotas.master === 'CCRP' && sel && !ballistic) {
-      // Trainer cue: time until the SPI is inside the selected store's release band (not the DCS CCRP computation).
-      const band = canAgLaunch(w, ac, sel).band;
-      const rng = Math.hypot(spiP.x - ac.pos.x, spiP.z - ac.pos.z);
-      const sp = Math.max(1, ac.vel.length());
-      ccrp = { ttrS: band ? Math.max(0, (rng - band.max * 0.95) / sp) : 0, errRad: spiA.az };
-    }
+    // The CCRP cue draws the same release solution that drops the bomb (A10cHotas.solution).
+    const sol = hotas.solution();
+    const ccrp: A10cHudView['ccrp'] = sol ? { ttrS: Math.max(0, sol.ttrS), errRad: sol.errDeg * D2R } : null;
     return {
       t: w.t, heading: ac.heading, pitch: ac.pitch, roll: ac.roll, speedKt: ac.vel.length() * KT, altFt: ac.pos.y * FT,
       master: hotas.master, soi: hotas.soi === 'hud',
@@ -379,7 +377,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     },
     updateLamps() {
       const ac = me(), t = ac.ag?.tgp, tk = host.jtac()?.tasking;
-      releaseBtn.setLit(hotas.master !== 'NAV' && world().canAgLaunch(ac.id).ok);
+      releaseBtn.setLit(hotas.holding || (hotas.master !== 'NAV' && world().canAgLaunch(ac.id).ok));
       lssBtn.setLit(!!t && t.lss !== 'off');
       lssBtn.setLabel(t && (t.lss === 'detect' || t.lss === 'track') ? 'LST · OSB 6' : 'LSS · OSB 6');
       laserBtn.setLit(!!t?.laserFiring);

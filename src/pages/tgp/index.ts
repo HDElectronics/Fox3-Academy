@@ -7,7 +7,7 @@
  * (cas/a10cCockpit.ts, cas/a10cHotas.ts); lessons in lessons.ts, the lesson run in session.ts, the scripted pilot in
  * script.ts. Facts from docs/research/a10c.md; trainer rules listed in TGP_CAVEATS. Progress: tgp:<lesson>:a10c.
  *
- * URL params: ?lesson=soi|pod|laser|mav|lgb|gun, ?shot=soi|pod|lss|mav-page|mav-lock|gbu|gun|debrief (scripted
+ * URL params: ?lesson=soi|pod|laser|mav|lgb|gun, ?shot=soi|pod|lss|mav-page|mav-lock|ccrp|gbu|gun|debrief (scripted
  * pre-rolls for screenshots, never saved as progress), ?cam=chase|target|tv, ?touch=1.
  */
 import '../strike/style.css';
@@ -31,7 +31,7 @@ import { BUDDY_CODE, buildTgpScenario, centreOf, type TgpScenario } from './scen
 import { TgpSession } from './session';
 import { flyScript, type Pilot } from './script';
 
-const SHOTS = ['soi', 'pod', 'lss', 'mav-page', 'mav-lock', 'gbu', 'gun', 'debrief'] as const;
+const SHOTS = ['soi', 'pod', 'lss', 'mav-page', 'mav-lock', 'ccrp', 'gbu', 'gun', 'debrief'] as const;
 type Shot = typeof SHOTS[number];
 type Cam = 'chase' | 'target' | 'tv';
 /** Pre-roll per shot: the lesson, the last script stage to fly, extra seconds, and the camera. */
@@ -41,6 +41,7 @@ const SHOT_PLAN: Record<Shot, { lesson: TgpLessonId; until?: string; extraS: num
   lss: { lesson: 'laser', until: 'ltrack', extraS: 1, cam: 'tv' },
   'mav-page': { lesson: 'mav', until: 'mavsoi', extraS: 1, cam: 'tv' },
   'mav-lock': { lesson: 'mav', until: 'lock', extraS: 1, cam: 'tv' },
+  ccrp: { lesson: 'lgb', until: 'ccrp', extraS: 1, cam: 'chase' },
   gbu: { lesson: 'lgb', until: 'lase', extraS: 3, cam: 'chase' },
   gun: { lesson: 'gun', until: 'fire', extraS: 0.3, cam: 'chase' },
   debrief: { lesson: 'mav', extraS: 1, cam: 'target' },

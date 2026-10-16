@@ -268,3 +268,70 @@ describe('A-10C II e2e: JTAC lases, LSS finds the spot, GBU-12 kills the target'
     expect(j.calls.at(-1)!.text).toMatch(/Good hits, 1 of 3 destroyed\. Cleared re-attack/);
   });
 });
+
+describe('A-10C II held CCRP release (M p. 455-459)', () => {
+  /** GBU-12 or Mk-82 selected, CCRP, the first target as the pod SPI, the jet 10 km out and pointed at it. */
+  function ccrpRun(weapon: 'gbu12' | 'mk82') {
+    const t = setup('jtac-laser');
+    const { sc, hotas } = t, w = sc.world, id = sc.me.id;
+    if (weapon === 'mk82') sc.me.ag!.stores.mk82 = 2;
+    w.selectAgWeapon(id, weapon);
+    const tank = w.groundUnits.get(sc.targets[0]!)!;
+    const brg = Math.atan2(tank.pos.x - sc.me.pos.x, -(tank.pos.z - sc.me.pos.z));
+    sc.me.pos.x = tank.pos.x - Math.sin(brg) * 10000; sc.me.pos.z = tank.pos.z + Math.cos(brg) * 10000;
+    sc.me.heading = sc.me.cmd.heading = brg;
+    hotas.setSoi('tgp');
+    w.tgpPointAt(id, tank.pos);
+    hotas.tap('tmsF'); hotas.tap('tmsF', true);
+    expect(hotas.spiSource).toBe('tgp');
+    hotas.setMaster('CCRP');
+    t.run(0.2);
+    const released = () => [...w.agWeapons.values()].filter(x => x.type === weapon).length;
+    return { ...t, w, released };
+  }
+
+  it.each(['gbu12', 'mk82'] as const)('drops the %s by itself when the cue reaches the reticle, not on the press', weapon => {
+    const { hotas, run, released } = ccrpRun(weapon);
+    const before = hotas.solution()!;
+    expect(before.ttrS).toBeGreaterThan(2);
+    expect(hotas.pressRelease()).toBe(true);
+    expect(hotas.holding).toBe(true);
+    run(0.5);
+    expect(released()).toBe(0);
+    let ttrAtDrop = Infinity;
+    run(120, () => { const s = hotas.solution(); if (!hotas.holding) return true; ttrAtDrop = s?.ttrS ?? ttrAtDrop; return false; });
+    expect(hotas.holding).toBe(false);
+    expect(released()).toBe(1);
+    expect(ttrAtDrop).toBeLessThan(0.1);
+  });
+
+  it('cancels the release when weapon release is let go before the cue', () => {
+    const { hotas, run, released } = ccrpRun('gbu12');
+    hotas.pressRelease();
+    run(1);
+    hotas.letGoRelease();
+    expect(hotas.holding).toBe(false);
+    run(60);
+    expect(released()).toBe(0);
+  });
+
+  it('holds without dropping while the steering is outside the tolerance, then ends at the passed release point', () => {
+    const { sc, hotas, run, released } = ccrpRun('mk82');
+    sc.me.heading = sc.me.cmd.heading = sc.me.heading + (10 * Math.PI) / 180;
+    run(0.5);
+    expect(hotas.solution()!.inCircle).toBe(false);
+    hotas.pressRelease();
+    run(120, () => !hotas.holding);
+    expect(hotas.holding).toBe(false);
+    expect(released()).toBe(0);
+  });
+
+  it('still releases rockets and CCIP bombs on the press', () => {
+    const { sc, hotas, w, released } = ccrpRun('mk82');
+    hotas.setMaster('CCIP');
+    expect(hotas.pressRelease()).toBe(true);
+    expect(hotas.holding).toBe(false);
+    expect(released()).toBe(1);
+    expect(w.canAgLaunch(sc.me.id).weapon).toBe('mk82');
+  });
+});
