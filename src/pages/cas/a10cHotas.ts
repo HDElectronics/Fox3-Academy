@@ -7,8 +7,9 @@
  * the TGP or the MAV page (Coolie Right Short cycles them, Right Long makes the shown page the SOI); with the MAV page
  * as SOI the slew moves the Maverick gate, TMS Forward Short locks, China Hat Aft Short recages (research §6).
  * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Markpoints (a10c-cdu.md §4): TMS Right Short at the TGP, MAV or TAD cursor point, the CDU MK key overhead,
- * Z at each store release; hook one on the TAD and TMS Forward Long makes it the SPI. Not modelled: HMCS, the HUD TDC
- * mark, STEER PT MARK, TMS Right Long, CCIP consent (CCIP is manual release), the
+ * Z at each store release; hook one on the TAD and TMS Forward Long makes it the SPI. Every new mark goes to the host
+ * (`marked`, the CDU); DMS Forward / Aft with the HUD as SOI steps the CDU steerpoint (`steer`, M p.552, p.563).
+ * Not modelled: HMCS, the HUD TDC mark, TMS Right Long, CCIP consent (CCIP is manual release), the
  * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
  * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
  */
@@ -68,6 +69,10 @@ export interface HotasHost {
   log(text: string, tone?: 'ok' | 'caution'): void;
   /** False ignores weapon release (the lesson has ended). */
   canFire(): boolean;
+  /** Each new markpoint (TMS Right, CDU MK, weapon release Z): the CDU shows it. */
+  marked?(m: Markpoint): void;
+  /** DMS Forward (+1) / Aft (-1) with the HUD as SOI: next / previous steerpoint in the STEER PT database (the CDU). */
+  steer?(dir: 1 | -1): void;
 }
 
 const MASTER_CYCLE: A10cMasterMode[] = ['NAV', 'GUNS', 'CCIP', 'CCRP'];
@@ -206,6 +211,7 @@ export class A10cHotas {
     this.marks = [...this.marks.filter(k => k.letter !== letter), m];
     if (this.hookedMark === letter) this.hooked = this.hookedMark = null;
     if (!weaponEvent) this.host.log(`MARK ${letter}`);
+    this.host.marked?.(m);
     return m;
   }
 
@@ -276,14 +282,16 @@ export class A10cHotas {
 
   private tmsAft(long: boolean): void {
     const w = this.host.world(), ac = this.host.me();
-    if (long) {
-      ac.ag!.spi = null;
-      this.spiSource = 'steer';
-      this.host.log('SPI: steerpoint');
-      return;
-    }
+    if (long) { this.spiToSteerpoint(); return; }
     if (this.soi === 'tgp') { const r = w.tgpTrack(ac.id, 'inr'); if (!r.ok) this.host.log(r.reason, 'caution'); }
     else if (this.soi === 'tad') this.hooked = this.hookedMark = null;
+  }
+
+  /** TMS Aft Long: the SPI back to the steerpoint (also when a mark becomes the steerpoint, M p.563). */
+  spiToSteerpoint(): void {
+    this.host.me().ag!.spi = null;
+    this.spiSource = 'steer';
+    this.host.log('SPI: steerpoint');
   }
 
   /** TAD: hook the symbol nearest the cursor within the hook radius (tasking triangle, SPI, SADL friendly). */
@@ -332,7 +340,7 @@ export class A10cHotas {
       // DMS Forward / Aft zooms the pod 0Z–9Z (ED manual); China Hat Forward Short toggles WIDE / NARO.
       const z = this.host.world().tgpZoom(ac.id, fwd ? 1 : -1);
       if (z != null) this.host.log(`TGP zoom ${z}Z`);
-    }
+    } else if (this.soi === 'hud') this.host.steer?.(fwd ? 1 : -1);
   }
 
   private dmsLeftRight(): void {

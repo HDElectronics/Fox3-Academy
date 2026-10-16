@@ -7,6 +7,11 @@
  * ; . , /, Insert laser, M master mode; weapon release RAlt+Space and gun Space are the A-10C default list (community,
  * labelled). WILCO / CNTCO and LSS (OSB 6) are buttons: no keyboard default was found. The page merges `keys` into its
  * single bindKeys map and routes the CMS digits through the radio menu fallback (`cmsKeys`).
+ * With `host.cdu` (the CAS page) the cockpit also has the CDU and the AAP (`cduPanel`, docs/research/a10c-cdu.md §1):
+ * the screen with its 8 line select keys, the function select keys, the keypad (MK = overhead mark), the AAP STEER PT
+ * dial and STEER toggle; the CDU steerpoint is then the steerpoint everywhere (`steerpoint()`). The CDU keys have no
+ * verified keyboard default, so they are buttons; typing on the computer keyboard into the scratchpad is a trainer
+ * shortcut (click the screen). Without `host.cdu` (the Targeting pod & Mavericks page) there is no CDU.
  */
 import { Quaternion, Vector3 } from 'three';
 import { AG_WEAPONS } from '../../data/agWeapons';
@@ -20,14 +25,15 @@ import type { ShkvalTv } from '../../render/attack';
 import { vFovDeg, type ForwardView } from '../../render/forwardView';
 import { UNIT_PER_M, orientationQuaternion } from '../../render/units';
 import {
-  h, screenBezel, button, placard, keyHint, disclosure, mobileAction, type ButtonHandle, type Cleanup, type KeyMap, type KeyHandler,
+  h, screenBezel, button, placard, keyHint, disclosure, mobileAction, segmented, type ButtonHandle, type Cleanup, type KeyMap, type KeyHandler,
 } from '../../ui';
 import {
-  RwrDisplay, A10cHud, A10cTadPage, A10cTgpPage, A10cMsgPage, A10cMavPage, TAD_RING,
+  RwrDisplay, A10cHud, A10cTadPage, A10cTgpPage, A10cMsgPage, A10cMavPage, A10cCduScreen, TAD_RING, CDU_ASPECT, cduRowCentre,
   type A10cHudView, type TgpPageView, type TadView, type MsgPageView, type MavPageView, type HudMavCue,
 } from '../../ui/displays';
 import { noseOffsetM, holdAngleAltitude } from '../strike/cockpit';
 import { A10cHotas, type HotasHost, type HotasSwitch } from './a10cHotas';
+import { A10cCdu, type CduFsk, type CduInit, type CduLsk, type SteerPtDial } from './a10cCdu';
 import type { JtacController } from './jtac';
 import type { XZ } from './scenario';
 
@@ -52,10 +58,21 @@ export interface A10cCockpitHost {
   canFire(): boolean;
   /** Leave out the MSG page buttons (WILCO / CNTCO) on pages without a datalink tasking. */
   noMsg?: boolean;
+  /**
+   * The CDU start database for the current scenario (INIT POSIT and the flight plan). With it the cockpit has a CDU
+   * whose steerpoint replaces `steerpoint()`. Called at creation (the scenario must exist) and on every resetInputs().
+   */
+  cdu?: () => CduInit;
 }
 
 export interface A10cCockpit {
   hotas: A10cHotas;
+  /** The CDU, or null without `host.cdu`. */
+  cdu: A10cCdu | null;
+  /** The CDU and AAP panel (the page shows it in the 3D view area), or null without `host.cdu`. */
+  cduPanel: HTMLElement | null;
+  /** The steerpoint: the CDU steerpoint when there is a CDU, else `host.steerpoint()`. */
+  steerpoint(): XZ & { name: string };
   hudBezel: { el: HTMLElement };
   leftBezel: { el: HTMLElement };
   /** The right MFCD (TGP or MAV page): the page shows it big with the TV camera. */
@@ -85,11 +102,29 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const { bag } = host;
   const world = host.world, me = host.me;
   const log = (text: string, tone?: 'ok' | 'caution') => host.log(text, { t: world().t, ...(tone ? { tone } : {}) });
+  let cdu: A10cCdu | null = null;
+  const steerpoint = (): XZ & { name: string } => {
+    if (!cdu) return host.steerpoint();
+    const sp = cdu.steerpoint();
+    return { x: sp.x, z: sp.z, name: sp.id };
+  };
   const hotasHost: HotasHost = {
-    world, me, jtac: host.jtac, steerpoint: host.steerpoint, targets: host.targets, friendlies: host.friendlies,
+    world, me, jtac: host.jtac, steerpoint, targets: host.targets, friendlies: host.friendlies,
     log, canFire: host.canFire,
+    marked: m => cdu?.onMark(m),
+    // DMS Forward / Aft with the HUD as SOI steps the STEER PT database (M p.552, p.563); only with a CDU.
+    ...(host.cdu ? { steer: (d: 1 | -1) => cdu?.steer(d) } : {}),
   };
   const hotas = new A10cHotas(hotasHost);
+  if (host.cdu) {
+    cdu = new A10cCdu({
+      groundHeightM: (x, z) => world().groundHeight(x, z),
+      marks: () => hotas.marks,
+      log,
+      // A mark made the steerpoint is also the SPI by default (M p.563): the TMS Aft Long path.
+      steerChanged: sp => { if (sp.kind === 'mark') hotas.spiToSteerpoint(); },
+    }, host.cdu());
+  }
   const slew = { up: 0, down: 0, left: 0, right: 0 };
   const applySlew = () => hotas.slew(slew.right - slew.left, slew.up - slew.down);
   let noseDir: -1 | 0 | 1 = 0, noseHeldS = 0, holdGamma: number | null = null;
@@ -189,11 +224,110 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     content: h('div', { class: 'strk-keys' },
       binds.map(b => keyHint({ label: `${b.keys}: ${b.action}`, keys: b.keyboard ?? (b.group === 'weapons' ? (b.keys === 'Weapon release' ? 'RAlt+Space' : 'Space') : 'none'), note: b.note })),
       keyHint({ label: 'LSS, WILCO, CNTCO: MFCD buttons (OSB 6, 19, 7)', keys: 'click', note: 'No keyboard default found.' }),
+      host.cdu ? keyHint({ label: 'DMS Fwd / Aft with the HUD as SOI: next / previous steerpoint (STEER PT database)', keys: 'Home / End' }) : null,
+      host.cdu ? keyHint({ label: 'CDU and AAP: buttons on the CDU camera view', keys: 'click', note: 'No verified DCS keyboard default. Typing on your keyboard after clicking the CDU screen is a trainer shortcut.' }) : null,
       keyHint({ label: 'Turn left / right (trainer steering)', keys: 'Left / Right' }),
       keyHint({ label: 'Nose down / nose up (trainer pitch)', keys: 'Up / Down' })),
   });
   const mRel = mobileAction(releaseBtn.el), mTms = mobileAction(tmsFs.el, 'TMS'), mSpi = mobileAction(tmsFl.el, 'SPI');
   bag.add(() => { mRel.destroy(); mTms.destroy(); mSpi.destroy(); });
+
+  // ------------------------------------------------------------------ CDU and AAP
+  const cduUi = cdu ? buildCdu(cdu) : null;
+
+  /**
+   * The CDU (screen, LSKs beside rows 3/5/7/9, FSKs, keypad) and the AAP (PAGE fixed at OTHER, STEER PT dial,
+   * STEER toggle), research §1. Every key is a button; the hidden text input takes computer-keyboard typing.
+   */
+  function buildCdu(c: A10cCdu) {
+    const canvas = h('canvas', { class: 'strk-canvas cas-cdu__canvas', 'aria-label': 'CDU screen. Click to type on your keyboard.' });
+    const screen = new A10cCduScreen(canvas);
+    bag.add(() => screen.dispose());
+    const bezel = screenBezel({ id: 'cas-a10-cdu', label: 'CDU', aspect: String(CDU_ASPECT), content: canvas, class: 'cas-cdu__bezel' });
+    const key = (label: string, aria: string, fn: () => void, cls?: string) =>
+      button({ label, size: 's', keepCase: true, ariaLabel: aria, onClick: fn, ...(cls ? { class: cls } : {}) }).el;
+    const lskCol = (side: 'L' | 'R') => {
+      const col = h('div', { class: `cas-cdu__lsks cas-cdu__lsks--${side.toLowerCase()}` });
+      for (const r of [3, 5, 7, 9] as const) {
+        const k = `${side}${r}` as CduLsk;
+        const b = key('', `CDU line select key ${k}`, () => c.lsk(k), 'cas-cdu__lsk');
+        b.title = k;
+        b.style.top = `${(cduRowCentre(r) * 100).toFixed(3)}%`;
+        col.append(b);
+      }
+      return col;
+    };
+    bezel.glass.append(lskCol('L'), lskCol('R'));
+    const fsk = h('div', { class: 'cas-cdu__fsk' },
+      (['SYS', 'NAV', 'WP', 'OSET', 'FPM', 'PREV'] as CduFsk[]).map(k => key(k, `CDU function select key ${k}`, () => c.fsk(k))));
+    const digits = h('div', { class: 'cas-cdu__digits' },
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '/'].map(d => key(d, `CDU key ${d}`, () => c.key(d))));
+    const letters = h('div', { class: 'cas-cdu__letters' },
+      Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map(l => key(l, `CDU key ${l}`, () => c.key(l))));
+    const fn = h('div', { class: 'cas-cdu__fn' },
+      key('BCK', 'CDU BCK: backspace', () => c.bck()),
+      key('SPC', 'CDU SPC: space', () => c.space()),
+      key('CLR', 'CDU CLR: clear the scratchpad', () => c.clr()),
+      key('FA', 'CDU FA: fault acknowledge, clears MARK', () => c.fa()),
+      key('MK', 'CDU MK: overhead markpoint', () => { hotas.markOverhead(); }),
+      key('± ▲', 'CDU ± rocker up', () => c.rocker(1)),
+      key('± ▼', 'CDU ± rocker down', () => c.rocker(-1)));
+    const unit = h('div', { class: 'cas-cdu__unit' }, h('div', { class: 'cas-cdu__head' }, bezel.el, fsk), h('div', { class: 'cas-cdu__pad' }, digits, letters), fn);
+
+    const dial = segmented<SteerPtDial>({
+      id: 'cas-cdu-steerpt', ariaLabel: 'AAP STEER PT dial', size: 's', fill: true, value: c.dial, class: 'cas-cdu__dial',
+      options: (['FLT PLAN', 'MARK', 'MISSION'] as const).map(v => ({ value: v, label: v })),
+      onChange: v => c.setDial(v),
+    });
+    const aap = h('div', { class: 'cas-cdu__aap', role: 'group', 'aria-label': 'AAP (Auxiliary Avionics Panel)' },
+      placard('AAP · PAGE'),
+      h('div', { class: 'cas-cdu__fixed', 'aria-label': 'AAP PAGE dial: OTHER (fixed)' }, 'OTHER'),
+      h('p', { class: 'cas-cdu__note' }, 'POSITION, STEER and WAYPT info pages are not modelled.'),
+      placard('AAP · STEER PT'), dial.el,
+      placard('AAP · STEER'),
+      h('div', { class: 'cas-cdu__steer' },
+        key('▲', 'AAP STEER toggle up: next steerpoint', () => c.steer(1)),
+        key('▼', 'AAP STEER toggle down: previous steerpoint', () => c.steer(-1))));
+
+    // Trainer shortcut: a visually hidden text field takes keyboard typing while focused (click the screen).
+    // bindKeys ignores keys typed in a text field, so the cockpit keys stay quiet. The CDU owns the text.
+    const kbd = h('input', {
+      type: 'text', class: 'cas-cdu__kbd', 'aria-label': 'CDU scratchpad keyboard entry',
+      autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false',
+    });
+    bag.on(canvas, 'click', () => kbd.focus());
+    // Focus ring on the screen while the keyboard entry is on.
+    bag.on(kbd, 'focus', () => bezel.el.classList.add('is-typing'));
+    bag.on(kbd, 'blur', () => bezel.el.classList.remove('is-typing'));
+    bag.on<KeyboardEvent>(kbd, 'keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Tab') return;
+      e.preventDefault();
+      if (e.key === 'Escape') kbd.blur();
+      else if (e.key === 'Backspace') c.bck();
+      else if (e.key === 'Delete') c.clr();
+      else if (e.key === ' ') c.space();
+      else if (e.key.length === 1) c.key(e.key);
+    });
+    // Soft keyboards and IME commit text without usable key events: feed it to the CDU and keep the field empty.
+    bag.on(kbd, 'input', () => {
+      for (const ch of kbd.value) { if (ch === ' ') c.space(); else c.key(ch); }
+      kbd.value = '';
+    });
+    // Clicking a CDU key while typing keeps the keyboard entry on (the key does not take the focus).
+    bag.on<MouseEvent>(unit, 'mousedown', e => {
+      if (document.activeElement === kbd && (e.target as Element | null)?.closest('button')) e.preventDefault();
+    });
+    const hint = h('p', { class: 'cas-cdu__hint' },
+      'Click the screen to type on your keyboard (trainer shortcut, Esc to stop). The CDU keys have no verified keyboard default.');
+    const panel = h('div', { class: 'cas-cdu', id: 'cas-a10-cdu-panel', role: 'group', 'aria-label': 'A-10C II CDU and AAP' }, unit, aap, hint, kbd);
+    return {
+      panel,
+      draw(t: number) {
+        screen.draw({ t, lines: c.lines(), cursorCol: c.cursorCol() });
+        if (dial.value !== c.dial) dial.set(c.dial, false);
+      },
+    };
+  }
 
   // ------------------------------------------------------------------ keys
   const hold = (sw: HotasSwitch) => ({ down: () => hotas.press(sw), up: () => hotas.release(sw) });
@@ -310,7 +444,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   }
   function tadView(): TadView {
     const w = world(), ac = me(), tk = host.jtac()?.tasking;
-    const sp = host.steerpoint();
+    const sp = steerpoint();
     return {
       t: w.t, own: { x: ac.pos.x, z: ac.pos.z, heading: ac.heading }, scaleNm: hotas.tadScaleNm,
       spi: hotas.spiXZ(), steerpoint: { x: sp.x, z: sp.z, name: sp.name },
@@ -332,7 +466,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   }
 
   return {
-    hotas, hudBezel, leftBezel, tgpBezel, rwrBezel, touchPad, controlRows, keyList,
+    hotas, cdu, cduPanel: cduUi?.panel ?? null, steerpoint, hudBezel, leftBezel, tgpBezel, rwrBezel, touchPad, controlRows, keyList,
     mobileActions: [mRel.el, mTms.el, mSpi.el], releaseBtn, keys, cmsKeys,
     step(dt) {
       const ac = me();
@@ -344,6 +478,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     resetInputs() {
       slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null; triggerHeld = false;
       hotas.reset();
+      if (cdu && host.cdu) cdu.reset(host.cdu());
     },
     draw(podCam, showRwr, hudCam = null) {
       const ac = me(), t = ac.ag?.tgp, m = ac.ag?.mav;
@@ -378,6 +513,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (showRwr) rwr.draw(ac.rwr, world().t);
       leftBezel.el.querySelector('.ui-bezel__label')!.textContent = hotas.leftPage === 'tad' ? 'Left MFCD · TAD' : 'Left MFCD · MSG';
       tgpBezel.el.querySelector('.ui-bezel__label')!.textContent = onMav ? 'Right MFCD · MAV' : 'Right MFCD · TGP';
+      if (cduUi?.panel.isConnected) cduUi.draw(world().t);
     },
     updateLamps() {
       const ac = me(), t = ac.ag?.tgp, tk = host.jtac()?.tasking;

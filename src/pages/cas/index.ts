@@ -13,7 +13,8 @@
  *
  * URL params: ?lesson=<id>, ?shot=radio|card|smoke|smoke-tv|cleared|debrief (Su-25T) or
  * a10-radio|a10-tasking|a10-msg|a10-spi|a10-lss|a10-debrief (A-10C II, with ?ac=a10c) (scripted pre-rolls for
- * screenshots, never saved as progress), ?cam=chase|target|tv, ?touch=1.
+ * screenshots, never saved as progress), ?cam=chase|target|tv (A-10C II also cdu: the CDU and AAP over the 3D view),
+ * ?touch=1.
  */
 import { fmtRange, type Units } from '../../app/format';
 import '../strike/style.css';
@@ -40,12 +41,13 @@ import { classifyImpact, headingErrorDeg, type ImpactClass } from './safety';
 import { A10C_PAGE_CAVEATS, CAS_PAGE_CAVEATS, lessonOrder, lessonsFor, progressKey, scoreCas, type CasSnap, type Debrief } from './lessons';
 import { kneeboard } from './kneeboard';
 import { createA10cCockpit } from './a10cCockpit';
+import type { CduInit } from './a10cCdu';
 import { a10cAim, casSnap } from './snap';
 
 const SHOTS = ['radio', 'card', 'smoke', 'smoke-tv', 'cleared', 'debrief'] as const;
 const A10_SHOTS = ['a10-radio', 'a10-tasking', 'a10-msg', 'a10-spi', 'a10-lss', 'a10-debrief'] as const;
 type Shot = typeof SHOTS[number] | typeof A10_SHOTS[number];
-type Cam = 'chase' | 'target' | 'tv';
+type Cam = 'chase' | 'target' | 'tv' | 'cdu';
 const SHOT_LESSON: Record<Shot, CasLessonId> = {
   radio: 'nine-line', card: 'nine-line', smoke: 'talk-on', 'smoke-tv': 'talk-on', cleared: 'geometry', debrief: 'geometry',
   'a10-radio': 'jtac-laser', 'a10-tasking': 'digital', 'a10-msg': 'digital', 'a10-spi': 'digital', 'a10-lss': 'jtac-laser', 'a10-debrief': 'jtac-laser',
@@ -91,7 +93,8 @@ const factory: PageFactory = (): Page => {
     const shotParam = shots.find(s => s === params.get('shot')) ?? null;
     const lessonParam = params.get('lesson') as CasLessonId | null;
     let lesson: CasLessonId = shotParam ? SHOT_LESSON[shotParam] : lessonParam && ORDER.includes(lessonParam) ? lessonParam : 'nine-line';
-    let cam: Cam = (['chase', 'target', 'tv'] as const).find(c => c === params.get('cam')) ?? 'chase';
+    const cams: readonly Cam[] = jet === 'a10c' ? ['chase', 'target', 'tv', 'cdu'] : ['chase', 'target', 'tv'];
+    let cam: Cam = cams.find(c => c === params.get('cam')) ?? 'chase';
 
     // ------------------------------------------------------------------ state
     let sc!: CasScenario;
@@ -106,8 +109,16 @@ const factory: PageFactory = (): Page => {
     let cardPassed = false, cardCorrect = 0;
     let uiClock = 0;
     let showMarkers = false;
-    /** A-10C II steerpoint (the default SPI): the IP. */
-    const steerpoint = (): XZ & { name: string } => sc.ip;
+    /** A-10C II steerpoint (the default SPI): the CDU steerpoint, which starts on the IP (flight plan waypoint 1). */
+    const steerpoint = (): XZ & { name: string } => a10?.steerpoint() ?? sc.ip;
+    /** CDU start database: INIT POSIT at the jet's start, flight plan = the IP, then the egress point. */
+    const cduInit = (): CduInit => ({
+      init: { x: sc.me.pos.x, z: sc.me.pos.z },
+      plan: [{ id: sc.ip.name, x: sc.ip.x, z: sc.ip.z }, { id: sc.egress.name, x: sc.egress.x, z: sc.egress.z }],
+    });
+    // The cockpit's CDU reads the scenario at creation; restart() builds the lesson's own one.
+    sc = buildCasScenario(lesson);
+    me = sc.me;
 
     // ------------------------------------------------------------------ DOM
     const viewport = h('div', { class: 'strk-viewport' });
@@ -118,7 +129,7 @@ const factory: PageFactory = (): Page => {
       canFire: () => !ended,
     }) : null;
     const a10 = jet === 'a10c' ? createA10cCockpit({
-      bag, world: () => sc.world, me: () => me, jtac: () => jtac, steerpoint,
+      bag, world: () => sc.world, me: () => me, jtac: () => jtac, steerpoint: () => sc.ip, cdu: cduInit,
       targets: () => sc.targets, friendlies: () => [{ id: sc.jtac, label: 'JTAC' }],
       log: (text, opts) => log.push(text, opts),
       canFire: () => !ended,
@@ -174,7 +185,7 @@ const factory: PageFactory = (): Page => {
     });
     const camSeg = segmented<Cam>({
       id: 'cas-cam', ariaLabel: 'Camera', size: 's', value: cam,
-      options: [{ value: 'chase', label: 'Chase' }, { value: 'target', label: 'Target' }, { value: 'tv', label: 'TV' }],
+      options: [{ value: 'chase', label: 'Chase' }, { value: 'target', label: 'Target' }, { value: 'tv', label: 'TV' }, ...(a10 ? [{ value: 'cdu' as const, label: 'CDU' }] : [])],
       onChange: c => setCam(c),
     });
     const navBox = h('div', { class: 'strk-nav cas-nav', role: 'status', 'aria-label': 'Steering cue (trainer)' });
@@ -212,8 +223,6 @@ const factory: PageFactory = (): Page => {
     let view: WorldView | null = null, scene: AttackScene | null = null, rig: CameraRig | null = null, tvCam: ShkvalTv | null = null;
     let trail: ImpactTrail | null = null, hudCam: ForwardView | null = null;
 
-    sc = buildCasScenario(lesson);
-    me = sc.me;
     if (stage) {
       view = new WorldView(stage, sc.world, { units, layers: { dropLines: false, shadows: false } });
       scene = new AttackScene(stage, sc.world, view, { field: sc.field, shooterId: me.id, layers: { markers: showMarkers } });
@@ -261,6 +270,10 @@ const factory: PageFactory = (): Page => {
       lab.el.classList.toggle('strk--tvbig', c === 'tv');
       if (c === 'tv') lab.view.append(ck.big);
       else if (ck.big.parentElement !== lab.strip) ck.restoreBig(lab.strip);
+      // The CDU panel covers the 3D view only with the CDU camera; elsewhere it is out of the page (not drawn).
+      const cdu = a10?.cduPanel ?? null;
+      lab.el.classList.toggle('cas--cdubig', c === 'cdu' && !!cdu);
+      if (cdu) { if (c === 'cdu') { if (cdu.parentElement !== lab.view) lab.view.append(cdu); } else cdu.remove(); }
       if (!rig) return;
       if (c === 'target') {
         rig.setMode('orbit', { focus: { x: sc.target.x, y: sc.groundM, z: sc.target.z }, distance: 1400, instant: true });
@@ -460,7 +473,7 @@ const factory: PageFactory = (): Page => {
       const before = s === 'idle' || s === 'checked-in' || s === 'nine-line' || s === 'remarks-ready' || s === 'remarks' || s === 'readback' || s === 'data' || s === 'await-ip';
       // Lessons that start inside the IP (talk-on, danger close) steer to the target, never back to the IP.
       const pastIp = distM(me.pos, sc.target) < distM(sc.ip, sc.target);
-      const sp = s === 'complete' || s === 'checked-out' ? sc.egress : before && !pastIp ? sc.ip : { name: 'TGT', ...sc.target };
+      const sp = s === 'complete' || s === 'checked-out' ? sc.egress : before && !pastIp ? steerpoint() : { name: 'TGT', ...sc.target };
       const brg = bearingDeg(me.pos, sp), turn = ((brg - hdgDeg() + 540) % 360) - 180;
       const agl = me.pos.y - sc.world.groundHeight(me.pos.x, me.pos.z);
       const row = (k: string, v: string, cls?: string) => h('div', { class: 'strk-nav__row' }, h('span', { class: 'strk-nav__k' }, k), h('span', { class: cls }, v));
@@ -503,7 +516,7 @@ const factory: PageFactory = (): Page => {
     // ------------------------------------------------------------------ start, pre-rolls
     restart();
     if (shotParam) preroll(shotParam);
-    if (params.get('cam') === 'target' || params.get('cam') === 'tv') setCam(cam);
+    if (params.get('cam') === 'target' || params.get('cam') === 'tv' || params.get('cam') === 'cdu') setCam(cam);
 
     function run(sec: number, stop: () => boolean = () => false): void { for (let i = 0; i < sec * 30 && !stop(); i++) tick(1 / 30); }
     function say(a: JtacAction): void { jtac.act(a); run(30, () => !jtac.busy); }

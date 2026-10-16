@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { buildCasScenario, bearingDeg, type CasLessonId, type CasScenario } from './scenario';
 import { lineText, makeNineLine, markFor } from './nineLine';
 import { JtacController, type AimState, type JtacAction } from './jtac';
-import { A10cHotas, LONG_PRESS_S, type HotasHost } from './a10cHotas';
+import { A10cHotas, LONG_PRESS_S, type HotasHost, type Markpoint } from './a10cHotas';
+import { A10cCdu } from './a10cCdu';
 import { a10cAim, casSnap } from './snap';
 import { A10C_LESSON_ORDER, CAS_LESSON_ORDER, lessonOrder, lessonsFor, progressKey, LESSONS, type CasSnap } from './lessons';
 
@@ -401,5 +402,100 @@ describe('A-10C II markpoints (docs/research/a10c-cdu.md §4)', () => {
     hotas.tap('tmsF', true);
     const spi = hotas.spiXZ(), m = hotas.marks[0]!;
     expect(Math.hypot(spi.x - m.x, spi.z - m.z)).toBeLessThan(1);
+  });
+});
+
+describe('A-10C II HOTAS hooks for the CDU (docs/research/a10c-cdu.md §3-4)', () => {
+  /** The hotas with `marked` / `steer` recorded, as the cockpit passes them. */
+  function hooked(withSteer = true) {
+    const sc = buildCasScenario('jtac-laser', 11, { jet: 'a10c' });
+    const marked: Markpoint[] = [], steps: (1 | -1)[] = [];
+    const host: HotasHost = {
+      world: () => sc.world, me: () => sc.me, jtac: () => null, steerpoint: () => sc.ip, targets: () => sc.targets,
+      friendlies: () => [], log: () => {}, canFire: () => true,
+      marked: m => { marked.push(m); },
+      ...(withSteer ? { steer: (d: 1 | -1) => { steps.push(d); } } : {}),
+    };
+    const hotas = new A10cHotas(host);
+    hotas.reset();
+    sc.world.tgpPower(sc.me.id, true);
+    return { sc, hotas, marked, steps };
+  }
+
+  it('passes every new mark to the host: TMS Right, CDU MK and the weapon release Z', () => {
+    const { sc, hotas, marked } = hooked();
+    hotas.setSoi('tgp');
+    hotas.tap('tmsR');
+    hotas.markOverhead();
+    sc.me.ag!.stores.mk82 = 1;
+    sc.world.selectAgWeapon(sc.me.id, 'mk82');
+    hotas.setMaster('CCIP');
+    expect(hotas.pressRelease()).toBe(true);
+    expect(marked.map(m => m.letter)).toEqual(['A', 'B', 'Z']);
+    expect(marked).toEqual(hotas.marks);
+  });
+
+  it('steps the steerpoint with DMS Forward / Aft only with the HUD as SOI', () => {
+    const { hotas, steps } = hooked();
+    hotas.setSoi('hud');
+    hotas.tap('dmsF');
+    hotas.tap('dmsA');
+    hotas.press('dmsF'); hotas.release('dmsF');
+    expect(steps).toEqual([1, -1, 1]);
+    const scale = hotas.tadScaleNm;
+    hotas.setSoi('tad');
+    hotas.tap('dmsF');
+    expect(steps).toHaveLength(3);
+    expect(hotas.tadScaleNm).toBeLessThan(scale);
+  });
+
+  it('keeps DMS Forward / Aft with the HUD SOI a no-op without a CDU (Targeting pod page)', () => {
+    const { sc, hotas, steps } = hooked(false);
+    hotas.setSoi('hud');
+    const before = { scale: hotas.tadScaleNm, zoom: sc.me.ag!.tgp!.zoom, spi: hotas.spiXZ() };
+    hotas.tap('dmsF');
+    hotas.tap('dmsA');
+    expect(steps).toEqual([]);
+    expect({ scale: hotas.tadScaleNm, zoom: sc.me.ag!.tgp!.zoom, spi: hotas.spiXZ() }).toEqual(before);
+  });
+
+  it('a mark made the steerpoint through the CDU becomes the SPI (M p.563), as the cockpit wires it', () => {
+    const sc = buildCasScenario('jtac-laser', 11, { jet: 'a10c' });
+    let cdu!: A10cCdu;
+    const host: HotasHost = {
+      world: () => sc.world, me: () => sc.me, jtac: () => null, targets: () => sc.targets, friendlies: () => [],
+      steerpoint: () => { const sp = cdu.steerpoint(); return { x: sp.x, z: sp.z, name: sp.id }; },
+      log: () => {}, canFire: () => true, marked: m => cdu.onMark(m), steer: d => cdu.steer(d),
+    };
+    const hotas = new A10cHotas(host);
+    cdu = new A10cCdu({
+      groundHeightM: (x, z) => sc.world.groundHeight(x, z), marks: () => hotas.marks, log: () => {},
+      steerChanged: sp => { if (sp.kind === 'mark') hotas.spiToSteerpoint(); },
+    }, { init: { x: sc.me.pos.x, z: sc.me.pos.z }, plan: [{ id: sc.ip.name, ...sc.ip }, { id: sc.egress.name, ...sc.egress }] });
+    hotas.reset();
+    sc.world.tgpPower(sc.me.id, true);
+    expect(hotas.spiXZ()).toMatchObject({ x: sc.ip.x, z: sc.ip.z, name: sc.ip.name });
+    // Mark a tank with the pod, then make the pod the SPI somewhere else.
+    const tank = sc.world.groundUnits.get(sc.targets[0]!)!;
+    hotas.setSoi('tgp');
+    sc.world.tgpPointAt(sc.me.id, tank.pos);
+    hotas.tap('tmsR');
+    expect(cdu.lines()[1]).toBe('MARK A');
+    sc.world.tgpPointAt(sc.me.id, { x: tank.pos.x + 800, z: tank.pos.z });
+    hotas.tap('tmsF', true);
+    expect(hotas.spiSource).toBe('tgp');
+    // A waypoint steerpoint leaves the SPI alone.
+    hotas.setSoi('hud');
+    hotas.tap('dmsF');
+    expect(cdu.steerpoint().id).toBe(sc.egress.name);
+    expect(hotas.spiSource).toBe('tgp');
+    // STEER PT MARK, DMS Forward: mark A is the steerpoint and the SPI.
+    cdu.setDial('MARK');
+    hotas.tap('dmsF');
+    expect(cdu.steerpoint()).toMatchObject({ kind: 'mark', letter: 'A' });
+    expect(hotas.spiSource).toBe('steer');
+    expect(sc.me.ag!.spi).toBeNull();
+    const spi = hotas.spiXZ(), m = hotas.marks[0]!;
+    expect(Math.hypot(spi.x - m.x, spi.z - m.z)).toBeLessThan(1e-6);
   });
 });
