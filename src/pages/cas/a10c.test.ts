@@ -9,7 +9,7 @@ import { A10C_LESSON_ORDER, CAS_LESSON_ORDER, lessonOrder, lessonsFor, progressK
 
 const LOG: string[] = [];
 
-function setup(lesson: CasLessonId, opts: { aim?: () => AimState } = {}) {
+function setup(lesson: CasLessonId, opts: { aim?: () => AimState; now?: () => number } = {}) {
   const sc = buildCasScenario(lesson, 11, { jet: 'a10c' });
   const nl = makeNineLine(sc, markFor('a10c', lesson));
   let hotas!: A10cHotas;
@@ -19,6 +19,7 @@ function setup(lesson: CasLessonId, opts: { aim?: () => AimState } = {}) {
   const host: HotasHost = {
     world: () => sc.world, me: () => sc.me, jtac: () => j, steerpoint: () => sc.ip, targets: () => sc.targets,
     friendlies: () => [{ id: sc.jtac, label: 'JTAC' }], log: t => { LOG.push(t); }, canFire: () => true,
+    ...(opts.now ? { now: opts.now } : {}),
   };
   hotas = new A10cHotas(host);
   hotas.reset();
@@ -177,6 +178,40 @@ describe('digital 9-line', () => {
     expect(hotas.milestones.has('slave')).toBe(true);
     // The triangle is coordinates: no clearance from it alone.
     expect(a10cAim(sc, hotas.spiSource).kind).toBe('none');
+  });
+
+  it('times long presses on the wall clock when the host has one, whatever the frame rate', () => {
+    // A 1-2 fps browser: the page caps the sim dt at 0.1 s, so 1.2 s of real hold is one step(0.1).
+    let clock = 100;
+    const { hotas } = setup('digital', { now: () => clock });
+    hotas.press('coolieR'); clock += 1.2; hotas.step(0.1);
+    expect(hotas.soi).toBe('tgp');
+    hotas.release('coolieR');
+    // Coolie Right Long: the TGP stays the right page and becomes the SOI (Short would cycle to the MAV page).
+    expect(hotas.rightPage).toBe('tgp');
+    expect(hotas.soi).toBe('tgp');
+    // Released before any step saw the threshold: the release still gives the Long action.
+    hotas.setSoi('hud');
+    hotas.press('coolieR'); clock += 1.2; hotas.release('coolieR');
+    expect(hotas.rightPage).toBe('tgp');
+    expect(hotas.soi).toBe('tgp');
+    // China Hat Forward Long slaves once: from step, not again on release.
+    hotas.press('chF'); hotas.step(0.1); expect(hotas.slaveCount).toBe(0);
+    clock += 1.2; hotas.step(0.1); expect(hotas.slaveCount).toBe(1);
+    clock += 0.5; hotas.step(0.1); hotas.release('chF');
+    expect(hotas.slaveCount).toBe(1);
+    // A 0.3 s press is Short even with a long sim step in between.
+    hotas.press('coolieR'); clock += 0.3; hotas.step(LONG_PRESS_S + 0.5); hotas.release('coolieR');
+    expect(hotas.rightPage).toBe('mav');
+    expect(hotas.slaveCount).toBe(1);
+  });
+
+  it('times long presses on the summed sim dt without a host clock', () => {
+    const { hotas } = setup('digital');
+    hotas.press('coolieR'); hotas.step(0.1); hotas.release('coolieR');
+    expect(hotas.rightPage).toBe('mav');
+    hotas.press('chF'); hotas.step(LONG_PRESS_S); hotas.release('chF');
+    expect(hotas.slaveCount).toBe(1);
   });
 
   it('completes the digital lesson steps from sim snapshots and kills a tank with a GBU-12 on the own laser', () => {

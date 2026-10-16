@@ -73,6 +73,11 @@ export interface HotasHost {
   marked?(m: Markpoint): void;
   /** DMS Forward (+1) / Aft (-1) with the HUD as SOI: next / previous steerpoint in the STEER PT database (the CDU). */
   steer?(dir: 1 | -1): void;
+  /**
+   * Wall clock in seconds. With it, held time is real time, so a 1 s hold is Long at any frame rate (the page caps the
+   * sim dt). Without it (tests, scripts), held time is the sim dt summed in step().
+   */
+  now?(): number;
 }
 
 const MASTER_CYCLE: A10cMasterMode[] = ['NAV', 'GUNS', 'CCIP', 'CCRP'];
@@ -99,7 +104,7 @@ export class A10cHotas {
   laserHeld = false;
   laserLatched = false;
   readonly milestones = new Set<A10cMilestone>();
-  private held = new Map<HotasSwitch, { s: number; fired: boolean }>();
+  private held = new Map<HotasSwitch, { s: number; start: number; fired: boolean }>();
   private slewIn = { x: 0, y: 0 };
   /** Store selected before GUNS, restored when leaving it. */
   private storeBeforeGuns: AgWeaponId | null = null;
@@ -121,12 +126,18 @@ export class A10cHotas {
   }
 
   // ------------------------------------------------------------------ switches (short / long)
-  press(sw: HotasSwitch): void { if (!this.held.has(sw)) this.held.set(sw, { s: 0, fired: false }); }
+  press(sw: HotasSwitch): void { if (!this.held.has(sw)) this.held.set(sw, { s: 0, start: this.host.now?.() ?? 0, fired: false }); }
   release(sw: HotasSwitch): void {
     const h = this.held.get(sw);
     if (!h) return;
     this.held.delete(sw);
-    if (!h.fired) this.act(sw, false);
+    // Re-check the threshold on release: a slow frame may not have run step() since the hold reached 1 s.
+    if (!h.fired) this.act(sw, this.heldS(h) >= LONG_PRESS_S);
+  }
+  /** Held time: wall clock when the host has one, else the summed sim dt. */
+  private heldS(h: { s: number; start: number }): number {
+    const now = this.host.now?.();
+    return now == null ? h.s : now - h.start;
   }
   /** A whole short or long press at once (buttons and scripts). */
   tap(sw: HotasSwitch, long = false): void { this.held.delete(sw); this.act(sw, long); }
@@ -135,7 +146,7 @@ export class A10cHotas {
   step(dt: number): void {
     for (const [sw, h] of this.held) {
       h.s += dt;
-      if (!h.fired && h.s >= LONG_PRESS_S) { h.fired = true; this.act(sw, true); }
+      if (!h.fired && this.heldS(h) >= LONG_PRESS_S) { h.fired = true; this.act(sw, true); }
     }
     const w = this.host.world(), ac = this.host.me();
     if (this.soi === 'tad' && (this.slewIn.x || this.slewIn.y)) {

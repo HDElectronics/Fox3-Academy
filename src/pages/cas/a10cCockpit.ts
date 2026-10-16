@@ -112,6 +112,8 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     world, me, jtac: host.jtac, steerpoint, targets: host.targets, friendlies: host.friendlies,
     log, canFire: host.canFire,
     marked: m => cdu?.onMark(m),
+    // Long presses use the wall clock: the page caps the sim dt, so at a low frame rate sim time runs slow.
+    now: () => performance.now() / 1000,
     // DMS Forward / Aft with the HUD as SOI steps the STEER PT database (M p.552, p.563); only with a CDU.
     ...(host.cdu ? { steer: (d: 1 | -1) => cdu?.steer(d) } : {}),
   };
