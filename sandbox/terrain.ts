@@ -17,13 +17,13 @@ focus[0] = Math.max(-19500, Math.min(19500, focus[0]));
 focus[1] = Math.max(-19500, Math.min(19500, focus[1]));
 field.flatten(focus[0], focus[1], 220, heightAt(field, focus[0], focus[1]));
 const stage = new Stage(document.getElementById('viewport')!, {
-  environment: { surface: 'land', grid: false }, autoPause: 'render', maxDpr: 1.5,
+  environment: { surface: 'land', grid: false, clouds: { altitudeM: 4600, coverage: 0.22, shadow: 0.18 } }, autoPause: 'render', maxDpr: 1.5,
   ariaLabel: 'Procedural terrain with hills, tree clumps, buildings and access roads',
 });
 stage.camera.near = 0.0005;
 stage.camera.updateProjectionMatrix();
 const root = new Group(); root.scale.setScalar(0.001); stage.scene.add(root);
-const terrain = new TerrainMesh(field, stage.palette);
+const terrain = new TerrainMesh(field, stage.palette, { atmosphere: stage.env?.atmosphere });
 const props = new TerrainProps(field, stage.palette, { density: Math.max(0, num('density', 1)) });
 root.add(terrain, props);
 const controls = new OrbitControls(stage.camera, stage.canvas);

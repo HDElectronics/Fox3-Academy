@@ -143,8 +143,11 @@ export class AttackScene {
     const p = stage.palette;
     this.root.name = 'attack-root';
     this.root.scale.setScalar(UNIT_PER_M);
-    this.terrain = new TerrainMesh(opts.field, p, { lodDistancesM: [6000, 16000] });
-    this.props = new TerrainProps(opts.field, p, { density: opts.propDensity ?? 0.5, viewDistanceM: 6000 });
+    // Attack jets fly at 1.5–3 km: keep the cumulus well above them, sparse, with a light shadow.
+    stage.env?.setSurface('land');
+    stage.env?.setClouds({ altitudeM: 4600, coverage: 0.22, shadow: 0.18 });
+    this.terrain = new TerrainMesh(opts.field, p, { lodDistancesM: [6000, 16000], atmosphere: stage.env?.atmosphere });
+    this.props = new TerrainProps(opts.field, p, { density: opts.propDensity ?? 0.5, viewDistanceM: 6000, atmosphere: stage.env?.atmosphere });
     this.units = new GroundUnitLayer(p, () => stage.requestRender());
     this.geo = {
       missile: new CylinderGeometry(0.13, 0.13, 3, 6).rotateX(Math.PI / 2),

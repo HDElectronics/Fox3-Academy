@@ -736,10 +736,15 @@ x east / y up / z south. Seeded layered value noise combines broad valleys and f
 - `chunks: readonly TerrainChunk[]` exposes `xM`, `zM`, `widthM`, `depthM`, `mesh`, and
   `level` (0 = finest, 2 = coarsest) for diagnostics. Normals sampled from the common field
   keep shared edges lit consistently; perimeter skirts conceal gaps between different LODs.
-- Vertex colours mix palette earth/ok for low ground, earth/smoke for higher ground, and
-  smoke/dark on steep slopes. `detail` (default true) adds derivative-filtered procedural
-  pigment variation at 95 m, 18 m and 2.5 m scales for close pod views; all pigments come from
-  the palette. No texture downloads, texture allocation or custom lighting are needed.
+- Shading is procedural (`patchSurface`, kind `'terrain'`), the same land as the Environment's far ground
+  so the map edge blends: field patchwork with hedges and crop rows, woods (more likely on slopes and high
+  ground), dry scrub, bare soil from about 13° and rock from about 22° of slope. Flattened areas
+  (`flattenedAreas`, up to 8) stay open farmland: no woods or scrub around targets. Hill shading draws the
+  field's own normals 1.6 times steeper so gentle relief reads from altitude; heights, normals in the geometry,
+  LOS and masking are untouched. `detail` (default true) adds derivative-filtered albedo and normal detail at
+  about 40 m, 18 m and 2.5 m for pod views. Pass `atmosphere: stage.env.atmosphere` so the terrain shares the
+  Stage's haze, sun, cloud shadows and colours; without it the terrain makes its own (default sun, no clouds).
+  No vertex colours, textures or downloads.
 - `dispose(): void` is idempotent, frees every cached geometry and the shared material, and
   detaches the group. The caller owns Stage, lighting, environment and frame subscriptions.
 
@@ -757,6 +762,7 @@ All values below are drawing choices, not DCS facts.
 - `chunkSizeM` defaults to 2500. `setFocus(x, z): void` shows batches whose nearest edge is
   within `viewDistanceM` (default 3000; `Infinity` disables distance culling). Match the terrain
   focus to the pod aim point. Built-in instance bounds also allow camera frustum culling.
+- `atmosphere` (optional, `stage.env.atmosphere`) fades props into the same haze as the terrain.
 - `counts` reports instantiated `tree`, `trunk`, `building`, `roof`, and `road` counts over the
   whole field, including hidden batches. `dispose(): void` releases instance resources and
   each shared geometry/material exactly once, and detaches the group.
@@ -797,8 +803,9 @@ itDisplay.draw(state, tv.image);
   flattened at its own height. `terrainHook(field)` → `TerrainHook` for `world.terrain`: `heightAt`, and
   `lineOfSight` with end points lifted `LOS_LIFT_M` (2 m) above the ground, because the height-field query treats a
   ray touching the terrain as blocked while ground units sit on it; end points are clamped inside the map.
-- `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: TerrainMesh and
-  TerrainProps (focus follows the Shkval aim point), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
+- `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: switches the Environment
+  to land with a sparse cumulus deck at 4600 m (well above the attack jets, light shadow), TerrainMesh and
+  TerrainProps sharing the Stage's atmosphere (focus follows the Shkval aim point), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
   SAM launcher, AAA; scale follows `sizeM`, charred when dead), A-G weapons in flight (missile, rocket and bomb
   bodies, Vikhr and rocket smoke, gun tracers, a glow at each head), impacts from `ag-impact` events
   (`view.addExplosion` plus a smoke column), and, for the shooter: the laser line jet → aim point while ЛД is on,

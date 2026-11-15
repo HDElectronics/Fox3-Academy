@@ -3,6 +3,7 @@ import {
   Matrix4, MeshStandardMaterial, Object3D, PlaneGeometry,
 } from 'three';
 import type { Palette } from '../palette';
+import { patchHaze, type AtmosphereUniforms } from '../atmosphere';
 import { heightAt, slopeAt, terrainRandom, type HeightField } from './heightmap';
 
 export interface TerrainPropsOptions {
@@ -19,6 +20,8 @@ export interface TerrainPropsOptions {
   chunkSizeM?: number;
   /** Distance from focus to chunk edge, default 3000; Infinity shows all props. */
   viewDistanceM?: number;
+  /** The Stage's world uniforms (`stage.env.atmosphere`): props fade into the same haze as the terrain. */
+  atmosphere?: AtmosphereUniforms;
 }
 type Kind = 'trunk' | 'tree' | 'building' | 'roof' | 'road';
 interface Batch { xM: number; zM: number; group: Group; matrices: Map<Kind, Matrix4[]> }
@@ -113,15 +116,16 @@ export class TerrainProps extends Group {
       road: new PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
     };
     const colors = {
-      trunk: palette.dark.clone().lerp(palette.earth, 0.6),
-      tree: palette.earth.clone().lerp(palette.ok, 0.25).lerp(palette.dark, 0.2),
-      building: palette.smoke.clone().lerp(palette.earth, 0.35),
-      roof: palette.earth.clone().lerp(palette.dark, 0.45),
-      road: palette.dark.clone().lerp(palette.smoke, 0.18),
+      trunk: palette.soil.clone().lerp(palette.dark, 0.55),
+      tree: palette.forest.clone().multiplyScalar(0.85),
+      building: palette.sand.clone().lerp(palette.rock, 0.45),
+      roof: palette.fieldD.clone().lerp(palette.warning, 0.12).lerp(palette.dark, 0.25),
+      road: palette.rock.clone().lerp(palette.dark, 0.5),
     };
     for (const kind of Object.keys(geometry) as Kind[]) {
       const material = new MeshStandardMaterial({ color: colors[kind], roughness: 1, flatShading: true,
         ...(kind === 'road' ? { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}) });
+      if (opts.atmosphere) patchHaze(material, opts.atmosphere);
       this.geometries.push(geometry[kind]); this.materials.push(material);
       for (const batch of this.batches) {
         const matrices = batch.matrices.get(kind);

@@ -1,5 +1,6 @@
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Vector3, Vector4 } from 'three';
 import type { Palette } from '../palette';
+import { createAtmosphereUniforms, MAX_PADS, patchSurface, type AtmosphereUniforms } from '../atmosphere';
 import { heightAt, normalAt, type HeightField } from './heightmap';
 
 export interface TerrainMeshOptions {
@@ -7,8 +8,13 @@ export interface TerrainMeshOptions {
   chunkCells?: number;
   /** Distances from focus to the nearest chunk edge; default [3000, 10000] metres. */
   lodDistancesM?: readonly [number, number];
-  /** Procedural surface mottling visible at pod magnification; default true. */
+  /** Fine albedo and normal detail visible at pod magnification; default true. */
   detail?: boolean;
+  /**
+   * The Stage's world-shader uniforms (`stage.env.atmosphere`) so the terrain shares the sky's haze, sun, cloud
+   * shadows and land colours. Without it the terrain makes its own (default sun, no clouds).
+   */
+  atmosphere?: AtmosphereUniforms;
 }
 export interface TerrainChunk {
   readonly xM: number;
@@ -48,42 +54,14 @@ export class TerrainMesh extends Group {
     let low = Infinity, high = -Infinity;
     for (const h of field.heights) { low = Math.min(low, h); high = Math.max(high, h); }
     this.skirtDepth = Math.max(1, high - low + 1);
-    this.material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
-    if (opts.detail !== false) {
-      // All pigment comes from the palette. Noise changes the mixture, never the geometry/LOS.
-      this.material.onBeforeCompile = shader => {
-        shader.uniforms.terrainEarth = { value: palette.earth.clone() };
-        shader.uniforms.terrainRock = { value: palette.smoke.clone().lerp(palette.earth, 0.35) };
-        shader.vertexShader = 'varying vec2 terrainXZ;\n' + shader.vertexShader;
-        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nterrainXZ = position.xz;');
-        shader.fragmentShader = /* glsl */ `
-          varying vec2 terrainXZ;
-          uniform vec3 terrainEarth;
-          uniform vec3 terrainRock;
-          float terrainHash(vec2 p) {
-            vec3 q = fract(vec3(p.xyx) * 0.1031);
-            q += dot(q, q.yzx + 33.33);
-            return fract((q.x + q.y) * q.z);
-          }
-          float terrainNoise(vec2 p) {
-            vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
-            float n = mix(mix(terrainHash(i), terrainHash(i + vec2(1, 0)), u.x),
-              mix(terrainHash(i + vec2(0, 1)), terrainHash(i + vec2(1, 1)), u.x), u.y);
-            return mix(n, 0.5, smoothstep(0.25, 1.0, max(fwidth(p.x), fwidth(p.y))));
-          }
-        ` + shader.fragmentShader;
-        shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', /* glsl */ `
-          #include <color_fragment>
-          float terrainPatch = terrainNoise(terrainXZ / 95.0);
-          float grain = terrainNoise(terrainXZ / 2.5);
-          float scrub = terrainNoise(terrainXZ / 18.0);
-          diffuseColor.rgb = mix(diffuseColor.rgb, terrainEarth, terrainPatch * 0.22);
-          diffuseColor.rgb = mix(diffuseColor.rgb, terrainRock, (grain * 0.10 + scrub * 0.12));
-        `);
-      };
-      this.material.customProgramCacheKey = () => 'terrain-surface-v1';
-    }
-    this.palette = palette;
+    // Albedo is procedural (atmosphere.ts): fields, woods and scrub by slope and height, rock on steep ground,
+    // cleared ground on flattened pads, fine detail for the pod, the Stage's haze. Visual only: heights untouched.
+    this.material = new MeshStandardMaterial({ roughness: 0.97, metalness: 0 });
+    const atmosphere = opts.atmosphere ?? createAtmosphereUniforms(palette, new Vector3(0.49, 0.64, 0.59).normalize(), { value: 0 });
+    const pads = [...field.flattenedAreas].sort((a, b) => b.radiusM - a.radiusM).slice(0, MAX_PADS)
+      .map(a => new Vector4(a.x / 1000, a.z / 1000, (a.radiusM * 1.05) / 1000, (a.outerRadiusM * 1.3) / 1000));
+    while (pads.length < MAX_PADS) pads.push(new Vector4(0, 0, -1, -1));
+    patchSurface(this.material, { kind: 'terrain', atmosphere, detail: opts.detail !== false, pads: { value: pads }, reliefM: field.maxReliefM });
     for (let iz = 0; iz < field.segments; iz += size) for (let ix = 0; ix < field.segments; ix += size) {
       const nx = Math.min(size, field.segments - ix), nz = Math.min(size, field.segments - iz);
       // No unused placeholder geometries: build only the initial selected LOD.
@@ -102,8 +80,6 @@ export class TerrainMesh extends Group {
     }
     this.chunks = this.tiles;
   }
-  private readonly palette: Palette;
-
   private levelAt(c: Pick<TerrainChunk, 'xM' | 'zM' | 'widthM' | 'depthM'>, x: number, z: number): number {
     const dx = Math.max(c.xM - x, 0, x - c.xM - c.widthM);
     const dz = Math.max(c.zM - z, 0, z - c.zM - c.depthM);
@@ -131,20 +107,13 @@ export class TerrainMesh extends Group {
     for (let x = 0; x < c.nx; x += stride) xs.push(c.ix + x);
     for (let z = 0; z < c.nz; z += stride) zs.push(c.iz + z);
     xs.push(c.ix + c.nx); zs.push(c.iz + c.nz);
-    const positions: number[] = [], colors: number[] = [], normals: number[] = [], indices: number[] = [];
-    const low = this.palette.earth.clone().lerp(this.palette.ok, 0.12);
-    const high = this.palette.earth.clone().lerp(this.palette.smoke, 0.32);
-    const rock = this.palette.smoke.clone().lerp(this.palette.dark, 0.4);
-    const color = low.clone();
+    const positions: number[] = [], normals: number[] = [], indices: number[] = [];
     for (const iz of zs) for (const ix of xs) {
       const x = ix * f.cellXM - f.extentM.x / 2, z = iz * f.cellZM - f.extentM.z / 2;
       const h = heightAt(f, x, z);
       positions.push(x, h, z);
       const normal = normalAt(f, x, z);
       normals.push(normal.x, normal.y, normal.z);
-      color.copy(low).lerp(high, Math.max(0, Math.min(1, h / Math.max(1, f.maxReliefM))));
-      color.lerp(rock, Math.min(1, Math.max(0, (Math.acos(Math.min(1, normal.y)) - 0.18) / 0.45)));
-      colors.push(color.r, color.g, color.b);
     }
     const w = xs.length, d = zs.length;
     for (let z = 0; z < d - 1; z++) for (let x = 0; x < w - 1; x++) {
@@ -160,7 +129,6 @@ export class TerrainMesh extends Group {
     const base = positions.length / 3;
     for (const i of edge) {
       positions.push(positions[i * 3], positions[i * 3 + 1] - this.skirtDepth, positions[i * 3 + 2]);
-      colors.push(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
       normals.push(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
     }
     for (let i = 0; i < edge.length; i++) {
@@ -169,7 +137,6 @@ export class TerrainMesh extends Group {
     }
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
     // Field normals are identical on shared edges at every LOD. Skirts must not tilt the surface
     // normals or each chunk would acquire a visible dark border.
     geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
