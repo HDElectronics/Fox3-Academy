@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CAS & JTAC: a gun burst (one press or a held trigger) or a rocket salvo now counts as one release, with at most one
+  clearance violation, one "away" line and one impact line per result in the log and the debrief.
 - Targeting pod lessons no longer dead-end after misses: when the Mavericks, a GBU-12, APKWS, the AGM-65L or the gun
   rounds a step needs are used up, the trainer rearms them once the last one resolves and sets up another pass
   (a trainer convenience, listed under "Simplified and not verified").

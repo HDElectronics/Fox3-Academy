@@ -108,6 +108,31 @@ describe('JTAC flow', () => {
     }
   });
 
+  it('counts a gun burst or a rocket salvo as one release with at most one violation', () => {
+    const { sc, j, run } = setup('talk-on');
+    const w = sc.world, me = sc.me.id;
+    let n = 0;
+    const round = (weapon: 'gun25t' | 'gau8' | 's8') => w.emit({ t: w.t, type: 'ag-launch', weaponId: `R${n++}`, shooterId: me, targetId: null, weapon, range: 1500 });
+    j.state = 'talk-on';
+    // Three Su-25T gun bursts (10 rounds each at one instant), a second apart: three releases, three violations.
+    for (let b = 0; b < 3; b++) { for (let i = 0; i < 10; i++) round('gun25t'); run(1); }
+    expect(j.releases.size).toBe(3);
+    expect(j.violations).toHaveLength(3);
+    expect(j.releases.get('R0')!.cleared).toBe(false);
+    expect(j.releaseOf('R9')).toBe('R0');
+    expect(j.releaseOf('R10')).toBe('R10');
+    // A held A-10C trigger: a round every 1/60 s for a second is one burst.
+    for (let i = 0; i < 60; i++) { round('gau8'); w.step(1 / 60); j.step(); }
+    run(1);
+    expect(j.releases.size).toBe(4);
+    expect(j.violations).toHaveLength(4);
+    // An S-8 salvo of four is one release.
+    for (let i = 0; i < 4; i++) round('s8');
+    run(1);
+    expect(j.releases.size).toBe(5);
+    expect(j.violations).toHaveLength(5);
+  });
+
   it('flies a full cleared-hot Vikhr attack, then Off and BDA', () => {
     const { sc, j, run, wait, act } = setup('talk-on', () => ({ kind: 'target', unitId: sc.targets[1]! }));
     const w = sc.world, id = sc.me.id;

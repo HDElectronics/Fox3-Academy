@@ -14,7 +14,7 @@
 import type { World } from '../../sim/world';
 import { JTAC_DEFAULT_LASER_CODE } from '../../data/cas';
 import type { EntityId, SimEvent } from '../../sim/types';
-import type { CommsMenuNode } from '../../data/types';
+import type { AgWeaponId, CommsMenuNode } from '../../data/types';
 import { buildCommsMenu, type JtacAction, type JtacMenuState } from '../../data/cas';
 import { type CasScenario, type XZ, bearingDeg, distM } from './scenario';
 import { type NineLine, NINE_LINE_ORDER, cardinal, lineText, M_PER_NM } from './nineLine';
@@ -82,13 +82,22 @@ export interface JtacOptions {
 
 /** Trainer offset of the smoke from the target centre (m): the talk-on starts from it. */
 const MARK_OFFSET_M: readonly [number, number] = [120, 220];
+/**
+ * Rounds of one store within this gap (s) of the previous one belong to the same release: a gun burst (one press, or
+ * a held trigger) or a rocket salvo counts once. Trainer value.
+ */
+export const RELEASE_GAP_S = 0.3;
 
 export class JtacController {
   state: JtacState = 'idle';
   readonly calls: JtacCall[] = [];
   readonly violations: { t: number; why: Violation; weaponId: EntityId }[] = [];
-  /** Clearance at each release, by weapon id. */
+  /** Clearance at each release (a single store, a gun burst or a salvo), by the id of its first weapon. */
   readonly releases = new Map<EntityId, { t: number; cleared: boolean; headingErrDeg: number }>();
+  /** Every released weapon id to the first weapon id of its release. */
+  private releaseIds = new Map<EntityId, EntityId>();
+  /** The last release: its store, its first weapon and the time of its last round. */
+  private lastRelease: { weapon: AgWeaponId; id: EntityId; t: number } | null = null;
   /** The smoke mark (WP). */
   markId: EntityId | null = null;
   /** The JTAC's laser spot while it lases (laser mark following a target unit). */
@@ -111,6 +120,9 @@ export class JtacController {
     this.markRangeM = opts.markRangeM ?? 10 * M_PER_NM;
     this.evCursor = world.events.length;
   }
+
+  /** The release (its first weapon id) a released weapon belongs to. Reads new launches first (rounds fired after step()). */
+  releaseOf(weaponId: EntityId): EntityId | undefined { this.readEvents(); return this.releaseIds.get(weaponId); }
 
   /** True while JTAC calls are still queued (the menu hides replies until the JTAC has finished). */
   get busy(): boolean { return this.queue.length > 0; }
@@ -408,6 +420,11 @@ export class JtacController {
     for (; this.evCursor < ev.length; this.evCursor++) {
       const e: SimEvent = ev[this.evCursor]!;
       if (e.type !== 'ag-launch' || e.shooterId !== this.sc.me.id) continue;
+      // The next round of the same burst or salvo: part of that release, no new count or violation.
+      const last = this.lastRelease;
+      if (last && last.weapon === e.weapon && e.t - last.t <= RELEASE_GAP_S) { last.t = e.t; this.releaseIds.set(e.weaponId, last.id); continue; }
+      this.lastRelease = { weapon: e.weapon, id: e.weaponId, t: e.t };
+      this.releaseIds.set(e.weaponId, e.weaponId);
       const hdg = ((this.sc.me.heading * 180) / Math.PI + 360) % 360;
       const err = headingErrorDeg(hdg, this.sc.attackHdgDeg);
       const cleared = this.state === 'cleared' && err === 0;

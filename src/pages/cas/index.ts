@@ -110,6 +110,8 @@ const factory: PageFactory = (): Page => {
     let ended = false, endAt: number | null = null, scripted = false;
     let result: ModalHandle | null = null;
     let impacts: Partial<Record<ImpactClass, number>> = {};
+    /** Impact classes already counted per release: a gun burst or a salvo counts each class once. */
+    let impactSeen = new Set<string>();
     let cardPassed = false, cardCorrect = 0;
     let uiClock = 0;
     let showMarkers = false;
@@ -331,7 +333,7 @@ const factory: PageFactory = (): Page => {
       scene?.setShooter(me.id);
       scene?.setGeometry({ ip: sc.ip, target: sc.target, attackHeadingDeg: [sc.attackHdgDeg[0], sc.attackHdgDeg[1]] });
       scene?.setLayer('markers', showMarkers);
-      evCursor = 0; done = new Set(); ended = false; endAt = null; scripted = false; impacts = {};
+      evCursor = 0; done = new Set(); ended = false; endAt = null; scripted = false; impacts = {}; impactSeen = new Set();
       cardPassed = false; cardCorrect = 0;
       ck.resetInputs();
       ck.rwr.hidden = !sc.sams.length;
@@ -415,10 +417,14 @@ const factory: PageFactory = (): Page => {
       for (; evCursor < ev.length; evCursor++) {
         const e = ev[evCursor]!;
         switch (e.type) {
-          case 'ag-launch': if (e.shooterId === me.id) log.push(`${su ? (e.weapon === 'vikhr' ? 'Vikhr' : 'Weapon') : AG_WEAPONS[e.weapon].name} away`, { t: e.t }); break;
+          // One line per release: a gun burst or a salvo is one release (jtac.ts).
+          case 'ag-launch': if (e.shooterId === me.id && jtac.releaseOf(e.weaponId) === e.weaponId) log.push(`${su ? (e.weapon === 'vikhr' ? 'Vikhr' : 'Weapon') : AG_WEAPONS[e.weapon].name} away`, { t: e.t }); break;
           case 'ag-impact': {
             if (e.weapon === 'gun25t' && !e.killed.length) break;
             const r = classifyImpact(w, e, { targets: sc.targets, friendlies: [...sc.friendlies, sc.jtac] });
+            const key = `${jtac.releaseOf(e.weaponId) ?? e.weaponId}|${r.cls}`;
+            if (impactSeen.has(key)) break;
+            impactSeen.add(key);
             impacts[r.cls] = (impacts[r.cls] ?? 0) + 1;
             const tone: Tone = r.cls === 'on-target' ? 'ok' : r.cls === 'miss' ? 'caution' : 'warning';
             const text = { 'on-target': 'Impact on the target', 'wrong-target': 'Impact on a vehicle that is not the target', fratricide: 'Friendly hit', 'danger-close': `Impact ${Math.round(r.nearestFriendlyM ?? 0)} m from friendlies`, miss: 'Miss' }[r.cls];
