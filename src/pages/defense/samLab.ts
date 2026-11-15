@@ -20,9 +20,10 @@ import { RwrDisplay } from '../../ui/displays';
 import { mobileAction } from '../../ui/mobileAction';
 import { MANEUVER_LABEL, THROTTLES, type Maneuver, type Throttle } from './pilot';
 import { cmKeys } from './cmkeys';
+import { defenseHref, defenseLabel, defensePicker, nextDefenseLesson } from './picker';
 import {
-  RIDGE_M, SAM_ALTS, SAM_DRILLS, SamRunner, samBrief, samCoach, samDebrief, samSetupFor, samShort,
-  type SamAlt, type SamMetrics, type SamSetup,
+  RIDGE_M, SAM_ALTS, SamRunner, samBrief, samCoach, samDebrief, samSetupFor, samShort,
+  type SamAlt, type SamDrillId, type SamMetrics, type SamSetup,
 } from './samRun';
 
 const SHOTS = ['lock', 'launch', 'notch', 'result', 'live'] as const;
@@ -56,15 +57,11 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
 
   // ------------------------------------------------------------------ brief panel
   const brief = samBrief(sam, ac, units);
-  const siteButtons = SAM_DRILLS.map(id => {
-    const b = h('button', {
-      type: 'button', class: 'dfn-drill', 'aria-pressed': String(id === sam), id: `dfn-drill-${id}`,
-      onclick: () => { if (id !== sam) ctx.navigate(`defense?drill=${id}`); },
-    }, h('span', { class: 'dfn-drill__n' }, '▲'), h('span', { class: 'dfn-drill__title' }, samShort(id)),
-    h('span', { class: 'dfn-drill__best' }, bestText(id)));
-    return b;
-  });
-  const missileBtn = button({ label: 'Missile drills', size: 's', variant: 'ghost', onClick: () => ctx.navigate('defense') });
+  // The Defense drill picker (picker.ts): every drill is a ?drill= link; another site or a missile drill remounts.
+  const urlParams = new URLSearchParams(ctx.params);
+  const picker = defensePicker(ctx, sam as SamDrillId, () => urlParams);
+  bag.add(() => picker.destroy());
+  const nextSite = nextDefenseLesson(sam as SamDrillId);
   const altSeg = segmented<SamAlt>({
     id: 'dfn-sam-alt', label: 'Your altitude', value: setup.alt, fill: true, size: 's',
     options: SAM_ALTS.map(a => ({ value: a.value, label: a.label, title: a.title })),
@@ -87,8 +84,8 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
     h('p', { class: 'dfn-note sam-nv' }, h('span', { class: 'ui-tag sam-tag' }, 'not verified'), ' ', brief.notVerified.join(' ')));
   const startBtn = button({ id: 'dfn-start', label: 'Start', variant: 'primary', keys: 'Space', block: true, onClick: () => start() });
   const briefPanel = consolePanel({
-    id: 'dfn-drill-panel', title: 'SAM drill',
-    children: [h('div', { class: 'dfn-drills sam-sites', role: 'group', 'aria-label': 'SAM site' }, siteButtons, missileBtn.el),
+    id: 'dfn-drill-panel', title: 'SAM drill', actions: picker.status,
+    children: [picker.el,
       briefEl, altSeg.el, ridgeSw.el, startBtn.el],
   });
 
@@ -284,16 +281,11 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       actions: [
         { label: 'Review', id: 'dfn-res-close' },
         { label: 'Retry', id: 'dfn-res-retry', keys: 'R', primary: !d.passed, onClick: () => retry() },
-        { label: 'Next site', id: 'dfn-res-next', primary: d.passed, onClick: () => ctx.navigate(`defense?drill=${SAM_DRILLS[(SAM_DRILLS.indexOf(sam) + 1) % SAM_DRILLS.length]}`) },
+        ...(nextSite ? [{ label: `Next: ${defenseLabel(nextSite)}`, id: 'dfn-res-next', primary: d.passed, onClick: () => ctx.navigate(defenseHref(nextSite, urlParams).slice(2)) }] : []),
       ],
       open: true,
     });
     bag.add(() => result?.close());
-  }
-
-  function bestText(id: SamId): string {
-    const v = Number(ctx.app.getProgress(`defense:${id}:${ac}`) ?? 0);
-    return v > 0 ? `best ${v}` : '';
   }
 
   // ------------------------------------------------------------------ camera
