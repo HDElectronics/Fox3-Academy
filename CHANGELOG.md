@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
+  site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks
   and fires at its 14 s deadline when the range is opening (behind you, or higher than you), instead of ending the
   drill as "No shot: needs a lock".

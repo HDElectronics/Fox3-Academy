@@ -992,7 +992,8 @@ function decide(world: World, ac: Aircraft, b: Brain, dt: number): void {
   if (stateOf(ac) === 'defend') {
     // Keep flying the defence briefly through a warning that flickers; end at once if the missile is gone.
     const d = b.mem.defend;
-    const m = d?.missileId ? world.missiles.get(d.missileId) : undefined;
+    // The episode's missile is an air-to-air missile or a SAM (World keeps them in separate maps).
+    const m = d?.missileId ? world.missiles.get(d.missileId) ?? world.samMissiles.get(d.missileId) : undefined;
     const gone = !d || (d.missileId !== null && (!m || !m.alive));
     if (!gone && d && world.t - d.lastSeen < 1.5) return;
     endDefend(world, ac, b);

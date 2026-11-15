@@ -7,7 +7,7 @@ import {
   twoVTwo, twsDrill,
 } from './scenarios';
 import { D2R, R2D, aspectAngle, bearingTo, relBearing, wrapPi } from './math';
-import type { Aircraft, AiMemory, Missile, MissileGuidance, RwrContact, SimEvent } from './types';
+import type { Aircraft, AiMemory, Missile, MissileGuidance, RwrContact, SamMissile, SimEvent } from './types';
 import type { MissileId } from '../data/types';
 import { FIGHTER_ORDER } from '../data/aircraft';
 
@@ -319,6 +319,24 @@ describe('AI defence decisions', () => {
     think(w, b, 1, () => { b.rwr = []; });
     expect(aiOf(b).state).toBe('patrol');
     expect(aiEvents(w, b.id).at(-1)?.text).toMatch(/defeated the AIM-120C/);
+  });
+
+  it('holds a SAM defence through a launch warning that flickers off while the missile still flies', () => {
+    const w = new World(3);
+    w.record = false;
+    const site = w.spawnSam({ id: 'sam', side: 'red', type: 'sa11', pos: { x: 0, z: 0 } });
+    const ac = w.spawnAircraft({ id: 'ai', side: 'blue', type: 'f16c', controller: 'ai', skill: 'veteran', pos: { x: 0, y: 6000, z: 25_000 }, heading: 0, speed: 250 });
+    const pos = new Vector3(0, 4000, 12_000);
+    w.samMissiles.set('SM1', {
+      kind: 'sam-missile', id: 'SM1', type: 'sa11', side: 'red', siteId: site.id, targetId: ac.id, pos, vel: ac.pos.clone().sub(pos).setLength(900),
+      launchedAt: w.t, alive: true, guided: true, motorLeft: 0, timeToImpact: null, result: null, closestApproach: Infinity,
+    } as unknown as SamMissile);
+    const cue = () => { ac.rwr = [{ ...contact(ac, site.id, site.pos, 'launch'), emitterType: 'sam-medium' }]; };
+    think(w, ac, 3, cue);
+    expect(aiOf(ac).state).toBe('defend');
+    // A 0.2 s dropout of the warning (the site's track blinks): the defence holds, as it does against an AAM.
+    think(w, ac, 0.2, () => { ac.rwr = []; });
+    expect(aiOf(ac).state).toBe('defend');
   });
 });
 
