@@ -696,13 +696,16 @@ const factory: PageFactory = (): Page => {
       const cur = def.steps.find(s => !done.has(s.id));
       steps.setCurrent(cur?.id ?? null);
       let tone: Tone | undefined;
-      let text = cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
-      let why = check.reason && ag.master !== 'nav' && sel ? check.reason : def.goal;
-      if (check.pr) { tone = 'ok'; why = 'ПР: launch authorised.'; }
+      // Once the lesson has ended the trigger is dead (canFire): no launch check or release cue applies any more.
+      let text = ended
+        ? (!def.scored ? 'Lesson complete.' : result ? 'Attack over. Fly again or take the next lesson.' : 'Attack over: the debrief follows.')
+        : cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
+      let why = !ended && check.reason && ag.master !== 'nav' && sel ? check.reason : def.goal;
+      if (!ended && check.pr) { tone = 'ok'; why = 'ПР: launch authorised.'; }
       const flying = [...w.agWeapons.values()].some(x => x.alive && x.guided && x.shooterId === me.id && x.type === 'vikhr');
       if (flying) { text = 'Vikhr in flight: hold the lock and the laser until impact.'; tone = 'caution'; why = 'Beam-riding: the missile follows the Shkval line of sight to the end.'; }
       const ccrp = ccrpSolution(w, me);
-      if (ccrp.active && lesson === 'bombs' && bombPhase === 'ccrp') {
+      if (!ended && ccrp.active && lesson === 'bombs' && bombPhase === 'ccrp') {
         why = ag.ccrpHeld
           ? `Release held. ${ccrp.inCircle ? 'Keel in the circle' : `Steer ${ccrp.errDeg! > 0 ? 'right' : 'left'} into the circle`}; ${ccrp.ttrS! > 10 ? 'the arrow starts 10 s before release' : `release in ${Math.max(0, Math.ceil(ccrp.ttrS!))} s`}.`
           : 'CCRP ready: hold Space until the bomb releases itself.';

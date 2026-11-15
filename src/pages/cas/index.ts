@@ -531,9 +531,13 @@ const factory: PageFactory = (): Page => {
       updateNav();
       const cur = def.steps.find(s => !done.has(s.id));
       steps.setCurrent(cur?.id ?? null);
-      let text = cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
+      // Once the lesson has ended the trigger is dead (canFire): no clearance or release cue applies any more.
+      let text = ended
+        ? (!def.scored ? 'Lesson complete.' : result ? 'Attack over. Fly again or take the next lesson.' : 'Attack over: the debrief follows.')
+        : cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
       let why = def.goal, tone: Tone | undefined;
-      if (jtac.state === 'cleared') {
+      if (ended) why = def.goal;
+      else if (jtac.state === 'cleared') {
         why = nl.mark === 'none' ? 'Cleared to engage: release on the target, then call Attack Complete.' : 'Cleared hot: release on the target, then call Off.';
         tone = 'ok';
       }
@@ -541,7 +545,7 @@ const factory: PageFactory = (): Page => {
       else if (jtac.busy) { why = 'The JTAC is talking: listen, then answer from the radio menu.'; }
       else if (jtac.state === 'lasing') { why = 'The JTAC is lasing: find the spot with the LSS, then call Spot.'; }
       else if (jtac.state === 'data' && jtac.tasking?.state === 'new') { why = 'The digital 9-line is on the MSG page: WILCO (OSB 19) or CNTCO (OSB 7).'; }
-      if (lesson === 'nine-line' && !done.has('card') && after9()) { text = 'Type each line on the kneeboard card, then Check the card.'; }
+      if (!ended && lesson === 'nine-line' && !done.has('card') && after9()) { text = 'Type each line on the kneeboard card, then Check the card.'; }
       if (force || text) coach.set(text, why, tone);
     }
     const after9 = () => !['idle', 'checked-in'].includes(jtac.state);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Shkval & Vikhr and CAS & JTAC: once a lesson has ended, the coach no longer shows the live launch refusal, the CCRP
+  cue or the clearance hint; it says the attack is over and points to the debrief.
 - Merge & guns: a refused close-combat radar lock ("Too far to lock: ...") gives its ranges in the units you picked,
   not the jet's default.
 - CAS & JTAC: a gun burst (one press or a held trigger) or a rocket salvo now counts as one release, with at most one
