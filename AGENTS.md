@@ -132,7 +132,8 @@ scripts/shot.sh '/#/tws?ac=su27' .shots/tws-su27.png 1440 900 6000   # path, out
 scripts/shot.sh '/#/tws?ac=f15c' .shots/tws-820.png 820 1180 6000   # tablet / narrow window layout
 ```
 
-It starts a dev server on :5190 if none is running, takes a headless-Chrome screenshot (WebGL works via
+It starts a dev server on :5190 if none is running (`SHOT_PORT=<port>` picks another port, one per parallel
+worktree), takes a headless-Chrome screenshot (WebGL works via
 SwiftShader) and prints the page's console output. View the PNG. Check at least su27 (Russian skin, metric,
 no Fox 3), f15c (US skin, multi-target) and m2000c or f14b (edge cases), at 1440 and 820 wide.
 The app is desktop only: phones (touch-only, short screen side under 600 px) get the panel in
