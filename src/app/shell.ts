@@ -16,7 +16,7 @@ import { flyLinkFor, lessonSteps, nextText, pathStatus, routeOf, type PathStatus
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
 import { clearLessonPosition, lessonPosition, positionText, watchLessonPosition, type LessonPosition } from '../ui/lessonPicker';
-import { focusedByKeyboard } from '../ui/keys';
+import { focusedByKeyboard, releasePointerFocus } from '../ui/keys';
 
 type ProgressModel = typeof import('../pages/progress/model');
 
@@ -30,10 +30,12 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     select.value = app.jet;
   };
   fillPicker();
-  select.addEventListener('change', () => app.setAircraft(select.value as AircraftId));
+  // Both remount the page. Picked or clicked with the mouse, focus goes back to the page so its keys (Space to start,
+  // arrows that would step the picker) work at once; a keyboard user keeps focus here.
+  select.addEventListener('change', () => { releasePointerFocus(select); app.setAircraft(select.value as AircraftId); });
 
   const unitsBtn = h('button', { class: 'units-btn', id: 'unitsBtn', type: 'button', title: 'Switch units' });
-  unitsBtn.addEventListener('click', () => app.setUnits(app.units === 'metric' ? 'imperial' : 'metric'));
+  unitsBtn.addEventListener('click', () => { releasePointerFocus(unitsBtn); app.setUnits(app.units === 'metric' ? 'imperial' : 'metric'); });
 
   const nav = h('nav', { class: 'modnav', 'aria-label': 'Main navigation' },
     DESTINATIONS.map(r => h('a', { href: '#/' + r.path, dataset: { destination: r.id } }, r.label)));

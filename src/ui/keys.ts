@@ -369,6 +369,15 @@ export function focusedByKeyboard(el: Element): boolean {
   try { return el.matches(':focus-visible'); } catch { return true; }
 }
 
+/**
+ * Blur el when a pointer press put focus there, and keep it when the keyboard did. For chrome controls whose use
+ * remounts the page (the jet picker, the units button): the new page's keys must not land on them, while a keyboard
+ * user keeps arrowing through jets.
+ */
+export function releasePointerFocus(el: HTMLElement): void {
+  if (document.activeElement === el && pressedByPointer(el)) el.blur();
+}
+
 /** Pressed with a pointer and done with: not a select whose list may still be open. */
 function releasedByPointer(el: Element): boolean {
   return pressedByPointer(el) && !(pointer.listOpen && pointer.ctl === (el.closest(ACTIVATABLE) ?? el));

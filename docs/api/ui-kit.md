@@ -245,6 +245,9 @@ const unbind = bindKeys({
   `:focus-visible` alone is not enough: Chrome rings a clicked link after the next key press. The shell's lesson
   path row lets a clicked link's focus go on every re-render, route changes included, so on the new page Enter and
   Space start the lesson instead of following the link; a keyboard user keeps their place in the row.
+- **Controls that remount the page** (the shell's jet picker and units button) call `releasePointerFocus(el)`: used
+  with the mouse, focus goes back to the page, so Space starts at once and an unbound arrow cannot step the picker to
+  another jet; used with the keyboard, focus stays (keep arrowing through jets).
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events
   that are already `defaultPrevented`. Keep one map per page.
 

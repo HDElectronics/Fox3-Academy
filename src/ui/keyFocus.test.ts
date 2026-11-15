@@ -4,7 +4,7 @@
  * silently; focus() fires focusin). A click is pointerdown + focus + click; Safari's click does not focus.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindKeys, focusedByKeyboard } from './keys';
+import { bindKeys, focusedByKeyboard, releasePointerFocus } from './keys';
 import { segmented, select, tabs } from './controls';
 
 type Listener = (e: FakeEvent) => void;
@@ -319,5 +319,35 @@ describe('focusedByKeyboard (the lesson path keeps focus across a re-render only
     again.focusVisible = true; again.focus();
     expect(byKeyboard(again)).toBe(true);
     unbind();
+  });
+});
+
+describe('releasePointerFocus (the jet picker and the units button remount the page)', () => {
+  it('lets go of a control picked or clicked with the mouse and keeps one the keyboard used', () => {
+    const log: string[] = [];
+    const unbind = bindKeys({ 'Space': () => log.push('start') }, doc as unknown as EventTarget);
+    const picker = mount(new FakeEl('select'));
+    picker.addEventListener('change', () => releasePointerFocus(picker as unknown as HTMLElement));
+    const units = mount(new FakeEl('button'));
+    units.addEventListener('click', () => releasePointerFocus(units as unknown as HTMLElement));
+    // Mouse: the list opens, a jet is picked, the page remounts with a new key map.
+    click(picker);
+    dispatch(picker, 'change');
+    expect(doc.activeElement).toBe(null);
+    unbind();
+    const unbind2 = bindKeys({ 'Space': () => log.push('start') }, doc as unknown as EventTarget);
+    press('Space');
+    click(units);
+    expect(doc.activeElement).toBe(null);
+    press('Space');
+    expect(log).toEqual(['start', 'start']);
+    // Keyboard: Tab to the picker, an arrow changes the jet; focus stays to keep arrowing.
+    tabTo(picker);
+    dispatch(picker, 'change');
+    expect(doc.activeElement).toBe(picker);
+    tabTo(units);
+    dispatch(units, 'click');                     // Enter or Space on the button
+    expect(doc.activeElement).toBe(units);
+    unbind2();
   });
 });
