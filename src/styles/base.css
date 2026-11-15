@@ -162,6 +162,10 @@ kbd {
       max(16px, var(--chrome-inset, (100% - var(--chrome-max)) / 2) + var(--lab-gap));
   }
 }
+/* Ten steps, two positions and a long Next do not fit one line below this width: the page's picker shows the sub-lesson. */
+@media (max-width: 1640px) {
+  .context-nav[data-long="true"] .pathpos--sub { display: none; }
+}
 @media (max-width: 900px) {
   .context-nav { padding: 0 8px 0 4px; gap: var(--gap-2); }
   .pathpos__cap { display: none; }

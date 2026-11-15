@@ -130,6 +130,8 @@ export function buildShell(root: HTMLElement, app: AppStore) {
       : `a[href="${CSS.escape(active.getAttribute('href') ?? '')}"]`;
 
     contextNav.dataset.destination = destination;
+    // A long path (the Hornet's ten steps) leaves no room for the sub-lesson position below a wide window.
+    contextNav.dataset.long = String(steps.length > 8);
     contextNav.setAttribute('aria-label', destination === 'learn' ? `Lesson path for the ${AIRCRAFT[jet].short}`
       : destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference' : 'Fly');
     if (destination === 'learn') {
