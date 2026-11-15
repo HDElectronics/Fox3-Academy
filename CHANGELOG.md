@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pattern & landing: the AoA indexer head reads "AoA · GEAR DN" in full, also beside the IFLOLS at 820 px
+  (it was cut to "A…").
 - Strip readouts stay on one line in narrow windows: CAS & JTAC shows the attack heading window, your heading and the
   A-10C II laser code on their own rows, and Shkval & Vikhr reads "Laser 116 s / 20 min" (or "cooling").
 - Shkval & Vikhr and CAS & JTAC: once a lesson has ended, the coach no longer shows the live launch refusal, the CCRP

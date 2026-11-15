@@ -213,7 +213,9 @@ const factory: PageFactory = (): Page => {
     const traceCanvas = h('canvas', { class: 'fo-canvas' });
     const navCanvas = h('canvas', { class: 'fo-canvas' });
     const hudBezel = screenBezel({ id: 'fo-hud', label: 'HUD', aspect: '4 / 3', content: hudCanvas, status: 'simplified', class: 'fo-hud' });
-    const idxBezel = screenBezel({ id: 'fo-idx', label: 'AoA indexer', aspect: '1 / 2', content: idxCanvas, status: 'gear dn', class: 'fo-idx' });
+    // "AoA" keeps the head on one line beside the gear placard in a 110 px strip column; the glass shows the indexer.
+    const idxBezel = screenBezel({ id: 'fo-idx', label: 'AoA', aspect: '1 / 2', content: idxCanvas, status: 'gear dn', class: 'fo-idx' });
+    idxBezel.el.querySelector('.ui-bezel__label')?.setAttribute('title', 'AoA indexer');
     const traceBezel = screenBezel({ id: 'fo-trace', label: 'Pattern', aspect: '1', content: traceCanvas, class: 'fo-trace' });
     const navBezel = screenBezel({ id: 'fo-nav', label: 'Nav (HSI)', aspect: '1', content: navCanvas, status: 'simplified', class: 'fo-navd' });
 
