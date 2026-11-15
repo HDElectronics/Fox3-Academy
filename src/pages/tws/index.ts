@@ -3,7 +3,8 @@
  * multi-target shots where the jet allows them, and above all what each bandit's RWR hears.
  * Route #/tws teaches the lesson; #/tws?lab=free opens Practice. ?ac=<id> selects the jet once on mount.
  * ?shot=tracks|mid|active|stt|end|demo pre-rolls the
- * drill with the demo pilot (screenshots); &pause=1 starts paused; &cam=top|chase picks the camera.
+ * drill with the demo pilot (screenshots; a demo-flown checklist is never saved, a reset hands the drill back);
+ * &pause=1 starts paused; &cam=top|chase picks the camera.
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
@@ -101,6 +102,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   let selected: EntityId | null = null;
   let saved = !!ctx.app.getProgress(`tws:${ac}:done`);
   const autoplay = !L.freeLab && shot === 'demo';
+  /** The demo pilot flew this drill (?shot= pre-roll or autoplay): the checklist shows, nothing is saved. */
+  let scripted = autoplay;
   const labInput = new FreeLabInput();
   const holds = new LabTimers();
   bag.add(() => labInput.clear());
@@ -711,7 +714,10 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
       ? 'Practice · Select a contact in World or position the cursor in Displays.'
       : `Now · ${currentStep?.text ?? 'Checklist complete'} (${done}/${steps.length})`);
     // Practice (free lab) hides the checklist and saves nothing: it must not claim a save either.
-    if (done === steps.length && !saved && !L.freeLab) {
+    if (done === steps.length && !saved && !L.freeLab && scripted) {
+      saved = true;
+      log.push(`Checklist complete for the ${spec.short} (scripted demo, not saved).`, { t: w.t, tone: 'dim' });
+    } else if (done === steps.length && !saved && !L.freeLab) {
       saved = true;
       ctx.app.setProgress(`tws:${ac}:done`, true);
       log.push(`Checklist complete for the ${spec.short}. Saved.`, { t: w.t, tone: 'ok' });
@@ -792,6 +798,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     labInput.clear();
     holds.clear();
     L.reset();
+    scripted = autoplay;
+    saved = !!ctx.app.getProgress(`tws:${ac}:done`);
     log.clear();
     view?.setWorld(L.world);
     view?.setObserver(L.me.id);
@@ -818,6 +826,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   updateUi();
 
   function preroll(kind: string): void {
+    scripted = true;
     const until: Record<string, () => boolean> = {
       tracks: () => L.flags.des1 || L.world.t > 60,
       mid: () => L.playerMissiles().some(m => m.guidance === 'datalink' && (m.timeToActive ?? 99) < 14) || L.world.t > 110,

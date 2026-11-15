@@ -6,7 +6,8 @@
  * ?sel=<n> ?cam=34|side|top|behind ?el=<deg> ?azc=<deg> ?w=<±deg> ?bars=<n> ?mode=rws|tws ?cursor=<units> ?pause=1
  * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through;
  * iff, iffasked, iffdone: two unknowns, after the interrogation (auto-IFF jets: friend marked), hostile locked;
- * dl, dlcorr: the datalink picture beyond the radar (FC3: radar switched on), then the scan slewed onto it: correlated)
+ * dl, dlcorr: the datalink picture beyond the radar (FC3: radar switched on), then the scan slewed onto it: correlated;
+ * scripted pre-rolls, never saved as progress until the pilot picks or restarts an exercise)
  * ?view=explain (reading section only).
  */
 import './style.css';
@@ -143,6 +144,8 @@ const factory: PageFactory = (): Page => {
     let scene: Scene = EXERCISE_DEFS.free.scene(ac, units);
     let mem: Mem = { latched: [] };
     let doneSaved = false;
+    /** The exercise ran from a ?shot= pre-roll: the script did the pilot's work, so it is never saved. */
+    let scripted = false;
     let timeScale = reduced || q.get('pause') === '1' ? 0 : 1;
     let lastScale = 1;
     let selected: EntityId | null = null;
@@ -451,6 +454,7 @@ const factory: PageFactory = (): Page => {
       const def = EXERCISE_DEFS[id];
       scene = def.scene(ac, units);
       mem = { latched: [] };
+      scripted = false;
       doneSaved = id !== 'free' && ctx.app.getProgress(`radar:${ac}:${id}`) === true;
       inspected.clear();
       selected = null;
@@ -906,7 +910,10 @@ const factory: PageFactory = (): Page => {
       if (exId === 'dl') syncDl(snap.dl);
       if (exId === 'jam') syncJamButtons();
       else view?.setLayer('tracks', true);
-      if (ev.done && exId !== 'free' && !doneSaved) {
+      if (ev.done && exId !== 'free' && !doneSaved && scripted) {
+        doneSaved = true;
+        toast(`Exercise ${def.num} done: ${def.title} (scripted demo, not saved)`, { within: lab.view, tone: 'dim' });
+      } else if (ev.done && exId !== 'free' && !doneSaved) {
         doneSaved = true;
         ctx.app.setProgress(`radar:${ac}:${exId}`, true);
         toast(`Exercise ${def.num} done: ${def.title}`, { within: lab.view, tone: 'ok' });
@@ -1043,6 +1050,7 @@ const factory: PageFactory = (): Page => {
       fixed.delete('ac'); fixed.delete('units'); fixed.set('lab', 'free'); fixed.set('ex', 'free');
       queueMicrotask(() => { if (alive) ctx.navigate(`radar?${fixed}`, { replace: true }); });
     }
+    scripted = !!shot;
     // Deep-link scan overrides (screenshots): ?mode= ?w= ?bars= ?azc= ?el= ?cursor=
     const num = (k: string) => { const v = q.get(k); return v !== null && v !== '' && isFinite(Number(v)) ? Number(v) : null; };
     const qm = q.get('mode');

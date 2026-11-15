@@ -5,7 +5,8 @@
  * (sim/dlz simulateShot), play it back in 3D, plot speed / altitude / range against time, compare up to
  * three shots, and see how Rmax and Rne move with altitude and speed.
  *
- * URL params: ?ac=<aircraft> (select the jet once), ?m=<missile>, ?shot=<preset id | fire>,
+ * URL params: ?ac=<aircraft> (select the jet once), ?m=<missile>, ?shot=<preset id | fire> (screenshot pre-roll,
+ * never counted toward the drill),
  * &t=<seconds> (pause the playback there), &cam=side|orbit|missile|top, &man=<manoeuvre>, &aspect=hot|flank|beam|cold.
  */
 import './style.css';
@@ -612,7 +613,8 @@ const factory: PageFactory = (): Page => {
         }
       }
 
-      function runPreset(id: PresetId) {
+      /** `counted`: false for the ?shot= screenshot pre-roll, which never counts toward the drill. */
+      function runPreset(id: PresetId, counted = true) {
         const p = buildPreset(id, setup, ac, u);
         setup = { ...p.shots[0].setup };
         syncSliders();
@@ -620,7 +622,7 @@ const factory: PageFactory = (): Page => {
         onSetup();
         updateRangeMax(true);
         drawZone(); updateMissileInfo(); buildCues(); buildSimplified(); syncManLabels();
-        fire(p.shots.map(s => ({ setup: { ...s.setup }, name: s.name })), id, true, true);
+        fire(p.shots.map(s => ({ setup: { ...s.setup }, name: s.name })), id, counted, true);
         if (p.note) toast(p.note, { within: lab.view, ms: 5000 });
       }
 
@@ -958,8 +960,9 @@ const factory: PageFactory = (): Page => {
       const shotParam = ctx.params.get('shot');
       const camParam = ctx.params.get('cam') as CamMode | null;
       if (camParam && ['side', 'orbit', 'missile', 'top'].includes(camParam)) { cam = camParam; camSeg.set(cam); }
-      if (shotParam && (PRESET_IDS as string[]).includes(shotParam)) runPreset(shotParam as PresetId);
-      else fire([{ setup: { ...setup }, name: 'Opening shot' }], null, shotParam === 'fire');
+      // URL shots are screenshot pre-rolls: shown, never counted toward the drill.
+      if (shotParam && (PRESET_IDS as string[]).includes(shotParam)) runPreset(shotParam as PresetId, false);
+      else fire([{ setup: { ...setup }, name: 'Opening shot' }], null, false);
       if (cam !== 'side') scene?.setCamera(cam, true);
       const tParam = Number(ctx.params.get('t'));
       if (ctx.params.has('t') && Number.isFinite(tParam)) { setPlaying(false); setTime(tParam); }

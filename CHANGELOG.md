@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Screenshot pre-rolls (`?shot=`) no longer save progress on the Radar Lab, Defense and SAM drills, TWS, the RWR quiz,
+  the Missile Lab drill and Pattern & landing (`mode=fly` hand-over); their results read "scripted demo, not saved".
 - A-10C II CDU: a CDU camera on the CAS & JTAC page shows the CDU and the AAP over the 3D view. WP MENU and WAYPT
   pages, R7 copy into a new mission waypoint, L9 grid entry (6, 8 or 10 digits), L7 zone, L5 elevation, R3 name,
   L3 lookup, R9 L/L or UTM, the ± rocker and `CDU INPUT ERR`. STEER PT dial FLT PLAN / MARK / MISSION with the

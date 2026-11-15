@@ -5,7 +5,8 @@
  *
  * URL params: ?mode=learn|quiz, ?ac=<FighterId> (sets the jet once, then drops the param),
  * learn: ?shot=demo|lock|sarh|fox3|busy|clear|part-<id>, ?tab=parts|cues|misreads;
- * quiz: ?diff=easy|medium|hard, ?timer=1, ?kind=<QuestionKind>, ?seed=<n>, ?shot=answer|wrong.
+ * quiz: ?diff=easy|medium|hard, ?timer=1, ?kind=<QuestionKind>, ?seed=<n>, ?shot=answer|wrong (a scripted answer,
+ * not counted in the run or saved).
  */
 import './style.css';
 import type { Page, PageFactory } from '../../app/page';

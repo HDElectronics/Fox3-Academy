@@ -2,7 +2,8 @@
  * [OWNER: page-defense] The SAM drill lab (#/defense?drill=sa10|sa11|sa15): one SAM site ahead of you, its
  * threat ring and altitude band in 3D, your RWR going search, lock, launch, and the defences that work in DCS
  * (beam the site with chaff, get under the ridge, leave the ring). Pure logic lives in samRun.ts.
- * URL params: ?drill=<sam>, ?alt=high|mid|low, ?ridge=0|1, ?shot=lock|launch|notch|result|live, ?cam=tactical.
+ * URL params: ?drill=<sam>, ?alt=high|mid|low, ?ridge=0|1, ?shot=lock|launch|notch|result|live (every
+ * state but live is scripted and never saved), ?cam=tactical.
  */
 import { Vector3 } from 'three';
 import type { PageContext } from '../../app/page';
@@ -46,6 +47,8 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
   let run!: SamRunner;
   let attempt = 0;
   let paused = false;
+  /** This run came from a ?shot= pre-roll flown by the scripted defence: shown, never saved. */
+  let scripted = false;
   let timeScale = 1;
   let fastForward = true;
   let camMode: 'chase' | 'tactical' = ctx.params.get('cam') === 'tactical' ? 'tactical' : 'chase';
@@ -220,6 +223,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       finished: m => { if (!isDead()) finished(m); },
     });
     paused = false;
+    scripted = false;
     camAim = null;
     thrSeg.set(run.pilot.thr);
     if (st) {
@@ -252,7 +256,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
     const d = samDebrief(m);
     const key = `defense:${sam}:${ac}`;
     const prev = Number(ctx.app.getProgress(key) ?? 0);
-    if (d.passed) ctx.app.setProgress(key, Math.max(prev, d.score, 1));
+    if (d.passed && !scripted) ctx.app.setProgress(key, Math.max(prev, d.score, 1));
     refresh();
     showResult(m);
   }
@@ -272,7 +276,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       ['Score', `${d.score} / 100`],
     ];
     result = modal({
-      id: 'dfn-result', title: d.headline, tone: d.survived ? 'ok' : 'warning', within: viewport,
+      id: 'dfn-result', title: `${d.headline}${scripted ? ' (scripted demo, not saved)' : ''}`, tone: d.survived ? 'ok' : 'warning', within: viewport,
       body: h('div', { class: 'dfn-result' },
         h('p', { class: 'ui-placard dfn-result__drill' }, `SAM drill · ${samShort(sam)}`),
         h('p', { class: 'dfn-result__why' }, d.why),
@@ -398,6 +402,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
   function preroll(s: Shot): void {
     start();
     if (s === 'live') return;
+    scripted = true;
     const dt = 1 / 30, mt = run.metrics, cmState = { lastChaff: -9 };
     const done = (): boolean => {
       if (run.phase !== 'run') return true;

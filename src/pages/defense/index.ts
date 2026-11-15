@@ -6,7 +6,8 @@
  * a score and coaching; progress saved per jet. Explainer below the lab.
  *
  * URL params: ?ac=<id> (select a jet once), ?drill=lock|pitbull|drag|late|free, ?threat=<missile>,
- * ?method=auto|tws|stt, ?shot=launch|notch|active|result|live (pre-roll to a state for screenshots), ?cam=tactical,
+ * ?method=auto|tws|stt, ?shot=launch|notch|active|result|live (pre-roll to a state for screenshots; every state but live
+ * is scripted and never saved), ?cam=tactical,
  * ?scroll=explainer (open at the explainer), ?only=explainer (explainer alone, for screenshots).
  * ?drill=sa10|sa11|sa15 opens the SAM drill lab instead (samLab.ts, its own params).
  */
@@ -96,6 +97,8 @@ const factory: PageFactory = (): Page => {
     let timeScale = 1;
     let fastForward = true;
     let attempt = 0;
+    /** This run came from a ?shot= pre-roll flown by the scripted defense: shown, never saved. */
+    let scripted = false;
     let refMode: RefMode = 'auto';
     let camMode: 'chase' | 'tactical' = ctx.params.get('cam') === 'tactical' ? 'tactical' : 'chase';
     let camAim: { h: number; e: number } | null = null;
@@ -363,6 +366,7 @@ const factory: PageFactory = (): Page => {
       });
       run.refMode = refMode;
       paused = false;
+      scripted = false;
       camAim = null;
       thrSeg.set(run.pilot.thr);
       if (st) {
@@ -507,7 +511,7 @@ const factory: PageFactory = (): Page => {
 
     // ------------------------------------------------------------------ end of a run
     function finished(d: Debrief): void {
-      if (d.passed && setup.drill !== 'free') {
+      if (d.passed && setup.drill !== 'free' && !scripted) {
         const key = `defense:${ac}:${setup.drill}`;
         const prev = Number(ctx.app.getProgress(key) ?? 0) || 0;
         ctx.app.setProgress(key, Math.max(prev, d.score, 1));
@@ -556,7 +560,7 @@ const factory: PageFactory = (): Page => {
         DRILLS[setup.drill].pass === 'fly' && mm.result !== null ? h('p', { class: 'dfn-note' }, 'Drill 4 counts as done once flown: its point is to feel how little time is left.') : null);
       const nextId = nextDefenseLesson(setup.drill);
       result = modal({
-        id: 'dfn-result', title: d.headline, body,
+        id: 'dfn-result', title: `${d.headline}${scripted ? ' (scripted demo, not saved)' : ''}`, body,
         tone: d.survived ? 'ok' : mm.result === 'hit' ? 'warning' : 'caution',
         actions: [
           { label: 'Review', id: 'dfn-res-close' },
@@ -863,6 +867,7 @@ const factory: PageFactory = (): Page => {
     function preroll(s: ShotState): void {
       start();
       if (s === 'live') return;
+      scripted = true;
       const dt = 1 / 30;
       const auto = s !== 'launch';
       const chaffState = { lastChaff: -9 };

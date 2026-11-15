@@ -23,7 +23,7 @@
  * ?tanker=<id> (refuelling: a tanker the jet uses),
  * ?shot=final|downwind|debrief|rtb|ils|takeoff-ready|takeoff-rotate|takeoff-climb|takeoff-debrief|case1-break|groove|trap
  * |launch-hold|launch-stroke|launch-climb|launch-debrief|aar-rejoin|aar-precontact|aar-contact|aar-debrief (pre-roll the demo for screenshots; mode=fly hands over after
- * the pre-roll; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck|wing|receiver,
+ * the pre-roll, and a pass started from the demo's state is never saved; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck|wing|receiver,
  * ?touch=1 (show the on-screen controls on a fine pointer).
  */
 import './style.css';
@@ -140,6 +140,9 @@ const factory: PageFactory = (): Page => {
     const navLabels = d.nav?.modes.map(m => m.label) ?? [];
 
     let mode: Mode = ctx.params.get('mode') === 'fly' ? 'fly' : 'watch';
+    /** Fly mode took over from a ?shot= demo pre-roll: the demo flew part of the pass, so it is graded, never saved. */
+    let scripted = false;
+    const SCRIPTED_FOOT = 'Started from a scripted demo: not saved. Fly again from the start to complete the lesson.';
     const startParam = ctx.params.get('start');
     const cStarts = carrierStarts(d);
     const cd = d.carrier;
@@ -711,6 +714,7 @@ const factory: PageFactory = (): Page => {
       toBlock.hidden = start !== 'takeoff';
       idxBezel.el.hidden = start === 'takeoff' || atLaunch() || atAar();   // the checklist strip takes the indexer's place on the runway
       track = []; flown = []; score = null; finished = false; configured = false; onSpeedRun = 0; acc = 0; steps = 0; gatesSeen = -1;
+      scripted = false;
       navMs = { steering: false, intercept: false, onGlideRunS: 0 };
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
       input.pitch = 0; input.roll = 0; input.throttle = s.throttle;
@@ -1164,12 +1168,12 @@ const factory: PageFactory = (): Page => {
         gateList(sco.gates),
         ...(sco.errors.length ? [h('ul', { class: 'fo-faults', 'aria-label': 'Sequence faults' }, sco.errors.map(e => h('li', null, e)))] : []),
         h('dl', { class: 'fo-numbers' }, rows),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Launch lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the launch lesson.`)
           : 'Demo launch. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'launch'), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'launch'), true);
       refresh(true);
     }
 
@@ -1196,12 +1200,12 @@ const factory: PageFactory = (): Page => {
           h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
         gateList(sco.gates),
         h('dl', { class: 'fo-numbers' }, rows),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Refuelling lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the refuelling lesson.`)
           : 'Demo refuelling. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(aarProgressKey(ac), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(aarProgressKey(ac), true);
       refresh(true);
     }
 
@@ -1226,12 +1230,12 @@ const factory: PageFactory = (): Page => {
           h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
           h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
         gateList(sco.gates),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Carrier lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the carrier lesson.`)
           : 'Demo pass. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
       gatesSeen = -1;
       refresh(true);
     }
@@ -1253,12 +1257,12 @@ const factory: PageFactory = (): Page => {
           h('dt', null, 'Lineup RMS'), h('dd', null, deg(sco.lineupRmsDeg)),
           h('dt', null, 'On speed'), h('dd', null, pct(sco.onSpeedFraction)),
           h('dt', null, 'Touchdown'), h('dd', null, zone)),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the lesson.`)
           : 'Demo flight. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
       gatesSeen = -1;
       refresh(true);
     }
@@ -1287,12 +1291,12 @@ const factory: PageFactory = (): Page => {
           h('dt', null, 'Rotate'), h('dd', null, `${spd(r?.rotateKt)}, want ${ktText(rotateAtKt(d), u)}`),
           h('dt', null, 'Liftoff'), h('dd', null, r?.liftoffKt === undefined ? 'n/a' : `${spd(r.liftoffKt)}, ${(r.liftoffPitchDeg ?? 0).toFixed(1)}°`),
           h('dt', null, 'Gear up'), h('dd', null, `${spd(r?.gearUpKt)}, limit ${ktText(t.gearUpMaxKt.value, u)}`)),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Takeoff lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the takeoff lesson.`)
           : 'Demo flight. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'takeoff'), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'takeoff'), true);
       refresh(true);
     }
 
@@ -1421,9 +1425,11 @@ const factory: PageFactory = (): Page => {
         if (which === 'downwind') return ev.score().gates.some(g => g.id === 'abeam') || (demoLeg(s) === 'downwind' && s.pos.z > -aimPointM(d) - 400 && s.gearDown);
         return finished && s.phase === 'stopped';
       };
-      for (let i = 0; i < 60 * 600 && !doneAt(); i++) tick();
+      let ticks = 0;
+      for (; ticks < 60 * 600 && !doneAt(); ticks++) tick();
       if (wantFly && !finished) {
         mode = 'fly'; modeSeg.set('fly');
+        scripted = ticks > 0;
         input.throttle = s.throttle; input.pitch = 0; input.roll = 0; input.afterburner = s.afterburner;
         startBtn.setLabel('Fly');
         syncTouch();
