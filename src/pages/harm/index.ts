@@ -555,8 +555,11 @@ const factory: PageFactory = (): Page => {
       const pb = av.pullbackLabel();
       if (!ended && pb === 'HARM') { why = 'Pullback ready: HARM in the HUD. Weapon release now.'; tone = 'warning'; }
       else if (!ended && pb === 'PLBK') { why = 'A radar has locked you. PLBK: Pullback is inhibited (HRM OVRD boxed).'; tone = 'caution'; }
-      if (!ended && lesson === 'troubleshoot' && av.station === null && !sim.harms.some(m => m.alive)) {
-        why = 'No HARMs remain and the assigned radar was not destroyed. Restart this case to rearm, then check the target and setup before firing.';
+      // Out of HARMs with the job unfinished (misses, or a radar that went quiet with HARMs in the air): say so.
+      if (!ended && def.kind === 'drill' && av.station === null && !sim.harms.some(m => m.alive)) {
+        why = lesson === 'troubleshoot'
+          ? 'No HARMs remain and the assigned radar was not destroyed. Restart this case to rearm, then check the target and setup before firing.'
+          : 'No HARMs remain and the lesson is not finished. Restart to rearm.';
         tone = 'caution';
       }
       if (force || cur) coach.set(cur ? cur.text : def.steps.length ? 'Lesson complete.' : 'Read the guide, download a mission, then fly it.', why, tone);

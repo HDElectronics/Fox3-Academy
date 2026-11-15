@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- HARM & SEAD: every drill now says "No HARMs remain ... Restart to rearm" when the last HARM is gone and the lesson
+  is not finished (only the troubleshooting cases said so); the coach no longer waits on a kill step forever.
 - Pattern & landing: the Downwind and Final starts tick the steps they begin past (initial, break, and on Final the
   abeam), so the checklist and the coach follow the flight instead of asking for the initial the whole way down.
 - HARM & SEAD Radars and Homing lessons: Again and Restart start a fresh attempt instead of completing at once, a
