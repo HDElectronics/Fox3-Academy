@@ -121,6 +121,8 @@ export class FlightOpsScene {
     this.boostPx = opts.boostPx ?? 56;
     stage.env?.setSurface('land');
     stage.env?.setGrid(false);
+    // Fair-weather cumulus above the pattern, sparse and with a light shadow so the runway paint stays clear.
+    stage.env?.setClouds({ altitudeM: 2600, coverage: 0.24, shadow: 0.3 });
     this.baseFov = stage.camera.fov;
     this.oldNear = stage.camera.near;
     stage.camera.near = 0.0005;
@@ -128,7 +130,7 @@ export class FlightOpsScene {
 
     this.root.name = 'flightOps';
     this.root.scale.setScalar(UNIT_PER_M);
-    this.runway = new RunwayMesh(stage.palette, { aimPointM: opts.aimPointM });
+    this.runway = new RunwayMesh(stage.palette, { aimPointM: opts.aimPointM, atmosphere: stage.env?.atmosphere });
     this.overlay = new ApproachOverlay(stage.shared, stage.palette, opts);
     this.root.add(this.runway, this.landing);
     this.landing.name = 'flightOps:landingFrame';

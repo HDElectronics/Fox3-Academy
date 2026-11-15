@@ -517,7 +517,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   the Stage camera near plane to 0.5 m (cockpit view) and restores it on dispose.
 - `new FlightOpsScene(stage, aircraft: FlightOpsJetId, { camera?, side?, boostPx?, glideDeg?,
   aimPointM?, lengthM?, vTolDeg?, hTolDeg?, minHalfM? })`: switches the Environment to land without
-  the grid, adds the runway, the approach overlay and a `JetMesh`.
+  the grid, with sparse cumulus at 2600 m and a light cloud shadow, adds the runway, the approach overlay and a `JetMesh`.
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos, hookPos ?? 0)`; swaps the jet if `state.aircraft` changed.
@@ -603,8 +603,8 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   than `minTrailSpacingM`, default 2 m, are skipped), `clearTrail()`, `setGeometry(opts)`,
   `setCorridorVisible(on)`. `glidePoint(d, glideDeg, aimPointM)` gives the glide-path point `d` m
   before the aim point.
-- `RunwayMesh(palette, { lengthM?, widthM?, aimPointM? })`: asphalt (default `RUNWAY` 2500 x 45 m),
-  an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
+- `RunwayMesh(palette, { lengthM?, widthM?, aimPointM?, atmosphere? })`: asphalt (default `RUNWAY` 2500 x 45 m),
+  a mown-grass infield in the world's pasture tone (with `atmosphere`, all of it fades into the haze like the ground), and generic simplified paint (edge lines, threshold bars at both ends, centreline
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
 - Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;

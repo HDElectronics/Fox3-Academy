@@ -7,12 +7,15 @@
 import { BufferAttribute, BufferGeometry, DoubleSide, Group, Mesh, MeshStandardMaterial } from 'three';
 import { RUNWAY } from '../../sim/flightOps/types';
 import type { Palette } from '../palette';
+import { patchHaze, type AtmosphereUniforms } from '../atmosphere';
 
 export interface RunwayOptions {
   lengthM?: number;
   widthM?: number;
   /** Aiming-point blocks centred this far past the threshold (m). Default 300. */
   aimPointM?: number;
+  /** The Stage's world uniforms (`stage.env.atmosphere`): the runway fades into the haze like the ground. */
+  atmosphere?: AtmosphereUniforms;
 }
 
 /** Flat quads (x0..x1, z0..z1) at height y, one merged geometry with up normals. */
@@ -84,10 +87,12 @@ export class RunwayMesh extends Group {
     this.widthM = opts.widthM ?? RUNWAY.widthM;
     this.aim = opts.aimPointM ?? 300;
     const L = this.lengthM, W = this.widthM;
-    const asphalt = new MeshStandardMaterial({ color: palette.dark.clone().lerp(palette.smoke, 0.16), roughness: 0.95, metalness: 0, side: DoubleSide });
-    const paint = new MeshStandardMaterial({ color: palette.missile.clone(), roughness: 0.8, metalness: 0, side: DoubleSide });
-    const grass = new MeshStandardMaterial({ color: palette.earth.clone().lerp(palette.ok, 0.04), roughness: 1, metalness: 0, side: DoubleSide });
+    const asphalt = new MeshStandardMaterial({ color: palette.rock.clone().lerp(palette.dark, 0.62), roughness: 0.9, metalness: 0, side: DoubleSide });
+    const paint = new MeshStandardMaterial({ color: palette.missile.clone().multiplyScalar(0.85), roughness: 0.8, metalness: 0, side: DoubleSide });
+    // Mown airfield grass: the world's pasture tone, a little lighter.
+    const grass = new MeshStandardMaterial({ color: palette.fieldB.clone().lerp(palette.fieldA, 0.5).multiplyScalar(1.06), roughness: 1, metalness: 0, side: DoubleSide });
     this.mats = [asphalt, paint, grass];
+    if (opts.atmosphere) for (const m of this.mats) patchHaze(m, opts.atmosphere);
     // Heights keep each layer clear of the environment ground (log depth, no polygon offset).
     this.infield = new Mesh(quads([[-220, 220, -L - 600, 600]], 0.06), grass);
     this.surface = new Mesh(quads([[-W / 2, W / 2, -L - 60, 60]], 0.16), asphalt);
