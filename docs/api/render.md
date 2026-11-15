@@ -105,8 +105,10 @@ first with `isWebGLAvailable()` if you want your own fallback.
 | `static prefersReducedMotion()` | |
 
 The Stage also resizes when the device pixel ratio changes without a size change (window dragged to
-another screen). WebGL context loss: the loop pauses and a status message shows ("3D view paused … Restoring…");
-on restore it resizes and resumes by itself.
+another screen). A resize clears the canvas, so the Stage draws the new size at once in its ResizeObserver
+callback (subscribers registered with `always` run with `dt = 0`): a window drag never flashes an empty view, and a
+headless screenshot taken right after the final viewport resize shows the scene. WebGL context loss: the loop
+pauses and a status message shows ("3D view paused … Restoring…"); on restore it resizes and resumes by itself.
 
 ### Wide viewports (`viewFov.ts`)
 

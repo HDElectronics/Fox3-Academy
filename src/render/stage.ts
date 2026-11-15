@@ -114,6 +114,8 @@ export class Stage {
   private renderOnlyPause = false;
   private lost = false;
   private disposed = false;
+  /** Constructor finished: resizes draw at once from then on. */
+  private ready = false;
   private pendingRender = 0;
   private iterating = false;
   private ro: ResizeObserver | null = null;
@@ -224,6 +226,7 @@ export class Stage {
 
     if (opts.autoStart ?? true) this.kick();
     else { this.userPaused = true; this.requestRender(); }
+    this.ready = true;
   }
 
   /** Users who asked the OS for less motion (pages may start paused / skip ambient animation). */
@@ -351,7 +354,10 @@ export class Stage {
     this.camera.updateProjectionMatrix();
     this.syncShared();
     for (const fn of this.resizeSubs) fn(w, h);
-    if (!this.running) this.requestRender();
+    // A resize clears the canvas. Draw the new size now (inside the ResizeObserver callback, before the paint),
+    // so a window drag never flashes an empty view and a headless screenshot never catches one.
+    if (this.ready && !this.lost && !this.offscreen) this.renderOnce();
+    else if (!this.running) this.requestRender();
   }
 
   /**
