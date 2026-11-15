@@ -10,7 +10,7 @@
  * progress), ?loadout=<SU25T_LOADOUTS id>, ?sa11=1.
  *
  * URL params: ?lesson=<id>, ?shot=shkval|locked|vikhr-flight|impact|debrief|ccrp|sead|sead-lock|threat|threat-debrief
- * (pre-roll for screenshots), ?cam=chase|target|tv, ?touch=1 (show the touch pad on a fine pointer),
+ * (scripted pre-rolls for screenshots, never saved as progress), ?cam=chase|target|tv, ?touch=1 (show the touch pad on a fine pointer),
  * ?sa11=1 (SAM-threat lesson: add the SA-11 behind the SA-15).
  */
 import './style.css';
@@ -595,7 +595,7 @@ const factory: PageFactory = (): Page => {
       }
       if (changed && !def.scored && done.size === def.steps.length && !ended) {
         ended = true;
-        ctx.app.setProgress(progressKey(lesson), true);
+        if (!scripted) ctx.app.setProgress(progressKey(lesson), true);
         showDebrief({ stars: 3, title: `${def.title}: complete`, lines: def.steps.map(x => x.text.split(':')[0]!), coaching: [], passed: true });
       }
     }
@@ -625,7 +625,7 @@ const factory: PageFactory = (): Page => {
             : lesson === 'threat'
               ? scoreThreat({ tanks: sc.tanks.length, tanksKilled: dead(sc.tanks), samsKilled, hitsTaken: Math.max(hitsTaken, me.alive ? 0 : 1), ringS, samLaunches })
               : scoreCcip({ salvos, kills: dead(sc.trucks), bestMissM });
-      if (d.passed) ctx.app.setProgress(progressKey(lesson), true);
+      if (d.passed && !scripted) ctx.app.setProgress(progressKey(lesson), true);
       showDebrief(d);
     }
 
@@ -634,7 +634,7 @@ const factory: PageFactory = (): Page => {
       const stars = '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars);
       const next = LESSON_ORDER[LESSON_ORDER.indexOf(lesson) + 1];
       result = modal({
-        id: 'strk-debrief', title: d.title, within: lab.view, tone: d.passed ? 'ok' : 'caution', open: true,
+        id: 'strk-debrief', title: `${d.title}${scripted ? ' (scripted demo, not saved)' : ''}`, within: lab.view, tone: d.passed ? 'ok' : 'caution', open: true,
         body: h('div', { class: 'strk-debrief' },
           h('p', { class: 'strk-debrief__stars', 'aria-label': `${d.stars} of 3` }, stars),
           h('ul', null, d.lines.map(l => h('li', null, l))),
@@ -754,7 +754,9 @@ const factory: PageFactory = (): Page => {
       view?.syncNow();
     }
 
+    /** Scripted pilot for screenshots (never saved as progress). */
     function preroll(s: Shot): void {
+      scripted = true;
       const w = world(), id = me.id;
       const tank = w.groundUnits.get(sc.tanks[1]!)!;
       const run = (sec: number) => { for (let t = 0; t < sec; t += 1 / 30) tick(1 / 30); };
