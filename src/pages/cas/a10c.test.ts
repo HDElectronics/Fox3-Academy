@@ -362,6 +362,21 @@ describe('A-10C II held CCRP release (M p. 455-459)', () => {
     expect(released()).toBe(0);
   });
 
+  it('keeps the gun in GUNS: DMS Left / Right there cycles gunsights (research §5), so the trigger never drops a bomb', () => {
+    const { sc, hotas, w } = ccrpRun('mk82');
+    hotas.setSoi('hud');
+    hotas.setMaster('GUNS');
+    expect(sc.me.ag!.selected).toBe('gau8');
+    hotas.tap('dmsR');
+    hotas.tap('dmsL');
+    expect(sc.me.ag!.selected).toBe('gau8');
+    hotas.gun();
+    expect([...w.agWeapons.values()].every(x => x.type === 'gau8')).toBe(true);
+    hotas.setMaster('CCIP');
+    hotas.tap('dmsR');
+    expect(sc.me.ag!.selected).not.toBe('gau8');
+  });
+
   it('still releases rockets and CCIP bombs on the press', () => {
     const { sc, hotas, w, released } = ccrpRun('mk82');
     hotas.setMaster('CCIP');

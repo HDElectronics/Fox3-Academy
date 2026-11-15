@@ -9,7 +9,7 @@
  * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Markpoints (a10c-cdu.md §4): TMS Right Short at the TGP, MAV or TAD cursor point, the CDU MK key overhead,
  * Z at each store release; hook one on the TAD and TMS Forward Long makes it the SPI. Every new mark goes to the host
  * (`marked`, the CDU); DMS Forward / Aft with the HUD as SOI steps the CDU steerpoint (`steer`, M p.552, p.563).
- * Not modelled: HMCS, the HUD TDC mark, TMS Right Long, CCIP consent (CCIP is manual release), the
+ * Not modelled: HMCS, the HUD TDC mark, TMS Right Long, the gunsights DMS Left / Right cycles in GUNS, CCIP consent (CCIP is manual release), the
  * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
  * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
  */
@@ -356,6 +356,8 @@ export class A10cHotas {
 
   private dmsLeftRight(): void {
     if (this.soi !== 'hud') { this.host.log('DMS Left / Right: weapon profiles with the HUD as SOI', 'caution'); return; }
+    // In GUNS the same switch cycles the gunsights (research §5, M p.628-633), so the gun stays the store.
+    if (this.master === 'GUNS') { this.host.log('GUNS: DMS Left / Right cycles the gunsights, not modelled. M for CCIP or CCRP', 'caution'); return; }
     const w = this.host.world(), ac = this.host.me();
     const sel = w.cycleAgWeapon(ac.id);
     this.host.log(sel ? `Profile: ${AG_WEAPONS[sel].hudLabel}` : 'No store left');
