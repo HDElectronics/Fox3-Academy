@@ -285,8 +285,10 @@ const ARROW_GROUP = '[role="radiogroup"], [role="tablist"]';
  *         cap, so it survives a rebuild of the caps and focus moves between caps; it ends when focus leaves the group.
  * Both are set on pointerdown, not on focus: Safari, and Firefox on macOS, do not focus a button on click. Both end
  * when Tab brings focus anywhere, so a later keyboard entry into the clicked group is a keyboard entry.
+ *   listOpen  ctl is a select whose list may still be open: pressed, but no change, Enter, Escape or second press
+ *         yet. Firefox sends keys to the page while the list is open, so until then the select keeps its keys.
  */
-const pointer: { ctl: Element | null; group: Element | null } = { ctl: null, group: null };
+const pointer: { ctl: Element | null; group: Element | null; listOpen: boolean } = { ctl: null, group: null, listOpen: false };
 /** A Tab keydown is moving focus (cleared by the focus it causes, or after the task). */
 let tabbing = false;
 /** Arrow-key groups that are not role=radiogroup / tablist (registered by trackArrowGroup). */
@@ -298,26 +300,44 @@ function groupOf(el: Element | null): Element | null {
   return null;
 }
 
+const isSelect = (el: Element | null) => el?.tagName === 'SELECT';
 const onPointerDown = (ev: Event) => {
   const t = asElement(ev.target);
-  pointer.ctl = t?.closest(ACTIVATABLE) ?? null;
+  const ctl = t?.closest(ACTIVATABLE) ?? null;
+  // A press on a select opens its list; a second press on the same select closes it.
+  pointer.listOpen = isSelect(ctl) && !(ctl === pointer.ctl && pointer.listOpen);
+  pointer.ctl = ctl;
   pointer.group = groupOf(t);
 };
 const onFocusIn = (ev: Event) => {
   const el = asElement(ev.target);
-  if (tabbing) { tabbing = false; pointer.ctl = pointer.group = null; return; }   // reached with the keyboard
+  if (tabbing) { tabbing = false; pointer.ctl = pointer.group = null; pointer.listOpen = false; return; }   // reached with the keyboard
   if (!el) return;
   // Focus moved (a script, a key, a rebuilt cap): keep only the pointer state that still holds it.
-  if (pointer.ctl && !pointer.ctl.contains(el)) pointer.ctl = null;
+  if (pointer.ctl && !pointer.ctl.contains(el)) { pointer.ctl = null; pointer.listOpen = false; }
   if (pointer.group && !pointer.group.contains(el)) pointer.group = null;
 };
 const onKeyDown = (ev: Event) => {
   const e = ev as KeyboardEvent;
+  // Enter or Escape on an open list (Firefox) closes it: the select keeps this key, the page gets the next.
+  if (pointer.listOpen && e.target === pointer.ctl && /^(Enter|NumpadEnter|Escape)$/.test(e.code)) {
+    const sel = pointer.ctl;
+    setTimeout(() => { if (pointer.ctl === sel) pointer.listOpen = false; }, 0);
+  }
   if (e.key !== 'Tab' && e.code !== 'Tab') return;
   tabbing = true;
   setTimeout(() => { tabbing = false; }, 0);
 };
-const TRACKERS: [string, (ev: Event) => void][] = [['pointerdown', onPointerDown], ['focusin', onFocusIn], ['keydown', onKeyDown]];
+/** A change, or a click on one of its options (Firefox), means the pressed select's list has closed. The click on
+ * the select itself does not: it ends the press that opened the list. */
+const onChange = (ev: Event) => { if (ev.target === pointer.ctl) pointer.listOpen = false; };
+const onClick = (ev: Event) => {
+  const t = asElement(ev.target);
+  if (pointer.listOpen && t?.tagName === 'OPTION' && !!pointer.ctl?.contains(t)) pointer.listOpen = false;
+};
+const TRACKERS: [string, (ev: Event) => void][] = [
+  ['pointerdown', onPointerDown], ['focusin', onFocusIn], ['keydown', onKeyDown], ['change', onChange], ['click', onClick],
+];
 let trackedDoc: EventTarget | null = null;
 
 /** Listen on the document once (capture phase, before any page handler). Safe to call often. */
@@ -327,7 +347,7 @@ function trackPointerFocus(): void {
   if (trackedDoc) for (const [type, fn] of TRACKERS) trackedDoc.removeEventListener(type, fn, true);
   trackedDoc = doc;
   pointer.ctl = pointer.group = null;
-  tabbing = false;
+  pointer.listOpen = tabbing = false;
   for (const [type, fn] of TRACKERS) doc.addEventListener(type, fn, true);
 }
 trackPointerFocus();
@@ -337,6 +357,11 @@ export function pressedByPointer(el: Element | null): boolean {
   if (!el) return false;
   const ctl = el.closest(ACTIVATABLE) ?? el;
   return (!!pointer.ctl && pointer.ctl === ctl) || (!!pointer.group && pointer.group.contains(el));
+}
+
+/** Pressed with a pointer and done with: not a select whose list may still be open. */
+function releasedByPointer(el: Element): boolean {
+  return pressedByPointer(el) && !(pointer.listOpen && pointer.ctl === (el.closest(ACTIVATABLE) ?? el));
 }
 
 /** True when the user entered this radio group, tab list or registered arrow group with a pointer. */
@@ -360,12 +385,12 @@ function consumedByControl(el: Element, e: KeyboardEvent): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
   if (ACTIVATE_CODES.has(e.code)) {
     const ctl = el.closest(ACTIVATABLE);
-    return !!ctl && !pressedByPointer(ctl);
+    return !!ctl && !releasedByPointer(ctl);
   }
   if (NAV_CODES.has(e.code)) {
     const group = groupOf(el);
     if (group) return !enteredByPointer(group);
-    if (el.closest('select')) return !pressedByPointer(el);
+    if (el.closest('select')) return !releasedByPointer(el);
     return !!el.closest('input[type="range"], [role="slider"], [role="listbox"], [role="menu"]');
   }
   return false;
@@ -425,8 +450,9 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
     if (el) {
       if (!best.b.inModal && el.closest('[aria-modal="true"]')) return;
       // A select the user just picked from with the mouse is not being typed into: page keys (Space to start,
-      // the flight keys) work again, instead of reopening it or stepping its options.
-      if (!best.b.inInputs && isTextField(el) && !(el.tagName === 'SELECT' && pressedByPointer(el))) return;
+      // the flight keys) work again, instead of reopening it or stepping its options. Not while its list may be
+      // open (Firefox sends those keys to the page): Enter there picks the option, letters search the list.
+      if (!best.b.inInputs && isTextField(el) && !(isSelect(el) && releasedByPointer(el))) return;
       if (consumedByControl(el, e)) return;
     }
     if (best.b.preventDefault !== false) e.preventDefault();

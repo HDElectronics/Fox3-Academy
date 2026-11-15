@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindKeys } from './keys';
-import { segmented, tabs } from './controls';
+import { segmented, select, tabs } from './controls';
 
 type Listener = (e: FakeEvent) => void;
 interface FakeEvent {
@@ -235,6 +235,61 @@ describe('segmented() and tabs() after a click', () => {
     press('ArrowRight');
     expect(t.value).toBe('chase');
     expect(log).toEqual(['tab top', 'tab cockpit', 'tab chase', 'turn right']);
+    unbind();
+  });
+});
+
+describe('a select picked with the mouse', () => {
+  function brief() {
+    const log: string[] = [];
+    const s = select<string>({
+      id: 'opp', label: 'Opponent', value: 'su27',
+      options: [{ value: 'su27', label: 'Su-27' }, { value: 'mig29', label: 'MiG-29' }],
+      onChange: v => log.push('pick ' + v),
+    });
+    mount(s.el as unknown as FakeEl);
+    const unbind = bindKeys({ 'Enter': () => log.push('launch'), 'Space': () => log.push('start'), 'M': () => log.push('mode') }, doc as unknown as EventTarget);
+    return { s, sel: s.select as unknown as FakeEl, log, unbind };
+  }
+  const pick = (sel: FakeEl, value: string) => { (sel as unknown as { value: string }).value = value; dispatch(sel, 'change'); };
+  const nextTask = () => new Promise<void>(done => setTimeout(done, 0));
+
+  it('keeps Enter and type-ahead letters while its list may be open, gives page keys back once it closed', async () => {
+    const { s, sel, log, unbind } = brief();
+    click(sel);                                            // the list opens
+    expect(press('Enter').defaultPrevented).toBe(false);   // Firefox: Enter picks the highlighted option
+    expect(log).toEqual([]);
+    await nextTask();
+    click(sel);                                            // the Enter closed it; open it again
+    expect(press('KeyM').defaultPrevented).toBe(false);    // type-ahead in the open list
+    expect(log).toEqual([]);
+    pick(sel, 'mig29');                                    // picked with the mouse: the list closes with a change
+    expect(s.value).toBe('mig29');
+    expect(press('Space').defaultPrevented).toBe(true);
+    press('Enter');
+    expect(log).toEqual(['pick mig29', 'start', 'launch']);
+    unbind();
+  });
+
+  it('counts a second click, Escape or a click on an option as closing the list', async () => {
+    const { sel, log, unbind } = brief();
+    click(sel); click(sel);                                // open, then closed without a change
+    press('Space');
+    expect(log).toEqual(['start']);
+    click(sel);
+    expect(press('Escape').defaultPrevented).toBe(false);
+    await nextTask();
+    press('Space');
+    expect(log).toEqual(['start', 'start']);
+    click(sel);
+    dispatch(sel.children[0], 'click');                    // Firefox: the same option clicked in the list, no change
+    press('Space');
+    expect(log).toEqual(['start', 'start', 'start']);
+    // Reached with Tab, the select keeps its keys.
+    const other = mount(new FakeEl('button'));
+    tabTo(other); tabTo(sel);
+    expect(press('Space').defaultPrevented).toBe(false);
+    expect(log).toEqual(['start', 'start', 'start']);
     unbind();
   });
 });

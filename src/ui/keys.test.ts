@@ -201,12 +201,18 @@ describe('bindKeys', () => {
       Object.defineProperty(sl, 'target', { value: slider });
       seg.dispatchEvent(sl);
       expect(log).toEqual(['roll']);
-      // A select: tabbed in, its keys stay native; picked with the mouse, page keys work again.
+      // A select: tabbed in, its keys stay native; picked with the mouse (the list closed with a change), page keys
+      // work again. While its list may still be open (clicked, no change yet) it keeps them: Firefox sends them here.
       const pick = new El('SELECT', {});
       const onSelect = () => { const d = key('keydown', 'ArrowLeft'); Object.defineProperty(d, 'target', { value: pick }); seg.dispatchEvent(d); return d; };
       expect(onSelect().defaultPrevented).toBe(false);
       expect(log).toEqual(['roll']);
       clickOn(pick);
+      expect(onSelect().defaultPrevented).toBe(false);
+      expect(log).toEqual(['roll']);
+      const change = new Event('change');
+      Object.defineProperty(change, 'target', { value: pick });
+      doc.dispatchEvent(change);
       expect(onSelect().defaultPrevented).toBe(true);
       expect(log).toEqual(['roll', 'roll']);
 

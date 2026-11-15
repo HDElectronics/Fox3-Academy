@@ -224,7 +224,9 @@ const unbind = bindKeys({
   `repeat` (default false: one call per press), `preventDefault` (default true), `inInputs`,
   `inModal` (both default false).
 - Ignored: typing in text fields and selects (except a select the user just picked from with the mouse:
-  page keys such as Space to start work again); keys inside an `aria-modal` dialog; Enter/Space on a control the
+  page keys such as Space to start work again once its list has closed, that is after a `change`, a second click
+  on it, Enter or Escape on it, or a click on one of its options; until then Firefox delivers the list's Enter and
+  type-ahead letters to the page, and they stay with the select); keys inside an `aria-modal` dialog; Enter/Space on a control the
   user reached **by keyboard** (it activates the control) — but a control the user just **clicked**
   does not swallow Enter/Space, so "click TWS, then Enter to designate" works; arrow keys inside
   sliders and menus, and inside radio groups, tab lists and selects reached by keyboard. A segment, tab
