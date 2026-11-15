@@ -3,7 +3,7 @@ import { ROUTES, routeFor } from '../../app/routes';
 import { jetAllowed, pickerJets } from '../../app/roleGate';
 import { LESSON_LINKS } from '../../app/navigation';
 import { PROCEDURES } from '../../data/procedures';
-import { parseKeyList } from '../../ui/keys';
+import { parseChord, parseKeyList, splitAlternatives } from '../../ui/keys';
 import { LESSONS, LESSON_ORDER, MISS_TEXT, STRIKE_CAVEATS, strikeWeaponsResolved, progressKey, scoreBombs, scoreCcip, scoreSead, scoreThreat, scoreVikhr, type ShotRecord } from './lessons';
 import { AG_CAVEATS, AG_WEAPONS } from '../../data/agWeapons';
 import { samRingM } from '../../sim/sam';
@@ -36,6 +36,18 @@ describe('strike lessons', () => {
       if (!s.keys) continue;
       for (const k of ['7', 'O', 'RShift+O', 'Enter', 'Space', 'D']) if (s.keys.split(/[ ,]+/).includes(k)) expect(binds.replace(/ \+ /g, '+')).toContain(k);
       expect(parseKeyList(s.keys.split(' then ')[0]!.split(',')[0]!).length + (s.keys.includes('/') ? 1 : 0)).toBeGreaterThan(0);
+    }
+  });
+
+  it('never lets the slash slew key read as an "or" between key chips', () => {
+    // kbd() splits "a / b" into alternatives: the chip on each side of the separator must be a key.
+    for (const id of LESSON_ORDER) for (const s of LESSONS[id].steps) {
+      const parts = s.keys ? splitAlternatives(s.keys) : [];
+      parts.forEach((p, i) => {
+        const tokens = p.trim().split(/\s+/).map(t => t.replace(/,$/, ''));
+        if (i > 0) expect(parseChord(tokens[0]!), `${id}/${s.id}: "${s.keys}"`).not.toBeNull();
+        if (i < parts.length - 1) expect(parseChord(tokens.at(-1)!), `${id}/${s.id}: "${s.keys}"`).not.toBeNull();
+      });
     }
   });
 

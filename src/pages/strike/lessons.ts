@@ -85,7 +85,7 @@ export const LESSONS: Record<LessonId, LessonDef> = {
     steps: [
       { id: 'mode', text: 'Select air-to-ground mode: ОПТ-ЗЕМЛЯ on the HUD.', keys: '7', check: s => s.master === 'ag' },
       { id: 'on', text: 'Switch the Shkval on: the TV picture fills the IT-23M, ЗЕМЛЯ on the HUD.', keys: 'O', check: s => s.shkvalOn },
-      { id: 'slew', text: 'Slew onto the tank platoon (diamond markers) and ground-stabilise.', keys: '; , . / then Enter', check: s => s.groundStab && (s.aimToTanksM ?? 1e9) < 450 },
+      { id: 'slew', text: 'Slew onto the tank platoon (diamond markers) and ground-stabilise.', keys: '; , . /, then Enter', check: s => s.groundStab && (s.aimToTanksM ?? 1e9) < 450 },
       { id: 'zoom', text: 'Zoom in to identify: wide, 8x, 23x.', keys: '= / -', check: s => s.zoom >= 8 },
       { id: 'wrong', text: 'Slew onto the bunker and try to lock with 10 m set: the lock fails, the size does not match.', keys: 'Enter', check: s => s.bunkerSizeFail },
       { id: 'big', text: 'Set the target size to 60 m and lock the bunker: АС.', keys: 'RCtrl+] then Enter', check: s => s.locked === 'bunker' },
