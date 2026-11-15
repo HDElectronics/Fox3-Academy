@@ -805,7 +805,10 @@ itDisplay.draw(state, tv.image);
   ray touching the terrain as blocked while ground units sit on it; end points are clamped inside the map.
 - `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: switches the Environment
   to land with a sparse cumulus deck at 4600 m (well above the attack jets, light shadow), TerrainMesh and
-  TerrainProps sharing the Stage's atmosphere (focus follows the Shkval aim point), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
+  TerrainProps sharing the Stage's atmosphere (focus follows the Shkval aim point), soft contact shadows under
+  every ground unit (`ContactShadows`, one instanced draw call: an ellipse a little longer than the vehicle, pushed
+  away from the sun, a darker scorch under wrecks; drawn in the TV too, so vehicles stay separable from the ground;
+  pure helper `contactShadow(unit, sun)`), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
   SAM launcher, AAA; scale follows `sizeM`, charred when dead), A-G weapons in flight (missile, rocket and bomb
   bodies, Vikhr and rocket smoke, gun tracers, a glow at each head), impacts from `ag-impact` events
   (`view.addExplosion` plus a smoke column), and, for the shooter: the laser line jet → aim point while ЛД is on,

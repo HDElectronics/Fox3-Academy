@@ -24,6 +24,7 @@ import { terrainHook } from './terrainHook';
 import { AssetVisual } from '../assets';
 import { sideColor } from '../palette';
 import { MarkLayer } from './marks';
+import { ContactShadows } from './contactShadows';
 
 export interface AttackLayers {
   /** Laser line jet → aim point while ЛД is on. */
@@ -80,6 +81,7 @@ interface Puff { x: number; y: number; z: number; t0: number; life: number; s0: 
 
 const MOTOR_S: Partial<Record<AgWeaponId, number>> = { vikhr: 30, kh25ml: 6, kh29l: 6, kh29t: 6, kh58: 8, s8: 1.2, s13: 1.4 };
 const LOCK_GIMBAL = { az: 35, up: 15, down: -85 };
+const SUN_FALLBACK = { x: 0.49, y: 0.64, z: -0.59 };
 
 /** A metre-scale reviewed store with a synchronous procedural fallback. */
 export class AgStoreVisual extends Group {
@@ -113,6 +115,8 @@ export class AttackScene {
   readonly terrain: TerrainMesh;
   readonly props: TerrainProps;
   readonly units: GroundUnitLayer;
+  /** Soft shadows under ground units (also in the TV picture). */
+  readonly shadows = new ContactShadows();
   readonly layers: AttackLayers;
   private world: World;
   private shooterId: EntityId | null;
@@ -155,7 +159,7 @@ export class AttackScene {
       rocket: new CylinderGeometry(0.06, 0.06, 1.6, 5).rotateX(Math.PI / 2),
     };
     this.wMat = new MeshBasicMaterial({ color: p.smoke.clone().lerp(p.sun, 0.4) });
-    this.root.add(this.terrain, this.props, this.units, this.weapons);
+    this.root.add(this.terrain, this.props, this.units, this.shadows, this.weapons);
     stage.scene.add(this.root);
 
     this.overlay.name = 'attack-overlay';
@@ -257,6 +261,7 @@ export class AttackScene {
     if (this.disposed) return;
     const w = this.world, t = w.t, pal = this.stage.palette;
     this.units.sync(w.groundUnits.values());
+    this.shadows.sync(w.groundUnits.values(), this.stage.env?.sunDirection ?? SUN_FALLBACK);
 
     // Weapons in flight.
     const seen = new Set<EntityId>();
@@ -423,6 +428,7 @@ export class AttackScene {
     for (const w of this.wMeshes.values()) w.mesh.dispose();
     this.wMeshes.clear();
     this.units.dispose();
+    this.shadows.dispose();
     this.terrain.dispose();
     this.props.dispose();
     for (const g of Object.values(this.geo)) g.dispose();
