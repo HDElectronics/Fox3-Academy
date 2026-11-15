@@ -712,9 +712,10 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     setText(mobileNow, now - flashAt < FLASH_MS ? flashText : L.freeLab
       ? 'Practice · Select a contact in World or position the cursor in Displays.'
       : `Now · ${currentStep?.text ?? 'Checklist complete'} (${done}/${steps.length})`);
-    if (done === steps.length && !saved) {
+    // Practice (free lab) hides the checklist and saves nothing: it must not claim a save either.
+    if (done === steps.length && !saved && !L.freeLab) {
       saved = true;
-      if (!L.freeLab) ctx.app.setProgress(`tws:${ac}:done`, true);
+      ctx.app.setProgress(`tws:${ac}:done`, true);
       log.push(`Checklist complete for the ${spec.short}. Saved.`, { t: w.t, tone: 'ok' });
     }
     // Bandit cards.

@@ -275,6 +275,7 @@
   they no longer switch that control instead. A keyboard user who tabs into a control still steps it with arrows.
 - After picking from a dropdown with the mouse (threat, shooter, bandit, missile), page keys work again: Space
   starts the defense drill or fires in the Missile Lab, and the arrows fly, instead of reopening the dropdown.
+- TWS Practice no longer logs "Checklist complete ... Saved." when it saves nothing.
 
 ## 0.1.0 — 2026-09-20
 
