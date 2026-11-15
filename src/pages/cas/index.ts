@@ -490,7 +490,7 @@ const factory: PageFactory = (): Page => {
       navBox.replaceChildren(
         row('Steer', `${sp.name} ${String(Math.round(brg) % 360).padStart(3, '0')}° ${fmtRange(distM(me.pos, sp), units, 1)}`),
         row('Turn', Math.abs(turn) < 2 ? 'on course' : `${turn > 0 ? 'right' : 'left'} ${Math.abs(turn).toFixed(0)}°`, Math.abs(turn) < 2 ? 'is-ok' : undefined),
-        su ? row('РВ', `${Math.round(agl)} m`) : row('AGL', `${Math.round(agl * 3.28084 / 10) * 10} ft`),
+        su ? row('РВ', `${Math.round(agl)} m`) : row('AGL', units === 'metric' ? `${Math.round(agl)} m` : `${Math.round(agl * 3.28084 / 10) * 10} ft`),
       );
     }
 
