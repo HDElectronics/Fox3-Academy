@@ -84,6 +84,8 @@
 .fo-gates__label { text-transform: uppercase; letter-spacing: 0.05em; }
 .fo-gates__notes { color: var(--s-label); font-family: var(--font-body); font-size: var(--fs-xs); }
 .fo-debrief__foot { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); }
+/* The next lesson on the page, after the debrief (lit once this lesson is complete). */
+.fo-debrief__next { display: flex; justify-content: flex-end; margin-top: 10px; }
 
 /* ---- takeoff checklist strip (#24) ---- */
 .ui-lab__strip > .fo-to { flex: 0 1 250px; min-width: 200px; }

@@ -50,7 +50,7 @@ import { FlightOpsScene, ForwardView, Stage, isWebGLAvailable, type FlightOpsCam
 import { Quaternion, Vector3 } from 'three';
 import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, readouts, callout, placard, lamp,
-  bindKeys, keyHint, disclosure, setText, toggle, parseChord, type ChecklistHandle,
+  bindKeys, keyHint, disclosure, setText, toggle, parseChord, lessonPicker, lessonHref, onlyChanged, type ChecklistHandle,
 } from '../../ui';
 import { BallDisplay, HudDisplay, HUD_VFOV_DEG, IndexerDisplay, NavDisplay, TraceDisplay, hudBoresight, hudHeightM, type TracePoint } from './displays';
 import { carrierCaption, lessonSteps, legCaption } from './lesson';
@@ -70,6 +70,15 @@ import {
 
 type Mode = 'watch' | 'fly';
 type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart | LaunchStart | AarStart;
+/**
+ * The page's lessons, one per saved goal (src/pages/progress/model.ts order). A lesson may offer several start
+ * points (the pattern from the initial, downwind, final or a return to base); they share its progress key.
+ */
+type FoLesson = 'pattern' | 'takeoff' | 'carrier' | 'launch' | 'aar';
+const lessonOfStart = (st: Start): FoLesson => (st === 'takeoff' ? 'takeoff' : st === 'caseI' || st === 'carrierGroove' ? 'carrier'
+  : st === 'catapult' || st === 'skiJump' ? 'launch' : st === 'aarRejoin' || st === 'aarPrecontact' ? 'aar' : 'pattern');
+/** Params that belong to one start and do not travel into another lesson's link. */
+const START_OPTS = ['station', 'heavy', 'tanker'];
 const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit', 'deck', 'wing', 'receiver'];
 const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils', 'takeoff-ready', 'takeoff-rotate', 'takeoff-climb', 'takeoff-debrief',
   'case1-break', 'groove', 'trap', 'launch-hold', 'launch-stroke', 'launch-climb', 'launch-debrief',
@@ -86,6 +95,8 @@ const nvTag = (s: Sourced<unknown>) => (s.verified ? null : h('span', { class: '
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, start point, Watch / Fly, Back): applied in place by the lab. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const acParam = ctx.params.get('ac') as AircraftId | null;
@@ -138,9 +149,10 @@ const factory: PageFactory = (): Page => {
     const aStarts = aarStarts(d);
     const ad = d.aar;
     let tankerId: TankerId | null = aarTanker(d, ctx.params.get('tanker'));
-    let start: Start = startParam === 'downwind' || startParam === 'final' || startParam === 'takeoff' || (startParam === 'rtb' && navOk)
-      || (cStarts as string[]).includes(startParam ?? '') || (lStarts as string[]).includes(startParam ?? '')
-      || (aStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
+    const parseStart = (p: string | null): Start => (p === 'downwind' || p === 'final' || p === 'takeoff' || (p === 'rtb' && navOk)
+      || (cStarts as string[]).includes(p ?? '') || (lStarts as string[]).includes(p ?? '')
+      || (aStarts as string[]).includes(p ?? '') ? p as Start : 'initial');
+    let start: Start = parseStart(startParam);
     const stParam = Number(ctx.params.get('station'));
     let station = ld && ld.stations.includes(stParam) ? stParam : ld?.stations[0] ?? 1;
     let heavy = ctx.params.get('heavy') === '1';
@@ -338,10 +350,15 @@ const factory: PageFactory = (): Page => {
       steps_ = checklist({ id: 'fo-steps', steps: stepsDef });
       stepsBox.replaceChildren(steps_.el);
     }
+    // Which lesson (picker, ?start= links) is separate from where it starts (Start at) and who flies it (Watch / Fly).
+    // All three live in the URL; start point and mode replace the history entry, a lesson adds one.
+    let urlParams = new URLSearchParams(ctx.params);
+    const setQuery = (set: Record<string, string | null>, replace: boolean, drop: string[] = []) =>
+      ctx.navigate(lessonHref('flight-ops', urlParams, set, drop).slice(2), { replace });
     const modeSeg = segmented<Mode>({
       id: 'fo-mode', label: 'Mode', value: mode, fill: true,
       options: [{ value: 'watch', label: 'Watch', title: 'The demo pilot flies it' }, { value: 'fly', label: 'Fly', title: 'You fly it with the keyboard or the on-screen controls' }],
-      onChange: v => { mode = v; reset(false); },
+      onChange: v => setQuery({ mode: v }, true),
     });
     const startOpts: { value: Start; label: string; title?: string }[] = [
       { value: 'takeoff', label: 'Takeoff', title: 'Runway takeoff: brakes, power, rotate, gear and flaps up' },
@@ -361,10 +378,58 @@ const factory: PageFactory = (): Page => {
       startOpts.push({ value: 'aarRejoin', label: 'Tanker rejoin', title: `2 nm behind the tanker: call, join, pre-contact, contact, refuel. ${ad.cue}` },
         { value: 'aarPrecontact', label: 'Pre-contact', title: 'Stabilised behind the basket or boom, cleared pre-contact' });
     }
-    const startSeg = segmented<Start>({
-      id: 'fo-start', label: 'Start', value: start, fill: true, options: startOpts,
-      onChange: v => { start = v; rebuildSteps(); reset(false); },
+    const startsOf = (l: FoLesson): Start[] => startOpts.map(o => o.value).filter(v => lessonOfStart(v) === l);
+    const lessons: { id: FoLesson; label: string; title: string; key: string }[] = [
+      { id: 'pattern', label: 'Pattern', title: 'Overhead break, downwind, final and landing', key: progressKey(ac, 'pattern') },
+      { id: 'takeoff', label: 'Takeoff', title: 'Runway takeoff', key: progressKey(ac, 'takeoff') },
+      ...(cd ? [{ id: 'carrier' as const, label: 'Case I', title: `Carrier landing on the ${SHIPS[cd.ship].name}`, key: progressKey(ac, 'carrier') }] : []),
+      ...(ld ? [{ id: 'launch' as const, label: ld.kind === 'catapult' ? 'Catapult' : 'Ski-jump', title: `Deck launch from the ${SHIPS[ld.ship].name}`, key: progressKey(ac, 'launch') }] : []),
+      ...(ad ? [{ id: 'aar' as const, label: 'Refuel', title: 'Air-to-air refuelling', key: aarProgressKey(ac) }] : []),
+    ];
+    const lessonLink = (l: FoLesson) => lessonHref('flight-ops', urlParams, { start: startsOf(l)[0]! }, START_OPTS);
+    const picker = lessonPicker<FoLesson>({
+      id: 'fo-lessons', topic: 'Flight ops', header: false, value: lessonOfStart(start), href: lessonLink,
+      items: lessons.map(l => ({ id: l.id, label: l.label, title: l.title })),
+      isDone: l => ctx.app.getProgress(lessons.find(x => x.id === l)!.key) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') { picker.refresh(); syncNext(); } }));
+    // Where the open lesson starts: shown only for lessons with more than one start point.
+    const startSeg = segmented<Start>({
+      id: 'fo-start', label: 'Start at', value: start, fill: true, size: 's', options: startOpts.filter(o => lessonOfStart(o.value) === lessonOfStart(start)),
+      onChange: v => setQuery({ start: v }, true),
+    });
+    /** Picker, start points and the debrief's Next for the current start. */
+    function syncStart(): void {
+      const l = lessonOfStart(start);
+      picker.set(l);
+      startSeg.setOptions(startOpts.filter(o => lessonOfStart(o.value) === l), start);
+      startSeg.el.hidden = startsOf(l).length < 2;
+      syncNext();
+    }
+    const nextLesson = (): FoLesson | null => { const i = lessons.findIndex(l => l.id === lessonOfStart(start)); return lessons[i + 1]?.id ?? null; };
+    const nextBtn = button({ id: 'fo-next', label: 'Next', variant: 'primary', size: 's', onClick: () => { const n = nextLesson(); if (n) ctx.navigate(lessonLink(n).slice(2)); } });
+    function syncNext(): void {
+      const n = nextLesson();
+      nextBtn.el.hidden = !n;
+      if (n) nextBtn.setLabel(`Next: ${lessons.find(l => l.id === n)!.label}`);
+      // Lit once this lesson is complete: the obvious next move.
+      nextBtn.setLit(ctx.app.getProgress(lessons.find(l => l.id === lessonOfStart(start))!.key) === true);
+    }
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['start', 'mode', 'shot', ...START_OPTS])) return false;
+      urlParams = new URLSearchParams(next);
+      const want = parseStart(next.get('start'));
+      const wantMode: Mode = next.get('mode') === 'fly' ? 'fly' : 'watch';
+      if (want === start && wantMode === mode) return true;
+      const restep = want !== start;
+      start = want; mode = wantMode;
+      modeSeg.set(mode);
+      syncStart();
+      if (restep) rebuildSteps();
+      reset(false);
+      return true;
+    };
     // Launch options: the catapult or position, and the Heavy toggle (trainer weights).
     const stationSeg = segmented<string>({
       id: 'fo-station', label: ld?.kind === 'skiJump' ? 'Position' : 'Catapult', value: String(station), size: 's',
@@ -392,13 +457,13 @@ const factory: PageFactory = (): Page => {
       onChange: v => { showTouch = v; syncTouch(); },
     });
     const lessonPanel = consolePanel({
-      id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`,
-      children: [coach.el, modeSeg.el, startSeg.el, launchOpts, aarOpts, noAar, startBtn.el, touchToggle.el, stepsBox],
+      id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`, actions: picker.status,
+      children: [picker.el, startSeg.el, coach.el, modeSeg.el, launchOpts, aarOpts, noAar, startBtn.el, touchToggle.el, stepsBox],
     });
 
     // ---------------------------------------------------------------- console: debrief
     const debriefBody = h('div', { class: 'fo-debrief' });
-    const debriefPanel = consolePanel({ id: 'fo-debrief-panel', title: 'Debrief', children: [debriefBody] });
+    const debriefPanel = consolePanel({ id: 'fo-debrief-panel', title: 'Debrief', children: [debriefBody, h('div', { class: 'fo-debrief__next' }, nextBtn.el)] });
     debriefPanel.el.hidden = true;
 
     // ---------------------------------------------------------------- console: numbers, keys, notes
@@ -1303,6 +1368,7 @@ const factory: PageFactory = (): Page => {
     }));
 
     // ---------------------------------------------------------------- go
+    syncStart();
     reset(false);
     setCam(cam);
     const shot = ctx.params.get('shot') as Shot | null;
@@ -1317,7 +1383,7 @@ const factory: PageFactory = (): Page => {
       const aarShot = which.startsWith('aar-') && aStarts.length > 0;
       const seaShot = !launchShot && !aarShot && !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
       mode = 'watch'; modeSeg.set('watch');
-      start = aarShot ? (which === 'aar-rejoin' ? 'aarRejoin' : 'aarPrecontact') : toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
+      start = aarShot ? (which === 'aar-rejoin' ? 'aarRejoin' : 'aarPrecontact') : toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; syncStart();
       rebuildSteps();
       reset(true);
       const t0 = s.t;
@@ -1371,7 +1437,9 @@ const factory: PageFactory = (): Page => {
     mount(ctx) {
       try { mount(ctx); } catch (e) { console.error(e); ctx.root.append(h('p', { class: 'page-error' }, 'The pattern page failed to start: ' + String(e))); }
     },
+    update(next) { return applyParams?.(next) ?? false; },
     unmount() {
+      applyParams = null;
       bag.dispose();
     },
   };
