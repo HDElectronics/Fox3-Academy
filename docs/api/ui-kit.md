@@ -283,8 +283,9 @@ behaves as the player sees it (docs/research/cas-jtac.md, sections 1 and 4).
 - `el` is the panel (hidden while closed; place it with `lab.overlay('tl', menu.el)`). `toggleEl` is a
   "Radio \" cap for touch users: place it anywhere; a click opens the menu and focuses the first item.
 - Rows are real `<button role="menuitem">` in a `role="menu"`; arrows / Home / End move focus, Esc closes
-  (focus returns to the toggle), Left or Backspace go back. One polite status line announces open,
-  submenu and close only.
+  (focus returns to the toggle when the keyboard opened the menu: Enter on a tabbed-to toggle, or `\`), Left or
+  Backspace go back. Opened with a click, closing leaves focus with the page, so Space is the trigger again and does
+  not press the toggle. One polite status line announces open, submenu and close only.
 - The widget binds no keys. `handleKey(chord)` returns true when consumed: `\` toggles; while open,
   `F1`..`F12` pick by number (F11 back and F12 exit unless pinned), digits `1`..`9`, `0` and `Num1`..`Num0`
   alias F1..F10, `Esc` closes. While open every F-key and digit is consumed, even an empty number, as in

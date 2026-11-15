@@ -354,8 +354,8 @@ trackPointerFocus();
 
 /** True when el (or the control around it) has focus because the user pressed it, or its group, with a pointer. */
 export function pressedByPointer(el: Element | null): boolean {
-  if (!el) return false;
-  const ctl = el.closest(ACTIVATABLE) ?? el;
+  if (!asElement(el)) return false;
+  const ctl = el!.closest(ACTIVATABLE) ?? el!;
   return (!!pointer.ctl && pointer.ctl === ctl) || (!!pointer.group && pointer.group.contains(el));
 }
 

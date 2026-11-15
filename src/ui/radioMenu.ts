@@ -14,7 +14,7 @@
  */
 import type { CommsMenuNode } from '../data/types';
 import { h, cleanup, setAttr, cx } from './dom';
-import { parseChord, type KeyHandler, type KeyMap } from './keys';
+import { focusedByKeyboard, parseChord, type KeyHandler, type KeyMap } from './keys';
 import { button } from './controls';
 
 export interface RadioMenuOptions {
@@ -113,6 +113,9 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
   let stack: string[] = [];
   let rows: RadioMenuRow[] = [];
   let items: HTMLButtonElement[] = [];
+  /** The toggle was used from the keyboard: closing puts focus back on it. Opened with the mouse, focus goes back to
+   * the page instead, so Space (trigger, release) is not swallowed by the toggle and reopens the menu. */
+  let keyboardOpen = false;
 
   const titleId = o.id + '-title';
   const listId = o.id + '-list';
@@ -193,7 +196,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
       setAttr(toggleEl, 'aria-expanded', 'false');
       tb.setLit(false);
       announce('Radio menu closed');
-      if (hadFocus) toggleEl.focus();
+      if (hadFocus && keyboardOpen) toggleEl.focus();
       o.onClose?.();
     },
     toggle(opts) { if (openState) handle.close(); else handle.open(opts); },
@@ -227,7 +230,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
     handleKey(chord) {
       const k = radioMenuKey(chord);
       if (k === null) return false;
-      if (k === 'toggle') { handle.toggle(); return true; }
+      if (k === 'toggle') { keyboardOpen = true; handle.toggle(); return true; }
       if (!openState) return false;
       if (k === 'esc') { handle.close(); return true; }
       // While open the menu owns F1..F12 and the digit aliases, even for empty numbers, as in DCS.
@@ -271,7 +274,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
     }
     e.preventDefault();
   });
-  bag.on(toggleEl, 'click', () => handle.toggle({ focus: true }));
+  bag.on(toggleEl, 'click', () => { keyboardOpen = focusedByKeyboard(toggleEl); handle.toggle({ focus: true }); });
 
   return handle;
 }

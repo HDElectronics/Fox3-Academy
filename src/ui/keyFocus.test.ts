@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindKeys, focusedByKeyboard, releasePointerFocus, restorableFocus } from './keys';
 import { segmented, select, tabs } from './controls';
+import { radioMenu } from './radioMenu';
 
 type Listener = (e: FakeEvent) => void;
 interface FakeEvent {
@@ -365,6 +366,48 @@ describe('restorableFocus (where a dialog gives focus back on close)', () => {
     tabTo(debrief);
     expect(restorableFocus(debrief as unknown as Element)).toBe(debrief);
     expect(restorableFocus(null)).toBe(null);
+    unbind();
+  });
+});
+
+describe('radioMenu closing', () => {
+  function comms() {
+    const log: string[] = [];
+    const menu = radioMenu({ id: 'radio', root: () => [{ label: 'Check in', action: 'checkin' }, { label: 'Status', action: 'status' }], onSelect: a => log.push('radio ' + a) });
+    const host = mount(new FakeEl('div'));
+    host.append(menu.toggleEl as unknown as FakeEl, menu.el as unknown as FakeEl);
+    const unbind = bindKeys({ 'Space': () => log.push('trigger') }, doc as unknown as EventTarget);
+    const items = () => (menu.el as unknown as FakeEl).children.flatMap(c => c.children).filter(c => c.className.includes('ui-radio__item'));
+    return { menu, toggle: menu.toggleEl as unknown as FakeEl, items, log, unbind };
+  }
+
+  it('does not put focus back on the Radio toggle after a mouse pick, so Space is the trigger again', () => {
+    const { menu, toggle, items, log, unbind } = comms();
+    click(toggle);
+    expect(menu.isOpen()).toBe(true);
+    expect(doc.activeElement).toBe(items()[0]);
+    click(items()[0]);
+    expect(menu.isOpen()).toBe(false);
+    expect(doc.activeElement).not.toBe(toggle);
+    expect(press('Space').defaultPrevented).toBe(true);
+    // Opened with the mouse, closed with Escape: the same.
+    click(toggle);
+    press('Escape');
+    expect(menu.isOpen()).toBe(false);
+    expect(doc.activeElement).not.toBe(toggle);
+    press('Space');
+    expect(log).toEqual(['radio checkin', 'trigger', 'trigger']);
+    unbind();
+  });
+
+  it('puts focus back on the toggle when the keyboard opened the menu', () => {
+    const { menu, toggle, unbind } = comms();
+    tabTo(toggle);
+    dispatch(toggle, 'click');            // Enter on the toggle
+    expect(menu.isOpen()).toBe(true);
+    press('Escape');
+    expect(menu.isOpen()).toBe(false);
+    expect(doc.activeElement).toBe(toggle);
     unbind();
   });
 });
