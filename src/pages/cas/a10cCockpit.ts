@@ -330,7 +330,8 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   }
 
   // ------------------------------------------------------------------ keys
-  const hold = (sw: HotasSwitch) => ({ down: () => hotas.press(sw), up: () => hotas.release(sw) });
+  // bindKeys calls up() without an event when the window loses focus: drop the press rather than finish it.
+  const hold = (sw: HotasSwitch) => ({ down: () => hotas.press(sw), up: (e?: KeyboardEvent) => (e ? hotas.release(sw) : hotas.cancel(sw)) });
   const slewKey = (k: keyof typeof slew) => ({ down: () => { slew[k] = 1; applySlew(); }, up: () => { slew[k] = 0; applySlew(); } });
   const keys: KeyMap = {
     'LCtrl+Up': hold('tmsF'), 'LCtrl+Down': hold('tmsA'), 'LCtrl+Left': hold('tmsL'), 'LCtrl+Right': hold('tmsR'),

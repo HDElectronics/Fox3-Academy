@@ -206,6 +206,17 @@ describe('digital 9-line', () => {
     expect(hotas.slaveCount).toBe(1);
   });
 
+  it('drops a held switch when the window loses focus, with no Short or Long action', () => {
+    let clock = 100;
+    const { hotas } = setup('digital', { now: () => clock });
+    hotas.press('coolieR'); clock += 0.4; hotas.step(0.1);
+    hotas.cancel('coolieR');
+    expect([hotas.rightPage, hotas.soi]).toEqual(['tgp', 'hud']);
+    // Back in the window an hour later: the key-up of the old press does nothing either.
+    clock += 3600; hotas.release('coolieR'); hotas.step(0.1);
+    expect([hotas.rightPage, hotas.soi]).toEqual(['tgp', 'hud']);
+  });
+
   it('times long presses on the summed sim dt without a host clock', () => {
     const { hotas } = setup('digital');
     hotas.press('coolieR'); hotas.step(0.1); hotas.release('coolieR');

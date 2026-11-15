@@ -144,6 +144,8 @@ export class A10cHotas {
     const now = this.host.now?.();
     return now == null ? h.s : now - h.start;
   }
+  /** Forget a held switch without acting (the window lost focus mid-press: neither Short nor Long). */
+  cancel(sw: HotasSwitch): void { this.held.delete(sw); }
   /** A whole short or long press at once (buttons and scripts). */
   tap(sw: HotasSwitch, long = false): void { this.held.delete(sw); this.act(sw, long); }
 
