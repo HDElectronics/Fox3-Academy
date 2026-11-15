@@ -55,7 +55,7 @@ kbd {
   color: var(--panel-ink);
 }
 .modnav a:hover { background: var(--panel-3); }
-.modnav a[aria-current="page"] { background: var(--btn); color: var(--btn-on); }
+.modnav a[aria-current] { background: var(--btn); color: var(--btn-on); }
 .topbar-right { display: flex; align-items: center; gap: var(--gap-2); flex: none; }
 .jet-label { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--panel-muted); }
 .jet-select, .units-btn {
@@ -74,17 +74,83 @@ kbd {
   .topbar-right { margin-left: auto; }
 }
 
-/* Secondary links follow the selected Learn / Practice destination. */
-.context-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 20px; background: var(--panel-2); color: var(--panel-ink); border-bottom: 1px solid var(--panel-line); }
-.context-nav a { flex: none; padding: 7px 10px; text-decoration: none; font-family: var(--font-mono); font-size: var(--fs-xs); border-radius: var(--r-1); }
-.context-nav a:hover { background: var(--panel-3); }
-.context-nav a[aria-current="page"] { color: var(--btn-on); background: var(--btn); }
-.context-nav__group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 10px; margin-left: 4px; border-left: 1px solid var(--panel-line); }
-.context-nav__label { flex: none; padding-right: 2px; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .06em; text-transform: uppercase; color: var(--panel-muted); }
+/* Second row (src/app/shell.ts): always one line, so the chrome never changes height. Left: the lesson path on
+   Learn, the labs on Practice, the page on Reference and Fly; it scrolls sideways when it does not fit. Right:
+   position and the next step. */
+.context-nav {
+  --ctx-h: 44px;
+  display: flex; align-items: center; gap: var(--gap-3); height: var(--ctx-h); padding: 0 16px 0 12px;
+  background: var(--panel-2); color: var(--panel-ink); border-bottom: 1px solid var(--panel-line);
+}
+.context-nav__track {
+  position: relative; flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.context-nav__track::-webkit-scrollbar { display: none; }
+.context-nav__track[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.context-nav__track[data-overflow="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.context-nav__track[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+.context-nav__links, .pathbar { display: flex; align-items: center; gap: 1px; margin: 0; padding: 0 4px 0 0; list-style: none; }
+.context-nav__links > li, .pathbar > li { flex: none; display: flex; }
+.context-nav__links a, .pathbar__step {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 7px; border-radius: var(--r-1);
+  font-family: var(--font-mono); font-size: var(--fs-xs); white-space: nowrap; text-decoration: none; color: var(--panel-ink);
+  border: 1px solid transparent;
+}
+.context-nav__links a:hover, .pathbar__step:hover { background: var(--panel-3); }
+.context-nav__links a[aria-current="page"], .pathbar__step[aria-current="page"] {
+  background: var(--btn); color: var(--btn-on); border-color: var(--ui-cap-line, var(--btn-line));
+}
+/* The track scrolls, which clips anything outside it: draw the focus ring inside, amber over a dark line. */
+.context-nav :focus-visible { outline-offset: -2px; box-shadow: inset 0 0 0 4px var(--screen); }
+
+/* Lesson path steps: number badge + label. Done = lit number, current = pressed cap, the step Next opens = ring. */
+.pathbar__item.is-group-start { margin-left: 4px; padding-left: 5px; border-left: 1px solid var(--panel-line); }
+.pathbar__num {
+  display: grid; place-items: center; flex: none; width: 19px; height: 19px; border-radius: 2px;
+  border: 1px solid currentColor; font-size: 0.68rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+.pathbar__step[data-done="true"] .pathbar__num { opacity: 1; background: var(--btn-on); color: var(--btn-on-ink); border-color: var(--btn-on); }
+.pathbar__step[aria-current="page"] .pathbar__num { opacity: 1; }
+.pathbar__step[aria-current="page"][data-done="false"] .pathbar__num { border-color: var(--btn-on); }
+.pathbar__step[data-next="true"]:not([aria-current="page"]) .pathbar__num {
+  opacity: 1; box-shadow: 0 0 0 2px var(--panel-2), 0 0 0 3px currentColor;
+}
+
+/* Right end: position readout (glass window) and the next step (a cap that lights when the lesson is done). */
+.context-nav__status { flex: none; display: flex; align-items: center; gap: var(--gap-2); }
+.context-nav__status:empty { display: none; }
+.pathpos { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--fs-xs); white-space: nowrap; }
+.pathpos__cap { letter-spacing: 0.1em; text-transform: uppercase; color: var(--panel-muted); }
+:root[data-cockpit="ru"] .pathpos__cap { color: color-mix(in srgb, var(--panel-muted) 55%, var(--panel-ink)); }
+.pathpos__glass {
+  min-width: 4.4ch; padding: 3px 6px; border-radius: 2px; text-align: center; font-variant-numeric: tabular-nums;
+  background: var(--screen); color: color-mix(in srgb, var(--sym) 70%, var(--screen)); border: 1px solid var(--screen-line);
+}
+.pathpos__glass b { color: var(--sym); font-weight: 700; }
+.pathnext {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--r-1);
+  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.04em; white-space: nowrap; text-decoration: none;
+  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--ui-cap-line, var(--btn-line)); border-bottom-width: 2px;
+}
+.pathnext:hover { background: color-mix(in srgb, var(--btn) 86%, var(--btn-ink)); }
+.pathnext[data-ready="true"] {
+  background: var(--btn-on); color: var(--btn-on-ink); border-color: var(--btn-on); font-weight: 700;
+  border-bottom-color: color-mix(in srgb, var(--btn-on) 60%, var(--btn-on-ink));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--btn-on) 55%, transparent);
+}
+.pathnext[data-ready="true"]:hover { background: color-mix(in srgb, var(--btn-on) 86%, var(--btn-on-ink)); }
+.pathnext__text { overflow: hidden; text-overflow: ellipsis; max-width: 30ch; }
+
+@media (max-width: 900px) {
+  .context-nav { padding: 0 8px 0 4px; gap: var(--gap-2); }
+  .pathpos__cap { display: none; }
+  .pathnext__text { max-width: 22ch; }
+}
 @media (max-width: 620px) {
   .modnav { justify-content: space-between; }
   .modnav a { padding: 9px 7px; font-size: .75rem; letter-spacing: 0; }
-  .context-nav { padding-inline: 8px; }
 }
 
 /* ---- page outlet ---- */
