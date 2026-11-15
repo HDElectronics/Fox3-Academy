@@ -151,7 +151,8 @@ const factory: PageFactory = (): Page => {
       restoreBig: strip => strip.insertBefore(a10!.tgpBezel.el, a10!.rwrBezel.el), rwr: a10!.rwrBezel.el,
       controlRows: a10!.controlRows, keyList: a10!.keyList, mobileActions: a10!.mobileActions, keys: a10!.keys, fallback: a10!.cmsKeys,
       step: dt => a10!.step(dt), draw: (tv, rwr, hud) => a10!.draw(tv, rwr, hud), updateLamps: () => a10!.updateLamps(),
-      resetInputs: () => a10!.resetInputs(), storeText: () => a10!.storeText(),
+      // The laser code has its own readout row here (a narrow strip column keeps each value on one line).
+      resetInputs: () => a10!.resetInputs(), storeText: () => a10!.storeText(false),
     };
     const keyList = ck.keyList;
 
@@ -166,8 +167,13 @@ const factory: PageFactory = (): Page => {
 
     const ro = readouts({
       id: 'cas-ro', variant: 'glass',
-      rows: [{ id: 'jtac', label: 'JTAC' }, { id: 'rng', label: 'To target' }, { id: 'hdg', label: 'Attack hdg' }, { id: 'store', label: 'Store' }, { id: 'tgt', label: 'Targets' }],
+      rows: [
+        { id: 'jtac', label: 'JTAC' }, { id: 'rng', label: 'To target' }, { id: 'win', label: 'Attack hdg' }, { id: 'hdg', label: 'Heading' },
+        { id: 'store', label: 'Store' }, { id: 'code', label: 'Laser code' }, { id: 'tgt', label: 'Targets' },
+      ],
     });
+    const codeRow = ro.row('code');
+    if (codeRow) codeRow.hidden = !!su;   // the Su-25T stores have no laser code
     const card = kneeboard(bag, { onInput: () => checkSteps() });
     const gradeBtn = button({ label: 'Check the card', size: 's', id: 'cas-grade', onClick: () => gradeCard() });
     const cardHost = h('div', { class: 'cas-card' }, card.el, h('div', { class: 'strk-row' }, gradeBtn.el));
@@ -523,9 +529,12 @@ const factory: PageFactory = (): Page => {
       const err = headingErrorDeg(hdgDeg(), sc.attackHdgDeg);
       ro.set('jtac', jtac.state.replace('-', ' '));
       ro.set('rng', fmtRange(distM(me.pos, sc.target), units, 1));
-      ro.set('hdg', `${String(Math.round(hdgDeg()) % 360).padStart(3, '0')} (${String(sc.attackHdgDeg[0]).padStart(3, '0')}–${String(sc.attackHdgDeg[1]).padStart(3, '0')})`);
+      ro.set('win', `${String(sc.attackHdgDeg[0]).padStart(3, '0')}–${String(sc.attackHdgDeg[1]).padStart(3, '0')}`);
+      ro.set('hdg', String(Math.round(hdgDeg()) % 360).padStart(3, '0'));
       ro.setTone('hdg', err === 0 ? 'ok' : null);
       ro.set('store', ck.storeText());
+      const sel = ag.selected, code = sel ? ag.laserCodes[sel] : null;
+      ro.set('code', code ? String(code) : '—');
       ro.set('tgt', `${alive(sc.targets)} of ${sc.targets.length} up`);
       ck.updateLamps();
       updateNav();

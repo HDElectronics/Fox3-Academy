@@ -90,7 +90,8 @@ export interface A10cCockpit {
   resetInputs(): void;
   draw(podCam: ShkvalTv | null, showRwr: boolean, hudCam?: ForwardView | null): void;
   updateLamps(): void;
-  storeText(): string;
+  /** Selected store, count, its laser code (unless `withCode` is false) and the master mode. */
+  storeText(withCode?: boolean): string;
   hudView(): A10cHudView;
   tgpView(image: CanvasImageSource | null): TgpPageView;
   mavView(image: CanvasImageSource | null): MavPageView;
@@ -459,10 +460,10 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     const tk = host.jtac()?.tasking;
     return tk ? { title: 'CAS 9-LINE', lines: tk.lines, state: tk.state } : null;
   }
-  function storeText(): string {
+  function storeText(withCode = true): string {
     const ag = me().ag!, sel = ag.selected;
     if (!sel) return 'none';
-    const code = ag.laserCodes[sel];
+    const code = withCode ? ag.laserCodes[sel] : null;
     return `${AG_WEAPONS[sel].hudLabel} ×${ag.stores[sel] ?? 0}${code ? ` · ${code}` : ''} · ${hotas.master}`;
   }
 

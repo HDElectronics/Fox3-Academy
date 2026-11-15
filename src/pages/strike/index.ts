@@ -121,7 +121,7 @@ const factory: PageFactory = (): Page => {
     const ro = readouts({
       id: 'strk-ro', variant: 'glass',
       rows: [
-        { id: 'rng', label: 'Slant range' }, { id: 'laser', label: 'Laser used', title: 'Laser heat, s. S1: the laser switches off at its limit and cools about as long as it was on (simplified)' },
+        { id: 'rng', label: 'Slant range' }, { id: 'laser', label: 'Laser', title: 'Laser heat, s. S1: the laser switches off at its limit and cools about as long as it was on (simplified)' },
         { id: 'store', label: 'Store' }, { id: 'tgt', label: 'Targets' }, { id: 'sam', label: 'SAM' },
       ],
     });
@@ -681,7 +681,8 @@ const factory: PageFactory = (): Page => {
       const check = w.canAgLaunch(me.id);
       const aim = shkvalAimPoint(w, me);
       ro.set('rng', sh.laserOn && aim ? `${(me.pos.distanceTo(aim) / 1000).toFixed(1)} km` : sh.on ? 'laser off' : '—');
-      ro.set('laser', `${Math.round(sh.laserUsedS)} s / ${LASER_LIMIT_S / 60} min${sh.laserCoolS > 0 ? ' cooling' : ''}`);
+      // Short enough for one line in a narrow strip column: the limit, or "cooling" while it cools.
+      ro.set('laser', `${Math.round(sh.laserUsedS)} s ${sh.laserCoolS > 0 ? 'cooling' : `/ ${LASER_LIMIT_S / 60} min`}`);
       ro.setTone('laser', sh.laserCoolS > 0 ? 'warning' : sh.laserOn ? 'caution' : null);
       const sel = ag.selected;
       ro.set('store', ck.storeText());
