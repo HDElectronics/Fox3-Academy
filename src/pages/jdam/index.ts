@@ -1,6 +1,6 @@
 /** Hornet JDAM TOO: cockpit workflow and explicitly scripted delivery, not weapon engineering. */
 import type { PageFactory } from '../../app/page';
-import { h, button, row, group, labLayout, screenBezel, cleanup, bindKeys, setText } from '../../ui';
+import { h, button, row, group, labLayout, screenBezel, cleanup, bindKeys, setText, lessonPicker, lessonHref } from '../../ui';
 import { readTheme } from '../../ui/theme';
 import { createUfc } from '../harm/ufc';
 import { PodView } from '../atflir/display';
@@ -42,7 +42,13 @@ const page: PageFactory = () => {
     const status=h('p',{class:'atflir-state'}), result=h('p',{class:'atflir-result'});
     const steps=lesson.steps.map(t=>h('li',null,t));
     const next=JDAM_ORDER[JDAM_ORDER.indexOf(id)+1];
-    const nextButton=button({label:next?'Next lesson':'View progress',onClick:()=>ctx.navigate(next?`jdam?lesson=${next}`:'progress')});
+    // Lessons are ?lesson= links (the page remounts on each). Next follows the same link.
+    const lessonLink=(key:typeof JDAM_ORDER[number])=>lessonHref('jdam',ctx.params,{lesson:key});
+    const picker=lessonPicker({id:'jdam-lesson-picker',topic:'JDAM',value:id,href:lessonLink,
+      items:JDAM_ORDER.map(key=>({id:key,label:JDAM_LESSONS[key].title})),isDone:key=>ctx.app.getProgress(jdamKey(key))===true});
+    clean.add(()=>picker.destroy());
+    clean.add(ctx.app.subscribe((_,what)=>{if(what==='progress')picker.refresh();}));
+    const nextButton=button({label:next?`Next: ${JDAM_LESSONS[next].title}`:'View progress',onClick:()=>ctx.navigate(next?lessonLink(next).slice(2):'progress')});
     const hud=h('canvas',{width:400,height:400,'aria-label':'JDAM HUD: manual release and range status'});
     const storesCanvas = h('canvas', { class: 'harm-ddi-canvas', 'aria-label': 'Hornet JDAM stores display' });
     const stores = h('div', { class: 'jdam-stores ui-fill' }, storesCanvas);
@@ -64,7 +70,7 @@ const page: PageFactory = () => {
       screenBezel({label:'RIGHT DDI · FLIR',content:podContent,aspect:'1'}).el,
       h('div',{class:'ui-strip-block atflir-ufc-block'},h('div',{class:'ui-placard'},'UFC'),ufc.el,h('p',{class:'atflir-ufc-hint'},'TOO uses the current designation. No UFC coordinate entry in this lesson. PP programming is not included.'))];
     const controls=h('div',{class:'atflir-controls'},
-      h('nav',{class:'atflir-lessons','aria-label':'JDAM lessons'},JDAM_ORDER.map((key,i)=>h('a',{href:`#/jdam?lesson=${key}`,'aria-current':key===id?'page':undefined},`${i+1}. ${JDAM_LESSONS[key].title}`))),
+      picker.el,
       h('section',{class:'atflir-brief'},h('div',{class:'ui-placard'},'GBU-38 · TOO'),h('h2',null,lesson.title),h('p',null,lesson.goal),h('ol',{class:'atflir-steps'},steps),result,nextButton.el),
       group({label:'Aircraft & weapon',children:[row(ag.el,master.el),skip.el],hint:'On the left DDI: select J-82 at the top, MODE on the upper left for TOO, then EFUZ and INST. Warmup is 2:30; skipping is a labelled training aid.'}),
       group({label:'HSI · target designation',children:[row(button({label:'WP2 · assigned truck',onClick:()=>act(()=>{waypoint='assigned';})}).el,button({label:'WP3 · other truck',onClick:()=>act(()=>{waypoint='wrong';})}).el),row(wpText,designation.el)],hint:'Selecting a waypoint does not designate it. Press WPDSG and inspect FLIR. These are fictional training waypoints.'}),
