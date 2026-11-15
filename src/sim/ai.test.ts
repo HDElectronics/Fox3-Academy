@@ -153,6 +153,27 @@ describe('scenario builders', () => {
     expect(d3.method).toBe('stt');
   });
 
+  it('defenseDrill: a SARH shooter behind and above still locks and fires by its deadline on an opening range', () => {
+    // Su-27 running from an F-15C 10 km behind and 4 km higher: the slant range stays above the fire range, so only
+    // the fire-no-later-than deadline puts the shot in range, and the shot needs a lock (STT).
+    const w = new World(9);
+    w.record = false;
+    const d = defenseDrill(w, 'su27', 'aim7m', { range: 10_000, aspectDeg: 180, side: 'right', mode: 'auto', playerAlt: 5500, shooterAlt: 9500 },
+      { shooterType: 'f15c', skill: 'veteran' });
+    const sh = w.get(d.shooterId)!;
+    let firedAt: number | null = null, lockedAt: number | null = null;
+    for (let i = 0; i < 400 && firedAt === null; i++) {
+      w.step(0.1);
+      if (lockedAt === null && sh.radar.mode === 'stt') lockedAt = w.t;
+      if (d.missile()) firedAt = w.t;
+    }
+    // Locked at the 14 s deadline; the launch then waits only for the sim's own Rmax rule.
+    expect(lockedAt, aiStatus(sh)?.lastLaunchBlock).not.toBeNull();
+    expect(lockedAt!).toBeLessThan(16);
+    expect(firedAt, aiStatus(sh)?.lastLaunchBlock).not.toBeNull();
+    expect(firedAt!).toBeLessThan(35);
+  });
+
   it('radarLab puts targets at range, bearing, altitude and aspect', () => {
     const w = new World(2);
     const lab = radarLab(w, 'f15c', [
