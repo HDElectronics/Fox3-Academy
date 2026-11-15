@@ -27,10 +27,3 @@ export function isDone(route: LessonRoute, id: FighterId, get: ProgressReader): 
 /** Other jets that have this lesson done. */
 export const doneElsewhere = (route: LessonRoute, id: FighterId, get: ProgressReader): FighterId[] =>
   FIGHTER_ORDER.filter(o => o !== id && isDone(route, o, get));
-
-/** The Learn home's original card order, until the home reads lessonPath.ts. */
-export const LESSON_PATH: LessonRoute[] = ['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'sortie'];
-/** First card in LESSON_PATH not done for this jet; null when all are done. */
-export function nextLesson(id: FighterId, get: ProgressReader): LessonRoute | null {
-  return LESSON_PATH.find(r => !isDone(r, id, get)) ?? null;
-}

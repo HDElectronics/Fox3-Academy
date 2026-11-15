@@ -3,7 +3,7 @@
  * Pure functions so every jet can be checked in tests (facts.test.ts).
  */
 import { AIRCRAFT, FIGHTER_ORDER, MISSILES, PROCEDURES, RWRS } from '../../data';
-import type { FighterId, AircraftSpec, MissileId, MissileSpec, RadarModeId } from '../../data/types';
+import type { FighterId, AircraftSpec, JetSpec, MissileId, MissileSpec, RadarModeId } from '../../data/types';
 import { fmtRange, fmtSpeed, rangeUnit, rangeValue, type Units } from '../../app/format';
 import { MPS_PER_KT } from '../../sim/math';
 import { createRadarState } from '../../sim/radar';
@@ -23,7 +23,7 @@ export const hasFox3 = (spec: AircraftSpec): boolean => fox3Missiles(spec).lengt
 /** Can the jet have missiles in the air at two or more targets at once (СНП2, TWS multi-shot)? */
 export const isMultiTarget = (spec: AircraftSpec): boolean => (spec.radar.tws?.maxSimultaneousTargets ?? 0) > 1;
 export const launchesFromTws = (spec: AircraftSpec): boolean => spec.radar.tws?.launchFromTws ?? false;
-export const moduleLabel = (spec: AircraftSpec): string => (spec.module === 'fc3' ? 'FC3' : 'Full fidelity');
+export const moduleLabel = (spec: Pick<JetSpec, 'module'>): string => (spec.module === 'fc3' ? 'FC3' : 'Full fidelity');
 export const moduleShort = (spec: AircraftSpec): string => (spec.module === 'fc3' ? 'FC3' : 'FULL');
 
 /** The jet's main radar missile: first radar missile in the default loadout, else the longest-reaching one. */
@@ -287,20 +287,12 @@ export function weaponsSummary(spec: AircraftSpec): string {
 
 // ------------------------------------------------------------------------------------------ lessons
 
-export { LESSON_PATH, progressKeys, isDone, doneElsewhere, nextLesson } from '../../app/learningProgress';
+export { SINGLE_FLAG_ROUTES, progressKeys, isDone, doneElsewhere } from '../../app/learningProgress';
 export type { LessonRoute, ProgressReader } from '../../app/learningProgress';
 import type { LessonRoute } from '../../app/learningProgress';
 
-export const LESSON_TITLE: Record<LessonRoute, string> = {
-  radar: 'Scan volume',
-  tws: 'Track while scan',
-  missiles: 'Launch zones',
-  defense: 'Beat a missile',
-  rwr: 'Read the RWR',
-  merge: 'Merge, BFM and guns',
-  sortie: 'Fight and debrief',
-  reference: 'Keys and procedures',
-};
+/** Title of the Reference card under the path (step titles live in src/app/lessonPath.ts). */
+export const REFERENCE_TITLE = 'Keys and procedures';
 
 const TWS_VOCAB: Partial<Record<FighterId, string>> = {
   f15c: 'Learn the PDT and SDT order.',
@@ -361,12 +353,15 @@ export function lessonLine(route: LessonRoute, spec: AircraftSpec, units: Units)
       if (!launchesFromTws(spec)) return `Fight AI with the ${spec.short}'s rules: ${f3.name} from STT, let go inside ~${fmtR((f3.pitbullKm ?? 15) * 1000, units)}, then defend. Then debrief it in 3D.`;
       return `Fight AI with the ${spec.short}'s rules: ${f3.name}s from TWS, crank, leave once they go active. Then debrief it in 3D.`;
     }
-    case 'reference': {
-      const p = PROCEDURES[spec.id];
-      const kind = spec.module === 'fc3' ? 'Keyboard defaults' : 'HOTAS and cockpit functions';
-      return `${kind} for the ${spec.short}: ${p.binds.length} binds and ${p.procedures.length} step-by-step procedures, named as DCS names them.`;
-    }
+    case 'reference': return referenceLine(spec);
   }
+}
+
+/** What the Reference card offers for any jet: its binds and procedures, counted. */
+export function referenceLine(spec: JetSpec): string {
+  const p = PROCEDURES[spec.id];
+  const kind = spec.module === 'fc3' ? 'Keyboard defaults' : 'HOTAS and cockpit functions';
+  return `${kind} for the ${spec.short}: ${p.binds.length} binds and ${p.procedures.length} step-by-step procedures, named as DCS names them.`;
 }
 
 /**
