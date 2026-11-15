@@ -97,6 +97,11 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     // Next and Continue open the first lesson left on that page (HARM, CAS...), else the page.
     const nextPath = at.next.index !== null && progress ? progress.steps[at.next.index]!.next?.path ?? at.next.path : at.next.path;
 
+    // A re-render (progress saved, jet changed) must not drop keyboard focus that sits in the row.
+    const active = document.activeElement instanceof HTMLElement && contextNav.contains(document.activeElement) ? document.activeElement : null;
+    const refocus = !active ? null : active.classList.contains('pathnext') ? '.pathnext'
+      : `a[href="${CSS.escape(active.getAttribute('href') ?? '')}"]`;
+
     contextNav.dataset.destination = destination;
     contextNav.setAttribute('aria-label', destination === 'learn' ? `Lesson path for the ${AIRCRAFT[jet].short}`
       : destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference' : 'Fly');
@@ -112,6 +117,7 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     // Keep the current step in view when the steps scroll sideways.
     const cur = track.querySelector<HTMLElement>('[aria-current="page"]')?.closest('li');
     if (cur && track.scrollWidth > track.clientWidth) track.scrollLeft = cur.offsetLeft - (track.clientWidth - cur.offsetWidth) / 2;
+    if (refocus) contextNav.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
     syncOverflow();
     syncHeight();
   };
