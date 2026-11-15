@@ -172,9 +172,6 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   const sessionNote = h('p', { class: 'tws-hint' });
   const snapToggle = toggle({ id: 'tws-cursor-snap', label: 'DCS СНП cursor snap', value: false,
     onChange: value => { L.dcsCursorSnap = value; radar.setOptions({ manualCursor: L.freeLab && !value }); updateSession(); } });
-  const sessionMode = segmented<'guided' | 'free'>({ id: 'tws-session', ariaLabel: 'Learning or practice', value: L.freeLab ? 'free' : 'guided', fill: true,
-    options: [{ value: 'guided', label: 'Learn' }, { value: 'free', label: 'Practice' }],
-    onChange: value => ctx.navigate(value === 'free' ? 'tws?lab=free' : 'tws') });
   const sessionPanel = consolePanel({ id: 'tws-practice', title: 'Practice mode', dense: true,
     children: [sessionNote, snapToggle.el] });
   function updateSession(): void {
@@ -184,7 +181,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     snapToggle.el.hidden = !L.freeLab || !L.cursorSnaps;
     sessionNote.textContent = L.freeLab
       ? 'Hold cursor keys to slew; Designate / Lock acts only under the cursor. Click the radar to position the cursor. Arrow keys command heading and altitude (trainer controls). No merge or time limit.' + (L.cursorSnaps ? L.dcsCursorSnap ? ' DCS СНП: moving onto a firm track snaps and designates; 85% Rmax auto-lock still applies.' : ' Manual designation is a trainer aid: DCS СНП normally snaps when slewed onto a track. After designation, 85% Rmax auto-lock still applies.' : '')
-      : 'Guided course: cursor keys step between detected contacts as a teaching shortcut. Use Free lab for continuous cursor control.';
+      : 'Guided course: cursor keys step between detected contacts as a teaching shortcut. For continuous cursor control, open the Free TWS lab under Practice.';
   }
 
   const modeSeg = segmented<PageMode>({
@@ -331,7 +328,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   // ------------------------------------------------------------------ layout
   const lab = labLayout({
     id: 'tws-lab', class: 'tws', mobileTabs: true, mobileActions,
-    header: { title: 'Track while scan', actions: sessionMode.el, meta: `${spec.short} · ${spec.radar.name}` },
+    // Learn or Practice is the top bar's choice (#/tws or #/tws?lab=free); the header names which one this is.
+    header: { title: L.freeLab ? 'Free TWS lab' : 'Track while scan', meta: `${spec.short} · ${spec.radar.name}` },
     viewport: viewEl,
     strip: [radarBezel.el, brief],
     console: [cockpitPanel.el,
