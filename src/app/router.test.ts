@@ -76,6 +76,24 @@ describe('router deep links and remounts', () => {
     expect(mounted).toHaveLength(1);
     expect(vi.mocked(router.onChange).mock.calls.at(-1)?.[1].get('lab')).toBe('free');
   });
+  it('remounts on a units change, except a route that re-renders units live (Pattern & landing keeps its flight)', async () => {
+    await router.resolve();
+    app.setUnits(app.units === 'metric' ? 'imperial' : 'metric');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(2);
+    expect(unmount).toHaveBeenCalledTimes(1);
+    location.hash = '#/flight-ops';
+    await router.resolve();
+    expect(mounted).toHaveLength(3);
+    app.setUnits(app.units === 'metric' ? 'imperial' : 'metric');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(3);
+    expect(unmount).toHaveBeenCalledTimes(2);
+    // A jet change still remounts it.
+    app.setAircraft('f14b');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(4);
+  });
   it('does not remount an unchanged route with reordered query keys', async () => {
     location.hash = '#/radar?lab=free&ex=free';
     await router.resolve();

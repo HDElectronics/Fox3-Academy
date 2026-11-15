@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pattern & landing keeps your flight when you switch units: the HUD, readouts, steps and an open debrief redraw in
+  the new units instead of the page restarting. Other lessons still restart on a units switch.
 - CAS & JTAC radio subtitles: after a restart, a call that arrives before the first sim tick now shows with its own
   time instead of being dropped or stamped with the previous run's clock.
 - Pattern & landing: the AoA indexer head reads "AoA · GEAR DN" in full, also beside the IFLOLS at 820 px

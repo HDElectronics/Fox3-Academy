@@ -12,6 +12,8 @@ export interface RouteDef {
   roles?: readonly AircraftRole[];
   /** Only these jets, when the route teaches one jet's cockpit (Shkval & Vikhr: the Su-25T). Default: every jet of the roles. */
   jets?: readonly AircraftId[];
+  /** The page re-renders on a units change itself (it subscribes to the store), so the router keeps it mounted. */
+  liveUnits?: boolean;
 }
 
 export const ROUTES: RouteDef[] = [
@@ -22,7 +24,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'tws', label: 'TWS', title: 'Track while scan: several missiles, several targets, no lock warning', load: () => import('../pages/tws/index') },
   { path: 'missiles', label: 'Missiles', title: 'Launch zones: how altitude, speed and target aspect change range', load: () => import('../pages/missile-lab/index') },
   { path: 'defense', label: 'Defense', title: 'Beat an incoming missile: notch, chaff, drag and timing', load: () => import('../pages/defense/index') },
-  { path: 'flight-ops', label: 'Pattern & landing', title: 'Fly the overhead break, configure, hold on-speed AoA and land in the zone', load: () => import('../pages/flight-ops/index') },
+  { path: 'flight-ops', label: 'Pattern & landing', title: 'Fly the overhead break, configure, hold on-speed AoA and land in the zone', load: () => import('../pages/flight-ops/index'), liveUnits: true },
   { path: 'merge', label: 'Merge & guns', title: 'Close combat: corner speed, pursuit, the merge, one vs two circle, yo-yo, guns, and a fighting AI', load: () => import('../pages/merge/index') },
   { path: 'strike', label: 'Shkval & Vikhr', title: 'Su-25T: find, lock and lase with the Shkval, fire Vikhrs, fly a rocket CCIP pass', load: () => import('../pages/strike/index'), roles: ['attack'], jets: ['su25t'] },
   { path: 'tgp', label: 'Targeting pod & Mavericks', title: 'A-10C II: SOI and SPI, slew and track with the Litening pod, lase, find a laser spot, lock and fire Mavericks, laser-guided bombs and rockets', load: () => import('../pages/tgp/index'), roles: ['attack'], jets: ['a10c'] },

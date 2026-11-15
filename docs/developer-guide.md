@@ -52,7 +52,9 @@ service or automatic agent-launch hook is configured by this project.
 
 The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ...). The shell in `src/app` draws
 the top bar, keeps global state in `AppStore` (selected jet, units, lesson progress), and mounts one page at a
-time. Switching jets or units remounts the current page, so pages read the jet once on mount.
+time. Switching jets or units remounts the current page, so pages read the jet once on mount. A route with
+`liveUnits: true` (`src/app/routes.ts`; today Pattern & landing) stays mounted on a units switch and redraws its
+numbers from its own store subscription, so a flight in progress survives.
 
 `src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference (`destinationFor`) and names the
 browser tab (`pageTitle`). `src/app/lessonPath.ts` holds the lesson path: `LESSON_LINKS` lists every Learn page

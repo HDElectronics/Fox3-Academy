@@ -1368,9 +1368,17 @@ const factory: PageFactory = (): Page => {
     }
     bag.add(bindKeys(keymap));
     bag.on(window, 'blur', () => { for (const k of Object.keys(held) as (keyof typeof held)[]) held[k] = false; });
+    // Units switch: the router keeps this page mounted (routes.ts liveUnits), so a flight in progress survives and
+    // everything in units is redrawn here; a debrief on screen is rebuilt from its score.
     bag.add(ctx.app.subscribe((_, what) => {
       if (what !== 'units') return;
-      renderNumbers(); rebuildSteps(); refresh(true);
+      renderNumbers(); rebuildSteps();
+      lampOver.el.title = overspeedTitle(d, ktText(d.pattern.gearMaxKt.value, units()));
+      if (finished) {
+        if (aScore) finishAar(aScore); else if (lScore) finishLaunch(lScore); else if (cScore) finishCarrier(cScore);
+        else if (toScore) finishTakeoff(toScore); else if (score) finish(score);
+      }
+      refresh(true);
     }));
 
     // ---------------------------------------------------------------- go

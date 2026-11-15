@@ -1,6 +1,8 @@
 /**
- * Hash router: '#/tws?x=1'. Remounts the current page when the aircraft changes. A query change on the same route
- * goes to the page's optional `update(params)` first (lesson pickers, Back): true keeps the page, false remounts.
+ * Hash router: '#/tws?x=1'. Remounts the current page when the aircraft or the units change; a route with
+ * `liveUnits` re-renders the units itself and keeps its state (a flight in progress) across a units change.
+ * A query change on the same route goes to the page's optional `update(params)` first (lesson pickers, Back):
+ * true keeps the page, false remounts.
  */
 import { routeFor, type RouteDef } from './routes';
 import { AIRCRAFT } from '../data/aircraft';
@@ -18,7 +20,9 @@ export class Router {
 
   constructor(private outlet: HTMLElement, private app: AppStore) {
     window.addEventListener('hashchange', () => this.resolve());
-    app.subscribe((_, what) => { if (what === 'aircraft' || what === 'units') this.resolve(true); });
+    app.subscribe((_, what) => {
+      if (what === 'aircraft' || (what === 'units' && !this.current?.route.liveUnits)) this.resolve(true);
+    });
   }
 
   navigate(path: string, opts: NavigateOptions = {}) {
