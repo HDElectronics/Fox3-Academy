@@ -106,7 +106,11 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
   HUD picture drawn over the whole canvas is therefore never stretched; give spare strip width to data blocks.
 - `header`: `{ title, lede?, meta?, actions? }` rendered compact (title in Russo One).
 - `overlay('tl'|'tr'|'bl'|'br', ...)`: controls over a viewport corner (camera selector, layer chips).
-- Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`.
+- Ultra-wide windows (> 900 px): the lab is centred and capped at the console plus a 3D view of
+  `--lab-view-aspect` (default 2.6) times the view's estimated height, so the view does not become a slit on a
+  2560 × 1080 or 3440 × 1440 window; 16:9 and 16:10 windows stay full width. The Stage caps the horizontal field of
+  view as well (`docs/api/render.md`, "Wide viewports").
+- Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`, `--lab-view-aspect`.
 
 ### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocHeader?, id?, class? })`
 → `{ el, main, toc, links, go(id), destroy() }`

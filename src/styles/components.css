@@ -626,10 +626,24 @@
   grid-template-columns: minmax(0, 1fr) var(--lab-console-w);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "view console";
+  /* Widest 3D view (width : height) on a wide window; the estimates below give the view's height. */
+  --lab-view-aspect: 2.6;
+  --lab-head-est: 0px;
+  --lab-strip-est: 0px;
 }
-.ui-lab.has-head { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head console" "view console"; }
-.ui-lab.has-strip { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view console" "strip console"; }
+.ui-lab.has-head { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head console" "view console"; --lab-head-est: calc(54px + var(--lab-gap)); }
+.ui-lab.has-strip { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view console" "strip console"; --lab-strip-est: calc(var(--lab-strip-h) + var(--lab-gap)); }
 .ui-lab.has-head.has-strip { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "head console" "view console" "strip console"; }
+/* Ultra-wide windows (2560 × 1080, 3440 × 1440): the lab is centred and no wider than a --lab-view-aspect view plus
+   the console, so the 3D view does not turn into a letterbox slit. 16:9 and 16:10 windows stay full width. The Stage
+   caps the horizontal field of view as well (render/viewFov.ts), so a view that ends up wider is not stretched. */
+@media (min-width: 901px) {
+  .ui-lab {
+    width: 100%; margin-inline: auto;
+    max-width: calc(var(--lab-console-w) + 3 * var(--lab-gap) + var(--lab-view-aspect) * (max(560px, 100dvh - var(--shell-h, var(--topbar-h)))
+      - 2 * var(--lab-gap) - var(--lab-head-est) - var(--lab-strip-est)));
+  }
+}
 .ui-lab__head { grid-area: head; padding: 4px 6px 2px; }
 .ui-lab__view {
   grid-area: view; position: relative; min-height: 0; min-width: 0; overflow: hidden;
