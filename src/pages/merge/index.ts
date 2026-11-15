@@ -609,6 +609,7 @@ const factory: PageFactory = (): Page => {
         hudUp.crossVectors(hudRight, hudFwd).normalize();
         hudQ.setFromRotationMatrix(hudM.makeBasis(hudRight, hudUp, hudBack.copy(hudFwd).negate()));
         hudPos.set(me.pos.x * UNIT_PER_M, me.pos.y * UNIT_PER_M, me.pos.z * UNIT_PER_M);
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         hudCam.render(hudPos, hudQ, HUD_FOV_DEG, 0.5, GUN_HUD_BORE_Y);
         world = hudCam.image;
       }

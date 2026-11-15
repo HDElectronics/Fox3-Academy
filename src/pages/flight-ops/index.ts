@@ -822,6 +822,7 @@ const factory: PageFactory = (): Page => {
       sc?.update(s);
       if (hudCam && sc) {
         sc.cockpitPose(s, hudPos, hudQ);
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         hudCam.render(hudPos, hudQ, HUD_VFOV_DEG, 0.5, hudBoresight(s));
       }
       hud.draw(s, hudCam?.image ?? null);

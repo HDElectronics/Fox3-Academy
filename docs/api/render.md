@@ -424,10 +424,16 @@ camera's view offset, exact at any bank.
 
 ```ts
 const hudCam = new ForwardView(stage, { width: 224, height: 168, near: 0.0005, hidden: () => scene.hudHidden() });
+hudCam.fitTo(hudCanvas);                                    // picture shape = the glass it is drawn on
 hudCam.render(eyePos, quaternion, vFovDeg, boreX, boreY);   // scene units; camera looks down its −z
 hud.draw(state, hudCam.image);
 hudCam.dispose();
 ```
+
+HUD displays stretch `image` over their whole canvas, so the picture must have the canvas's shape or the world
+behind the symbology is distorted. `fitTo(el)` (no-op while `el` has no size) and `setAspect(width / height)`
+reshape the render target at about the same pixel count (`pictureSize(area, aspect)`, held to 1:4 .. 4:1); `width`
+and `height` give the current size. Every HUD page calls `fitTo(hudCanvas)` before `render`.
 
 | HUD | Pose | Field of view | Boresight | Hidden |
 |---|---|---|---|---|

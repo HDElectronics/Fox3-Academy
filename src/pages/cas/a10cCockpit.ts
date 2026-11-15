@@ -506,6 +506,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (onTad) tad.draw(tadView()); else msg.draw(msgView());
       if (hudCam && ac.alive) {
         const aspect = Math.max(0.2, hudCanvas.clientWidth / Math.max(1, hudCanvas.clientHeight));
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         _pos.set(ac.pos.x * UNIT_PER_M, ac.pos.y * UNIT_PER_M, ac.pos.z * UNIT_PER_M);
         hudCam.render(_pos, orientationQuaternion(ac.heading, ac.pitch, ac.roll, _q), vFovDeg(HUD_FOV, aspect), 0.5, HUD_BORE);
       }
