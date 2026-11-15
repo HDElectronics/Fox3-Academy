@@ -1,13 +1,14 @@
 /**
- * Soft contact shadows under ground units: one instanced draw call of ground-aligned ellipses, a little longer
- * than the vehicle and pushed away from the sun, plus a darker scorch under wrecks. They seat the vehicles on the
- * terrain in the 3D view and keep them separable from the ground in the Shkval TV and pod pictures.
- * Authored in metres (add under the attack root, scaled 0.001). Drawing choices only.
+ * Soft contact shadows: one instanced draw call of ground-aligned ellipses. Under ground units (`sync`) they are a
+ * little longer than the vehicle and pushed away from the sun, with a darker scorch under wrecks, which seats the
+ * vehicles on the terrain in the 3D view and keeps them separable from the ground in the Shkval TV and pod pictures.
+ * `put` places any blob (the flight-ops jet near the runway). Authored in metres (add under a 0.001-scaled root).
+ * Drawing choices only.
  */
 import { CircleGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, Quaternion, ShaderMaterial, Vector3 } from 'three';
-import type { GroundUnit } from '../../sim/types';
-import { GROUND_UNIT_SIZE } from '../../sim/ground';
-import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from '../shared';
+import type { GroundUnit } from '../sim/types';
+import { GROUND_UNIT_SIZE } from '../sim/ground';
+import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
 
 /** Height above the ground (m): log depth ignores polygon offset, so the disc floats just clear of the surface. */
 export const SHADOW_LIFT_M = 0.35;
@@ -69,7 +70,7 @@ export class ContactShadows extends InstancedMesh<CircleGeometry, ShaderMaterial
     super(geometry, material, capacity);
     this.alphas = new Float32Array(capacity);
     geometry.setAttribute('aAlpha', new InstancedBufferAttribute(this.alphas, 1));
-    this.name = 'attack-contact-shadows';
+    this.name = 'contact-shadows';
     this.renderOrder = ORDER.shadows;
     this.frustumCulled = false;
     this.count = 0;
@@ -81,14 +82,24 @@ export class ContactShadows extends InstancedMesh<CircleGeometry, ShaderMaterial
     for (const u of units) {
       if (n >= this.alphas.length) break;
       const sh = contactShadow(u, sun);
-      this.p.set(u.pos.x + sh.dx, u.pos.y + SHADOW_LIFT_M, u.pos.z + sh.dz);
-      this.q.setFromAxisAngle(this.yAxis, -u.heading);
-      this.s.set(sh.halfWidth, 1, sh.halfLength);
-      this.setMatrixAt(n, this.m.compose(this.p, this.q, this.s));
-      this.alphas[n] = sh.alpha;
-      n++;
+      this.put(n++, u.pos.x + sh.dx, u.pos.y + SHADOW_LIFT_M, u.pos.z + sh.dz, u.heading, sh.halfWidth, sh.halfLength, sh.alpha);
     }
-    this.count = n;
+    this.show(n);
+  }
+
+  /** Place blob `i` (metres; heading clockwise from north; half-sizes across and along it). Call `show(n)` after. */
+  put(i: number, x: number, y: number, z: number, heading: number, halfWidth: number, halfLength: number, alpha: number): void {
+    if (i < 0 || i >= this.alphas.length) return;
+    this.p.set(x, y, z);
+    this.q.setFromAxisAngle(this.yAxis, -heading);
+    this.s.set(halfWidth, 1, halfLength);
+    this.setMatrixAt(i, this.m.compose(this.p, this.q, this.s));
+    this.alphas[i] = alpha;
+  }
+
+  /** Draw the first `n` blobs. */
+  show(n: number): void {
+    this.count = Math.max(0, Math.min(n, this.alphas.length));
     this.instanceMatrix.needsUpdate = true;
     this.geometry.getAttribute('aAlpha').needsUpdate = true;
   }

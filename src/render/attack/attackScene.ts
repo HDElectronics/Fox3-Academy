@@ -24,7 +24,7 @@ import { terrainHook } from './terrainHook';
 import { AssetVisual } from '../assets';
 import { sideColor } from '../palette';
 import { MarkLayer } from './marks';
-import { ContactShadows } from './contactShadows';
+import { ContactShadows } from '../contactShadows';
 
 export interface AttackLayers {
   /** Laser line jet → aim point while ЛД is on. */

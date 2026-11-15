@@ -632,6 +632,11 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
 
 ## Low-level pieces (for page-specific symbology)
 
+- `ContactShadows(capacity = 96)` (`contactShadows.ts`): an InstancedMesh of soft ground-aligned ellipses in metres
+  (add under a 0.001-scaled root). `sync(groundUnits, sunDir)` for vehicles, or `put(i, x, y, z, heading,
+  halfWidth, halfLength, alpha)` then `show(n)` for anything else; `SHADOW_LIFT_M` (0.35 m) keeps it clear of the
+  surface under the log depth buffer. Flight ops uses one under the true-size jet on the airfield: along the sun ray,
+  fading out by about 110 m above the runway (hidden at sea, behind a tanker and in the boosted side and tower views).
 - `LineBatch(stage.shared, { capacity?, depthTest?, additive?, renderOrder? })`: one draw call of
   screen-space thick lines. `reset()`, `seg(ax..bz, r,g,b,a, r2,g2,b2,a2, widthPx, dashPx, flowPxPerS,
   fill)`, `line(aUnits, bUnits, style)`, `polyline(points, style, closed?)`, `commit()`. Positions in
