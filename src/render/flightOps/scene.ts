@@ -436,7 +436,7 @@ export class FlightOpsScene {
         const base = aimP.y;
         const yc = Math.max(base + (jet.y - base) / 2, base + 0.02);
         const spanZ = Math.abs(along) * 1.3 + (carrier ? 0.25 : 0.4), spanY = Math.max(0, jet.y - base) * 1.3 + 0.1;
-        const vf = (cam.fov * Math.PI) / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
+        const vf = (cam.getEffectiveFOV() * Math.PI) / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
         const dist = Math.max(launch ? 0.12 : carrier ? 0.3 : 0.4, spanZ / 2 / Math.tan(hf), spanY / 2 / Math.tan(vf)) + Math.max(0, across);
         want.set(cxw + rx * dist, yc + dist * 0.14, czw + rz * dist);
         look.set(cxw, yc, czw);

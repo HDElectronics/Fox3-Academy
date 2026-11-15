@@ -72,7 +72,8 @@ first with `isWebGLAvailable()` if you want your own fallback.
 | `maxDpr` | `2` | device pixel ratio cap |
 | `toneMapping` | `'aces'` | `'aces' \| 'agx' \| 'none'` (symbology and sky are not tone mapped, they keep token colours) |
 | `exposure` | `1` | |
-| `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer |
+| `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer. Narrowed on viewports wider than `maxViewAspect` (see "Wide viewports") |
+| `maxViewAspect` | `MAX_VIEW_ASPECT` (2.4) | widest viewport shape (width / height) that still widens the picture; `Infinity` turns the cap off |
 | `environment` | `true` | `false`, or `EnvironmentOptions` |
 | `labels` | `true` | CSS2D label overlay |
 | `autoPause` | `true` | while the container is scrolled out of view (IntersectionObserver): `true` pauses the **whole loop, including your sim step**; `'render'` keeps every `onFrame` subscriber running (sim, views, camera) and skips only the drawing, so a fight goes on while the user scrolls to the controls; `false` never pauses. **Sim pages whose fight must continue offscreen pass `autoPause: 'render'`.** |
@@ -93,7 +94,9 @@ first with `isWebGLAvailable()` if you want your own fallback.
 | `isOffscreen` | true while scrolled out of view (only tracked when `autoPause` is on) |
 | `pause()`, `resume()`, `paused`, `running`, `elapsed` | pause stops the RAF loop. While paused, `requestRender()` renders on demand and only runs subscribers registered with `always: true` (the kit's own), with `dt = 0`. |
 | `requestRender()`, `renderOnce()` | |
-| `pxPerUnit(distanceUnits)` | CSS px per km at that distance |
+| `viewFov` | vertical field of view on screen (deg): `camera.fov` narrowed by the wide-viewport zoom. **Use it (or `camera.getEffectiveFOV()`), not `camera.fov`, for pixel maths and for fitting things in the view** |
+| `syncShared()` | refresh the viewport / pixel-scale uniforms now; the Stage also does it before every draw, so changing `camera.fov` needs no call |
+| `pxPerUnit(distanceUnits)` | CSS px per km at that distance (uses `viewFov`) |
 | `projectToClient(posUnits, outVec2) → boolean` | |
 | `rayFromClient(x, y) → Raycaster` | |
 | `clientToPlane(x, y, altitudeM = 0, out?) → Vector3 \| null` | sim metres where the pointer hits a horizontal plane (drag threats on a top-down map) |
@@ -104,6 +107,32 @@ first with `isWebGLAvailable()` if you want your own fallback.
 The Stage also resizes when the device pixel ratio changes without a size change (window dragged to
 another screen). WebGL context loss: the loop pauses and a status message shows ("3D view paused … Restoring…");
 on restore it resizes and resumes by itself.
+
+### Wide viewports (`viewFov.ts`)
+
+A perspective camera keeps its vertical field of view, so a wider viewport sees more to the sides; on a 3.6 : 1
+view (a 2560 × 1080 window) a 50° vertical field is 119° across and the picture stretches toward the left and
+right edges. Above `maxViewAspect` the Stage sets `camera.zoom = wideViewZoom(aspect)` (`aspect / maxViewAspect`),
+which holds the horizontal field at its `maxViewAspect` value and narrows the vertical field instead. The zoom
+depends on the aspect only, so it composes with any `camera.fov` a page or camera rig sets (Pattern & landing
+LSO zoom, HARM gallery 40°); the Stage puts it back before every draw if something replaced it.
+
+`MAX_VIEW_ASPECT = 2.4`: lab views are about 2.3 : 1 at 1440 × 900 and 2560 × 1440, so those pictures do not
+change; the horizontal field is capped near 96° with the default 50° (the field pilots already see at 1440 × 900).
+The lab layout also stops the 3D view growing past about 2.6 : 1 on ultra-wide windows (`docs/api/ui-kit.md`,
+`labLayout`), so the zoom is a small correction there and a guarantee everywhere else.
+
+| Helper | |
+|---|---|
+| `wideViewZoom(aspect, maxAspect = MAX_VIEW_ASPECT)` | the `camera.zoom` above (1 when not wider; bad input or `Infinity` → 1) |
+| `viewFovDeg(fovDeg, aspect, maxAspect?)` | vertical field on screen after that zoom |
+| `horizontalFovDeg(vFovDeg, aspect)` | horizontal field of a picture (inverse of `vFovDeg` in `forwardView.ts`) |
+
+Projection, picking (`rayFromClient`, `clientToPlane`, `projectToClient`), labels and frustum culling use the
+camera matrices and need nothing. Code that turns a field of view into pixels or a fitting distance reads
+`stage.viewFov` / `camera.getEffectiveFOV()`: `pxPerUnit`, the `uPxScale` uniform, `CameraRig.frame()`, the
+Pattern & landing side view, the missile-lab fits, the HARM top view and the Merge cockpit overlay sight do.
+The ATFLIR and JDAM pod views have their own renderer and apply `wideViewZoom` to their cameras the same way.
 
 ## Environment (`environment.ts`)
 
@@ -579,7 +608,7 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
   `VERT_PRELUDE` / `FRAG_PRELUDE` and end `main()` with `VERT_END` / `FRAG_END` (built-in three
   materials need nothing).
 - `ORDER` render-order bands, `toUnits`, `toMetres`, `mToUnits`, `orientationQuaternion(heading,
-  pitch, roll)` (+roll = right wing down), `headingQuaternion`, `pxPerUnitAt`, `boostedScale`,
+  pitch, roll)` (+roll = right wing down), `headingQuaternion`, `pxPerUnitAt` (pass `stage.viewFov`), `boostedScale`,
   `lerpAngle`, `readPalette()`, `sideColor(palette, side)`.
 
 ---
@@ -588,6 +617,8 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
 
 - **Metres in, km in the scene.** Kit APIs take sim metres; your own scene objects are km units.
 - **The container needs a height.** The Stage fills it; a 0-height container gives a 0-height canvas.
+- **`camera.fov` is not the field on screen.** On a viewport wider than `maxViewAspect` the Stage zooms the
+  camera; pixel maths and fits use `stage.viewFov` (or `camera.getEffectiveFOV()`). Do not set `camera.zoom`.
 - **Order in the frame:** sim (0) → views sync (100) → camera (200) → views late pass: scale boost,
   labels, symbology (300) → environment (400) → render. Register your sim step at the default priority.
 - **Pause vs time scale.** `stage.pause()` stops the loop (reduced motion); pausing the sim is your time

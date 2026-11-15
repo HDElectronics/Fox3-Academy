@@ -126,14 +126,14 @@ export class ShotScene {
     if (mode === 'top') {
       const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 8000);
       const cam = this.stage?.camera;
-      const fitH = cam ? span / 2 / Math.tan((cam.fov * Math.PI) / 360) : span * 1.1;
+      const fitH = cam ? span / 2 / Math.tan((cam.getEffectiveFOV() * Math.PI) / 360) : span * 1.1;
       rig.setMode('top', { focus: { x: (box.min.x + box.max.x) / 2, y: 0, z: (box.min.z + box.max.z) / 2 }, distance: fitH * 1.3 + box.max.y, instant });
       return;
     }
     if (mode === 'side' && this.stage) {
       // Fit the long, flat shot to the viewport width (frame() fits a sphere, which wastes a wide view).
       const cam = this.stage.camera;
-      const vf = (cam.fov * Math.PI) / 180;
+      const vf = (cam.getEffectiveFOV() * Math.PI) / 180;
       const hf = 2 * Math.atan(Math.tan(vf / 2) * Math.max(0.3, cam.aspect));
       // Tags hang to the right of every jet and marker, and they are fixed in pixels: keep about 130 px clear
       // beyond the target (the right edge) and a little behind the shooter, so a phone-wide view does not cut them.
@@ -152,7 +152,7 @@ export class ShotScene {
     // orbit: a closer fit than frame()'s bounding sphere, so the shot fills a wide viewport
     if (this.stage) {
       const cam = this.stage.camera;
-      const vf = (cam.fov * Math.PI) / 180;
+      const vf = (cam.getEffectiveFOV() * Math.PI) / 180;
       const hf = 2 * Math.atan(Math.tan(vf / 2) * Math.max(0.3, cam.aspect));
       const c = new Vector3().addVectors(box.min, box.max).multiplyScalar(0.5);
       let r = 4000;

@@ -4,6 +4,7 @@
  */
 export { Stage, FramePriority, disposeTree, isWebGLAvailable, WebGLUnavailableError } from './stage';
 export type { StageOptions, FrameFn, FrameOptions } from './stage';
+export { MAX_VIEW_ASPECT, wideViewZoom, viewFovDeg, horizontalFovDeg } from './viewFov';
 export { Environment } from './environment';
 export type { EnvironmentOptions, CloudOptions } from './environment';
 export { WorldView } from './worldView';

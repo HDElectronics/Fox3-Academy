@@ -617,7 +617,7 @@ const factory: PageFactory = (): Page => {
         const st2 = sightStyleFor(ac, locked, pick);
         hudBezel.setStatus(`${pic.style.name}${st2 && !st2.verified ? ' · not verified' : ''}`);
       }
-      if (cam === 'cockpit' && stage) { over.setFov(stage.camera.fov); over.draw(pic, acmPic); }
+      if (cam === 'cockpit' && stage) { over.setFov(stage.viewFov); over.draw(pic, acmPic); }
     }
 
     function frame(dt: number): void {
