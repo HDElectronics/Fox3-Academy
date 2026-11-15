@@ -273,6 +273,70 @@ export function isTextField(t: EventTarget | null): boolean {
 }
 
 const ACTIVATABLE = 'button, a[href], summary, input, select, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], [role="link"]';
+const ARROW_GROUP = '[role="radiogroup"], [role="tablist"]';
+
+// ---- pointer focus ------------------------------------------------------------------------------
+
+/**
+ * How focus reached the control under the keyboard, kept once for the whole document so every key map, every
+ * segmented() / tabs() group and the shell read the same answer (a page that mounts after the click still knows).
+ *   ctl   the control the user last pressed with a pointer, while focus stays inside it.
+ *   group the radio group or tab list the user entered with a pointer. It belongs to the group element, not to one
+ *         cap, so it survives a rebuild of the caps and focus moves between caps; it ends when focus leaves the group.
+ */
+const pointer: { ctl: Element | null; group: Element | null } = { ctl: null, group: null };
+/** Arrow-key groups that are not role=radiogroup / tablist (registered by trackArrowGroup). */
+const arrowGroups = new WeakSet<Element>();
+
+/** The radio group, tab list or registered arrow group around el. */
+function groupOf(el: Element | null): Element | null {
+  for (let n = el; n; n = n.parentElement) if (arrowGroups.has(n) || n.matches(ARROW_GROUP)) return n;
+  return null;
+}
+
+const onPointerDown = (ev: Event) => {
+  const t = asElement(ev.target);
+  pointer.ctl = t?.closest(ACTIVATABLE) ?? null;
+  pointer.group = groupOf(t);
+};
+const onFocusIn = (ev: Event) => {
+  const el = asElement(ev.target);
+  if (!el) return;
+  // Focus moved (a script, a key, a rebuilt cap): keep only the pointer state that still holds it.
+  if (pointer.ctl && !pointer.ctl.contains(el)) pointer.ctl = null;
+  if (pointer.group && !pointer.group.contains(el)) pointer.group = null;
+};
+const TRACKERS: [string, (ev: Event) => void][] = [['pointerdown', onPointerDown], ['focusin', onFocusIn]];
+let trackedDoc: EventTarget | null = null;
+
+/** Listen on the document once (capture phase, before any page handler). Safe to call often. */
+function trackPointerFocus(): void {
+  const doc = typeof document !== 'undefined' ? (document as unknown as EventTarget) : null;
+  if (!doc || doc === trackedDoc || typeof doc.addEventListener !== 'function') return;
+  if (trackedDoc) for (const [type, fn] of TRACKERS) trackedDoc.removeEventListener(type, fn, true);
+  trackedDoc = doc;
+  pointer.ctl = pointer.group = null;
+  for (const [type, fn] of TRACKERS) doc.addEventListener(type, fn, true);
+}
+trackPointerFocus();
+
+/** True when el (or the control around it) has focus because the user pressed it, or its group, with a pointer. */
+export function pressedByPointer(el: Element | null): boolean {
+  if (!el) return false;
+  const ctl = el.closest(ACTIVATABLE) ?? el;
+  return (!!pointer.ctl && pointer.ctl === ctl) || (!!pointer.group && pointer.group.contains(el));
+}
+
+/** True when the user entered this radio group, tab list or registered arrow group with a pointer. */
+export function enteredByPointer(group: Element): boolean {
+  return pointer.group === group;
+}
+
+/** Treat root as an arrow-key group (role=radiogroup and role=tablist elements already are). */
+export function trackArrowGroup(root: Element): void {
+  arrowGroups.add(root);
+  trackPointerFocus();
+}
 
 /**
  * Would the focused control use this key itself? Enter/Space activate a control the user reached
@@ -280,14 +344,16 @@ const ACTIVATABLE = 'button, a[href], summary, input, select, [role="button"], [
  * press Enter to designate). Arrows belong to sliders and menus; also to radio groups, tab lists and selects,
  * except one the user just clicked (pick the Chase camera or a threat, then the arrows still fly).
  */
-function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | null): boolean {
+function consumedByControl(el: Element, e: KeyboardEvent): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
   if (ACTIVATE_CODES.has(e.code)) {
     const ctl = el.closest(ACTIVATABLE);
-    return !!ctl && ctl !== pointerCtl;
+    return !!ctl && !pressedByPointer(ctl);
   }
   if (NAV_CODES.has(e.code)) {
-    if (el.closest('[role="radiogroup"], [role="tablist"], select')) return !pointerCtl || !pointerCtl.contains(el);
+    const group = groupOf(el);
+    if (group) return !enteredByPointer(group);
+    if (el.closest('select')) return !pressedByPointer(el);
     return !!el.closest('input[type="range"], [role="slider"], [role="listbox"], [role="menu"]');
   }
   return false;
@@ -329,13 +395,7 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
   }
   const held = new Set<string>();
   const active = new Map<string, KeyBinding>();
-  // The control the user last clicked (focus by pointer). Cleared when focus moves elsewhere.
-  let pointerCtl: Element | null = null;
-  const onPointer = (ev: Event) => { pointerCtl = asElement(ev.target)?.closest(ACTIVATABLE) ?? null; };
-  const onFocusIn = (ev: Event) => {
-    const el = asElement(ev.target);
-    if (pointerCtl && (!el || !pointerCtl.contains(el))) pointerCtl = null;
-  };
+  trackPointerFocus();
 
   const onDown = (ev: Event) => {
     const e = ev as KeyboardEvent;
@@ -354,8 +414,8 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
       if (!best.b.inModal && el.closest('[aria-modal="true"]')) return;
       // A select the user just picked from with the mouse is not being typed into: page keys (Space to start,
       // the flight keys) work again, instead of reopening it or stepping its options.
-      if (!best.b.inInputs && isTextField(el) && !(el.tagName === 'SELECT' && el === pointerCtl)) return;
-      if (consumedByControl(el, e, pointerCtl)) return;
+      if (!best.b.inInputs && isTextField(el) && !(el.tagName === 'SELECT' && pressedByPointer(el))) return;
+      if (consumedByControl(el, e)) return;
     }
     if (best.b.preventDefault !== false) e.preventDefault();
     if (e.repeat && !best.b.repeat) return;
@@ -384,19 +444,14 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
   target.addEventListener('keydown', onDown);
   target.addEventListener('keyup', onUp);
   const win: EventTarget | null = typeof window !== 'undefined' ? window : null;
-  const doc: EventTarget | null = typeof document !== 'undefined' ? document : null;
   win?.addEventListener('blur', releaseAll);
-  doc?.addEventListener('pointerdown', onPointer, true);
-  doc?.addEventListener('focusin', onFocusIn, true);
   liveMaps.add(binds);
   return () => {
     target.removeEventListener('keydown', onDown);
     target.removeEventListener('keyup', onUp);
     win?.removeEventListener('blur', releaseAll);
-    doc?.removeEventListener('pointerdown', onPointer, true);
-    doc?.removeEventListener('focusin', onFocusIn, true);
     liveMaps.delete(binds);
-    held.clear(); active.clear(); pointerCtl = null;
+    held.clear(); active.clear();
   };
 }
 

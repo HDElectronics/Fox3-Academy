@@ -230,6 +230,13 @@ const unbind = bindKeys({
   sliders and menus, and inside radio groups, tab lists and selects reached by keyboard. A segment, tab
   or select the user just **clicked** gives a bound arrow key to the page ("click the Chase camera, then the
   arrows still fly"); `pageBinds(e)` tells `segmented` and `tabs` whether a live map binds the key.
+- **Pointer focus is one document-wide state** (keys.ts, capture listeners on the document), read by every key map,
+  by `segmented` / `tabs` and by the shell, so a page that mounts after the click still knows. It holds the control
+  the user last pressed with a pointer (while focus stays in it) and the radio group or tab list they entered with a
+  pointer. The group state belongs to the group element: it survives `setOptions` rebuilding the caps and focus
+  moves between caps (End on a clicked segment, then Left still flies), and ends when focus leaves the group.
+  `pressedByPointer(el)` and `enteredByPointer(group)` read it; `trackArrowGroup(root)` makes a custom arrow-key
+  group (not `role=radiogroup` / `tablist`) behave the same way.
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events
   that are already `defaultPrevented`. Keep one map per page.
 

@@ -161,6 +161,7 @@ describe('bindKeys', () => {
     // A minimal DOM: a radio segment inside a radiogroup, a slider, and the document bindKeys watches for clicks.
     class El extends EventTarget {
       constructor(readonly tagName: string, readonly attrs: Record<string, string>, readonly parent: El | null = null) { super(); }
+      get parentElement(): El | null { return this.parent; }
       matches(sel: string): boolean {
         return sel.split(',').some(s => {
           const m = /^\s*([a-z]*)((?:\[[^\]]+\])*)\s*$/.exec(s);

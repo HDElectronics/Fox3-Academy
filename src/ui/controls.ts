@@ -5,7 +5,7 @@
  * Styles: src/styles/components.css (.ui-btn, .ui-seg, .ui-slider, ...).
  */
 import { h, append, setText, setAttr, cx, type Child } from './dom';
-import { kbd, ariaShortcut, pageBinds } from './keys';
+import { kbd, ariaShortcut, enteredByPointer, pageBinds, trackArrowGroup } from './keys';
 import { layoutSliderZones, type SliderZones } from './sliderZones';
 export type { SliderZoneBand, SliderZoneMark, SliderZones } from './sliderZones';
 
@@ -36,19 +36,12 @@ function keyChild(keys: string | undefined): Child {
 /**
  * Should a radio group or tab list leave this arrow key to the page? Yes when the user clicked into it (focus came
  * with a pointer) and a page key map binds the key: click the Chase camera or the AB throttle segment, and the
- * arrow keys keep flying the jet. A keyboard user who tabbed in keeps arrow navigation.
+ * arrow keys keep flying the jet. A keyboard user who tabbed in keeps arrow navigation. The pointer state is the
+ * group's, kept in keys.ts where bindKeys reads it too, so a rebuild of the caps or a move between caps keeps it.
  */
 function arrowsToPage(root: HTMLElement): (e: KeyboardEvent) => boolean {
-  let byPointer = false, pressed = false;
-  root.addEventListener('pointerdown', () => { pressed = true; byPointer = true; });
-  root.addEventListener('focusin', e => {
-    const from = e.relatedTarget as Node | null;
-    if (from && root.contains(from)) return;   // moving between segments
-    byPointer = pressed;                        // clicked in, or reached with Tab / a script
-    pressed = false;
-  });
-  root.addEventListener('focusout', () => { pressed = false; });
-  return e => byPointer && pageBinds(e);
+  trackArrowGroup(root);
+  return e => enteredByPointer(root) && pageBinds(e);
 }
 
 // ---- button ------------------------------------------------------------------------------------
