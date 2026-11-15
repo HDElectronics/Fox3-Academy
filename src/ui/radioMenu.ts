@@ -285,14 +285,6 @@ export const RADIO_MENU_CHORDS: readonly string[] = [
 ];
 
 /**
- * A KeyMap to spread into the page's single bindKeys map. Each chord goes to menu.handleKey(); when
- * the menu does not consume it (closed, or a chord it ignores) the page's own handler for that chord
- * in `fallback` runs instead, and the browser default is left alone (F5 still reloads when closed).
- *   bindKeys({ ...radioMenuKeys(menu, { fallback: { '1': () => pickWeapon(1) } }), 'RAlt+I': ... })
- * Do not bind these chords elsewhere in the same map: put them in `fallback`.
- * `enabled` (default always) turns the whole set off, e.g. while a lesson hides the radio.
- */
-/**
  * The page's own key map merged with radioMenuKeys(): a page chord the menu also uses (a digit, an F-key, Esc) moves
  * to the menu's fallback, so it still works while the menu is closed and the menu owns it while open. Chords given
  * with alternatives ('7 / 8') pass through unchanged. `opts.fallback` wins over a page key on the same chord.
@@ -310,6 +302,14 @@ export function withRadioMenuKeys(menu: Pick<RadioMenuHandle, 'handleKey'>, keys
   return { ...radioMenuKeys(menu, { ...opts, fallback: { ...moved, ...opts.fallback } }), ...own };
 }
 
+/**
+ * A KeyMap to spread into the page's single bindKeys map. Each chord goes to menu.handleKey(); when
+ * the menu does not consume it (closed, or a chord it ignores) the page's own handler for that chord
+ * in `fallback` runs instead, and the browser default is left alone (F5 still reloads when closed).
+ *   bindKeys({ ...radioMenuKeys(menu, { fallback: { '1': () => pickWeapon(1) } }), 'RAlt+I': ... })
+ * Do not bind these chords elsewhere in the same map: put them in `fallback`.
+ * `enabled` (default always) turns the whole set off, e.g. while a lesson hides the radio.
+ */
 export function radioMenuKeys(menu: Pick<RadioMenuHandle, 'handleKey'>, opts: { fallback?: Record<string, KeyHandler>; enabled?: () => boolean } = {}): KeyMap {
   const fallback = new Map<string, KeyHandler>();
   for (const [k, fn] of Object.entries(opts.fallback ?? {})) {
