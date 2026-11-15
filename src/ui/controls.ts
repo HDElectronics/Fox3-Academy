@@ -36,9 +36,9 @@ function keyChild(keys: string | undefined): Child {
 /**
  * Should a radio group or tab list leave this arrow key to the page? Yes when the user clicked into it (focus came
  * with a pointer) and a page key map binds the key: click the Chase camera or the AB throttle segment, and the
- * arrow keys keep flying the jet. A keyboard user who tabbed in keeps arrow navigation.
+ * arrow keys keep flying the jet. A keyboard user who tabbed in keeps arrow navigation. Shared with lessonPicker.
  */
-function arrowsToPage(root: HTMLElement): (e: KeyboardEvent) => boolean {
+export function arrowsToPage(root: HTMLElement): (e: KeyboardEvent) => boolean {
   let byPointer = false, pressed = false;
   root.addEventListener('pointerdown', () => { pressed = true; byPointer = true; });
   root.addEventListener('focusin', e => {

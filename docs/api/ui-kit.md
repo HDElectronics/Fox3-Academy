@@ -6,7 +6,7 @@ Cockpit controls, panels and layouts for every page. Plain DOM factories: each r
 
 ```ts
 import { labLayout, consolePanel, disclosure, screenBezel, segmented, slider, button, coachBox,
-         checklist, eventLog, readouts, callout, bindKeys, kbd, cleanup } from '../../ui';
+         checklist, eventLog, readouts, callout, bindKeys, kbd, cleanup, lessonPicker } from '../../ui';
 ```
 
 Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=kit|lab|doc`
@@ -53,6 +53,64 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
 | `group({ label, children, hint?, inline?, id?, class? })` | `HTMLFieldSetElement` | Fieldset with a placard legend. |
 | `row(...children)` | `HTMLDivElement` | Wrapping flex row; top-aligns when it holds labelled fields. |
 | `mobileAction(source, label?)` | `{ el, destroy() }` | Compact phone action that mirrors a source button's label, disabled/hidden/lit state and clicks it. Put `el` in `labLayout.mobileActions`; call `destroy()` in unmount. |
+
+## Lesson picker (`lessonPicker.ts`)
+
+### `lessonPicker<T>({ id, topic, noun?, items, value, href, free?, isDone?, header?, publish? })`
+→ `{ el, status, value, set(id | null), refresh(), setItems(items), destroy() }`
+
+The lessons of one page, drawn like the lesson path in the top chrome one level down: a numbered chip per lesson
+(lit when done, the open lesson a pressed cap), the short label beside it, the position (`3/8`) in a small glass
+window. The chips flow and wrap like text, so eight or nine lessons take two or three 26 px rows of the side console.
+
+- **Every lesson is a link.** `href(id)` gives the URL (build it with `lessonHref`); choosing a lesson changes the
+  page's own query parameter (`?lesson=`, `?ex=`, `?drill=`, `?start=`), so Back, Forward and shared links work. The
+  picker never restarts anything: the router hands the new query to the page's `update(params)` (`src/app/page.ts`),
+  which applies it in place (or declines and is remounted), then calls `set(id)`. A debrief's Next goes the same way:
+  `ctx.navigate(lessonHref(...).slice(2))`.
+- `items: { id, label, title?, done?, disabled?, note?, group? }[]`. `label` is the short name beside the number,
+  `title` the full lesson name (tooltip). `disabled` lessons stay listed and numbered but cannot be opened (say why in
+  `note`, e.g. "not on this jet"; screen readers hear it). `group: true` draws a hairline divider before the item
+  (SAM sites after the missile drills). `note` also carries scores ("best 86").
+- **Done** comes from the progress store: `isDone(id)` is read on create and on `refresh()`. Call `refresh()` from
+  an `app.subscribe` on `'progress'`, so a lesson lights the moment it is saved. Use the keys the page already writes.
+- **Free mode is not a lesson.** `free: { label, href, title? }` adds a quieter dotted link after a dashed divider,
+  outside the numbering. Point it at the Practice link (`lab=free`), so the top bar shows Practice. `value: null`
+  shows free mode open: no lesson pressed, the free link pressed, and the readout says `DONE 3/8`. The numbered
+  lessons stay listed, which is the way back.
+- **Header.** By default a row with the topic ("CAS lessons") and the readout. In a console panel pass `header: false`
+  and put `status` in the panel's title row: `consolePanel({ title: 'Lesson', actions: picker.status, ... })`.
+- **Keyboard.** One Tab stop (roving tabindex on the open lesson); arrows, Home and End move focus and skip disabled
+  lessons; Enter opens. As with `segmented`, after a pointer click the arrow keys go to the page when a live
+  `bindKeys` map binds them (`arrowsToPage`), so "pick a lesson, then fly with the arrows" works.
+- **Accessibility.** A `nav` landmark ("CAS lessons") with an ordered list of links; the open lesson has
+  `aria-current="step"`; done and notes are text (", done"), not colour only; the readout has a spoken form
+  ("Lesson 3 of 8, 2 done").
+- **Chrome.** Unless `publish: false`, the picker publishes `{ topic, noun, index, total, done, free }` for the shell,
+  which prints it beside the lesson-path position ("LESSON 8/10 · HARM 3/8"). `watchLessonPosition(fn)`,
+  `lessonPosition()` and `clearLessonPosition()` are that hook; the shell imports only this module, never page code.
+  **Call `destroy()` in unmount.**
+
+Pure rules, exported for tests and pages: `lessonHref(route, base, set, drop?)` (drops `ac`, `shot`, `t`, `progress`
+and `drop`; `null` in `set` deletes), `changedParams(a, b)`, `onlyChanged(prev, next, keys)` (what a page's
+`update` checks before applying in place), `pickerPosition(items, value)`, `rovingTarget(disabled, from, key)`,
+`positionText(pos)`.
+
+```ts
+let urlParams = new URLSearchParams(ctx.params);
+const link = (id: LessonId) => lessonHref('cas', urlParams, { lesson: id });
+const picker = lessonPicker<LessonId>({ id: 'cas-lessons', topic: 'CAS', header: false, value: lesson, href: link,
+  items: ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+  isDone: id => ctx.app.getProgress(progressKey(id)) === true });
+bag.add(() => picker.destroy());
+bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+applyParams = next => {             // the page's update(params)
+  if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;   // anything else: remount
+  urlParams = new URLSearchParams(next);
+  lesson = parseLesson(next.get('lesson')); restart();                    // restart() calls picker.set(lesson)
+  return true;
+};
+```
 
 ## Panels (`panels.ts`)
 

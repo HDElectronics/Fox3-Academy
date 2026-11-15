@@ -12,3 +12,4 @@ export * from './layout';
 export * from './mobileAction';
 export * from './radioMenu';
 export * from './radioLog';
+export * from './lessonPicker';
