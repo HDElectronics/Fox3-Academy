@@ -160,7 +160,9 @@ Owned by the render agent; pages read the real code. It must provide at least:
 | `#/reference` | reference | Bindings/HOTAS, procedures, missile and aircraft tables, glossary, sources. |
 
 Page contract: `src/app/page.ts`. Default-export a factory returning `{ mount(ctx), unmount() }`.
-The router remounts the page when the jet or units change. Read `ctx.app.aircraft`, `ctx.app.spec`,
+The router remounts the page when the jet or units change. A query change on the same route (a lesson picker
+link, Next in a debrief, Back) goes to the optional `update(params)` first: return true when the page applied it
+in place, false to be remounted. `ctx.navigate(path, { replace: true })` rewrites the current history entry. Read `ctx.app.aircraft`, `ctx.app.spec`,
 `ctx.app.units`. Save progress with `ctx.app.setProgress('<page>:<aircraft>:<key>', value)`.
 
 ## Design system
