@@ -64,7 +64,8 @@ describe('atmosphere shading', () => {
 
     const g = compileFake(ground), t = compileFake(terrain);
     for (const s of [g, t]) {
-      expect(s.vertexShader).toContain('vWorldPos = (modelMatrix');
+      expect(s.vertexShader).toContain('vWorldPos = (modelMatrix * wLocal)');
+      expect(s.vertexShader).toContain('instanceMatrix * wLocal');
       expect(s.fragmentShader).toContain('atmoApply(gl_FragColor.rgb, cameraPosition, vWorldPos)');
       expect(s.fragmentShader).toContain('wCloudShade(vWorldPos)');
       expect(s.uniforms.uSunDir).toBe(atmosphere.uSunDir);

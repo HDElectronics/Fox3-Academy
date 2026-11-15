@@ -201,7 +201,7 @@ vec3 wLand(vec2 p, float px, float slopeDeg, float hN, float openG) {
       lOpen = mix(field, lOpen, lFar);
     }
     float dry = smoothstep(0.6, 0.78, region + hN * 0.12 + slopeDeg * 0.006) * (1.0 - openG);
-    if (dry > 0.0) lOpen = mix(lOpen, mix(uScrub, uSoil, 0.35 * wNoise(p * 2.3)) * (0.9 + 0.2 * wNoise(p * 9.0)), dry * 0.75);
+    if (dry > 0.0) lOpen = mix(lOpen, mix(uScrub, uFieldC, 0.4 * wNoise(p * 2.3)) * (0.9 + 0.2 * wNoise(p * 9.0)), dry * 0.55);
   }
   if (forest <= 0.001) return lOpen;
   // Woods: stands of lighter and darker trees, then crowns when the eye is close enough.
@@ -241,6 +241,15 @@ export interface SurfacePatch {
 
 export const MAX_PADS = 8;
 
+/** World position of the vertex (km), instance transform included (props are InstancedMeshes). */
+const WORLD_POS = /* glsl */ `{
+  vec4 wLocal = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+  wLocal = instanceMatrix * wLocal;
+  #endif
+  vWorldPos = (modelMatrix * wLocal).xyz;
+}`;
+
 /**
  * Patch a MeshStandardMaterial into a world surface: procedural albedo, water roughness and ripples, fine normal
  * detail, cloud shadows, the km grid (ground) and the shared aerial perspective. Lighting stays three.js
@@ -264,7 +273,7 @@ varying vec3 vTerrainN;
 varying float vTerrainH;
 #endif
 ` + shader.vertexShader.replace('#include <begin_vertex>', /* glsl */ `#include <begin_vertex>
-vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+${WORLD_POS}
 #ifdef W_TERRAIN
 vTerrainN = normal;
 vTerrainH = position.y;
@@ -294,7 +303,8 @@ vec2 wNoiseGrad(vec2 p, float f) {
 ` + shader.fragmentShader
       .replace('#include <color_fragment>', /* glsl */ `#include <color_fragment>
 vec2 wP = vWorldPos.xz;
-float wPx = max(length(fwidth(wP)), 1e-6);
+// Pixel footprint (km): between the two screen axes, so grazing views low over the ground keep their detail.
+float wPx = max(mix(sqrt(length(dFdx(wP)) * length(dFdy(wP))), length(fwidth(wP)), 0.3), 1e-6);
 float wWater = 0.0;
 vec2 wBump = vec2(0.0);
 #ifdef W_GROUND
@@ -329,8 +339,9 @@ vec2 wBump = vec2(0.0);
   wAlb = mix(wAlb, uRock * (0.82 + 0.36 * wNoise(wP * 55.0)), smoothstep(22.0, 34.0, wSlope));
   #ifdef W_DETAIL
   float wNear = 1.0 - smoothstep(0.0015, 0.008, wPx);
-  wAlb *= 1.0 + (wNoise(wP * 400.0) - 0.5) * 0.16 * wNear + (wNoise(wP * 55.0) - 0.5) * 0.14 * (1.0 - smoothstep(0.006, 0.03, wPx));
-  wBump = (wNoiseGrad(wP, 26.0) * 0.06 * (1.0 - smoothstep(0.01, 0.05, wPx)) + wNoiseGrad(wP, 140.0) * 0.012 * wNear);
+  wAlb *= 1.0 + (wNoise(wP * 400.0) - 0.5) * 0.18 * wNear + (wNoise(wP * 55.0) - 0.5) * 0.2 * (1.0 - smoothstep(0.006, 0.03, wPx))
+    + (wNoise(wP * 16.0) - 0.5) * 0.14 * (1.0 - smoothstep(0.02, 0.08, wPx));
+  wBump = (wNoiseGrad(wP, 26.0) * 0.1 * (1.0 - smoothstep(0.01, 0.05, wPx)) + wNoiseGrad(wP, 140.0) * 0.02 * wNear);
   #endif
   diffuseColor.rgb = wAlb;
 }
@@ -371,7 +382,7 @@ export function patchHaze(material: MeshStandardMaterial, atmosphere: Atmosphere
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, atmosphere);
     shader.vertexShader = 'varying vec3 vWorldPos;\n' + shader.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\nvWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      `#include <begin_vertex>\n${WORLD_POS}`);
     shader.fragmentShader = `varying vec3 vWorldPos;\n${W_ATMOS}\n` + shader.fragmentShader.replace('#include <opaque_fragment>',
       '#include <opaque_fragment>\ngl_FragColor.rgb = atmoApply(gl_FragColor.rgb, cameraPosition, vWorldPos);');
   };
