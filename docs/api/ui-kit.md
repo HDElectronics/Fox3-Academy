@@ -100,6 +100,10 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
   `clamp(210px, 31vh, 320px)`), plus optional data blocks. For readouts in the strip wrap them in
   `h('div', { class: 'ui-strip-block' }, placard('Own ship'), readouts(...).el)` rather than a nested
   console panel. Do not give strip bezels a `footer` (their glass height is computed without one).
+  **A strip bezel with an `aspect` keeps it**: on desktop it grows no wider than its glass (`max-width:
+  max-content`, so a page `flex-grow` only adds room around it), and its content (canvas or `.ui-fill`) is
+  letterboxed to the declared aspect whatever shape the glass ends up (the glass is a size container). A TV, pod or
+  HUD picture drawn over the whole canvas is therefore never stretched; give spare strip width to data blocks.
 - `header`: `{ title, lede?, meta?, actions? }` rendered compact (title in Russo One).
 - `overlay('tl'|'tr'|'bl'|'br', ...)`: controls over a viewport corner (camera selector, layer chips).
 - Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`.

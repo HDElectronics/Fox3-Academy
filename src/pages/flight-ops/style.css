@@ -98,8 +98,9 @@
 /* ---- carrier Case I (#26) ---- */
 .fo-call.is-waveoff { color: var(--warning); }
 .fo-lab .ui-lab__strip > .ui-bezel.fo-ball { flex: 0 1 118px; min-width: 96px; }
-/* At sea the landing aid joins the strip: a squarer HUD and a narrower configuration block keep it on one row. */
-@media (min-width: 901px) { .fo-lab--sea .ui-lab__strip > .ui-bezel.fo-hud > .ui-bezel__glass.has-aspect { aspect-ratio: 1 / 1 !important; } }
+/* At sea the landing aid joins the strip: a squarer HUD and a narrower configuration block keep it on one row.
+   The HUD canvas follows the square glass (--bezel-aspect) and the view through it follows the canvas (fitTo). */
+@media (min-width: 901px) { .fo-lab--sea .ui-lab__strip > .ui-bezel.fo-hud > .ui-bezel__glass.has-aspect { --bezel-aspect: 1 !important; aspect-ratio: 1 / 1 !important; } }
 .fo-lab--sea .ui-lab__strip > .fo-cfg { flex: 1 1 150px; min-width: 140px; }
 .fo-lso { display: flex; flex-direction: column; gap: 6px; }
 .fo-lso__latest {

@@ -44,10 +44,6 @@
 .cas-lab--a10c .ui-lab__strip > .ui-bezel.strk-hud { flex: 1 1 220px; }
 .ui-lab__strip > .ui-bezel.cas-mfcd { flex: 1 1 220px; }
 .cas-mfcd__canvas { cursor: crosshair; }
-.strk--tvbig .ui-lab__view > .cas-tgp {
-  position: absolute; inset: 44px 12px 12px 12px; z-index: 2; width: auto; height: auto;
-  max-width: calc(100% - 24px); margin: 0 auto; aspect-ratio: 1; max-height: calc(100% - 56px);
-}
 .cas-a10-pad { margin: 4px 0; }
 .cas-mfcd__pages { position: absolute; inset: 0; }
 .cas-mfcd__pages > canvas { position: absolute; inset: 0; }

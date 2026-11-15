@@ -657,6 +657,15 @@
   height: calc(var(--lab-strip-h) - 2 * var(--strip-pad) - 4px - 2 * var(--bezel-pad) - var(--bezel-head) - var(--bezel-gap));
 }
 .ui-lab__strip > .ui-bezel > .ui-bezel__glass:not(.has-aspect) { min-width: 260px; }
+/* A display with an aspect keeps it. Its bezel grows no wider than the glass (pages may still let it shrink), and
+   whatever shape the glass ends up (a page's flex rule, a long status, a crowded strip) the content is letterboxed
+   to the declared aspect: a TV or HUD picture is never stretched. */
+@media (min-width: 901px) { .ui-lab__strip > .ui-bezel:has(> .ui-bezel__glass.has-aspect) { max-width: max-content; } }
+.ui-lab__strip > .ui-bezel > .ui-bezel__glass.has-aspect { container-type: size; }
+.ui-lab__strip > .ui-bezel > .ui-bezel__glass.has-aspect > :not(.ui-bezel__corner) {
+  inset: 0; margin: auto;
+  width: min(100cqw, 100cqh * (var(--bezel-aspect))); height: min(100cqh, 100cqw / (var(--bezel-aspect)));
+}
 .ui-lab__strip > :not(.ui-bezel) { flex: 1 1 220px; min-width: 200px; overflow: auto; }
 /* A plain data block in the strip: placards + readouts straight on the panel paint. */
 .ui-strip-block { display: flex; flex-direction: column; gap: 6px; padding: 2px 6px; }
