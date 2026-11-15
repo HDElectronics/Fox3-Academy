@@ -325,9 +325,10 @@ const factory: PageFactory = (): Page => {
 
     /** Weapon release pressed (true) or let go (false), from RAlt+Space, R or the on-screen button. */
     function release(held: boolean): void {
+      // The lamp follows the button even when the avionics already let go (a launch clears releaseHeld).
+      releaseBtn.setLit(held);
       if (held === av.releaseHeld) return;
       const r = av.setRelease(held);
-      releaseBtn.setLit(held);
       if (r) act(r, 'Weapon release');
     }
 
