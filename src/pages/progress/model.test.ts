@@ -153,6 +153,10 @@ describe('path progress: one model for the Learn bar, the Learn home and Progres
       expect(all, id).toEqual((FIGHTER_ORDER as readonly string[]).includes(id) ? [...fromPath, 'sortie'] : fromPath);
     }
   });
+  it('names a one-lesson page the way the Learn bar and the home name it', () => {
+    for (const s of pathProgress('f15c', read()).steps.filter(x => x.total === 1)) expect(s.goals[0]!.label).toBe(s.link.label);
+    expect(jetProgress('su27', read({ 'radar:su27:done': true, 'tws:su27:done': true, 'missiles:su27:done': true })).next?.label).toBe('Defense');
+  });
   it('completes a step only when every goal on its page is done', () => {
     const hornet = pathProgress('fa18c', read({ 'flight-ops:fa18c:done': true }));
     const pattern = hornet.steps.find(s => s.link.path === 'flight-ops')!;

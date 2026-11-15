@@ -9,7 +9,7 @@ import { LESSON_ORDER as ATFLIR_ORDER, LESSONS as ATFLIR_LESSONS, progressKey as
 import { AIRCRAFT_ORDER, isFighter } from '../../data/aircraft';
 import type { AircraftId } from '../../data/types';
 import { FLIGHT_OPS } from '../../data/flightOps';
-import { isDone, type LessonRoute, type ProgressReader } from '../../app/learningProgress';
+import { isDone, type ProgressReader } from '../../app/learningProgress';
 import { flyLinkFor, lessonSteps, pathStatus, routeOf, type FlyLink, type LessonLink, type PathStatus } from '../../app/lessonPath';
 import { LESSONS, LESSON_ORDER, progressKey } from '../strike/lessons';
 import { lessonOrder, lessonsFor, progressKey as casProgressKey } from '../cas/lessons';
@@ -50,8 +50,8 @@ export interface JetProgress {
   next: ProgressGoal | null;
   scores: { label: string; value: string }[];
 }
-const LABELS: Record<Exclude<LessonRoute, 'reference'>, string> = { radar: 'Radar', tws: 'Track while scan', missiles: 'Missile lab',
-  defense: 'Missile defense', rwr: 'RWR trainer', merge: 'Merge & guns', sortie: 'BVR sortie' };
+/** The fighter sortie's goal label. A one-goal page's goal takes the step's own label (Radar, TWS...). */
+const SORTIE_LABEL = 'BVR sortie';
 
 /** Include aircraft selection in links; the router consumes it once before mounting the lesson. */
 export function progressHref(path: string, aircraft: AircraftId): string {
@@ -67,7 +67,7 @@ export function stepGoals(jet: AircraftId, link: LessonLink, get: ProgressReader
   switch (route) {
     case 'radar': case 'tws': case 'missiles': case 'defense': case 'rwr': case 'merge': {
       if (!isFighter(jet)) return [];
-      return [goal(route, LABELS[route], link.path, jet, isDone(route, jet, get))];
+      return [goal(route, link.label, link.path, jet, isDone(route, jet, get))];
     }
     case 'flight-ops': {
       if (!isFighter(jet)) return [];
@@ -129,7 +129,7 @@ export function jetProgress(id: AircraftId, get: ProgressReader): JetProgress {
   const goals = path.steps.flatMap(s => s.goals);
   const scores: JetProgress['scores'] = [];
   if (isFighter(id)) {
-    goals.push(goal('sortie', LABELS.sortie, 'sortie', id, path.fly.done));
+    goals.push(goal('sortie', SORTIE_LABEL, 'sortie', id, path.fly.done));
     const rwr = get(`rwr:${id}:best`);
     const sortie = get(`sortie:${id}:best`);
     if (typeof rwr === 'number' && Number.isFinite(rwr) && rwr >= 0) scores.push({ label: 'Best RWR run', value: `${Math.floor(rwr)} correct` });
