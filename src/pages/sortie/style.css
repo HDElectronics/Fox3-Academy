@@ -29,7 +29,7 @@
 }
 
 /* ---------------------------------------------------------------- lab tweaks (fly + debrief) */
-.sortie-lab { --lab-strip-h: clamp(220px, 31vh, 300px); }
+.sortie-lab { --sortie-strip-h: clamp(220px, 31vh, 300px); --lab-strip-h: var(--sortie-strip-h); }
 .sortie-lab .ui-lab__console { --log-h: 9.5em; }
 .sortie-lab .ui-lab__hud--tl { max-width: calc(70% - 12px); }
 .sortie-view { background: var(--sky-top); }
@@ -130,7 +130,9 @@
 .sortie-edge { margin: 2px 0 0; font-family: var(--font-body); font-size: var(--fs-s); line-height: 1.45; color: var(--btn-ink); }
 
 /* ---------------------------------------------------------------- debrief */
-.sortie-lab--debrief { --lab-strip-h: auto; }
+/* The debrief strip sizes to its timeline. auto is not a length, so the lab's width estimate gets the fly strip's
+   height instead: the ultra-wide cap stays valid and the lab keeps its width when the debrief opens. */
+.ui-lab.has-strip.sortie-lab--debrief { --lab-strip-h: auto; --lab-strip-est: calc(var(--sortie-strip-h) + var(--lab-gap)); }
 .sortie-lab--debrief .ui-lab__strip { overflow: visible; }
 .sortie-tl { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .sortie-tl__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

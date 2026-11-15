@@ -172,6 +172,8 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
   line their content up with the centred lab: the shell measures the mounted `.ui-lab` (`--chrome-inset`), and pages
   without a lab use the default lab's width.
 - Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`, `--lab-view-aspect`.
+  A `--lab-strip-h` that is not a length (the Sortie debrief's `auto`) must set `--lab-strip-est` to one as well,
+  or the ultra-wide cap is invalid and the lab jumps to full width (`src/styles/labStrip.test.ts` checks this).
 
 ### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocHeader?, id?, class? })`
 → `{ el, main, toc, links, go(id), destroy() }`
