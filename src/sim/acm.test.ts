@@ -181,6 +181,19 @@ describe('ACM acquisition', () => {
     expect(s.me.radar.mode).not.toBe('stt');
   });
 
+  it('a refused radar lock gives its ranges in the page units, not the jet default', () => {
+    // Viper BORE reaches 20 nm; a cold bandit at 34 km sits inside it but beyond the radar lock range.
+    const s = setup('f16c', 0, -3, 34000);
+    s.st.units = 'metric';
+    setAcmMode(s.w, s.me, s.st, 'acmbore');
+    run(s.w, s.me, s.st, 1);
+    expect(s.st.lockedId).toBeNull();
+    expect(s.st.msg).toMatch(/^Too far to lock: \d+ km, lock range \d+ km$/);
+    s.st.units = 'imperial';
+    run(s.w, s.me, s.st, 0.1);
+    expect(s.st.msg).toMatch(/^Too far to lock: \d+ nm, lock range \d+ nm$/);
+  });
+
   it('FC3 VS locks after its 1–3 s dwell (2 s), not before', () => {
     const s = setup('su27', 0, 20, 3000);
     setAcmMode(s.w, s.me, s.st, 'vs');

@@ -22,6 +22,7 @@ import { acmFor, type AcmArea, type AcmJet, type AcmModeId, type AcmModeSpec } f
 import { MISSILES } from '../data/missiles';
 import { aircraftAngles } from './aircraftFrame';
 import { irAcquisitionRange } from './launch';
+import { canLock } from './radar';
 import { R2D, aspectAngle, dirFrom } from './math';
 
 export type SeekerMode = 'caged' | 'slaved' | 'track';
@@ -61,6 +62,8 @@ export interface AcmState {
   seeker: SeekerState;
   /** Last reason a lock press or shot failed, in pilot words. */
   msg: string;
+  /** Units for the ranges in `msg` (the page's setting); the jet's own units when unset. */
+  units?: 'metric' | 'imperial';
 }
 
 export function newAcmState(type: string): AcmState | null {
@@ -147,7 +150,7 @@ export function setAcmMode(world: World, me: Aircraft, st: AcmState, id: AcmMode
 function lockOn(world: World, me: Aircraft, st: AcmState, spec: AcmModeSpec, tgt: Aircraft): boolean {
   if (spec.sensor === 'radar') {
     if (me.radar.mode === 'off') world.setRadarMode(me.id, 'rws');
-    if (!world.lock(me.id, tgt.id, 'aircraft')) { st.msg = world.canLock(me.id, tgt.id, 'aircraft').reason || 'No lock'; return false; }
+    if (!world.lock(me.id, tgt.id, 'aircraft')) { st.msg = canLock(world, me, tgt.id, 'aircraft', st.units).reason || 'No lock'; return false; }
   }
   st.lockedId = tgt.id;
   st.lockSensor = spec.sensor;

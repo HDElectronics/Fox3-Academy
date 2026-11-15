@@ -46,6 +46,8 @@ Gameplay-level ACM for the Merge page (issue #11); no change to `Aircraft` or `R
 - `AcmState.helmetLookId` is the look/designation target, separate from `candidateId` and `lockedId`. Merge
   supplies the drill bandit; standalone mode entry defaults to the nearest hostile if there is no live look
   target. HELMET acquisition still requires its area/range, but the look direction survives failed/lost locks.
+- `AcmState.units` (optional): the page's units for the ranges in a refused-lock `msg` ("Too far to lock: ...");
+  unset, the jet's own units apply. Merge sets it from the units switch.
 - `acmPressLock` (Enter; FC3 BORE / HELMET), `acmUnlock`, `toggleUncage` (cage / uncage).
 - Seeker: `caged` on the boresight, `slaved` to the lock inside the missile gimbal, `track` once it tracks. Tone
   `none` / `growl` (heat inside the field of view and IR acquisition range, `launch.irAcquisitionRange`) / `lock`

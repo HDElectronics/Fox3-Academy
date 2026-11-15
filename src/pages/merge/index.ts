@@ -352,6 +352,7 @@ const factory: PageFactory = (): Page => {
         log: (text, t) => { if (!dead) log.push(text, { t }); },
         finished: () => { if (!dead) finished(); },
       });
+      if (run.acm) run.acm.units = units;   // lock refusals ("Too far to lock: ...") in the page's units
       paused = false;
       locked = false; shoot = false;
       if (!IR_LESSONS.includes(lesson)) weapon = 'gun';
