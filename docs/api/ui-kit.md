@@ -70,7 +70,7 @@ window. The chips flow and wrap like text, so eight or nine lessons take two or 
   `ctx.navigate(lessonHref(...).slice(2))`.
 - `items: { id, label, title?, done?, disabled?, note?, group? }[]`. `label` is the short name beside the number,
   `title` the full lesson name (tooltip). `disabled` lessons stay listed and numbered but cannot be opened (say why in
-  `note`, e.g. "not on this jet"; screen readers hear it). `group: true` draws a hairline divider before the item
+  `note`, e.g. "not on this jet"; screen readers hear a disabled link and the note). `group: true` draws a hairline divider before the item
   (SAM sites after the missile drills). `note` also carries scores ("best 86").
 - **Done** comes from the progress store: `isDone(id)` is read on create and on `refresh()`. Call `refresh()` from
   an `app.subscribe` on `'progress'`, so a lesson lights the moment it is saved. Use the keys the page already writes.

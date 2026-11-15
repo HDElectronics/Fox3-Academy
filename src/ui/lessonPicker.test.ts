@@ -118,6 +118,8 @@ describe('lesson picker component', () => {
     expect(links[0]!.dataset.done).toBe('true');
     expect(links[0]!.lastElementChild!.textContent).toBe(', done');
     expect(links[2]!.getAttribute('aria-disabled')).toBe('true');
+    expect(links[2]!.getAttribute('role')).toBe('link');
+    expect(links[1]!.getAttribute('role')).toBeNull();
     expect(links[2]!.lastElementChild!.textContent).toBe(', not on this jet');
     // One tab stop, on the open lesson.
     expect(links.map(a => a.tabIndex)).toEqual([-1, 0, -1, -1]);

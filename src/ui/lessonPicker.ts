@@ -209,6 +209,8 @@ export function lessonPicker<T extends string>(o: LessonPickerOptions<T>): Lesso
       const current = i === pos.index;
       setAttr(a, 'href', x.disabled ? null : o.href(x.id));
       setAttr(a, 'aria-disabled', x.disabled ? 'true' : null);
+      // Without href an <a> is plain text to assistive tech: keep it a (disabled) link, listed in its place.
+      setAttr(a, 'role', x.disabled ? 'link' : null);
       setAttr(a, 'aria-current', current ? 'step' : null);
       a.dataset.state = current ? 'current' : x.done ? 'done' : 'todo';
       a.dataset.done = String(!!x.done);
