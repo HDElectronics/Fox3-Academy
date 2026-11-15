@@ -130,8 +130,6 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const slew = { up: 0, down: 0, left: 0, right: 0 };
   const applySlew = () => hotas.slew(slew.right - slew.left, slew.up - slew.down);
   let noseDir: -1 | 0 | 1 = 0, noseHeldS = 0, holdGamma: number | null = null;
-  /** Gun trigger held: the gun fires every step while held (trainer rate). */
-  let triggerHeld = false;
   const nosePress = (d: -1 | 1) => { if (noseDir !== d) { noseDir = d; noseHeldS = 0; holdGamma = null; } };
   const noseRelease = () => { if (noseDir) { noseDir = 0; holdGamma = me().pitch; } };
 
@@ -343,7 +341,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     'Insert': { down: () => hotas.setLaserHeld(true), up: () => hotas.setLaserHeld(false) },
     'M': () => log(`Master mode ${hotas.cycleMaster()}`),
     'RAlt+Space': { down: () => { hotas.pressRelease(); }, up: () => hotas.letGoRelease(), inModal: false },
-    'Space': { down: () => { triggerHeld = true; hotas.gun(); }, up: () => { triggerHeld = false; }, inModal: false },
+    'Space': { down: () => hotas.setTrigger(true), up: () => hotas.setTrigger(false), inModal: false },
     'Left': { down: () => steer(-2), repeat: true },
     'Right': { down: () => steer(2), repeat: true },
     'Up': { down: () => nosePress(-1), up: () => noseRelease(), repeat: true },
@@ -475,10 +473,9 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (noseDir) { noseHeldS += dt; ac.cmd.altitude = ac.pos.y + noseDir * noseOffsetM(noseHeldS); }
       else if (holdGamma != null && ac.alive) ac.cmd.altitude = holdAngleAltitude(ac.pos.y, ac.vel.length(), holdGamma);
       hotas.step(dt);
-      if (triggerHeld) hotas.gun();
     },
     resetInputs() {
-      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null; triggerHeld = false;
+      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null;
       hotas.reset();
       if (cdu && host.cdu) cdu.reset(host.cdu());
     },

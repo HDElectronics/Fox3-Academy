@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCasScenario, bearingDeg, type CasLessonId, type CasScenario } from './scenario';
 import { lineText, makeNineLine, markFor } from './nineLine';
 import { JtacController, type AimState, type JtacAction } from './jtac';
-import { A10cHotas, LONG_PRESS_S, type HotasHost, type Markpoint } from './a10cHotas';
+import { A10cHotas, GUN_ROUNDS_PER_S, LONG_PRESS_S, type HotasHost, type Markpoint } from './a10cHotas';
 import { A10cCdu } from './a10cCdu';
 import { a10cAim, casSnap } from './snap';
 import { A10C_LESSON_ORDER, CAS_LESSON_ORDER, lessonOrder, lessonsFor, progressKey, LESSONS, type CasSnap } from './lessons';
@@ -375,6 +375,21 @@ describe('A-10C II held CCRP release (M p. 455-459)', () => {
     hotas.setMaster('CCIP');
     hotas.tap('dmsR');
     expect(sc.me.ag!.selected).not.toBe('gau8');
+  });
+
+  it('fires a held gun trigger at the same rate whatever the frame rate', () => {
+    const rounds = (fps: number) => {
+      const { sc, hotas } = setup('jtac-laser');
+      hotas.setMaster('GUNS');
+      const before = sc.me.ag!.stores.gau8!;
+      hotas.setTrigger(true);
+      for (let i = 0; i < fps; i++) { sc.world.step(1 / fps); hotas.step(1 / fps); }
+      hotas.setTrigger(false);
+      hotas.step(0.5);
+      return before - sc.me.ag!.stores.gau8!;
+    };
+    expect(rounds(30)).toBe(1 + GUN_ROUNDS_PER_S);
+    expect(rounds(144)).toBe(1 + GUN_ROUNDS_PER_S);
   });
 
   it('still releases rockets and CCIP bombs on the press', () => {
