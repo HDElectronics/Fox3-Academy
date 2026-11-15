@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- HARM & SEAD: a SAM launched while its radar holds the lock now stays guided. The guidance check used a range tighter
+  than the lock range, so missiles launched near the edge of the ring went dumb at once ("Their missile lost
+  guidance" while still locked).
 - Pattern & landing keeps your flight when you switch units: the HUD, readouts, steps and an open debrief redraw in
   the new units instead of the page restarting. Other lessons still restart on a units switch.
 - CAS & JTAC radio subtitles: after a restart, a call that arrives before the first sim tick now shows with its own

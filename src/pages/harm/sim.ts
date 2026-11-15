@@ -304,8 +304,9 @@ export class HarmSim {
     const site = this.sites.find(s => s.id === m.siteId)!;
     const radar = this.emitters().find(e => e.site === site && e.radar.job !== 'search' && this.transmitting(e));
     const r = radar ? this.relative(radar.vehicle.pos) : null;
-    // Track-to-impact: the site's radar must hold the lock (Fox3 SAM notes).
-    if (m.guided && !(radar && r && this.locks(radar, r.rangeM * 1.2))) {
+    // Track-to-impact: the site's radar must hold the lock (Fox3 SAM notes). The track holds out to 1.2 × the lock
+    // range (trainer value), so a missile launched on a held lock is guided.
+    if (m.guided && !(radar && r && this.locks(radar, r.rangeM / 1.2))) {
       m.guided = false;
       this.events.push({ t: this.t, type: 'sam-miss', siteId: site.id, text: 'Their missile lost guidance' });
     }

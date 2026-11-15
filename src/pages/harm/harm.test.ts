@@ -105,6 +105,18 @@ describe('SP', () => {
   });
 });
 
+describe('SAM guidance', () => {
+  it('a SAM launched on a held lock stays guided while the lock holds (the track reaches past the lock range)', () => {
+    const sim = new HarmSim(setup([{ id: 's', system: 'sa6', nm: 16, live: true }]));
+    run(sim, null, 100, () => types(sim).includes('sam-launch'));
+    expect(types(sim)).toContain('sam-launch');
+    run(sim, null, 1);
+    expect(sim.contacts().some(c => c.lockedYou)).toBe(true);
+    expect(types(sim)).not.toContain('sam-miss');
+    expect(sim.sams.some(m => m.alive && m.guided)).toBe(true);
+  });
+});
+
 describe('Live SEAD retry', () => {
   it.each(['SP', 'TOO'] as const)('kills the SA-6 with a second %s shot after its shutdown', mode => {
     const lesson = LESSONS.live.setup!();
