@@ -15,7 +15,7 @@
 import { Vector3 } from 'three';
 import type { GuidanceSupport, World } from './world';
 import type { Aircraft, EntityId, IffReply, RadarState, TrackFile } from './types';
-import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
+import type { AircraftId, FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { fighterSpec, fighterType, isFighterAc } from './jet';
 import { MISSILES } from '../data/missiles';
@@ -296,13 +296,21 @@ function geoOf(ac: Aircraft, p: Vector3): Geo {
  */
 export function detectionRange(world: World, observer: Aircraft, target: Aircraft): number {
   if (!isFighterAc(observer)) return 0;
-  const d = specOf(observer).radar.detectKm;
   const asp = aspectAngle(target.pos, target.vel, observer.pos);
   const down = isLookDown(observer.pos, target.pos, world.groundAlt);
-  const hot = d.headOn * (down ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
-  const cold = d.tail * (down ? d.lookDownFactor : 1);
-  let km = lerp(hot, cold, (1 - Math.cos(asp)) / 2);
-  km *= Math.pow(Math.max(AIRCRAFT[target.type].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
+  return detectionRangeFor(fighterType(observer), target.type, asp, down);
+}
+
+/**
+ * detectionRange() without a World: `observer`'s radar against a `target` type at this aspect (rad, 0 = hot) and
+ * look-down state (m). Briefs and coaches quote this so their numbers match the sim.
+ */
+export function detectionRangeFor(observer: FighterId, target: AircraftId, aspect: number, lookDown: boolean): number {
+  const d = AIRCRAFT[observer].radar.detectKm;
+  const hot = d.headOn * (lookDown ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
+  const cold = d.tail * (lookDown ? d.lookDownFactor : 1);
+  let km = lerp(hot, cold, (1 - Math.cos(aspect)) / 2);
+  km *= Math.pow(Math.max(AIRCRAFT[target].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
   return km * 1000;
 }
 

@@ -89,6 +89,7 @@ next bar (`bar = (bar + 1) % bars`). It is horizon-stabilised (pitch and roll do
 | Export | What it does |
 |---|---|
 | `detectionRange(world, observer, target)` | m. `detectKm` interpolated head-on → tail by `(1 − cos aspect)/2`, with look-down applied to each endpoint (`lookDownHeadOnFactor` or the fallback `lookDownFactor` for hot, `lookDownFactor` for cold), × `(target.rcsM2 / referenceRcsM2)^0.25` (reference defaults to 5). N-001 retains 68.4 km hot and reduces cold to 26.6 km; N-019M uses its 3 m² reference. |
+| `detectionRangeFor(observerType, targetType, aspect, lookDown)` | The same formula without a World (aspect in rad, 0 = hot). Briefs and coaches quote it so their ranges match the sim. |
 | `isNotched(world, observer, target)` | `math.inDopplerNotch` with `notchKts` and `notchNeedsLookDown`. |
 | `explainDetection(world, observer, target, opts?)` | `{ az, el, range, inGimbal, inAzimuth, inBars, detectRange, lookDown, radialSpeed, notchGate, notched, detectable, reasons[] }`. `reasons` are pilot sentences ("Outside the bars: target 4.1° above the scan"). `opts.units` ('metric' default, or 'imperial') sets the distance unit in the sentences (km / nm); notch speeds stay in kt. For the Radar Lab and the TWS lesson. |
 | `paintRange(emitter)` | m an RWR hears this radar: `PAINT_RANGE_FACTOR (1.75) × detectKm.headOn`. |

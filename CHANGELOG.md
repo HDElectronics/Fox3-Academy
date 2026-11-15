@@ -265,6 +265,8 @@
 - Expand the Markdown roadmap for broader DCS training, licensed aircraft assets, cockpit exploration, and
   a later user-tested UX redesign. Keep prototype websites outside the repository.
 - B17: Initialize the public Git baseline on `main` and ignore generated output and local secrets.
+- Quote the sim's own head-on detection ranges in the Sortie brief and the TWS search coach: FC3 Russian radars no
+  longer lose 30 % looking down head-on, and the MiG-29S uses its 3 m² reference.
 
 ## 0.1.0 — 2026-09-20
 

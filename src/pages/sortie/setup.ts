@@ -12,6 +12,7 @@ import type { AiSkill } from '../../sim/types';
 import { World } from '../../sim/world';
 import { cruiseFor, defaultAdversary, duel, pair, twoVTwo, type Engagement, type SamPlacement } from '../../sim/scenarios';
 import { dlzFor } from '../../sim/dlz';
+import { detectionRangeFor } from '../../sim/radar';
 import { speedFromMach } from '../../sim/atmosphere';
 import { AI_SKILLS, configureAi } from '../../sim/ai';
 import { BURN_THROUGH_M, ECM_USING, HOJ_MISSILES, JAM_CUE, OWN_JAMMER, type EcmUsing } from '../../data/ecm';
@@ -344,12 +345,10 @@ export function briefFacts(ac: FighterId, s: SortieSetup, units: Units, jamKey: 
         ? `You outrange him by ${R(d)} head-on: shoot first, crank, and be cold before his ${R(t.rmax)}.`
         : `He outranges you by ${R(-d)} head-on: do not trade shots at max range. Beam his first shot, then come back hot and shoot inside your own Rne, or climb and speed up to stretch your missile.`;
   }
-  // Head-on detection as the sim computes it: the jet's table range × (RCS / 5 m²)^¼, × the look-down factor
-  // when the target is below.
+  // Head-on detection as the sim computes it (radar.ts), looking down when the target is below.
   const det = (obs: FighterId, obsAlt: number, tgt: FighterId, tgtAlt: number) => {
-    const r = AIRCRAFT[obs].radar.detectKm;
     const down = tgtAlt < obsAlt - 50;
-    return { m: r.headOn * 1000 * Math.pow(AIRCRAFT[tgt].rcsM2 / 5, 0.25) * (down ? r.lookDownFactor : 1), down };
+    return { m: detectionRangeFor(obs, tgt, 0, down), down };
   };
   const mine2 = det(ac, s.playerAlt, s.enemy, s.enemyAlt), his = det(s.enemy, s.enemyAlt, ac, s.playerAlt);
   const an = article(en.short);
