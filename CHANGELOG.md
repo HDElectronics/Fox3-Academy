@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CAS & JTAC radio subtitles: after a restart, a call that arrives before the first sim tick now shows with its own
+  time instead of being dropped or stamped with the previous run's clock.
 - Pattern & landing: the AoA indexer head reads "AoA · GEAR DN" in full, also beside the IFLOLS at 820 px
   (it was cut to "A…").
 - Strip readouts stay on one line in narrow windows: CAS & JTAC shows the attack heading window, your heading and the

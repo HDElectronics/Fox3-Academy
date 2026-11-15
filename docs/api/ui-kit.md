@@ -311,7 +311,8 @@ through unchanged. An explicit `fallback` wins over a page key on the same chord
   "You: Ready to copy"). Hidden when empty. It is the one `aria-live="polite"` region.
 - No timers: `tick(nowS)` in sim seconds fades a line in its last second and removes it at `ttlS`, so a
   paused sim keeps its subtitles. `t` defaults to the last tick time. A clock that goes back (restarted
-  scenario) removes older lines. `radioLineState(age, ttl)` is the pure rule.
+  scenario) removes older lines. `radioLineState(age, ttl)` is the pure rule. `clear()` empties both lists and
+  resets the clock to 0, so a restarted scenario's first call shows even before its first `tick`.
 - `historyEl`: the full transcript, newest first, `mm:ss` stamped, capped at `historyMax`; put it in a
   console panel if the page wants one (height via `--log-h`).
 - `unverified: true` tags the line "simplified" (wording not verified against the game, rule 2).

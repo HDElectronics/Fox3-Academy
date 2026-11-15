@@ -44,6 +44,7 @@ export interface RadioLogHandle {
   push(msg: RadioMessage): void;
   /** Advance the clock (sim seconds): fades and removes old subtitles. */
   tick(nowS: number): void;
+  /** Remove every line and reset the clock to 0 (a restarted scenario). */
   clear(): void;
   /** Subtitle lines on screen now. */
   readonly visible: number;
@@ -116,6 +117,8 @@ export function radioLog(o: RadioLogOptions): RadioLogHandle {
     clear() {
       for (const s of subs) s.el.remove();
       subs = [];
+      // A clear starts a new run (a restarted scenario, its clock from 0): drop the old clock with the lines.
+      now = 0;
       historyEl.replaceChildren();
       el.hidden = true;
     },
