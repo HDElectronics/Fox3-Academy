@@ -25,7 +25,7 @@ import { Stage, WorldView, CameraRig, ForwardView, isWebGLAvailable, FramePriori
 import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts,
-  callout, placard, bindKeys, disclosure, modal, select, toggle, type ModalHandle, type Tone,
+  callout, placard, bindKeys, disclosure, modal, select, toggle, lessonPicker, lessonHref, onlyChanged, type ModalHandle, type Tone,
 } from '../../ui';
 import { readTheme } from '../../ui/theme';
 import {
@@ -64,6 +64,8 @@ const SORTIE_PLAN: MapPlan = {
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -124,11 +126,25 @@ const factory: PageFactory = (): Page => {
       ],
     });
 
-    const lessonSeg = segmented<LessonId>({
-      id: 'strk-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: LESSON_ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are links (?lesson=): the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: LessonId) => lessonHref('strike', urlParams, { lesson: id });
+    const picker = lessonPicker<LessonId>({
+      id: 'strk-lessons', topic: 'Strike', header: false, value: lesson, href: lessonLink,
+      items: LESSON_ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+      isDone: id => ctx.app.getProgress(progressKey(id)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: LessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;
+      const want = next.get('lesson') as LessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && LESSONS[want] ? want : 'shkval';
+      restart();
+      return true;
+    };
     const coach = coachBox({ id: 'strk-coach' });
     const sortieHost = h('div', { class: 'strk-sortie', id: 'strk-sortie' });
     const navBox = h('div', { class: 'strk-nav', role: 'status', 'aria-label': 'Steering cue (trainer)' });
@@ -161,7 +177,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [tvBezel.el, hudBezel.el, rwrBezel.el, touchPad, h('div', { class: 'ui-strip-block strk-ro' }, placard('Attack'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', children: [lessonSeg.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
+        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', actions: picker.status, children: [picker.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
         controls.el, keyList, caveats,
       ],
       mobileActions: ck.mobileActions,
@@ -264,7 +280,7 @@ const factory: PageFactory = (): Page => {
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(fresh.el);
       steps = fresh;
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       endBtn.el.hidden = !def.scored;
       log.clear();
       log.push(def.goal, { t: 0 });
@@ -641,7 +657,7 @@ const factory: PageFactory = (): Page => {
           d.coaching.length ? h('div', null, placard('Coaching'), h('ul', null, d.coaching.map(l => h('li', null, l)))) : null),
         actions: [
           { label: 'Fly again', onClick: () => restart(), id: 'strk-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'strk-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'strk-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -851,7 +867,8 @@ const factory: PageFactory = (): Page => {
 
   return {
     mount,
-    unmount() { bag.dispose(); },
+    update: next => applyParams?.(next) ?? false,
+    unmount() { applyParams = null; bag.dispose(); },
   };
 };
 

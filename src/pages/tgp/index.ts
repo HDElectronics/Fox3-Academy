@@ -24,7 +24,7 @@ import { Stage, WorldView, CameraRig, ForwardView, isWebGLAvailable, FramePriori
 import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts, callout, placard,
-  bindKeys, disclosure, modal, type ModalHandle, type Tone,
+  bindKeys, disclosure, modal, lessonPicker, lessonHref, onlyChanged, type ModalHandle, type Tone,
 } from '../../ui';
 import { createA10cCockpit } from '../cas/a10cCockpit';
 import { LESSONS, TGP_CAVEATS, TGP_LESSON_ORDER, debriefLines, progressKey, type TgpLessonId } from './lessons';
@@ -50,6 +50,8 @@ const SHOT_PLAN: Record<Shot, { lesson: TgpLessonId; until?: string; extraS: num
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -81,11 +83,25 @@ const factory: PageFactory = (): Page => {
       id: 'tgp-ro', variant: 'glass',
       rows: [{ id: 'soi', label: 'SOI' }, { id: 'spi', label: 'SPI' }, { id: 'rng', label: 'To column' }, { id: 'store', label: 'Store' }, { id: 'codes', label: 'Codes L / LSS' }],
     });
-    const lessonSeg = segmented<TgpLessonId>({
-      id: 'tgp-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: TGP_LESSON_ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are links (?lesson=): the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: TgpLessonId) => lessonHref('tgp', urlParams, { lesson: id });
+    const picker = lessonPicker<TgpLessonId>({
+      id: 'tgp-lessons', topic: 'TGP', header: false, value: lesson, href: lessonLink,
+      items: TGP_LESSON_ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+      isDone: id => ctx.app.getProgress(progressKey(id)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: TgpLessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;
+      const want = next.get('lesson') as TgpLessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && TGP_LESSON_ORDER.includes(want) ? want : 'soi';
+      restart();
+      return true;
+    };
     const coach = coachBox({ id: 'tgp-coach' });
     let steps = checklist({ steps: LESSONS[lesson].steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
     const stepsHost = h('div', null, steps.el);
@@ -137,7 +153,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [ck.hudBezel.el, ck.leftBezel.el, ck.tgpBezel.el, ck.touchPad, h('div', { class: 'ui-strip-block strk-ro' }, placard('Sensors'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'tgp-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el), log.el] }).el,
+        consolePanel({ title: 'Lesson', id: 'tgp-lesson-panel', actions: picker.status, children: [picker.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el), log.el] }).el,
         consolePanel({ title: 'Controls', id: 'tgp-controls', children: ck.controlRows }).el,
         cntl.el, ck.keyList, caveats,
       ],
@@ -218,7 +234,7 @@ const factory: PageFactory = (): Page => {
       const def = LESSONS[lesson];
       steps = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(steps.el);
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       lCode.status.textContent = ''; lssCode.status.textContent = '';
       cntl.el.hidden = lesson !== 'laser' && lesson !== 'lgb';
       log.clear();
@@ -268,7 +284,7 @@ const factory: PageFactory = (): Page => {
         body: h('div', { class: 'strk-debrief' }, h('ul', null, debriefLines(lesson, session.snapshot).map(l => h('li', null, l)))),
         actions: [
           { label: 'Fly again', onClick: () => restart(), id: 'tgp-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'tgp-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'tgp-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -328,7 +344,7 @@ const factory: PageFactory = (): Page => {
     }
   }
 
-  return { mount, unmount() { bag.dispose(); } };
+  return { mount, update: next => applyParams?.(next) ?? false, unmount() { applyParams = null; bag.dispose(); } };
 };
 
 export default factory;

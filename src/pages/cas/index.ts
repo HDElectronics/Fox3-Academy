@@ -32,7 +32,8 @@ import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts, callout, placard,
-  bindKeys, disclosure, modal, radioMenu, withRadioMenuKeys, radioLog, toggle, type ModalHandle, type Tone, type KeyMap, type KeyHandler,
+  bindKeys, disclosure, modal, radioMenu, withRadioMenuKeys, radioLog, toggle, lessonPicker, lessonHref, onlyChanged,
+  type ModalHandle, type Tone, type KeyMap, type KeyHandler,
 } from '../../ui';
 import { createSu25tCockpit } from '../strike/cockpit';
 import { buildCasScenario, bearingDeg, distM, type CasJet, type CasLessonId, type CasScenario, type XZ } from './scenario';
@@ -82,6 +83,8 @@ interface PageCockpit {
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -167,11 +170,25 @@ const factory: PageFactory = (): Page => {
     const gradeBtn = button({ label: 'Check the card', size: 's', id: 'cas-grade', onClick: () => gradeCard() });
     const cardHost = h('div', { class: 'cas-card' }, card.el, h('div', { class: 'strk-row' }, gradeBtn.el));
 
-    const lessonSeg = segmented<CasLessonId>({
-      id: 'cas-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are links (?lesson=): the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: CasLessonId) => lessonHref('cas', urlParams, { lesson: id });
+    const picker = lessonPicker<CasLessonId>({
+      id: 'cas-lessons', topic: 'CAS', header: false, value: lesson, href: lessonLink,
+      items: ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+      isDone: id => ctx.app.getProgress(progressKey(id, jet)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: CasLessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;
+      const want = next.get('lesson') as CasLessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && ORDER.includes(want) ? want : 'nine-line';
+      restart();
+      return true;
+    };
     const coach = coachBox({ id: 'cas-coach' });
     let steps = checklist({ steps: LESSONS[lesson].steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
     const stepsHost = h('div', null, steps.el);
@@ -203,7 +220,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [...ck.strip, h('div', { class: 'ui-strip-block strk-ro' }, placard('CAS'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'cas-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, menu.toggleEl), h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el)] }).el,
+        consolePanel({ title: 'Lesson', id: 'cas-lesson-panel', actions: picker.status, children: [picker.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, menu.toggleEl), h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el)] }).el,
         consolePanel({ title: 'Kneeboard', id: 'cas-kneeboard', children: [cardHost] }).el,
         consolePanel({ title: 'Radio', id: 'cas-radio-log', children: [subs.historyEl, log.el] }).el,
         consolePanel({ title: 'Controls', id: 'cas-controls', children: [...ck.controlRows, markerTog.el] }).el,
@@ -324,7 +341,7 @@ const factory: PageFactory = (): Page => {
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(fresh.el);
       steps = fresh;
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       endBtn.el.hidden = !def.scored;
       log.clear();
       log.push(def.goal, { t: 0 });
@@ -471,7 +488,7 @@ const factory: PageFactory = (): Page => {
           d.coaching.length ? h('div', null, placard('Coaching'), h('ul', null, d.coaching.map(l => h('li', null, l)))) : null),
         actions: [
           { label: 'Fly again', onClick: () => restart(), id: 'cas-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'cas-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'cas-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -637,7 +654,7 @@ const factory: PageFactory = (): Page => {
     }
   }
 
-  return { mount, unmount() { bag.dispose(); } };
+  return { mount, update: next => applyParams?.(next) ?? false, unmount() { applyParams = null; bag.dispose(); } };
 };
 
 export default factory;
