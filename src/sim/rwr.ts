@@ -1,6 +1,6 @@
 /**
  * [OWNER: sim-sensors] Radar warning receivers. Every tick, for every live aircraft, `ac.rwr` is rebuilt:
- *   search:  another radar's beam painted us within 1.2 × its frame time + 0.5 s (RWS and TWS look the same;
+ *   search:  another radar's beam painted us within 1.2 × its revisit time + 0.5 s (RWS and TWS look the same;
  *            the RWR hears a radar about 1.75× farther than that radar can see us, and the notch does not
  *            hide us from it);
  *   lock:    another aircraft holds us in STT (and its beam is on us);
@@ -21,12 +21,16 @@ import { isFighterAc } from './jet';
 import { AIRCRAFT } from '../data/aircraft';
 import { MISSILES } from '../data/missiles';
 import { clamp, elevationTo, relBearing } from './math';
-import { lastPainted, paintRange } from './radar';
+import { lastPainted, paintRange, revisitTime } from './radar';
 import { samRwrContact } from './sam';
 
-/** A search contact stays this long after the last paint: 1.2 × emitter frame time + 0.5 s. */
+/**
+ * A search contact stays this long after the last paint: 1.2 × the emitter's revisit time + 0.5 s. The revisit is
+ * the frame time, or two frames for an odd bar count (the sweep alternates direction), so the contact holds steady
+ * between paints at the scan edges instead of blinking.
+ */
 export function searchHoldTime(emitter: Aircraft): number {
-  return 1.2 * emitter.radar.frameTime + 0.5;
+  return 1.2 * revisitTime(emitter.radar) + 0.5;
 }
 
 /** Lock needs the STT beam to have painted us this recently (s). */

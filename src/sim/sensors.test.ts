@@ -426,6 +426,24 @@ describe('RWR', () => {
     expect(mine()?.state).toBe('search');
   });
 
+  it('keeps a search contact steady between paints of an odd-bar scan (target near the scan edge)', () => {
+    for (const [type, bars, az] of [['fa18c', 1, 70], ['f16c', 3, 60], ['m2000c', 1, 60]] as const) {
+      const w = new World();
+      const me = jet(w, type, 'blue', { x: 0, y: 9000, z: 0 }, 0);
+      setScan(w, me, { azHalf: az * D2R, bars, autoCenter: false, azCenter: 0, elCenter: 0 });
+      expect(me.radar.bars).toBe(bars);
+      const su = jet(w, 'su27', 'red', off(me, 30000, az - 2, 9000), Math.PI);
+      su.vel.set(0, 0, 0);
+      run(w, 2 * revisitTime(me.radar), false);
+      let gaps = 0;
+      for (let i = 0; i < 30 * 60; i++) {
+        run(w, H, false);
+        if (!su.rwr.some(c => c.emitterId === me.id)) gaps++;
+      }
+      expect(gaps, `${type} ${bars} bar: search contact dropped between paints`).toBe(0);
+    }
+  });
+
   it('shows an active ARH seeker as a missile contact from the missile bearing', () => {
     const w = new World();
     const me = jet(w, 'f15c', 'blue', { x: 0, y: 9000, z: 0 }, 0, { aim120c: 2 });

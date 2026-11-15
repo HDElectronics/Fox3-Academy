@@ -269,6 +269,8 @@
   longer lose 30 % looking down head-on, and the MiG-29S uses its 3 m² reference.
 - Give lock and launch refusals ("Too far to lock", "Out of range", "No ПР yet") in the selected units on the TWS,
   Sortie and Radar Lab pages; they no longer switch to the jet's default units or to kilometres.
+- Keep an RWR search contact steady between paints of a 1-bar or 3-bar scan: a target near the scan edge no
+  longer blinks off for up to a quarter of the time (and re-triggers "new contact") on every sweep.
 
 ## 0.1.0 — 2026-09-20
 

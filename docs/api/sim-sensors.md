@@ -176,7 +176,7 @@ sorted most dangerous first (`[0]` is the primary threat):
 
 | state | when | emitter / bearing |
 |---|---|---|
-| `search` | its beam painted us within `searchHoldTime(emitter) = 1.2 × frameTime + 0.5 s`. RWS and TWS look the same. | the radar aircraft |
+| `search` | its beam painted us within `searchHoldTime(emitter) = 1.2 × revisitTime + 0.5 s` (the revisit is two frames for an odd bar count, so the contact does not blink between paints at the scan edges). RWS and TWS look the same. | the radar aircraft |
 | `lock` | it holds us in STT and its beam painted us in the last 0.3 s | the radar aircraft |
 | `launch` | a SARH missile of that emitter is guided on us (`guidance === 'sarh'`, lock held), or an ARH missile was fired at us **from STT** by a jet with `sttArhLaunchWarning`, while still pre-pitbull and the lock is held. `missileType` is set. A TWS Fox 3 never gives a launch warning. | the radar aircraft |
 | `missile` | an ARH missile with `guidance === 'active'` and `seekerOn` = us; held 1.5 s after the seeker leaves us (chaff hop) so it does not flicker | the missile (`emitterType: 'missile'`, `missileType`) |
