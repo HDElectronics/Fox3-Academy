@@ -32,6 +32,13 @@ Targeting pod & Mavericks; both continue with CAS & JTAC. A page with several le
 HARM & SEAD, CAS & JTAC...) counts as done when all of its lessons are. Learn and Practice are chosen in the
 top bar only: a lesson page and its practice lab are separate links.
 
+Inside such a page the lessons look the same, one level down: numbered, lit when done, the open one pressed in,
+with the position at the top of the lesson panel (and beside the path position on wide windows:
+**Lesson 8/10 · HARM 3/9**). Each lesson is a link, so the browser's Back button returns to the previous one
+and you can share or bookmark it. After a lesson the debrief offers **Next** with the following lesson's name.
+Where a page has free practice (Radar, Defense, Merge & guns), it is the quieter link after the numbers: it
+opens the Practice version of the page, and the numbered lessons beside it take you back.
+
 The 3D world remains the main lab surface. On narrow screens (tablets, small windows), **World**, **Displays** and **Controls** tabs show
 one workspace at a time; switching tabs keeps the current simulation. The bottom action bar keeps the
 main controls available. Expand settings, event logs and accuracy notes when needed.

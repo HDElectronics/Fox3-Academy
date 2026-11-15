@@ -32,6 +32,10 @@ catalogue. Neither unsupported goals nor reference visits enter the denominator.
 hand-off after a fighter's path: a goal of its own, listed last. An attack jet's sortie is a lesson of its own
 pages (Shkval & Vikhr on the Su-25T, CAS & JTAC on the A-10C II), so it counts once, inside that step.
 
+On a page with several lessons, the Learn bar also shows which one is open ("LESSON 8/10 · HARM 3/9", wide
+windows only). The page's lesson picker publishes that position (`src/ui/lessonPicker.ts`, `watchLessonPosition`); the
+shell never imports page code for it, and the picker reads the same saved keys as this table.
+
 `continuePath(p)` is where Continue goes: the first goal left on the first incomplete step, or the Fly sortie
 once the path is complete. Hrefs carry `ac=` (`goal.href`) for cross-jet links; `goal.path` is the same link
 without it, for links within the selected jet.

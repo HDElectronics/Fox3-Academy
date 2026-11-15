@@ -169,6 +169,19 @@ describe('lesson picker component', () => {
     off();
   });
 
+  it('lets the chrome drop a position a page left behind, and ignores a destroyed picker', () => {
+    const seen: (LessonPosition | null)[] = [];
+    const off = watchLessonPosition(p => seen.push(p));
+    const { p } = make('talk-on', new Set(), false);
+    clearLessonPosition();
+    expect(lessonPosition()).toBeNull();
+    p.destroy();
+    p.set('sortie');
+    expect(lessonPosition()).toBeNull();
+    expect(seen).toHaveLength(2);
+    off();
+  });
+
   it('keeps focus on the same lesson when the list is replaced', () => {
     const { p, root } = make('talk-on');
     byClass(root, 'ui-lessons__item')[1]!.focus();

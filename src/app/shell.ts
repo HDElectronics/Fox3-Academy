@@ -4,6 +4,8 @@
  * marks, the current step, and at its right end the position ('Lesson 2/7') and the Next step, which lights up
  * once the current lesson is complete; the last step hands off to Fly. On Practice it lists the labs, on Reference
  * and Fly the page itself; there the right end offers the way back into the path.
+ * A page with several lessons (a lesson picker, src/ui/lessonPicker.ts) adds which one is open beside the position:
+ * 'LESSON 8/10 · HARM 3/9'. The picker publishes it; the shell reads only that UI module, never page code.
  */
 import { AIRCRAFT } from '../data/aircraft';
 import type { AircraftId } from '../data/types';
@@ -13,6 +15,7 @@ import { contextualLinks, DESTINATIONS, destinationFor, destinationsFor, pageTit
 import { flyLinkFor, lessonSteps, nextText, pathStatus, routeOf, type PathStatus, type StepState } from './lessonPath';
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
+import { clearLessonPosition, lessonPosition, positionText, watchLessonPosition, type LessonPosition } from '../ui/lessonPicker';
 
 type ProgressModel = typeof import('../pages/progress/model');
 
@@ -107,7 +110,7 @@ export function buildShell(root: HTMLElement, app: AppStore) {
       : destination === 'practice' ? 'Practice labs' : destination === 'reference' ? 'Reference' : 'Fly');
     if (destination === 'learn') {
       track.replaceChildren(pathList(steps, at));
-      status.replaceChildren(...learnStatus(at, nextPath));
+      status.replaceChildren(...learnStatus(at, nextPath, lessonPosition()));
     } else {
       const links = contextualLinks(destination, jet);
       track.replaceChildren(h('ul', { class: 'context-nav__links' }, links.map(link => h('li', null, linkEl(link)))));
@@ -130,8 +133,12 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     h('a', { href: '#/' + link.path, 'aria-current': isHere(link.path) ? 'page' : undefined }, link.label);
 
   app.subscribe((_, what) => { sync(); if (what === 'aircraft' || what === 'progress') renderContext(); });
+  // The open sub-lesson of the page (its lesson picker) changes the position text only.
+  watchLessonPosition(() => renderContext());
 
   const setActive = (next: RouteDef, nextParams = new URLSearchParams(location.hash.split('?')[1] ?? '')) => {
+    // Another page: drop the old page's lesson position (its picker should have withdrawn it on unmount).
+    if (next.path !== route.path) clearLessonPosition();
     route = next;
     params = nextParams;
     fillPicker();
@@ -159,8 +166,8 @@ function pathList(steps: readonly StepState[], at: PathStatus): HTMLElement {
 }
 
 /** Position readout in a small glass window: 'LESSON 2/7' on a step, 'DONE 3/7' elsewhere. */
-function position(caption: string, n: number, total: number, spoken: string): HTMLElement {
-  return h('span', { class: 'pathpos' },
+function position(caption: string, n: number, total: number, spoken: string, sub = false): HTMLElement {
+  return h('span', { class: sub ? 'pathpos pathpos--sub' : 'pathpos' },
     h('span', { class: 'pathpos__cap', 'aria-hidden': 'true' }, caption),
     h('span', { class: 'pathpos__glass', 'aria-hidden': 'true' }, h('b', null, String(n)), '/' + total),
     h('span', { class: 'ui-sr' }, spoken));
@@ -171,7 +178,7 @@ function nextLink(text: string, path: string, ready: boolean, describe?: string)
     h('span', { class: 'pathnext__text' }, text), h('span', { class: 'pathnext__arrow', 'aria-hidden': 'true' }, '→'));
 }
 
-function learnStatus(at: PathStatus, nextPath: string): HTMLElement[] {
+function learnStatus(at: PathStatus, nextPath: string, sub: LessonPosition | null): HTMLElement[] {
   if (at.current === null) {
     // Learn home and Progress carry their own Continue; the bar only says how far the pilot is.
     return [position('Done', at.doneCount, at.total, `${at.doneCount} of ${at.total} lessons done`)];
@@ -179,8 +186,10 @@ function learnStatus(at: PathStatus, nextPath: string): HTMLElement[] {
   const spoken = `Lesson ${at.current + 1} of ${at.total}`;
   return [
     position('Lesson', at.current + 1, at.total, spoken),
+    // Which of the page's own lessons is open: 'HARM 3/9' (not in free practice).
+    sub && sub.index !== null ? position(sub.topic, sub.index + 1, sub.total, `${sub.topic}: ${positionText(sub)}`, true) : null,
     nextLink(nextText(at), nextPath, at.ready, at.ready ? 'This lesson is done' : undefined),
-  ];
+  ].filter((x): x is HTMLElement => x !== null);
 }
 
 function awayStatus(at: PathStatus, nextPath: string): HTMLElement[] {
