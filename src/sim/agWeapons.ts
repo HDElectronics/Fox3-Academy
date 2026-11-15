@@ -362,7 +362,8 @@ export function agLaunch(world: World, ac: Aircraft, opts: { ccrp?: boolean } = 
   for (const wp of out) {
     world.emit({ t: world.t, type: 'ag-launch', weaponId: wp.id, shooterId: ac.id, targetId: wp.targetId, weapon: w, range: check.range, ...(opts.ccrp ? { ccrp: true } : {}) });
   }
-  if ((ag.stores[w] ?? 0) <= 0 && w !== 'gun25t') cycleAgWeapon(ag);
+  // An empty store gives way to the next one; an empty gun stays selected (no store behind the gun trigger).
+  if ((ag.stores[w] ?? 0) <= 0 && spec.kind !== 'gun') cycleAgWeapon(ag);
   return out;
 }
 
