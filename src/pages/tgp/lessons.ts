@@ -169,6 +169,7 @@ export const TGP_CAVEATS = [
   'The AGM-65L flies here without an uncage step: it needs a spot on its code ahead of the jet. In DCS you uncage it with TMS Forward on the MAV page.',
   'Ranger 2 (the friendly lasing on 1511) is a scripted trainer unit, not the DCS JTAC.',
   'The jet flies itself: you steer with trainer keys (arrows). Positions, heights and repositioning between passes are trainer values.',
+  'Out of the store a step needs: once the last one has hit or missed, the trainer rearms it and sets up another pass. A trainer convenience, not DCS.',
 ];
 
 /** Debrief lines per lesson from the last snapshot. */

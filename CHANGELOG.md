@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Targeting pod lessons no longer dead-end after misses: when the Mavericks, a GBU-12, APKWS, the AGM-65L or the gun
+  rounds a step needs are used up, the trainer rearms them once the last one resolves and sets up another pass
+  (a trainer convenience, listed under "Simplified and not verified").
 - Screenshot pre-rolls (`?shot=`) no longer save progress on the Radar Lab, Defense and SAM drills, TWS, the RWR quiz,
   the Missile Lab drill and Pattern & landing (`mode=fly` hand-over); their results read "scripted demo, not saved".
 - A-10C II CDU: a CDU camera on the CAS & JTAC page shows the CDU and the AAP over the 3D view. WP MENU and WAYPT

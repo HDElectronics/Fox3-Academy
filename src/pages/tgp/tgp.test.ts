@@ -183,6 +183,65 @@ describe('scripted pilot completes every lesson', () => {
   }
 });
 
+describe('trainer rearm after misses', () => {
+  const live = (sc: ReturnType<typeof setup>['sc'], w: string) => [...sc.world.agWeapons.values()].some(x => x.alive && x.type === w);
+
+  it('laser weapons: two GBU-12 misses rearm the bombs once both resolve, and the lesson carries on to the hit', () => {
+    const { sc, session, pilot, hotas } = setup('lgb');
+    flyScript('lgb', pilot, 'ccrp');
+    const ag = sc.me.ag!;
+    // Two passes with no laser, each bomb falling 600 m off the column: both miss.
+    const col = () => sc.world.groundUnits.get(sc.column[1]!)!.pos;
+    for (let pass = 0; pass < 2; pass++) {
+      pilot.run(120, () => Math.hypot(sc.me.pos.x - col().x, sc.me.pos.z - col().z) > 12000);
+      if (ag.selected !== 'gbu12') sc.world.selectAgWeapon(sc.me.id, 'gbu12');
+      pilot.run(90, () => sc.world.canAgLaunch(sc.me.id).ok);
+      expect(hotas.pressRelease(), `pass ${pass}`).toBe(true);
+      pilot.run(90, () => !hotas.holding); hotas.letGoRelease();
+      expect(session.tracker.fired.gbu12, `pass ${pass}`).toBe(pass + 1);
+      for (const wp of sc.world.agWeapons.values()) if (wp.alive && wp.type === 'gbu12') { wp.aimPoint.x += 600; wp.targetId = null; }
+      pilot.run(90, () => !live(sc, 'gbu12'));
+      pilot.run(1);
+    }
+    expect(session.tracker.kills.gbu12 ?? 0).toBe(0);
+    expect(session.done.has('gbu-hit')).toBe(false);
+    // Rearmed once the last bomb resolved, with one plain log line, and the GBU-12 selected again.
+    expect(ag.stores.gbu12).toBe(2);
+    expect(ag.stations.filter(s => s.weapon === 'gbu12').map(s => s.count)).toEqual([1, 1]);
+    expect(ag.selected).toBe('gbu12');
+    expect(LOG.filter(l => l === 'Out of GBU-12. Rearmed for another pass.')).toHaveLength(1);
+    // The rest of the lesson flies as before: back on the column, release, lase to the hit, then APKWS and 65L.
+    flyScript('lgb', pilot);
+    pilot.run(2);
+    expect(session.complete, `log: ${LOG.slice(-8).join(' | ')}`).toBe(true);
+    session.dispose();
+  }, 60000);
+
+  it('Mavericks: no rearm while one is left or still flying; all four used without two kills rearms them', () => {
+    const { sc, session, pilot } = setup('mav');
+    flyScript('mav', pilot, 'fire');
+    const ag = sc.me.ag!;
+    expect(live(sc, 'agm65d')).toBe(true);
+    LOG.length = 0;
+    // One left: nothing happens.
+    ag.stores.agm65d = 0; ag.stores.agm65h = 1;
+    pilot.run(0.5);
+    expect(ag.stores.agm65h).toBe(1);
+    // None left, but the first is still flying: wait for it.
+    ag.stores.agm65h = 0;
+    for (const s of ag.stations) if (s.weapon === 'agm65d' || s.weapon === 'agm65h') s.count = 0;
+    pilot.run(0.5);
+    expect(ag.stores.agm65d).toBe(0);
+    pilot.run(90, () => !live(sc, 'agm65d'));
+    pilot.run(0.1);
+    expect(session.tracker.kills.agm65d).toBe(1);
+    expect(session.done.has('kills')).toBe(false);
+    expect([ag.stores.agm65d, ag.stores.agm65h]).toEqual([2, 2]);
+    expect(LOG.filter(l => l === 'Out of Mavericks. Rearmed for another pass.')).toHaveLength(1);
+    session.dispose();
+  });
+});
+
 describe('progress goals', () => {
   it('gives the A-10C II the pod lessons, then the CAS lessons; the Su-25T keeps none of them', async () => {
     const { jetProgress } = await import('../progress/model');
