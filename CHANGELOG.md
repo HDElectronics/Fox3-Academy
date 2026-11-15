@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- HARM & SEAD Radars and Homing lessons: Again and Restart start a fresh attempt instead of completing at once, a
+  scripted screenshot visit no longer counts toward a saved completion, and the films keep playing after the lesson
+  is complete.
 - HARM & SEAD: a SAM launched while its radar holds the lock now stays guided. The guidance check used a range tighter
   than the lock range, so missiles launched near the edge of the ring went dumb at once ("Their missile lost
   guidance" while still locked).

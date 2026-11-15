@@ -432,6 +432,8 @@ const factory: PageFactory = (): Page => {
     function restart(): void {
       result?.destroy(); result = null;
       ended = false; scripted = false; stepIdx = 0; film = null;
+      // A new attempt starts fresh: radars looked at and films watched before (or by a scripted pre-roll) do not count.
+      visited.clear(); watched.clear();
       const def = currentLesson();
       picker.set(lesson);
       troublePanel.hidden = lesson !== 'troubleshoot';
@@ -498,7 +500,8 @@ const factory: PageFactory = (): Page => {
 
     function tick(dt: number): void {
       const def = currentLesson();
-      if (def.kind !== 'gallery' && def.kind !== 'brief' && !ended && !doc) {
+      // Films keep playing once the Homing lesson is complete (the pilot may watch them again).
+      if (def.kind !== 'gallery' && def.kind !== 'brief' && (!ended || def.kind === 'film') && !doc) {
         const sdt = dt * timeScale;
         stepFilm(sdt);
         sim.step(sdt);
