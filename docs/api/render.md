@@ -156,7 +156,8 @@ Created by the Stage (`stage.env`). A clear high-altitude day for a tactical tra
   the sky's colour in that direction, sun glow included.
 - **Light:** one `DirectionalLight` on the sun direction (warm white), a soft `HemisphereLight`, and a small PMREM
   (64 px) of the same sky plus the ground below as `scene.environment`, so jets and vehicles have a sky to
-  reflect. Re-captured on `setSurface`. If float render targets are missing the models keep sun and hemisphere.
+  reflect. Re-captured on `setSurface` and after a restored WebGL context. If float render targets are missing
+  the models keep sun and hemisphere.
 
 `EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: true (default: 2200 m,
 coverage 0.3) | false | { altitudeM, coverage, shadow = 0.42 }`, `cirrus = true`, `sunAzimuthDeg = 140`,

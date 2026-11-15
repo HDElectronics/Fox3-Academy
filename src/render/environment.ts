@@ -236,9 +236,18 @@ export class Environment {
     this.captureSky = new Mesh(new SphereGeometry(50, 32, 16), skyMaterial(true));
     this.capture.add(this.captureSky);
     this.updateEnvMap();
+    // A restored WebGL context comes back with an empty environment map: capture it again.
+    stage.canvas.addEventListener('webglcontextrestored', this.onRestored);
 
     this.off = stage.onFrame(() => this.update(), { priority: 400, always: true });
   }
+
+  private readonly onRestored = () => {
+    // The old generator and map died with the lost context; disposing them would touch dead GL objects.
+    this.pmrem = null;
+    this.envMap = null;
+    this.updateEnvMap();
+  };
 
   /** Re-capture the sky (and the ground colour below it) into the scene's environment map. */
   private updateEnvMap(): void {
@@ -290,6 +299,7 @@ export class Environment {
 
   dispose(): void {
     this.off();
+    this.stage.canvas.removeEventListener('webglcontextrestored', this.onRestored);
     for (const m of [this.sky, this.ground, this.clouds, this.captureSky]) { m.removeFromParent(); m.geometry.dispose(); m.material.dispose(); }
     if (this.stage.scene.environment === this.envMap?.texture) this.stage.scene.environment = null;
     this.envMap?.dispose(); this.envMap = null;
