@@ -25,6 +25,7 @@ export class AppStore {
   private progress: Record<string, number | boolean | string>;
   private unitsOverride: boolean;
   private listeners = new Set<Listener>();
+  private preview: { read: (key: string) => number | boolean | string | undefined; writes: Record<string, number | boolean | string> } | null = null;
 
   constructor() {
     const d = load();
@@ -61,10 +62,24 @@ export class AppStore {
   }
 
   /** Progress flags, e.g. getProgress('tws:f15c:done'). */
-  getProgress(key: string) { return this.progress[key]; }
+  getProgress(key: string): number | boolean | string | undefined {
+    if (this.preview) return Object.hasOwn(this.preview.writes, key) ? this.preview.writes[key] : this.preview.read(key);
+    return this.progress[key];
+  }
   setProgress(key: string, value: number | boolean | string) {
+    if (this.preview) { this.preview.writes[key] = value; this.fire('progress'); return; }
     this.progress[key] = value; this.persist(); this.fire('progress');
   }
+  /**
+   * Show fixture progress instead of the saved flags, for screenshots (dev-only `?progress=`, progressFixture.ts).
+   * Reads come from `read`; writes stay in memory for the session and saved progress is never touched.
+   */
+  previewProgress(read: (key: string) => number | boolean | string | undefined) {
+    this.preview = { read, writes: {} };
+    this.fire('progress');
+  }
+  /** True while fixture progress is shown. */
+  get previewing(): boolean { return this.preview !== null; }
 
   private persist() {
     save({ aircraft: this.jet, fighter: this.aircraft, units: this.units, unitsOverride: this.unitsOverride, progress: this.progress });

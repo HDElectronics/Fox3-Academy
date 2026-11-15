@@ -52,3 +52,22 @@ describe('saved state across the Fox3 Academy rename', () => {
     expect(new AppStore().aircraft).toBe('su27');
   });
 });
+
+describe('progress preview for screenshots', () => {
+  it('shows fixture progress without reading or writing saved progress', () => {
+    const storage = install({ [KEY]: JSON.stringify({ aircraft: 'f15c', progress: { 'tws:f15c:done': true } }) });
+    const app = new AppStore();
+    const events: string[] = [];
+    app.subscribe((_, what) => events.push(what));
+    app.previewProgress(key => (key === 'radar:f15c:done' ? true : undefined));
+    expect(app.previewing).toBe(true);
+    expect(events).toEqual(['progress']);
+    expect(app.getProgress('radar:f15c:done')).toBe(true);
+    expect(app.getProgress('tws:f15c:done')).toBeUndefined();
+    app.setProgress('missiles:f15c:done', true);
+    expect(app.getProgress('missiles:f15c:done')).toBe(true);
+    expect(storage.read(KEY).progress).toEqual({ 'tws:f15c:done': true });
+    app.setAircraft('su27');
+    expect(storage.read(KEY).progress).toEqual({ 'tws:f15c:done': true });
+  });
+});
