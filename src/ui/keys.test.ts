@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ariaShortcut, bindKeys, chordText, isMacPlatform, macKeyLabel, matchChord, parseChord, parseKeyList, splitAlternatives, type KeyEventLike } from './keys';
+import { ariaShortcut, bindKeys, chordText, isMacPlatform, macKeyLabel, matchChord, pageBinds, parseChord, parseKeyList, splitAlternatives, type KeyEventLike } from './keys';
 
 const ev = (code: string, mods: Partial<Omit<KeyEventLike, 'code'>> = {}): KeyEventLike => ({
   code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...mods,
@@ -155,6 +155,57 @@ describe('bindKeys', () => {
     t.dispatchEvent(key('keydown', 'KeyI', { altKey: true }));
     expect(log).toEqual(['tws']);
     unbind();
+  });
+
+  it('gives arrow keys to the page on a segment the user clicked, and to the segment when tabbed in', () => {
+    // A minimal DOM: a radio segment inside a radiogroup, a slider, and the document bindKeys watches for clicks.
+    class El extends EventTarget {
+      constructor(readonly tagName: string, readonly attrs: Record<string, string>, readonly parent: El | null = null) { super(); }
+      matches(sel: string): boolean {
+        return sel.split(',').some(s => {
+          const m = /^\s*([a-z]*)((?:\[[^\]]+\])*)\s*$/.exec(s);
+          if (!m) return false;
+          if (m[1] && m[1] !== this.tagName.toLowerCase()) return false;
+          return [...m[2].matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)].every(a => a[1] in this.attrs && (a[2] === undefined || this.attrs[a[1]] === a[2]));
+        });
+      }
+      closest(sel: string): El | null { for (let e: El | null = this; e; e = e.parent) if (e.matches(sel)) return e; return null; }
+      contains(o: unknown): boolean { for (let e = o as El | null; e; e = e.parent) if (e === this) return true; return false; }
+    }
+    const g = globalThis as { document?: unknown };
+    const hadDoc = 'document' in g, oldDoc = g.document;
+    const doc = new EventTarget();
+    g.document = doc;
+    try {
+      const group = new El('DIV', { role: 'radiogroup' });
+      const seg = new El('BUTTON', { role: 'radio' }, group);
+      const slider = new El('INPUT', { type: 'range' });
+      const log: string[] = [];
+      const unbind = bindKeys({ 'Left': () => log.push('roll') }, seg);
+      const clickOn = (el: El) => { const p = new Event('pointerdown'); Object.defineProperty(p, 'target', { value: el }); doc.dispatchEvent(p); };
+      const arrow = (code = 'ArrowLeft') => { const d = key('keydown', code); seg.dispatchEvent(d); seg.dispatchEvent(key('keyup', code)); return d; };
+
+      expect(pageBinds(ev('ArrowLeft'))).toBe(true);
+      expect(pageBinds(ev('ArrowDown'))).toBe(false);
+      // Tabbed in (no click): the radiogroup keeps its arrows.
+      expect(arrow().defaultPrevented).toBe(false);
+      expect(log).toEqual([]);
+      // Clicked: the page's Left flies the jet.
+      clickOn(seg);
+      expect(arrow().defaultPrevented).toBe(true);
+      expect(log).toEqual(['roll']);
+      // A slider the user clicked keeps its arrows.
+      clickOn(slider);
+      const sl = key('keydown', 'ArrowLeft');
+      Object.defineProperty(sl, 'target', { value: slider });
+      seg.dispatchEvent(sl);
+      expect(log).toEqual(['roll']);
+
+      unbind();
+      expect(pageBinds(ev('ArrowLeft'))).toBe(false);
+    } finally {
+      if (hadDoc) g.document = oldDoc; else delete g.document;
+    }
   });
 
   it('skips unparseable chords with a warning instead of throwing', () => {

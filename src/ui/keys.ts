@@ -277,7 +277,8 @@ const ACTIVATABLE = 'button, a[href], summary, input, [role="button"], [role="ta
 /**
  * Would the focused control use this key itself? Enter/Space activate a control the user reached
  * with the keyboard, but NOT one they just clicked (mouse users keep their DCS keys: click TWS, then
- * press Enter to designate). Arrows belong to sliders, radio groups, tab lists and selects.
+ * press Enter to designate). Arrows belong to sliders, selects and menus; also to radio groups and tab
+ * lists, except a segment or tab the user just clicked (click the Chase camera, then the arrows still fly).
  */
 function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | null): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
@@ -286,8 +287,21 @@ function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | 
     return !!ctl && ctl !== pointerCtl;
   }
   if (NAV_CODES.has(e.code)) {
-    return !!el.closest('input[type="range"], select, [role="slider"], [role="radiogroup"], [role="tablist"], [role="listbox"], [role="menu"]');
+    if (el.closest('[role="radiogroup"], [role="tablist"]')) return !pointerCtl || !pointerCtl.contains(el);
+    return !!el.closest('input[type="range"], select, [role="slider"], [role="listbox"], [role="menu"]');
   }
+  return false;
+}
+
+/** Every live bindKeys map, as "does it bind this key now?" (see pageBinds). */
+const liveMaps = new Set<(e: KeyEventLike) => boolean>();
+
+/**
+ * Does a live bindKeys map bind this key right now? Radio groups and tab lists ask before using an arrow key on
+ * a segment the user clicked, so the page's key (a DCS flight key) wins and the segment keeps the arrow otherwise.
+ */
+export function pageBinds(e: KeyEventLike): boolean {
+  for (const binds of liveMaps) if (binds(e)) return true;
   return false;
 }
 
@@ -362,6 +376,9 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
     for (const b of list) b.up?.();
   };
 
+  const binds = (e: KeyEventLike) => (!opts.enabled || opts.enabled())
+    && entries.some(en => matchChord(en.chord, e, held) > (opts.strictSides ? 1 : 0));
+
   target.addEventListener('keydown', onDown);
   target.addEventListener('keyup', onUp);
   const win: EventTarget | null = typeof window !== 'undefined' ? window : null;
@@ -369,12 +386,14 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
   win?.addEventListener('blur', releaseAll);
   doc?.addEventListener('pointerdown', onPointer, true);
   doc?.addEventListener('focusin', onFocusIn, true);
+  liveMaps.add(binds);
   return () => {
     target.removeEventListener('keydown', onDown);
     target.removeEventListener('keyup', onUp);
     win?.removeEventListener('blur', releaseAll);
     doc?.removeEventListener('pointerdown', onPointer, true);
     doc?.removeEventListener('focusin', onFocusIn, true);
+    liveMaps.delete(binds);
     held.clear(); active.clear(); pointerCtl = null;
   };
 }

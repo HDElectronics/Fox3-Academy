@@ -271,6 +271,8 @@
   Sortie and Radar Lab pages; they no longer switch to the jet's default units or to kilometres.
 - Keep an RWR search contact steady between paints of a 1-bar or 3-bar scan: a target near the scan edge no
   longer blinks off for up to a quarter of the time (and re-triggers "new contact") on every sweep.
+- Keep the arrow keys flying the jet after clicking a segmented control or tab (camera, throttle, weapon, mode):
+  they no longer switch that control instead. A keyboard user who tabs into a control still steps it with arrows.
 
 ## 0.1.0 — 2026-09-20
 
