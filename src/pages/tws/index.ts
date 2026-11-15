@@ -141,7 +141,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     options: [{ value: '0', label: 'Pause' }, { value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }],
     onChange: v => { labInput.clear(); holds.clear(); if (v === '0') paused = true; else { paused = false; speed = Number(v); } },
   });
-  const resetBtn = button({ label: 'Reset', size: 's', onClick: () => reset(), title: 'Put the four bandits back at 70–100 km' });
+  const resetBtn = button({ label: 'Reset', size: 's', onClick: () => reset(), title: `Put the four bandits back at ${rangeSpan(70000, 100000)}` });
   const clock = h('div', { class: 'tws-clock tws-plate' }, clockEl, speedSeg.el, resetBtn.el);
 
   const legend = h('div', { class: 'tws-legend tws-plate', 'aria-label': 'Legend' },
