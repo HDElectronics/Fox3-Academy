@@ -283,8 +283,12 @@ const ARROW_GROUP = '[role="radiogroup"], [role="tablist"]';
  *   ctl   the control the user last pressed with a pointer, while focus stays inside it.
  *   group the radio group or tab list the user entered with a pointer. It belongs to the group element, not to one
  *         cap, so it survives a rebuild of the caps and focus moves between caps; it ends when focus leaves the group.
+ * Both are set on pointerdown, not on focus: Safari, and Firefox on macOS, do not focus a button on click. Both end
+ * when Tab brings focus anywhere, so a later keyboard entry into the clicked group is a keyboard entry.
  */
 const pointer: { ctl: Element | null; group: Element | null } = { ctl: null, group: null };
+/** A Tab keydown is moving focus (cleared by the focus it causes, or after the task). */
+let tabbing = false;
 /** Arrow-key groups that are not role=radiogroup / tablist (registered by trackArrowGroup). */
 const arrowGroups = new WeakSet<Element>();
 
@@ -301,12 +305,19 @@ const onPointerDown = (ev: Event) => {
 };
 const onFocusIn = (ev: Event) => {
   const el = asElement(ev.target);
+  if (tabbing) { tabbing = false; pointer.ctl = pointer.group = null; return; }   // reached with the keyboard
   if (!el) return;
   // Focus moved (a script, a key, a rebuilt cap): keep only the pointer state that still holds it.
   if (pointer.ctl && !pointer.ctl.contains(el)) pointer.ctl = null;
   if (pointer.group && !pointer.group.contains(el)) pointer.group = null;
 };
-const TRACKERS: [string, (ev: Event) => void][] = [['pointerdown', onPointerDown], ['focusin', onFocusIn]];
+const onKeyDown = (ev: Event) => {
+  const e = ev as KeyboardEvent;
+  if (e.key !== 'Tab' && e.code !== 'Tab') return;
+  tabbing = true;
+  setTimeout(() => { tabbing = false; }, 0);
+};
+const TRACKERS: [string, (ev: Event) => void][] = [['pointerdown', onPointerDown], ['focusin', onFocusIn], ['keydown', onKeyDown]];
 let trackedDoc: EventTarget | null = null;
 
 /** Listen on the document once (capture phase, before any page handler). Safe to call often. */
@@ -316,6 +327,7 @@ function trackPointerFocus(): void {
   if (trackedDoc) for (const [type, fn] of TRACKERS) trackedDoc.removeEventListener(type, fn, true);
   trackedDoc = doc;
   pointer.ctl = pointer.group = null;
+  tabbing = false;
   for (const [type, fn] of TRACKERS) doc.addEventListener(type, fn, true);
 }
 trackPointerFocus();

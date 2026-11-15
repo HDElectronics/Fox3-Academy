@@ -235,6 +235,8 @@ const unbind = bindKeys({
   the user last pressed with a pointer (while focus stays in it) and the radio group or tab list they entered with a
   pointer. The group state belongs to the group element: it survives `setOptions` rebuilding the caps and focus
   moves between caps (End on a clicked segment, then Left still flies), and ends when focus leaves the group.
+  Both are taken from the pointerdown, since Safari and Firefox on macOS do not focus a button on click, and both
+  end when Tab moves focus: tabbing into a group the user clicked earlier is a keyboard entry with arrow navigation.
   `pressedByPointer(el)` and `enteredByPointer(group)` read it; `trackArrowGroup(root)` makes a custom arrow-key
   group (not `role=radiogroup` / `tablist`) behave the same way.
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events

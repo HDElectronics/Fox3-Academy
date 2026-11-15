@@ -199,6 +199,26 @@ describe('segmented() and tabs() after a click', () => {
     unbind();
   });
 
+  it('treats Tab into a group as a keyboard entry after a click that did not focus (Safari, Firefox on macOS)', () => {
+    const { seg, caps, log, unbind } = steer();
+    click(caps[2], { focuses: false });   // Safari: pointerdown and click, no focus event
+    expect(seg.value).toBe('right');
+    expect(doc.activeElement).toBe(null);
+    tabTo(caps[2]);                       // the next Tab lands on the checked cap
+    const right = press('ArrowRight');
+    expect(right.defaultPrevented).toBe(true);
+    expect(seg.value).toBe('straight');   // the group moved; the page did not turn
+    expect(log).toEqual(['seg right', 'seg straight']);
+    // Out and back in with the keyboard: still the group's arrows.
+    const before = mount(new FakeEl('button'));
+    tabTo(before);
+    tabTo((seg.group as unknown as FakeEl).children[0]);
+    press('ArrowRight');
+    expect(seg.value).toBe('left');
+    expect(log).not.toContain('turn right');
+    unbind();
+  });
+
   it('does the same for a tab list', () => {
     const log: string[] = [];
     const t = tabs({ id: 'cam', tabs: [{ id: 'chase', label: 'Chase' }, { id: 'top', label: 'Top' }, { id: 'cockpit', label: 'Cockpit' }], onChange: id => log.push('tab ' + id) });
