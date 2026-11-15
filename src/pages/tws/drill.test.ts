@@ -121,6 +121,19 @@ describe('tws lesson', () => {
       AIRCRAFT.mig29s.radar.detectKm.headOn * 1000 * Math.pow(AIRCRAFT[b0.type].rcsM2 / 3, 0.25), 0);
   });
 
+  it('the fire panel and coach give launch ranges in the lesson units, not the jet\'s (F-15C in km)', () => {
+    const L = new TwsLesson('f15c', { units: 'metric' });
+    L.setMode('tws');
+    for (let i = 0; i < 300 && !L.me.radar.tracks.some(t => t.firm); i++) L.step(0.1);
+    const firm = L.me.radar.tracks.find(t => t.firm);
+    expect(firm).toBeTruthy();
+    if (!firm) return;
+    L.act(firm.targetId);
+    expect(L.canLaunch().reason).toMatch(/^Out of range: \d+ km, Rmax \d+ km$/);
+    expect(L.fire()).toMatch(/km, Rmax \d+ km$/);
+    expect(coachFor(L, resolveBinds('f15c')).text).not.toMatch(/\bnm\b/);
+  });
+
   it('refuses TWS on the M-2000C in plain words', () => {
     const L = new TwsLesson('m2000c');
     expect(L.setMode('tws')).toMatch(/No TWS/);

@@ -1075,8 +1075,8 @@ export function lockJammer(world: World, ac: Aircraft, targetId: EntityId): bool
   return true;
 }
 
-/** Can this radar go STT on `targetId` right now? Reason in pilot words when not. */
-export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon'): LockCheck {
+/** Can this radar go STT on `targetId` right now? Reason in pilot words when not, ranges in `units` (default: the jet's). */
+export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon', units?: 'metric' | 'imperial'): LockCheck {
   if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
   const spec = specOf(ac), r = spec.radar, st = ac.radar;
   if (st.mode === 'off') return { ok: false, reason: 'Radar is off' };
@@ -1089,7 +1089,8 @@ export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: L
   }
   if (isJammed(ac, tgt, g.range)) return { ok: false, reason: 'Jammer: no range until burn-through. Lock the strobe (jam lock)' };
   const lockR = LOCK_RANGE_FACTOR * detectionRange(world, ac, tgt);
-  if (g.range > lockR) return { ok: false, reason: `Too far to lock: ${(g.range / 1000).toFixed(0)} km, lock range ${(lockR / 1000).toFixed(0)} km` };
+  const dist = (m: number) => ((units ?? spec.units) === 'imperial' ? `${(m / M_PER_NM).toFixed(0)} nm` : `${(m / 1000).toFixed(0)} km`);
+  if (g.range > lockR) return { ok: false, reason: `Too far to lock: ${dist(g.range)}, lock range ${dist(lockR)}` };
   if (isNotched(world, ac, tgt)) return { ok: false, reason: 'Target is in the notch' };
   return { ok: true, reason: '' };
 }

@@ -17,7 +17,7 @@ import type { FighterId, AircraftSpec, RadarModeId } from '../../data/types';
 import { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import { setManeuver as scriptManeuver } from '../../sim/scenarios';
-import { barBand, burnThroughRange, canLockJammer, explainDetection, isJammed, scanElevationLimits } from '../../sim/radar';
+import { barBand, burnThroughRange, canLock, canLockJammer, explainDetection, isJammed, scanElevationLimits } from '../../sim/radar';
 import { buildRadarPicture } from '../../sim/picture';
 import { D2R, MPS_PER_KT, R2D, aspectAngle, groundRange, headingOf } from '../../sim/math';
 import { fmtAltShort, fmtSpeed, type Units } from '../../app/format';
@@ -486,7 +486,7 @@ const factory: PageFactory = (): Page => {
     function tryNormalLock(): void {
       const id = targetIds[0];
       if (!me || !id || exId !== 'jam') return;
-      const c = world.canLock(PLAYER, id);
+      const c = canLock(world, me, id, 'horizon', units);
       recordLockTry(mem, c);
       if (c.ok) world.lock(PLAYER, id);
       else toast(`Lock refused: ${c.reason}`, { within: lab.view, tone: 'caution', ms: 3200 });
@@ -519,7 +519,7 @@ const factory: PageFactory = (): Page => {
       const st = me.radar;
       if (st.mode === 'stt' && st.stt.targetId === id) return;
       if (st.mode === 'stt') world.unlock(PLAYER);
-      const c = world.canLock(PLAYER, id);
+      const c = canLock(world, me, id, 'horizon', units);
       if (!c.ok || !world.lock(PLAYER, id)) toast(`Lock refused: ${c.reason || 'no lock'}`, { within: lab.view, tone: 'caution', ms: 3200 });
       updateUi(true);
     }
@@ -1064,7 +1064,7 @@ const factory: PageFactory = (): Page => {
     function jamPreroll(): void {
       const st = me?.radar;
       if (!st || !st.strobes.length || exId !== 'jam') return;
-      if (mem.reason === undefined) recordLockTry(mem, world.canLock(PLAYER, targetIds[0]));
+      if (mem.reason === undefined && me) recordLockTry(mem, canLock(world, me, targetIds[0], 'horizon', units));
       if (world.t > 10 && st.mode !== 'stt') {
         const s0 = st.strobes[0];
         world.setScan(PLAYER, { cursor: { az: s0.az, range: st.cursor.range } });

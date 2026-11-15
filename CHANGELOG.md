@@ -267,6 +267,8 @@
 - B17: Initialize the public Git baseline on `main` and ignore generated output and local secrets.
 - Quote the sim's own head-on detection ranges in the Sortie brief and the TWS search coach: FC3 Russian radars no
   longer lose 30 % looking down head-on, and the MiG-29S uses its 3 m² reference.
+- Give lock and launch refusals ("Too far to lock", "Out of range", "No ПР yet") in the selected units on the TWS,
+  Sortie and Radar Lab pages; they no longer switch to the jet's default units or to kilometres.
 
 ## 0.1.0 — 2026-09-20
 

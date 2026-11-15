@@ -17,7 +17,8 @@ import { buildRadarPicture } from '../../sim/picture';
 import { BURN_THROUGH_M, JAM_CUE, OWN_JAMMER, isHojMissile } from '../../data/ecm';
 import { dlzFor } from '../../sim/dlz';
 import { IFF } from '../../data/iff';
-import { identifiedFriend } from '../../sim/radar';
+import { canLock, identifiedFriend } from '../../sim/radar';
+import { canLaunch } from '../../sim/launch';
 import { D2R, R2D, bearingTo, clamp, relBearing, wrap2Pi, M_PER_FT, MPS_PER_KT } from '../../sim/math';
 import { speedFromMach } from '../../sim/atmosphere';
 import { Stage, WorldView, CameraRig } from '../../render';
@@ -503,7 +504,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     const tr = st.tracks.find(t => t.targetId === id);
     if (tr) world.setScan(me.id, { cursor: { az: relBearing(me.pos, me.heading, tr.pos), range: me.pos.distanceTo(tr.pos) } });
     if (before === after && modeNow !== 'stt') {
-      const why = world.canLock(me.id, id);
+      const why = canLock(world, me, id, 'horizon', units);
       say(modeNow === 'tws' && !tr ? 'Not a track yet: wait for a second hit' : why.ok ? 'No change' : why.reason, 'caution');
     } else if (modeNow === 'tws') {
       const i = st.designated.indexOf(id);
@@ -544,7 +545,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     if (!canAct() || me.radar.mode !== 'tws' || !id) return;
     if (world.lock(me.id, id)) return;
     if (world.canLockJammer(me.id, id).ok) jamLock(id);
-    else say(world.canLock(me.id, id).reason, 'caution');
+    else say(canLock(world, me, id, 'horizon', units).reason, 'caution');
   }
   function radarPower(on: boolean): void {
     if (!canAct()) return;
@@ -565,7 +566,7 @@ export function mountFly(host: HTMLElement, o: FlyOptions): { dispose(): void } 
     if (!canAct()) return;
     const r = world.launch(me.id);
     if ('kind' in r) rec.action('launch', r.type, r.targetId);
-    else say(r.reason || 'No shot', 'caution');
+    else say(canLaunch(world, me, undefined, undefined, units).reason || r.reason || 'No shot', 'caution');
   }
   function cycleWeapon(): void {
     if (!canAct()) return;

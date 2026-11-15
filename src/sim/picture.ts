@@ -138,7 +138,7 @@ export function buildRadarPicture(world: World, ownerId: EntityId, opts: Picture
 
   // DLZ and cue against the locked / primary designated target (the jet's launch target when neither).
   const primary = (st.mode === 'stt' ? st.stt.targetId : null) ?? (st.mode === 'tws' ? st.designated[0] : undefined) ?? undefined;
-  const check = canLaunch(world, ac, primary ?? undefined);
+  const check = canLaunch(world, ac, primary ?? undefined, undefined, units);
   const dlz = check.dlz && check.range != null ? { ...check.dlz, targetRange: check.range } : null;
   let shootCue = check.ok;
   let launchBlockedReason = check.reason;
