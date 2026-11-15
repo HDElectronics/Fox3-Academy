@@ -30,6 +30,11 @@
   --bezel-head: 16px;
   --bezel-gap: 5px;
 }
+/* Wide windows: a taller display strip, so displays kept at their true aspect grow into the width instead of leaving
+   the strip half empty. Tall windows (2560 × 1440, 1920 × 1200) and ultra-wide ones (2560 × 1080, where a taller strip
+   also narrows the centred lab) get more. Pages that set their own --lab-strip-h keep it. */
+@media (min-width: 901px) and (min-height: 1150px) { :root { --lab-strip-h: clamp(210px, 34vh, 500px); } }
+@media (min-width: 901px) and (min-aspect-ratio: 21 / 10) { :root { --lab-strip-h: clamp(210px, 38vh, 520px); } }
 .ui-console, .ui-surface, .ui-lab__strip, .ui-modal__dialog, .ui-doc__toc {
   --s-ink: var(--panel-ink);
   --s-label: var(--panel-muted);

@@ -62,6 +62,24 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   const chromeSize = new ResizeObserver(() => { syncHeight(); syncOverflow(); });
   chromeSize.observe(bar);
   chromeSize.observe(contextNav);
+  // Ultra-wide windows centre the lab: the bars' content lines up with it (base.css reads --chrome-inset). Without a
+  // lab on the page the CSS falls back to the default lab's width.
+  let labEl: Element | null = null;
+  const syncInset = () => {
+    const r = labEl?.getBoundingClientRect();
+    if (r && r.width > 0) document.documentElement.style.setProperty('--chrome-inset', `${Math.max(0, Math.round(r.left))}px`);
+    else document.documentElement.style.removeProperty('--chrome-inset');
+  };
+  const labSize = new ResizeObserver(syncInset);
+  new MutationObserver(() => {
+    const next = outlet.querySelector('.ui-lab');
+    if (next === labEl) return;
+    if (labEl) labSize.unobserve(labEl);
+    labEl = next;
+    if (labEl) labSize.observe(labEl);
+    syncInset();
+  }).observe(outlet, { childList: true });
+  window.addEventListener('resize', syncInset, { passive: true });
 
   const sync = () => {
     const spec = app.jetSpec;

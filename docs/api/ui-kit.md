@@ -155,7 +155,8 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
 
 - `viewport`: your 3D container (give it to `Stage`). It gets class `ui-fill` and fills the area.
 - `strip`: screen bezels (with `aspect`) sized to the strip height (`--lab-strip-h`,
-  `clamp(210px, 31vh, 320px)`), plus optional data blocks. For readouts in the strip wrap them in
+  `clamp(210px, 31vh, 320px)`; on tall windows, 1150 px and up, `clamp(210px, 34vh, 500px)`; on ultra-wide windows,
+  21:10 and wider, `clamp(210px, 38vh, 520px)`, so true-aspect displays grow into the width), plus optional data blocks. For readouts in the strip wrap them in
   `h('div', { class: 'ui-strip-block' }, placard('Own ship'), readouts(...).el)` rather than a nested
   console panel. Do not give strip bezels a `footer` (their glass height is computed without one).
   **A strip bezel with an `aspect` keeps it**: on desktop it grows no wider than its glass (`max-width:
@@ -167,7 +168,9 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
 - Ultra-wide windows (> 900 px): the lab is centred and capped at the console plus a 3D view of
   `--lab-view-aspect` (default 2.6) times the view's estimated height, so the view does not become a slit on a
   2560 × 1080 or 3440 × 1440 window; 16:9 and 16:10 windows stay full width. The Stage caps the horizontal field of
-  view as well (`docs/api/render.md`, "Wide viewports").
+  view as well (`docs/api/render.md`, "Wide viewports"). The top bar and the lesson row keep their full-bleed paint but
+  line their content up with the centred lab: the shell measures the mounted `.ui-lab` (`--chrome-inset`), and pages
+  without a lab use the default lab's width.
 - Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`, `--lab-view-aspect`.
 
 ### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocHeader?, id?, class? })`

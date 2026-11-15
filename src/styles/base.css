@@ -147,6 +147,21 @@ kbd {
 .pathnext[data-ready="true"]:hover { background: color-mix(in srgb, var(--btn-on) 86%, var(--btn-on-ink)); }
 .pathnext__text { overflow: hidden; text-overflow: ellipsis; max-width: 30ch; }
 
+/* Ultra-wide windows centre the lab (components.css, .ui-lab max-width). The bars stay full-bleed but their content
+   lines up with the lab, so the brand and the jet picker do not sit a hand's width away from the page. The shell
+   measures the mounted lab's left edge (--chrome-inset); pages without a lab use the default lab's width
+   (--lab-console-w, a 2.6 : 1 view above a --lab-strip-h strip). On other windows the inset is 0 and this is 16 px. */
+@media (min-width: 901px) {
+  :root {
+    --chrome-max: calc(var(--lab-console-w) + 3 * var(--lab-gap) + 2.6 * (max(560px, 100dvh - var(--shell-h, var(--topbar-h)))
+      - 4 * var(--lab-gap) - 54px - var(--lab-strip-h)));
+  }
+  .topbar { padding-inline: max(16px, var(--chrome-inset, (100% - var(--chrome-max)) / 2) + var(--lab-gap)); }
+  .context-nav {
+    padding-inline: max(12px, var(--chrome-inset, (100% - var(--chrome-max)) / 2))
+      max(16px, var(--chrome-inset, (100% - var(--chrome-max)) / 2) + var(--lab-gap));
+  }
+}
 @media (max-width: 900px) {
   .context-nav { padding: 0 8px 0 4px; gap: var(--gap-2); }
   .pathpos__cap { display: none; }
