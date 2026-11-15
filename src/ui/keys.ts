@@ -272,13 +272,13 @@ export function isTextField(t: EventTarget | null): boolean {
   return !!(el as HTMLElement).isContentEditable || !!el.closest('[contenteditable=""], [contenteditable="true"]');
 }
 
-const ACTIVATABLE = 'button, a[href], summary, input, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], [role="link"]';
+const ACTIVATABLE = 'button, a[href], summary, input, select, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], [role="link"]';
 
 /**
  * Would the focused control use this key itself? Enter/Space activate a control the user reached
  * with the keyboard, but NOT one they just clicked (mouse users keep their DCS keys: click TWS, then
- * press Enter to designate). Arrows belong to sliders, selects and menus; also to radio groups and tab
- * lists, except a segment or tab the user just clicked (click the Chase camera, then the arrows still fly).
+ * press Enter to designate). Arrows belong to sliders and menus; also to radio groups, tab lists and selects,
+ * except one the user just clicked (pick the Chase camera or a threat, then the arrows still fly).
  */
 function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | null): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
@@ -287,8 +287,8 @@ function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | 
     return !!ctl && ctl !== pointerCtl;
   }
   if (NAV_CODES.has(e.code)) {
-    if (el.closest('[role="radiogroup"], [role="tablist"]')) return !pointerCtl || !pointerCtl.contains(el);
-    return !!el.closest('input[type="range"], select, [role="slider"], [role="listbox"], [role="menu"]');
+    if (el.closest('[role="radiogroup"], [role="tablist"], select')) return !pointerCtl || !pointerCtl.contains(el);
+    return !!el.closest('input[type="range"], [role="slider"], [role="listbox"], [role="menu"]');
   }
   return false;
 }
@@ -352,7 +352,9 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
     const el = asElement(e.target);
     if (el) {
       if (!best.b.inModal && el.closest('[aria-modal="true"]')) return;
-      if (!best.b.inInputs && isTextField(el)) return;
+      // A select the user just picked from with the mouse is not being typed into: page keys (Space to start,
+      // the flight keys) work again, instead of reopening it or stepping its options.
+      if (!best.b.inInputs && isTextField(el) && !(el.tagName === 'SELECT' && el === pointerCtl)) return;
       if (consumedByControl(el, e, pointerCtl)) return;
     }
     if (best.b.preventDefault !== false) e.preventDefault();

@@ -273,6 +273,8 @@
   longer blinks off for up to a quarter of the time (and re-triggers "new contact") on every sweep.
 - Keep the arrow keys flying the jet after clicking a segmented control or tab (camera, throttle, weapon, mode):
   they no longer switch that control instead. A keyboard user who tabs into a control still steps it with arrows.
+- After picking from a dropdown with the mouse (threat, shooter, bandit, missile), page keys work again: Space
+  starts the defense drill or fires in the Missile Lab, and the arrows fly, instead of reopening the dropdown.
 
 ## 0.1.0 — 2026-09-20
 

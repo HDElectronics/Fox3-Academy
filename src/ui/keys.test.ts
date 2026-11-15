@@ -157,7 +157,7 @@ describe('bindKeys', () => {
     unbind();
   });
 
-  it('gives arrow keys to the page on a segment the user clicked, and to the segment when tabbed in', () => {
+  it('gives keys to the page on a segment or select the user clicked, and to the control when tabbed in', () => {
     // A minimal DOM: a radio segment inside a radiogroup, a slider, and the document bindKeys watches for clicks.
     class El extends EventTarget {
       constructor(readonly tagName: string, readonly attrs: Record<string, string>, readonly parent: El | null = null) { super(); }
@@ -200,6 +200,14 @@ describe('bindKeys', () => {
       Object.defineProperty(sl, 'target', { value: slider });
       seg.dispatchEvent(sl);
       expect(log).toEqual(['roll']);
+      // A select: tabbed in, its keys stay native; picked with the mouse, page keys work again.
+      const pick = new El('SELECT', {});
+      const onSelect = () => { const d = key('keydown', 'ArrowLeft'); Object.defineProperty(d, 'target', { value: pick }); seg.dispatchEvent(d); return d; };
+      expect(onSelect().defaultPrevented).toBe(false);
+      expect(log).toEqual(['roll']);
+      clickOn(pick);
+      expect(onSelect().defaultPrevented).toBe(true);
+      expect(log).toEqual(['roll', 'roll']);
 
       unbind();
       expect(pageBinds(ev('ArrowLeft'))).toBe(false);

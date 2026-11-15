@@ -154,11 +154,12 @@ const unbind = bindKeys({
 - Per binding: `down`, `up` (also called with no event if the window loses focus while held),
   `repeat` (default false: one call per press), `preventDefault` (default true), `inInputs`,
   `inModal` (both default false).
-- Ignored: typing in text fields; keys inside an `aria-modal` dialog; Enter/Space on a control the
+- Ignored: typing in text fields and selects (except a select the user just picked from with the mouse:
+  page keys such as Space to start work again); keys inside an `aria-modal` dialog; Enter/Space on a control the
   user reached **by keyboard** (it activates the control) — but a control the user just **clicked**
   does not swallow Enter/Space, so "click TWS, then Enter to designate" works; arrow keys inside
-  sliders, selects and menus, and inside radio groups and tab lists reached by keyboard. A segment or
-  tab the user just **clicked** gives a bound arrow key to the page ("click the Chase camera, then the
+  sliders and menus, and inside radio groups, tab lists and selects reached by keyboard. A segment, tab
+  or select the user just **clicked** gives a bound arrow key to the page ("click the Chase camera, then the
   arrows still fly"); `pageBinds(e)` tells `segmented` and `tabs` whether a live map binds the key.
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events
   that are already `defaultPrevented`. Keep one map per page.
