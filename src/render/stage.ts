@@ -3,7 +3,7 @@
  * One Stage per 3D viewport. Everything in the scene is in render units (1 unit = 1 km).
  */
 import {
-  ACESFilmicToneMapping, AgXToneMapping, Material, Mesh, NoToneMapping, Object3D, PerspectiveCamera, Plane,
+  ACESFilmicToneMapping, AgXToneMapping, Material, Mesh, NeutralToneMapping, NoToneMapping, Object3D, PerspectiveCamera, Plane,
   Raycaster, Scene, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -32,8 +32,12 @@ export interface StageOptions {
   antialias?: boolean;
   /** Device pixel ratio cap. Default 2. */
   maxDpr?: number;
-  /** Default 'aces'. */
-  toneMapping?: 'aces' | 'agx' | 'none';
+  /**
+   * Default 'neutral' (Khronos PBR Neutral): keeps albedo and side colours true and only rolls off highlights
+   * (sun disc, glint, lit cloud tops). The world (sky, ground, clouds, terrain, models) is tone mapped;
+   * symbology is not, so it keeps its token colours.
+   */
+  toneMapping?: 'neutral' | 'aces' | 'agx' | 'none';
   /** Default 1.0. */
   exposure?: number;
   /**
@@ -156,9 +160,10 @@ export class Stage {
     }
     this.renderer = renderer;
     renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = opts.toneMapping === 'agx' ? AgXToneMapping : opts.toneMapping === 'none' ? NoToneMapping : ACESFilmicToneMapping;
+    const tm = opts.toneMapping ?? 'neutral';
+    renderer.toneMapping = tm === 'aces' ? ACESFilmicToneMapping : tm === 'agx' ? AgXToneMapping : tm === 'none' ? NoToneMapping : NeutralToneMapping;
     renderer.toneMappingExposure = opts.exposure ?? 1.0;
-    renderer.setClearColor(this.palette.skyHorizon, 1);
+    renderer.setClearColor(this.palette.horizon, 1);
     this.canvas = renderer.domElement;
     this.canvas.className = 'r3-canvas';
     this.canvas.setAttribute('role', 'img');

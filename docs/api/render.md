@@ -1,6 +1,6 @@
 # Render kit (`src/render`): API
 
-The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
+The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the clear-day
 high-altitude `Environment`, original exterior assets with procedural fallbacks for every `AircraftId` (ten fighters and the Su-25T, straight wing,
 wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
@@ -70,7 +70,7 @@ first with `isWebGLAvailable()` if you want your own fallback.
 |---|---|---|
 | `antialias` | `true` | MSAA |
 | `maxDpr` | `2` | device pixel ratio cap |
-| `toneMapping` | `'aces'` | `'aces' \| 'agx' \| 'none'` (symbology and sky are not tone mapped, they keep token colours) |
+| `toneMapping` | `'neutral'` | `'neutral' \| 'aces' \| 'agx' \| 'none'`. Khronos PBR Neutral keeps albedo and side colours true and only rolls off highlights (sun disc, glint, lit cloud tops). The world (sky, ground, clouds, terrain, models) is tone mapped; symbology is not, so it keeps token colours. Render-target passes (Shkval TV, forward views) are never tone mapped, by three.js design |
 | `exposure` | `1` | |
 | `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer. Narrowed on viewports wider than `maxViewAspect` (see "Wide viewports") |
 | `maxViewAspect` | `MAX_VIEW_ASPECT` (2.4) | widest viewport shape (width / height) that still widens the picture; `Infinity` turns the cap off |
@@ -136,17 +136,46 @@ camera matrices and need nothing. Code that turns a field of view into pixels or
 Pattern & landing side view, the missile-lab fits, the HARM top view and the Merge cockpit overlay sight do.
 The ATFLIR and JDAM pod views have their own renderer and apply `wideViewZoom` to their cameras the same way.
 
-## Environment (`environment.ts`)
+## Environment (`environment.ts`, `atmosphere.ts`)
 
-Created by the Stage (`stage.env`). Ultramarine zenith to pale horizon haze (`--sky-top`,
-`--sky-horizon`), sun disc and glow, a desaturated sea (default) or muted land (`--earth`) at
-altitude 0 with a faint 10 km grid (every 5th line a bit stronger), altitude-aware distance haze
-(thin looking down from high, thick at the horizon), optional sparse cumulus layer. Lights for the
-flat-shaded models (hemisphere + sun).
+Created by the Stage (`stage.env`). A clear high-altitude day for a tactical trainer, not a weather model:
 
-`EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: false |
-true | { altitudeM = 2400, coverage = 0.32 }`, `sunAzimuthDeg = 140`, `sunElevationDeg = 48`,
-`hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`, `sunDirection`.
+- **Sky dome:** deep-blue zenith (`WORLD.zenith`) through a clear mid blue to a bright warm-white horizon band,
+  a sun disc with a soft glow on the sun direction, high cirrus streaks painted on the dome.
+- **Surface at altitude 0:** a `MeshStandardMaterial` lit like every model, with procedural albedo
+  (`patchSurface`, `atmosphere.ts`). `'sea'`: open water with a noise coastline (land to the north-east, open
+  water within about 40 km of the origin for carrier work), shallow water and a thin beach at the coast, wind
+  ripples and a rougher-than-mirror surface for the sun glint. `'land'`: a field patchwork (rotated, warped
+  grid with hedges and crop rows near the eye), woods, dry scrub and lakes; open farmland within about 3 km of
+  the origin (airfields). The faint km grid (every 5th line a bit stronger) is drawn on top, quiet.
+- **Cumulus deck:** one transparent plane at `altitudeM`, broken cells in groups, sun-side tops bright and the
+  lee side in blue-grey shade; no depth write, so symbology always draws over it. It shadows the ground
+  (`shadow`); the deck itself is hidden from the Shkval TV and HUD passes by the pages.
+- **Aerial perspective:** altitude-aware (8 km scale height): a blue veil that grows with the air between the
+  eye and the point, then the horizon haze (`hazeKm`). At the horizon the ground and clouds fade into exactly
+  the sky's colour in that direction, sun glow included.
+- **Light:** one `DirectionalLight` on the sun direction (warm white), a soft `HemisphereLight`, and a small PMREM
+  (64 px) of the same sky plus the ground below as `scene.environment`, so jets and vehicles have a sky to
+  reflect. Re-captured on `setSurface`. If float render targets are missing the models keep sun and hemisphere.
+
+`EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: true (default: 2200 m,
+coverage 0.3) | false | { altitudeM, coverage, shadow = 0.42 }`, `cirrus = true`, `sunAzimuthDeg = 140`,
+`sunElevationDeg = 40`, `hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`,
+`sunDirection`, `atmosphere` (the shared world uniforms: pass it to `TerrainMesh`, `TerrainProps` and
+`RunwayMesh` so they match the sky), `sky`, `ground`, `clouds`, `sun`, `hemi`.
+
+`atmosphere.ts` (shared world shading): `createAtmosphereUniforms(palette, sunDir, clock, hazeKm)`, the GLSL
+chunks (`W_NOISE`, `W_ATMOS`: `atmoSky`, `atmoHaze`, `atmoApply`; `W_CLOUD`; `W_LAND`; `W_GRID`),
+`patchSurface(material, { kind: 'ground' | 'terrain', atmosphere, grid?, detail?, pads?, reliefM? })` and
+`patchHaze(material, atmosphere, key)` (aerial perspective only, for plain lit meshes). World colours are the
+`WORLD` constants in `palette.ts` (flat `Palette` fields `zenith`, `skyMid`, `horizon`, `airHaze`, `sunlight`,
+`cloudLit`, `cloudShade`, `seaDeep`, `seaShallow`, `fieldA..D`, `forest`, `scrub`, `soil`, `rock`, `sand`); both
+cockpit skins share them. `polarDisc(radius, inner, rings, segments)` is the camera-centred ground/cloud mesh.
+
+**Cost:** three draw calls (sky, ground, clouds) as before, plus a one-off PMREM capture. The ground fragment
+shader evaluates about 15 to 25 value-noise samples where land is near (fields, woods, cloud shadow) and fewer
+over open water or far away (detail is skipped once a pixel covers more than it can show); clear sky skips the
+cloud detail. Not yet profiled on an integrated GPU.
 
 ---
 
