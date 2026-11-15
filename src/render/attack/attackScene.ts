@@ -5,7 +5,7 @@
  * target marks (MarkLayer: JTAC smoke, laser spot, IR pointer) and the optional attack geometry (IP, target, heading wedge).
  * It reads the World and never changes it (except installing the terrain hook in the constructor / setWorld).
  */
-import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
 import type { World } from '../../sim/world';
 import type { AgWeapon, Aircraft, EntityId } from '../../sim/types';
 import type { AgWeaponId } from '../../data/types';
@@ -82,6 +82,8 @@ interface Puff { x: number; y: number; z: number; t0: number; life: number; s0: 
 const MOTOR_S: Partial<Record<AgWeaponId, number>> = { vikhr: 30, kh25ml: 6, kh29l: 6, kh29t: 6, kh58: 8, s8: 1.2, s13: 1.4 };
 const LOCK_GIMBAL = { az: 35, up: 15, down: -85 };
 const SUN_FALLBACK = { x: 0.49, y: 0.64, z: -0.59 };
+/** Sky reflection kept on ground vehicles (environment-map intensity factor). */
+const UNIT_ENV_INTENSITY = 0.35;
 
 /** A metre-scale reviewed store with a synchronous procedural fallback. */
 export class AgStoreVisual extends Group {
@@ -244,6 +246,20 @@ export class AttackScene {
     this.geoSegN = segs.length / 7;
   }
 
+  /**
+   * Painted vehicles read matte: the reviewed models carry metal-like PBR values that mirror the bright sky in the
+   * environment map, washing them out against the ground in the TV and pod pictures. Runs on every model,
+   * including late-loading assets.
+   */
+  private mattUnits(): void {
+    this.units.traverse(o => {
+      const mats = (o as Mesh).material;
+      for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+        if (m instanceof MeshStandardMaterial && m.envMapIntensity !== UNIT_ENV_INTENSITY) m.envMapIntensity = UNIT_ENV_INTENSITY;
+      }
+    });
+  }
+
   private shooter(): Aircraft | null {
     const a = this.shooterId ? this.world.aircraft.get(this.shooterId) : undefined;
     return a && a.ag ? a : null;
@@ -363,7 +379,7 @@ export class AttackScene {
     if (this.layers.marks) this.markLayer.sync(w);
 
     this.focusClock += 1;
-    if (this.focusClock % 15 === 0) this.setFocusNow();
+    if (this.focusClock % 15 === 0) { this.setFocusNow(); this.mattUnits(); }
   }
 
   private syncWeapon(wp: AgWeapon, t: number): void {

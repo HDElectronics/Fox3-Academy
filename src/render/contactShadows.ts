@@ -27,7 +27,7 @@ export function contactShadow(u: Pick<GroundUnit, 'kind' | 'sizeM' | 'alive'>, s
     halfLength: size * (u.alive ? 0.6 : 0.55),
     dx: u.alive ? (-sun.x / horiz) * reach : 0,
     dz: u.alive ? (-sun.z / horiz) * reach : 0,
-    alpha: u.alive ? 0.42 : 0.6,
+    alpha: u.alive ? 0.5 : 0.62,
   };
 }
 
