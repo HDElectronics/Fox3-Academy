@@ -224,6 +224,14 @@ bag.add(menu.destroy); bag.add(subs.destroy);
 // in the frame loop: subs.tick(world.time); after a JTAC state change: menu.refresh();
 ```
 
+### `withRadioMenuKeys(menu, keys, { fallback?, enabled? }?)` → `KeyMap`
+
+The page's own key map merged with `radioMenuKeys`: every page chord the menu also uses (a digit such as the
+Su-25T master modes `1` / `7` / `8`, an F-key, `Esc`) moves into the fallback, so it still works while the
+menu is closed, and the menu owns it while open. A chord written with alternatives (`'7 / 8'`) passes
+through unchanged. An explicit `fallback` wins over a page key on the same chord.
+`bag.add(bindKeys(withRadioMenuKeys(menu, cockpit.keys, { fallback: cmsKeys })))`.
+
 ### `radioLog({ id, max? = 3, ttlS? = 8, historyMax? = 100, historyLabel? })`
 → `{ el, historyEl, push({ from, text, t?, tone?, unverified? }), tick(nowS), clear(), visible, size, destroy() }`
 

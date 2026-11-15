@@ -292,6 +292,24 @@ export const RADIO_MENU_CHORDS: readonly string[] = [
  * Do not bind these chords elsewhere in the same map: put them in `fallback`.
  * `enabled` (default always) turns the whole set off, e.g. while a lesson hides the radio.
  */
+/**
+ * The page's own key map merged with radioMenuKeys(): a page chord the menu also uses (a digit, an F-key, Esc) moves
+ * to the menu's fallback, so it still works while the menu is closed and the menu owns it while open. Chords given
+ * with alternatives ('7 / 8') pass through unchanged. `opts.fallback` wins over a page key on the same chord.
+ *   bag.add(bindKeys(withRadioMenuKeys(menu, cockpit.keys, { fallback: cms })));
+ */
+export function withRadioMenuKeys(menu: Pick<RadioMenuHandle, 'handleKey'>, keys: KeyMap, opts: { fallback?: Record<string, KeyHandler>; enabled?: () => boolean } = {}): KeyMap {
+  const radio = new Set(RADIO_MENU_CHORDS.map(c => parseChord(c)!.text));
+  const own: KeyMap = {}, moved: Record<string, KeyHandler> = {};
+  for (const [k, v] of Object.entries(keys)) {
+    const c = parseChord(k);
+    if (!c || !radio.has(c.text)) { own[k] = v; continue; }
+    const fn = typeof v === 'function' ? v : v.down;
+    if (fn) moved[c.text] = fn;
+  }
+  return { ...radioMenuKeys(menu, { ...opts, fallback: { ...moved, ...opts.fallback } }), ...own };
+}
+
 export function radioMenuKeys(menu: Pick<RadioMenuHandle, 'handleKey'>, opts: { fallback?: Record<string, KeyHandler>; enabled?: () => boolean } = {}): KeyMap {
   const fallback = new Map<string, KeyHandler>();
   for (const [k, fn] of Object.entries(opts.fallback ?? {})) {

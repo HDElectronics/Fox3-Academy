@@ -32,7 +32,7 @@ import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts, callout, placard,
-  bindKeys, disclosure, modal, radioMenu, radioMenuKeys, radioLog, toggle, type ModalHandle, type Tone, type KeyMap, type KeyHandler,
+  bindKeys, disclosure, modal, radioMenu, withRadioMenuKeys, radioLog, toggle, type ModalHandle, type Tone, type KeyMap, type KeyHandler,
 } from '../../ui';
 import { createSu25tCockpit } from '../strike/cockpit';
 import { buildCasScenario, bearingDeg, distM, type CasJet, type CasLessonId, type CasScenario, type XZ } from './scenario';
@@ -243,8 +243,9 @@ const factory: PageFactory = (): Page => {
       bag.add(() => cancelAnimationFrame(raf));
     }
 
-    // One key map: the cockpit keys, the radio menu (\, F-keys and digits; digits fall back to nothing).
-    bag.add(bindKeys({ ...radioMenuKeys(menu, ck.fallback ? { fallback: ck.fallback } : {}), ...withoutRadioChords(ck.keys) }));
+    // One key map: the cockpit keys and the radio menu (\, F-keys and digits). With the menu closed the digits are the
+    // cockpit's (Su-25T master modes 1 / 7 / 8, A-10C II CMS); with it open they pick menu items.
+    bag.add(bindKeys(withRadioMenuKeys(menu, ck.keys, ck.fallback ? { fallback: ck.fallback } : {})));
 
     // ------------------------------------------------------------------ helpers
     function aim(): AimState {
@@ -638,12 +639,5 @@ const factory: PageFactory = (): Page => {
 
   return { mount, unmount() { bag.dispose(); } };
 };
-
-/** Drop cockpit chords the radio menu owns (digits are Su-25T master modes but also the menu's F-key aliases). */
-function withoutRadioChords<T extends Record<string, unknown>>(keys: T): T {
-  const out = { ...keys };
-  for (const k of ['1', '7', '8']) delete out[k];
-  return out;
-}
 
 export default factory;
