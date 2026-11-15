@@ -169,9 +169,13 @@ One visual world: a fighter cockpit. Chrome is the selected jet's cockpit paint 
 Soviet turquoise with black ink for Flankers/Fulcrums, dark gull grey with white placards for Western
 jets. Displays are black glass with phosphor symbology (`--sym`), amber for designation/primary
 (`--sym-hi`), `--caution` amber and `--warning` red used only for real cautions/warnings. The 3D world
-is a hazy high-altitude day: ultramarine zenith, pale horizon haze, desaturated ground far below.
+is a clear high-altitude day: deep-blue zenith, warm-white horizon band, sun disc, broken cumulus, and a
+muted sea, field and woodland patchwork far below fading into the horizon haze. Symbology stays the most
+saturated, readable thing on screen.
 
-- Tokens only (`src/styles/tokens.css`, `readTheme()` for canvas/WebGL). No hard-coded colours.
+- Tokens only (`src/styles/tokens.css`, `readTheme()` for canvas/WebGL). No hard-coded colours. One
+  exception: the 3D world's own small palette (`WORLD` in `src/render/palette.ts`: sky, sea, land, clouds),
+  shared by both cockpit skins.
 - Type: `--font-display` Russo One for page titles only; `--font-body` IBM Plex Sans for prose;
   `--font-mono` B612 Mono (Airbus cockpit face) for every instrument, readout, label, button.
 - Placards: uppercase mono, small, letter-spaced, `--panel-muted`.
