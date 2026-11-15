@@ -14,6 +14,7 @@ import '../strike/style.css';
 import '../cas/style.css';
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
+import { fmtRange } from '../../app/format';
 import type { Aircraft } from '../../sim/types';
 import { R2D } from '../../sim/math';
 import { AG_WEAPONS } from '../../data/agWeapons';
@@ -46,7 +47,6 @@ const SHOT_PLAN: Record<Shot, { lesson: TgpLessonId; until?: string; extraS: num
   gun: { lesson: 'gun', until: 'fire', extraS: 0.3, cam: 'chase' },
   debrief: { lesson: 'mav', extraS: 1, cam: 'target' },
 };
-const NM = 1852;
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
@@ -247,7 +247,7 @@ const factory: PageFactory = (): Page => {
         const e = ev[evCursor]!;
         switch (e.type) {
           case 'ag-launch':
-            if (e.shooterId === me.id && e.weapon !== 'gau8') log.push(`${AG_WEAPONS[e.weapon].name} away${e.range ? ` at ${(e.range / NM).toFixed(1)} nm` : ''}`, { t: e.t });
+            if (e.shooterId === me.id && e.weapon !== 'gau8') log.push(`${AG_WEAPONS[e.weapon].name} away${e.range ? ` at ${fmtRange(e.range, ctx.app.units, 1)}` : ''}`, { t: e.t });
             break;
           case 'ag-miss': if (e.weapon !== 'gau8') log.push(`${AG_WEAPONS[e.weapon].name} missed (${e.reason})`, { t: e.t, tone: 'warning' }); break;
           case 'ground-kill': { const u = w.groundUnits.get(e.targetId); log.push(`${u?.name ?? 'Target'} destroyed`, { t: e.t, tone: 'ok' }); break; }
@@ -283,7 +283,7 @@ const factory: PageFactory = (): Page => {
       ro.set('soi', soiName);
       ro.set('spi', { steer: `Steerpoint ${sc.steerpoint.name}`, tasking: 'TAD', tgp: 'TGP', mav: 'MAV' }[ho.spiSource]);
       const c = centreOf(w, sc.column);
-      ro.set('rng', c ? `${(Math.hypot(me.pos.x - c.x, me.pos.z - c.z) / NM).toFixed(1)} nm` : '—');
+      ro.set('rng', c ? fmtRange(Math.hypot(me.pos.x - c.x, me.pos.z - c.z), ctx.app.units, 1) : '—');
       ro.set('store', ck.storeText());
       ro.set('codes', `${t.laserCode} / ${t.lssCode}`);
       ck.updateLamps();
