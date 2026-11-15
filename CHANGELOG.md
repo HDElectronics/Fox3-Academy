@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pattern & landing: the Downwind and Final starts tick the steps they begin past (initial, break, and on Final the
+  abeam), so the checklist and the coach follow the flight instead of asking for the initial the whole way down.
 - HARM & SEAD Radars and Homing lessons: Again and Restart start a fresh attempt instead of completing at once, a
   scripted screenshot visit no longer counts toward a saved completion, and the films keep playing after the lesson
   is complete.

@@ -57,7 +57,7 @@ import { carrierCaption, lessonSteps, legCaption } from './lesson';
 import {
   FLIGHT_OPS_JETS, GLIDE_TOL_DEG, LINEUP_TOL_DEG, PASS_SCORE, altFtText, altVal, aoaText, currentStep, errLevel, flapControl,
   gatesForStart, isFlightOpsJet, kt, ktText, lessonPassed, navMilestones, navPicture, placeGates, plannedGates, spdUnit, spdVal,
-  stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
+  stepOrder, stepsDone, stepsSkippedBy, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
   type FlownPoint, type LessonKind, type NavMilestones, type TakeoffItem,
   ballPicture, ballPrompt, carrierPlannedGates, pointAt, carrierStarts, gradeCard, toLandingOverlay, type CarrierStart,
   TIME_SCALES, timeHold, timeHoldText, type TimeScale,
@@ -930,7 +930,7 @@ const factory: PageFactory = (): Page => {
 
       const order = stepOrder(kind(), d);
       const gates = liveGates();
-      const done = stepsDone({ gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined, takeoff: tev ? toDone : undefined, ballCalled: cev ? !!s.lso?.ballCalled : undefined });
+      const done = stepsDone({ gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined, takeoff: tev ? toDone : undefined, ballCalled: cev ? !!s.lso?.ballCalled : undefined, skipped: stepsSkippedBy(start) });
       if (tev) {
         for (const c of takeoffChecklist(d, toDone)) {
           const l = toLamps.get(c.id)!;

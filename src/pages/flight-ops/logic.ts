@@ -270,6 +270,13 @@ export interface LessonSnapshot {
   takeoff?: ReadonlySet<TakeoffItem>;
   /** Carrier only (undefined elsewhere): the ball has been called. */
   ballCalled?: boolean;
+  /** Steps the start begins past (stepsSkippedBy): they count as done. */
+  skipped?: readonly StepId[];
+}
+
+/** Pattern steps a later start begins past: Downwind starts after the initial and the break, Final also after the abeam. */
+export function stepsSkippedBy(start: string): readonly StepId[] {
+  return start === 'downwind' ? ['initial', 'break'] : start === 'final' ? ['initial', 'break', 'abeam'] : [];
 }
 
 export interface NavMilestones {
@@ -298,6 +305,7 @@ export function stepsDone(snap: LessonSnapshot): Set<StepId> {
   const done = new Set<StepId>();
   const passed = (id: GateId) => snap.gates.some(g => g.id === id);
   const ok = (id: GateId) => snap.gates.some(g => g.id === id && g.ok);
+  for (const id of snap.skipped ?? []) done.add(id);
   if (snap.nav?.steering) done.add('navmode');
   if (snap.nav?.intercept) done.add('steer');
   if (snap.nav && snap.nav.onGlideRunS >= 3) done.add('glidepath');
