@@ -4,7 +4,7 @@
  * silently; focus() fires focusin). A click is pointerdown + focus + click; Safari's click does not focus.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindKeys } from './keys';
+import { bindKeys, focusedByKeyboard } from './keys';
 import { segmented, select, tabs } from './controls';
 
 type Listener = (e: FakeEvent) => void;
@@ -20,6 +20,8 @@ class FakeEl {
   childNodes: (FakeEl | FakeText)[] = []; parentElement: FakeEl | null = null;
   attrs = new Map<string, string>(); dataset: Record<string, string> = {}; style: Record<string, string> = {};
   hidden = false; className = ''; tabIndex = 0; isContentEditable = false;
+  /** Chrome's focus ring: off for a click, on for Tab, and on for a clicked element after any key press. */
+  focusVisible = false;
   listeners = new Map<string, { fn: Listener; capture: boolean }[]>();
   constructor(tag: string) { this.tagName = tag.toUpperCase(); }
   get children() { return this.childNodes.filter((c): c is FakeEl => c instanceof FakeEl); }
@@ -53,6 +55,7 @@ class FakeEl {
   }
   contains(n: FakeEl | null): boolean { for (let p = n; p; p = p.parentElement) if (p === this) return true; return false; }
   matches(sel: string): boolean {
+    if (sel === ':focus-visible') return doc.activeElement === this && this.focusVisible;
     return sel.split(',').some(s => {
       const m = /^\s*([a-z]*)((?:\[[^\]]+\])*)\s*$/.exec(s);
       if (!m) return false;
@@ -104,6 +107,7 @@ const KEY: Record<string, string> = { ArrowLeft: 'ArrowLeft', ArrowRight: 'Arrow
 /** A key press on whatever has focus (the body when nothing does). Returns the keydown event. */
 function press(code: string): FakeEvent {
   const t = doc.activeElement ?? docEl;
+  if (doc.activeElement) doc.activeElement.focusVisible = true;
   const d = dispatch(t, 'keydown', { code, key: KEY[code] ?? code });
   dispatch(doc.activeElement ?? docEl, 'keyup', { code, key: KEY[code] ?? code });
   return d;
@@ -111,12 +115,13 @@ function press(code: string): FakeEvent {
 /** A mouse click as Chrome does it: pointerdown, focus on the control, click. */
 function click(el: FakeEl, opts: { focuses?: boolean } = {}) {
   dispatch(el, 'pointerdown');
-  if (opts.focuses !== false) el.focus();
+  if (opts.focuses !== false) { el.focusVisible = false; el.focus(); }
   dispatch(el, 'click');
 }
 /** Tab onto el: keydown Tab, the browser moves focus. */
 function tabTo(el: FakeEl) {
   dispatch(doc.activeElement ?? docEl, 'keydown', { code: 'Tab', key: 'Tab' });
+  el.focusVisible = true;
   el.focus();
 }
 
@@ -290,6 +295,29 @@ describe('a select picked with the mouse', () => {
     tabTo(other); tabTo(sel);
     expect(press('Space').defaultPrevented).toBe(false);
     expect(log).toEqual(['start', 'start', 'start']);
+    unbind();
+  });
+});
+
+describe('focusedByKeyboard (the lesson path keeps focus across a re-render only for keyboard users)', () => {
+  const byKeyboard = (el: FakeEl) => focusedByKeyboard(el as unknown as Element);
+  it('is false for a clicked link, even once a key press rings it, and true for a link reached with Tab', () => {
+    const unbind = bindKeys({ 'Space': () => {} }, doc as unknown as EventTarget);
+    const row = mount(new FakeEl('nav'));
+    const next = new FakeEl('a'); next.setAttribute('href', '#/merge'); row.appendChild(next);
+    const step = new FakeEl('a'); step.setAttribute('href', '#/defense'); row.appendChild(step);
+    click(next);
+    expect(byKeyboard(next)).toBe(false);
+    press('Space');                       // Chrome now draws a ring on the clicked link
+    expect(next.matches(':focus-visible')).toBe(true);
+    expect(byKeyboard(next)).toBe(false);
+    tabTo(step);
+    expect(byKeyboard(step)).toBe(true);
+    // Enter on it navigates; the row re-renders and puts focus on the new link by script: still the keyboard's.
+    const again = new FakeEl('a'); again.setAttribute('href', '#/defense');
+    row.replaceChildren(again);
+    again.focusVisible = true; again.focus();
+    expect(byKeyboard(again)).toBe(true);
     unbind();
   });
 });

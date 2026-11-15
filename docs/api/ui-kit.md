@@ -241,6 +241,10 @@ const unbind = bindKeys({
   end when Tab moves focus: tabbing into a group the user clicked earlier is a keyboard entry with arrow navigation.
   `pressedByPointer(el)` and `enteredByPointer(group)` read it; `trackArrowGroup(root)` makes a custom arrow-key
   group (not `role=radiogroup` / `tablist`) behave the same way.
+- **Restoring focus after a re-render**: only when `focusedByKeyboard(el)` (Tab put focus there and the ring shows).
+  `:focus-visible` alone is not enough: Chrome rings a clicked link after the next key press. The shell's lesson
+  path row lets a clicked link's focus go on every re-render, route changes included, so on the new page Enter and
+  Space start the lesson instead of following the link; a keyboard user keeps their place in the row.
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events
   that are already `defaultPrevented`. Keep one map per page.
 

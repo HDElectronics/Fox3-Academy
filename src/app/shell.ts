@@ -16,6 +16,7 @@ import { flyLinkFor, lessonSteps, nextText, pathStatus, routeOf, type PathStatus
 import type { AppStore } from './store';
 import { h, $$ } from '../ui/dom';
 import { clearLessonPosition, lessonPosition, positionText, watchLessonPosition, type LessonPosition } from '../ui/lessonPicker';
+import { focusedByKeyboard } from '../ui/keys';
 
 type ProgressModel = typeof import('../pages/progress/model');
 
@@ -118,9 +119,12 @@ export function buildShell(root: HTMLElement, app: AppStore) {
     // Next and Continue open the first lesson left on that page (HARM, CAS...), else the page.
     const nextPath = at.next.index !== null && progress ? progress.steps[at.next.index]!.next?.path ?? at.next.path : at.next.path;
 
-    // A re-render (progress saved, jet changed) must not drop keyboard focus that sits in the row.
+    // A re-render (progress saved, jet changed, route changed) must not drop keyboard focus that sits in the row.
+    // Focus a click put there is let go: on the new page Enter and Space would follow the link, not start the lesson.
     const active = document.activeElement instanceof HTMLElement && contextNav.contains(document.activeElement) ? document.activeElement : null;
-    const refocus = !active ? null : active.classList.contains('pathnext') ? '.pathnext'
+    const keep = !!active && focusedByKeyboard(active);
+    if (active && !keep) active.blur();
+    const refocus = !active || !keep ? null : active.classList.contains('pathnext') ? '.pathnext'
       : `a[href="${CSS.escape(active.getAttribute('href') ?? '')}"]`;
 
     contextNav.dataset.destination = destination;

@@ -359,6 +359,16 @@ export function pressedByPointer(el: Element | null): boolean {
   return (!!pointer.ctl && pointer.ctl === ctl) || (!!pointer.group && pointer.group.contains(el));
 }
 
+/**
+ * True when the keyboard put focus on el (Tab, or a key that moved it) and the browser shows its focus ring. A click
+ * does not count, even once Chrome rings the clicked element after the next key press. Use it before restoring focus
+ * across a re-render: a restored link would take the new page's Enter and Space.
+ */
+export function focusedByKeyboard(el: Element): boolean {
+  if (pressedByPointer(el)) return false;
+  try { return el.matches(':focus-visible'); } catch { return true; }
+}
+
 /** Pressed with a pointer and done with: not a select whose list may still be open. */
 function releasedByPointer(el: Element): boolean {
   return pressedByPointer(el) && !(pointer.listOpen && pointer.ctl === (el.closest(ACTIVATABLE) ?? el));
