@@ -4,7 +4,7 @@
  * silently; focus() fires focusin). A click is pointerdown + focus + click; Safari's click does not focus.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindKeys, focusedByKeyboard, releasePointerFocus } from './keys';
+import { bindKeys, focusedByKeyboard, releasePointerFocus, restorableFocus } from './keys';
 import { segmented, select, tabs } from './controls';
 
 type Listener = (e: FakeEvent) => void;
@@ -349,5 +349,22 @@ describe('releasePointerFocus (the jet picker and the units button remount the p
     dispatch(units, 'click');                     // Enter or Space on the button
     expect(doc.activeElement).toBe(units);
     unbind2();
+  });
+});
+
+describe('restorableFocus (where a dialog gives focus back on close)', () => {
+  it('returns a control the keyboard reached or a text field, not a button the user clicked', () => {
+    const unbind = bindKeys({ 'Space': () => {} }, doc as unknown as EventTarget);
+    const debrief = mount(new FakeEl('button'));
+    const notes = mount(new FakeEl('input')); notes.setAttribute('type', 'text');
+    click(debrief);                       // the click opens the dialog
+    press('Space');                       // a key inside it rings the button in Chrome
+    expect(restorableFocus(debrief as unknown as Element)).toBe(null);
+    click(notes);
+    expect(restorableFocus(notes as unknown as Element)).toBe(notes);
+    tabTo(debrief);
+    expect(restorableFocus(debrief as unknown as Element)).toBe(debrief);
+    expect(restorableFocus(null)).toBe(null);
+    unbind();
   });
 });

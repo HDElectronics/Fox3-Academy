@@ -4,7 +4,7 @@
  * Every factory returns { el, ...small handle }. Styles live in src/styles/components.css.
  */
 import { h, append, setText, setAttr, cx, srOnly, type Child } from './dom';
-import { kbd } from './keys';
+import { kbd, restorableFocus } from './keys';
 import { button } from './controls';
 
 export type Tone = 'caution' | 'warning' | 'ok' | 'hi' | 'dim';
@@ -422,7 +422,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 
 /**
  * Result overlay / modal dialog: focus moves in and is trapped, Escape closes, focus returns to
- * where it was. With `within`, it covers only that element (which gets position: relative).
+ * where the keyboard left it (not to a button the user clicked). With `within`, it covers only that element (which gets position: relative).
  */
 export function modal(o: ModalOptions): ModalHandle {
   const dismissable = o.dismissable !== false;
@@ -464,7 +464,9 @@ export function modal(o: ModalOptions): ModalHandle {
     const host = o.within ?? document.body;
     if (!el.isConnected) host.append(el);
     if (o.within && getComputedStyle(o.within).position === 'static') o.within.style.position = 'relative';
-    returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Focus returns where the keyboard left it. A button the user clicked (Debrief) is not refocused: on close the
+    // page's Space and Enter must not press it again.
+    returnTo = restorableFocus(document.activeElement instanceof HTMLElement ? document.activeElement : null);
     el.hidden = false; isOpen = true;
     document.addEventListener('focusin', onFocusIn);
     const first = dialog.querySelector<HTMLElement>('.ui-modal__actions .ui-btn--primary') ?? focusables()[0];
@@ -475,6 +477,8 @@ export function modal(o: ModalOptions): ModalHandle {
     isOpen = false; el.hidden = true;
     document.removeEventListener('focusin', onFocusIn);
     if (returnTo && returnTo.isConnected) returnTo.focus();
+    // Otherwise drop focus from the hidden dialog now: keys on an element inside it would still count as in a modal.
+    else if (document.activeElement instanceof HTMLElement && dialog.contains(document.activeElement)) document.activeElement.blur();
     returnTo = null;
     o.onClose?.();
   }

@@ -370,6 +370,14 @@ export function focusedByKeyboard(el: Element): boolean {
 }
 
 /**
+ * The element to give focus back to after a dialog or a re-render: el when the keyboard put focus there or it is a
+ * text field being typed in, null when a click did (refocusing a clicked button would take the page's Space).
+ */
+export function restorableFocus<T extends Element>(el: T | null): T | null {
+  return el && (isTextField(el) || focusedByKeyboard(el)) ? el : null;
+}
+
+/**
  * Blur el when a pointer press put focus there, and keep it when the keyboard did. For chrome controls whose use
  * remounts the page (the jet picker, the units button): the new page's keys must not land on them, while a keyboard
  * user keeps arrowing through jets.
