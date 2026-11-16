@@ -272,22 +272,166 @@ export function isTextField(t: EventTarget | null): boolean {
   return !!(el as HTMLElement).isContentEditable || !!el.closest('[contenteditable=""], [contenteditable="true"]');
 }
 
-const ACTIVATABLE = 'button, a[href], summary, input, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], [role="link"]';
+const ACTIVATABLE = 'button, a[href], summary, input, select, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="option"], [role="link"]';
+const ARROW_GROUP = '[role="radiogroup"], [role="tablist"]';
+
+// ---- pointer focus ------------------------------------------------------------------------------
+
+/**
+ * How focus reached the control under the keyboard, kept once for the whole document so every key map, every
+ * segmented() / tabs() group and the shell read the same answer (a page that mounts after the click still knows).
+ *   ctl   the control the user last pressed with a pointer, while focus stays inside it.
+ *   group the radio group or tab list the user entered with a pointer. It belongs to the group element, not to one
+ *         cap, so it survives a rebuild of the caps and focus moves between caps; it ends when focus leaves the group.
+ * Both are set on pointerdown, not on focus: Safari, and Firefox on macOS, do not focus a button on click. Both end
+ * when Tab brings focus anywhere, so a later keyboard entry into the clicked group is a keyboard entry.
+ *   listOpen  ctl is a select whose list may still be open: pressed, but no change, Enter, Escape or second press
+ *         yet. Firefox sends keys to the page while the list is open, so until then the select keeps its keys.
+ */
+const pointer: { ctl: Element | null; group: Element | null; listOpen: boolean } = { ctl: null, group: null, listOpen: false };
+/** A Tab keydown is moving focus (cleared by the focus it causes, or after the task). */
+let tabbing = false;
+/** Arrow-key groups that are not role=radiogroup / tablist (registered by trackArrowGroup). */
+const arrowGroups = new WeakSet<Element>();
+
+/** The radio group, tab list or registered arrow group around el. */
+function groupOf(el: Element | null): Element | null {
+  for (let n = el; n; n = n.parentElement) if (arrowGroups.has(n) || n.matches(ARROW_GROUP)) return n;
+  return null;
+}
+
+const isSelect = (el: Element | null) => el?.tagName === 'SELECT';
+const onPointerDown = (ev: Event) => {
+  const t = asElement(ev.target);
+  const ctl = t?.closest(ACTIVATABLE) ?? null;
+  // A press on a select opens its list; a second press on the same select closes it.
+  pointer.listOpen = isSelect(ctl) && !(ctl === pointer.ctl && pointer.listOpen);
+  pointer.ctl = ctl;
+  pointer.group = groupOf(t);
+};
+const onFocusIn = (ev: Event) => {
+  const el = asElement(ev.target);
+  if (tabbing) { tabbing = false; pointer.ctl = pointer.group = null; pointer.listOpen = false; return; }   // reached with the keyboard
+  if (!el) return;
+  // Focus moved (a script, a key, a rebuilt cap): keep only the pointer state that still holds it.
+  if (pointer.ctl && !pointer.ctl.contains(el)) { pointer.ctl = null; pointer.listOpen = false; }
+  if (pointer.group && !pointer.group.contains(el)) pointer.group = null;
+};
+const onKeyDown = (ev: Event) => {
+  const e = ev as KeyboardEvent;
+  // Enter or Escape on an open list (Firefox) closes it: the select keeps this key, the page gets the next.
+  if (pointer.listOpen && e.target === pointer.ctl && /^(Enter|NumpadEnter|Escape)$/.test(e.code)) {
+    const sel = pointer.ctl;
+    setTimeout(() => { if (pointer.ctl === sel) pointer.listOpen = false; }, 0);
+  }
+  if (e.key !== 'Tab' && e.code !== 'Tab') return;
+  tabbing = true;
+  setTimeout(() => { tabbing = false; }, 0);
+};
+/** A change, or a click on one of its options (Firefox), means the pressed select's list has closed. The click on
+ * the select itself does not: it ends the press that opened the list. */
+const onChange = (ev: Event) => { if (ev.target === pointer.ctl) pointer.listOpen = false; };
+const onClick = (ev: Event) => {
+  const t = asElement(ev.target);
+  if (pointer.listOpen && t?.tagName === 'OPTION' && !!pointer.ctl?.contains(t)) pointer.listOpen = false;
+};
+const TRACKERS: [string, (ev: Event) => void][] = [
+  ['pointerdown', onPointerDown], ['focusin', onFocusIn], ['keydown', onKeyDown], ['change', onChange], ['click', onClick],
+];
+let trackedDoc: EventTarget | null = null;
+
+/** Listen on the document once (capture phase, before any page handler). Safe to call often. */
+function trackPointerFocus(): void {
+  const doc = typeof document !== 'undefined' ? (document as unknown as EventTarget) : null;
+  if (!doc || doc === trackedDoc || typeof doc.addEventListener !== 'function') return;
+  if (trackedDoc) for (const [type, fn] of TRACKERS) trackedDoc.removeEventListener(type, fn, true);
+  trackedDoc = doc;
+  pointer.ctl = pointer.group = null;
+  pointer.listOpen = tabbing = false;
+  for (const [type, fn] of TRACKERS) doc.addEventListener(type, fn, true);
+}
+trackPointerFocus();
+
+/** True when el (or the control around it) has focus because the user pressed it, or its group, with a pointer. */
+export function pressedByPointer(el: Element | null): boolean {
+  if (!asElement(el)) return false;
+  const ctl = el!.closest(ACTIVATABLE) ?? el!;
+  return (!!pointer.ctl && pointer.ctl === ctl) || (!!pointer.group && pointer.group.contains(el));
+}
+
+/**
+ * True when the keyboard put focus on el (Tab, or a key that moved it) and the browser shows its focus ring. A click
+ * does not count, even once Chrome rings the clicked element after the next key press. Use it before restoring focus
+ * across a re-render: a restored link would take the new page's Enter and Space.
+ */
+export function focusedByKeyboard(el: Element): boolean {
+  if (pressedByPointer(el)) return false;
+  try { return el.matches(':focus-visible'); } catch { return true; }
+}
+
+/**
+ * The element to give focus back to after a dialog or a re-render: el when the keyboard put focus there or it is a
+ * text field being typed in, null when a click did (refocusing a clicked button would take the page's Space).
+ */
+export function restorableFocus<T extends Element>(el: T | null): T | null {
+  return el && (isTextField(el) || focusedByKeyboard(el)) ? el : null;
+}
+
+/**
+ * Blur el when a pointer press put focus there, and keep it when the keyboard did. For chrome controls whose use
+ * remounts the page (the jet picker, the units button): the new page's keys must not land on them, while a keyboard
+ * user keeps arrowing through jets.
+ */
+export function releasePointerFocus(el: HTMLElement): void {
+  if (document.activeElement === el && pressedByPointer(el)) el.blur();
+}
+
+/** Pressed with a pointer and done with: not a select whose list may still be open. */
+function releasedByPointer(el: Element): boolean {
+  return pressedByPointer(el) && !(pointer.listOpen && pointer.ctl === (el.closest(ACTIVATABLE) ?? el));
+}
+
+/** True when the user entered this radio group, tab list or registered arrow group with a pointer. */
+export function enteredByPointer(group: Element): boolean {
+  return pointer.group === group;
+}
+
+/** Treat root as an arrow-key group (role=radiogroup and role=tablist elements already are). */
+export function trackArrowGroup(root: Element): void {
+  arrowGroups.add(root);
+  trackPointerFocus();
+}
 
 /**
  * Would the focused control use this key itself? Enter/Space activate a control the user reached
  * with the keyboard, but NOT one they just clicked (mouse users keep their DCS keys: click TWS, then
- * press Enter to designate). Arrows belong to sliders, radio groups, tab lists and selects.
+ * press Enter to designate). Arrows belong to sliders and menus; also to radio groups, tab lists and selects,
+ * except one the user just clicked (pick the Chase camera or a threat, then the arrows still fly).
  */
-function consumedByControl(el: Element, e: KeyboardEvent, pointerCtl: Element | null): boolean {
+function consumedByControl(el: Element, e: KeyboardEvent): boolean {
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
   if (ACTIVATE_CODES.has(e.code)) {
     const ctl = el.closest(ACTIVATABLE);
-    return !!ctl && ctl !== pointerCtl;
+    return !!ctl && !releasedByPointer(ctl);
   }
   if (NAV_CODES.has(e.code)) {
-    return !!el.closest('input[type="range"], select, [role="slider"], [role="radiogroup"], [role="tablist"], [role="listbox"], [role="menu"]');
+    const group = groupOf(el);
+    if (group) return !enteredByPointer(group);
+    if (el.closest('select')) return !releasedByPointer(el);
+    return !!el.closest('input[type="range"], [role="slider"], [role="listbox"], [role="menu"]');
   }
+  return false;
+}
+
+/** Every live bindKeys map, as "does it bind this key now?" (see pageBinds). */
+const liveMaps = new Set<(e: KeyEventLike) => boolean>();
+
+/**
+ * Does a live bindKeys map bind this key right now? Radio groups and tab lists ask before using an arrow key on
+ * a segment the user clicked, so the page's key (a DCS flight key) wins and the segment keeps the arrow otherwise.
+ */
+export function pageBinds(e: KeyEventLike): boolean {
+  for (const binds of liveMaps) if (binds(e)) return true;
   return false;
 }
 
@@ -315,13 +459,7 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
   }
   const held = new Set<string>();
   const active = new Map<string, KeyBinding>();
-  // The control the user last clicked (focus by pointer). Cleared when focus moves elsewhere.
-  let pointerCtl: Element | null = null;
-  const onPointer = (ev: Event) => { pointerCtl = asElement(ev.target)?.closest(ACTIVATABLE) ?? null; };
-  const onFocusIn = (ev: Event) => {
-    const el = asElement(ev.target);
-    if (pointerCtl && (!el || !pointerCtl.contains(el))) pointerCtl = null;
-  };
+  trackPointerFocus();
 
   const onDown = (ev: Event) => {
     const e = ev as KeyboardEvent;
@@ -338,8 +476,11 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
     const el = asElement(e.target);
     if (el) {
       if (!best.b.inModal && el.closest('[aria-modal="true"]')) return;
-      if (!best.b.inInputs && isTextField(el)) return;
-      if (consumedByControl(el, e, pointerCtl)) return;
+      // A select the user just picked from with the mouse is not being typed into: page keys (Space to start,
+      // the flight keys) work again, instead of reopening it or stepping its options. Not while its list may be
+      // open (Firefox sends those keys to the page): Enter there picks the option, letters search the list.
+      if (!best.b.inInputs && isTextField(el) && !(isSelect(el) && releasedByPointer(el))) return;
+      if (consumedByControl(el, e)) return;
     }
     if (best.b.preventDefault !== false) e.preventDefault();
     if (e.repeat && !best.b.repeat) return;
@@ -362,20 +503,20 @@ export function bindKeys(map: KeyMap, target: EventTarget = window, opts: BindKe
     for (const b of list) b.up?.();
   };
 
+  const binds = (e: KeyEventLike) => (!opts.enabled || opts.enabled())
+    && entries.some(en => matchChord(en.chord, e, held) > (opts.strictSides ? 1 : 0));
+
   target.addEventListener('keydown', onDown);
   target.addEventListener('keyup', onUp);
   const win: EventTarget | null = typeof window !== 'undefined' ? window : null;
-  const doc: EventTarget | null = typeof document !== 'undefined' ? document : null;
   win?.addEventListener('blur', releaseAll);
-  doc?.addEventListener('pointerdown', onPointer, true);
-  doc?.addEventListener('focusin', onFocusIn, true);
+  liveMaps.add(binds);
   return () => {
     target.removeEventListener('keydown', onDown);
     target.removeEventListener('keyup', onUp);
     win?.removeEventListener('blur', releaseAll);
-    doc?.removeEventListener('pointerdown', onPointer, true);
-    doc?.removeEventListener('focusin', onFocusIn, true);
-    held.clear(); active.clear(); pointerCtl = null;
+    liveMaps.delete(binds);
+    held.clear(); active.clear();
   };
 }
 

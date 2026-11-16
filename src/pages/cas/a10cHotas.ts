@@ -9,9 +9,9 @@
  * Functions and keys from docs/research/a10c.md §1-4, 6 (PROCEDURES.a10c binds). Markpoints (a10c-cdu.md §4): TMS Right Short at the TGP, MAV or TAD cursor point, the CDU MK key overhead,
  * Z at each store release; hook one on the TAD and TMS Forward Long makes it the SPI. Every new mark goes to the host
  * (`marked`, the CDU); DMS Forward / Aft with the HUD as SOI steps the CDU steerpoint (`steer`, M p.552, p.563).
- * Not modelled: HMCS, the HUD TDC mark, TMS Right Long, CCIP consent (CCIP is manual release), the
+ * Not modelled: HMCS, the HUD TDC mark, TMS Right Long, the gunsights DMS Left / Right cycles in GUNS, CCIP consent (CCIP is manual release), the
  * DSMS, the CNTL page (the page sets codes through World.tgpCode), TGP video modes, Maverick EO power and alignment. Trainer values: the long-press threshold is the manual's
- * 1 s; the TAD cursor rate, the hook radius and the "on the target" distances are trainer values.
+ * 1 s; the TAD cursor rate, the hook radius, the "on the target" distances and the held gun rate are trainer values.
  */
 import { Vector3 } from 'three';
 import type { World } from '../../sim/world';
@@ -37,6 +37,9 @@ const CURSOR_SCALE_PER_S = 0.35;
 const HOOK_SCALE = 0.07;
 /** An SPI or a pod point within this distance of a live briefed target is "on the target" (m). Trainer value. */
 export const ON_TARGET_M = 25;
+
+/** Gun rounds per second of sim time while the trigger is held. Trainer value, not verified. */
+export const GUN_ROUNDS_PER_S = 60;
 
 /** A laser bomb's CCRP release point: this share of its trainer range band (the band is not verified). */
 const LGB_RELEASE_BAND = 0.95;
@@ -110,6 +113,8 @@ export class A10cHotas {
   private storeBeforeGuns: AgWeaponId | null = null;
   /** Weapon release held in CCRP: the bomb drops when the cue reaches the reticle (stepHold). */
   holding = false;
+  /** Gun trigger held: rounds owed at GUN_ROUNDS_PER_S (null when the trigger is up). */
+  private triggerRounds: number | null = null;
 
   constructor(private readonly host: HotasHost) {}
 
@@ -118,7 +123,7 @@ export class A10cHotas {
     this.soi = 'hud'; this.leftPage = 'tad'; this.rightPage = 'tgp'; this.mavFov = 'wide'; this.slaveCount = 0;
     this.master = 'NAV'; this.spiSource = 'steer';
     this.tadScaleNm = 10; this.hooked = null; this.laserHeld = false; this.laserLatched = false;
-    this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null; this.holding = false;
+    this.milestones.clear(); this.held.clear(); this.slewIn = { x: 0, y: 0 }; this.storeBeforeGuns = null; this.holding = false; this.triggerRounds = null;
     this.marks = []; this.nextMark = 0; this.hookedMark = null;
     const ac = this.host.me();
     const d = this.tadScaleNm * NM * 0.3;
@@ -139,6 +144,8 @@ export class A10cHotas {
     const now = this.host.now?.();
     return now == null ? h.s : now - h.start;
   }
+  /** Forget a held switch without acting (the window lost focus mid-press: neither Short nor Long). */
+  cancel(sw: HotasSwitch): void { this.held.delete(sw); }
   /** A whole short or long press at once (buttons and scripts). */
   tap(sw: HotasSwitch, long = false): void { this.held.delete(sw); this.act(sw, long); }
 
@@ -166,6 +173,14 @@ export class A10cHotas {
       if (!r.ok && want) { this.laserHeld = false; this.laserLatched = false; this.host.log(r.reason, 'caution'); }
     }
     if (this.holding) this.stepHold();
+    // A held trigger fires on sim time, not once per frame, so the rate does not follow the frame rate.
+    if (this.triggerRounds != null) {
+      this.triggerRounds += dt * GUN_ROUNDS_PER_S;
+      while (this.triggerRounds >= 1 - 1e-9) {
+        this.triggerRounds -= 1;
+        if (!this.gun()) { this.triggerRounds = 0; break; }
+      }
+    }
     this.updateMilestones();
   }
 
@@ -356,6 +371,8 @@ export class A10cHotas {
 
   private dmsLeftRight(): void {
     if (this.soi !== 'hud') { this.host.log('DMS Left / Right: weapon profiles with the HUD as SOI', 'caution'); return; }
+    // In GUNS the same switch cycles the gunsights (research §5, M p.628-633), so the gun stays the store.
+    if (this.master === 'GUNS') { this.host.log('GUNS: DMS Left / Right cycles the gunsights, not modelled. M for CCIP or CCRP', 'caution'); return; }
     const w = this.host.world(), ac = this.host.me();
     const sel = w.cycleAgWeapon(ac.id);
     this.host.log(sel ? `Profile: ${AG_WEAPONS[sel].hudLabel}` : 'No store left');
@@ -494,6 +511,14 @@ export class A10cHotas {
   gun(): boolean {
     if (this.master !== 'GUNS') return false;
     return this.releaseWeapon();
+  }
+
+  /** Gun trigger pressed (one round now) or let go; while held, step() fires GUN_ROUNDS_PER_S. */
+  setTrigger(on: boolean): void {
+    if (!on) { this.triggerRounds = null; return; }
+    if (this.triggerRounds != null) return;
+    this.triggerRounds = 0;
+    this.gun();
   }
 
   // ------------------------------------------------------------------ helpers

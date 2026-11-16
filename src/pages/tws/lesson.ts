@@ -8,7 +8,7 @@ import { RWRS, rwrSymbol } from '../../data/rwr';
 import type { FighterId, MissileId } from '../../data/types';
 import type { EntityId, Missile } from '../../sim/types';
 import { dlzFor } from '../../sim/dlz';
-import { explainDetection, trackOf } from '../../sim/radar';
+import { detectionRangeFor, explainDetection, trackOf } from '../../sim/radar';
 import { fmtRange, fmtTime } from '../../app/format';
 import { R2D, relBearing } from '../../sim/math';
 import { MERGE_RANGE_M, type BanditState, type TwsLesson, type Tone } from './drill';
@@ -456,7 +456,7 @@ function detectLine(L: TwsLesson): string {
   const alive = L.bandits.filter(x => x.alive);
   if (!alive.length) return '';
   const b0 = alive[0];
-  const det = L.spec.radar.detectKm.headOn * 1000 * Math.pow(AIRCRAFT[b0.type].rcsM2 / 5, 0.25);
+  const det = detectionRangeFor(L.ac, b0.type, 0, false);
   const nearest = Math.min(...alive.map(x => L.rangeTo(x.id)));
   const type = AIRCRAFT[b0.type].short;
   return `Your ${L.spec.radar.name} sees ${article(type)} ${type} at about ${fmtRange(det, L.units)} head-on; the nearest bandit is at ${fmtRange(nearest, L.units)}.`;

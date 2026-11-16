@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AIRCRAFT_ORDER, FIGHTER_ORDER } from '../../data/aircraft';
 import { FLIGHT_OPS } from '../../data/flightOps';
 import { AppStore } from '../../app/store';
-import { LESSON_PATH, progressKeys, type ProgressReader } from '../../app/learningProgress';
+import { SINGLE_FLAG_ROUTES, progressKeys, type ProgressReader } from '../../app/learningProgress';
+import { lessonSteps, routeOf } from '../../app/lessonPath';
 import { routeFor } from '../../app/routes';
 import { jetAllowed } from '../../app/roleGate';
 import { progressKey as flightKey } from '../flight-ops/logic';
@@ -10,7 +11,7 @@ import { aarProgressKey } from '../flight-ops/aarLesson';
 import { LESSON_ORDER, progressKey as strikeKey } from '../strike/lessons';
 import { SORTIE_PROGRESS } from '../strike/sortie';
 import { CAS_LESSON_ORDER } from '../cas/lessons';
-import { fleetProgress, jetProgress, progressHref, progressTotals, previewProgress } from './model';
+import { continuePath, fleetProgress, jetProgress, pathProgress, progressHref, progressTotals, previewProgress } from './model';
 
 const read = (values: Record<string, number | boolean | string> = {}): ProgressReader => key => values[key];
 afterEach(() => vi.unstubAllGlobals());
@@ -124,12 +125,66 @@ describe('fleet progress', () => {
   it('finishes a jet only when every supported goal is complete, then offers no next goal', () => {
     const id = 'f14b';
     const values: Record<string, boolean> = {};
-    for (const route of LESSON_PATH) values[progressKeys(route, id)[0]!] = true;
+    for (const route of SINGLE_FLAG_ROUTES) values[progressKeys(route, id)[0]!] = true;
     for (const kind of ['pattern', 'takeoff', 'carrier', 'launch'] as const) values[flightKey(id, kind)] = true;
     values[aarProgressKey(id)] = true;
     const jet = jetProgress(id, read(values));
     expect(jet.completed).toBe(jet.total);
     expect(jet.next).toBeNull();
     expect(progressTotals([jet])).toMatchObject({ finished: 1, started: 1 });
+  });
+});
+
+describe('path progress: one model for the Learn bar, the Learn home and Progress', () => {
+  it('has one step per lesson-path entry, each with the goals of its page', () => {
+    for (const id of AIRCRAFT_ORDER) {
+      const p = pathProgress(id, read());
+      expect(p.steps.map(s => s.link)).toEqual(lessonSteps(id));
+      for (const s of p.steps) {
+        expect(s.total, `${id} ${s.link.path}`).toBeGreaterThan(0);
+        for (const g of s.goals) expect(routeOf(g.path), `${id} ${g.id}`).toBe(routeOf(s.link.path));
+      }
+    }
+  });
+  it('counts the same goals as the progress page, in path order with the BVR sortie last', () => {
+    for (const id of AIRCRAFT_ORDER) {
+      const fromPath = pathProgress(id, read()).steps.flatMap(s => s.goals.map(g => g.id));
+      const all = jetProgress(id, read()).goals.map(g => g.id);
+      expect(all, id).toEqual((FIGHTER_ORDER as readonly string[]).includes(id) ? [...fromPath, 'sortie'] : fromPath);
+    }
+  });
+  it('names a one-lesson page the way the Learn bar and the home name it', () => {
+    for (const s of pathProgress('f15c', read()).steps.filter(x => x.total === 1)) expect(s.goals[0]!.label).toBe(s.link.label);
+    expect(jetProgress('su27', read({ 'radar:su27:done': true, 'tws:su27:done': true, 'missiles:su27:done': true })).next?.label).toBe('Defense');
+  });
+  it('completes a step only when every goal on its page is done', () => {
+    const hornet = pathProgress('fa18c', read({ 'flight-ops:fa18c:done': true }));
+    const pattern = hornet.steps.find(s => s.link.path === 'flight-ops')!;
+    expect(pattern.done).toBe(1);
+    expect(pattern.complete).toBe(false);
+    expect(pattern.next?.id).toBe('flight-takeoff');
+    const tws = pathProgress('f15c', read({ 'tws:f15c:done': true })).steps[1]!;
+    expect(tws.complete).toBe(true);
+  });
+  it('continues with the first step left, opening the first lesson left on that page', () => {
+    const fresh = pathProgress('su25t', read());
+    expect(fresh.status.next.index).toBe(0);
+    expect(continuePath(fresh)).toBe('strike?lesson=shkval');
+    const strikeDone = (key: string) => (key.startsWith('strike:') ? true : undefined);
+    const cas = pathProgress('su25t', strikeDone);
+    expect(cas.status).toMatchObject({ doneCount: 1, total: 2 });
+    expect(continuePath(cas)).toBe('cas?lesson=nine-line');
+    expect(continuePath(pathProgress('f15c', read({ 'radar:f15c:done': true })))).toBe('tws');
+  });
+  it('hands a finished path to Fly and reads each jet\'s own sortie', () => {
+    const values: Record<string, boolean> = {};
+    for (const route of SINGLE_FLAG_ROUTES) values[`${route}:jf17:done`] = true;
+    for (const key of ['done', 'takeoff', 'carrier', 'launch', 'aar']) values[`flight-ops:jf17:${key}`] = true;
+    const jf17 = pathProgress('jf17', read(values));
+    expect(jf17.status.complete).toBe(true);
+    expect(continuePath(jf17)).toBe('sortie');
+    expect(jf17.fly.done).toBe(true);
+    expect(pathProgress('su25t', read({ [strikeKey('sortie')]: true })).fly.done).toBe(true);
+    expect(pathProgress('a10c', read({ 'cas:sortie:a10c': true })).fly).toMatchObject({ path: 'cas?lesson=sortie', done: true });
   });
 });

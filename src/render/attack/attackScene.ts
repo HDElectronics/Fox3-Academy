@@ -5,7 +5,7 @@
  * target marks (MarkLayer: JTAC smoke, laser spot, IR pointer) and the optional attack geometry (IP, target, heading wedge).
  * It reads the World and never changes it (except installing the terrain hook in the constructor / setWorld).
  */
-import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type BufferGeometry, type Material, type Object3D } from 'three';
 import type { World } from '../../sim/world';
 import type { AgWeapon, Aircraft, EntityId } from '../../sim/types';
 import type { AgWeaponId } from '../../data/types';
@@ -24,6 +24,7 @@ import { terrainHook } from './terrainHook';
 import { AssetVisual } from '../assets';
 import { sideColor } from '../palette';
 import { MarkLayer } from './marks';
+import { ContactShadows } from '../contactShadows';
 
 export interface AttackLayers {
   /** Laser line jet → aim point while ЛД is on. */
@@ -80,6 +81,9 @@ interface Puff { x: number; y: number; z: number; t0: number; life: number; s0: 
 
 const MOTOR_S: Partial<Record<AgWeaponId, number>> = { vikhr: 30, kh25ml: 6, kh29l: 6, kh29t: 6, kh58: 8, s8: 1.2, s13: 1.4 };
 const LOCK_GIMBAL = { az: 35, up: 15, down: -85 };
+const SUN_FALLBACK = { x: 0.49, y: 0.64, z: -0.59 };
+/** Sky reflection kept on ground vehicles (environment-map intensity factor). */
+const UNIT_ENV_INTENSITY = 0.35;
 
 /** A metre-scale reviewed store with a synchronous procedural fallback. */
 export class AgStoreVisual extends Group {
@@ -113,6 +117,8 @@ export class AttackScene {
   readonly terrain: TerrainMesh;
   readonly props: TerrainProps;
   readonly units: GroundUnitLayer;
+  /** Soft shadows under ground units (also in the TV picture). */
+  readonly shadows = new ContactShadows();
   readonly layers: AttackLayers;
   private world: World;
   private shooterId: EntityId | null;
@@ -143,8 +149,11 @@ export class AttackScene {
     const p = stage.palette;
     this.root.name = 'attack-root';
     this.root.scale.setScalar(UNIT_PER_M);
-    this.terrain = new TerrainMesh(opts.field, p, { lodDistancesM: [6000, 16000] });
-    this.props = new TerrainProps(opts.field, p, { density: opts.propDensity ?? 0.5, viewDistanceM: 6000 });
+    // Attack jets fly at 1.5–3 km: keep the cumulus well above them, sparse, with a light shadow.
+    stage.env?.setSurface('land');
+    stage.env?.setClouds({ altitudeM: 4600, coverage: 0.22, shadow: 0.18 });
+    this.terrain = new TerrainMesh(opts.field, p, { lodDistancesM: [6000, 16000], atmosphere: stage.env?.atmosphere });
+    this.props = new TerrainProps(opts.field, p, { density: opts.propDensity ?? 0.5, viewDistanceM: 6000, atmosphere: stage.env?.atmosphere });
     this.units = new GroundUnitLayer(p, () => stage.requestRender());
     this.geo = {
       missile: new CylinderGeometry(0.13, 0.13, 3, 6).rotateX(Math.PI / 2),
@@ -152,7 +161,7 @@ export class AttackScene {
       rocket: new CylinderGeometry(0.06, 0.06, 1.6, 5).rotateX(Math.PI / 2),
     };
     this.wMat = new MeshBasicMaterial({ color: p.smoke.clone().lerp(p.sun, 0.4) });
-    this.root.add(this.terrain, this.props, this.units, this.weapons);
+    this.root.add(this.terrain, this.props, this.units, this.shadows, this.weapons);
     stage.scene.add(this.root);
 
     this.overlay.name = 'attack-overlay';
@@ -237,6 +246,20 @@ export class AttackScene {
     this.geoSegN = segs.length / 7;
   }
 
+  /**
+   * Painted vehicles read matte: the reviewed models carry metal-like PBR values that mirror the bright sky in the
+   * environment map, washing them out against the ground in the TV and pod pictures. Runs on every model,
+   * including late-loading assets.
+   */
+  private mattUnits(): void {
+    this.units.traverse(o => {
+      const mats = (o as Mesh).material;
+      for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+        if (m instanceof MeshStandardMaterial && m.envMapIntensity !== UNIT_ENV_INTENSITY) m.envMapIntensity = UNIT_ENV_INTENSITY;
+      }
+    });
+  }
+
   private shooter(): Aircraft | null {
     const a = this.shooterId ? this.world.aircraft.get(this.shooterId) : undefined;
     return a && a.ag ? a : null;
@@ -254,6 +277,7 @@ export class AttackScene {
     if (this.disposed) return;
     const w = this.world, t = w.t, pal = this.stage.palette;
     this.units.sync(w.groundUnits.values());
+    this.shadows.sync(w.groundUnits.values(), this.stage.env?.sunDirection ?? SUN_FALLBACK);
 
     // Weapons in flight.
     const seen = new Set<EntityId>();
@@ -355,7 +379,7 @@ export class AttackScene {
     if (this.layers.marks) this.markLayer.sync(w);
 
     this.focusClock += 1;
-    if (this.focusClock % 15 === 0) this.setFocusNow();
+    if (this.focusClock % 15 === 0) { this.setFocusNow(); this.mattUnits(); }
   }
 
   private syncWeapon(wp: AgWeapon, t: number): void {
@@ -420,6 +444,7 @@ export class AttackScene {
     for (const w of this.wMeshes.values()) w.mesh.dispose();
     this.wMeshes.clear();
     this.units.dispose();
+    this.shadows.dispose();
     this.terrain.dispose();
     this.props.dispose();
     for (const g of Object.values(this.geo)) g.dispose();

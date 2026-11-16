@@ -15,7 +15,7 @@
 import { Vector3 } from 'three';
 import type { GuidanceSupport, World } from './world';
 import type { Aircraft, EntityId, IffReply, RadarState, TrackFile } from './types';
-import type { FighterId, AircraftSpec, RadarModeId } from '../data/types';
+import type { AircraftId, FighterId, AircraftSpec, RadarModeId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import { fighterSpec, fighterType, isFighterAc } from './jet';
 import { MISSILES } from '../data/missiles';
@@ -296,13 +296,21 @@ function geoOf(ac: Aircraft, p: Vector3): Geo {
  */
 export function detectionRange(world: World, observer: Aircraft, target: Aircraft): number {
   if (!isFighterAc(observer)) return 0;
-  const d = specOf(observer).radar.detectKm;
   const asp = aspectAngle(target.pos, target.vel, observer.pos);
   const down = isLookDown(observer.pos, target.pos, world.groundAlt);
-  const hot = d.headOn * (down ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
-  const cold = d.tail * (down ? d.lookDownFactor : 1);
-  let km = lerp(hot, cold, (1 - Math.cos(asp)) / 2);
-  km *= Math.pow(Math.max(AIRCRAFT[target.type].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
+  return detectionRangeFor(fighterType(observer), target.type, asp, down);
+}
+
+/**
+ * detectionRange() without a World: `observer`'s radar against a `target` type at this aspect (rad, 0 = hot) and
+ * look-down state (m). Briefs and coaches quote this so their numbers match the sim.
+ */
+export function detectionRangeFor(observer: FighterId, target: AircraftId, aspect: number, lookDown: boolean): number {
+  const d = AIRCRAFT[observer].radar.detectKm;
+  const hot = d.headOn * (lookDown ? d.lookDownHeadOnFactor ?? d.lookDownFactor : 1);
+  const cold = d.tail * (lookDown ? d.lookDownFactor : 1);
+  let km = lerp(hot, cold, (1 - Math.cos(aspect)) / 2);
+  km *= Math.pow(Math.max(AIRCRAFT[target].rcsM2, 0.01) / (d.referenceRcsM2 ?? REF_RCS_M2), 0.25);
   return km * 1000;
 }
 
@@ -1067,8 +1075,8 @@ export function lockJammer(world: World, ac: Aircraft, targetId: EntityId): bool
   return true;
 }
 
-/** Can this radar go STT on `targetId` right now? Reason in pilot words when not. */
-export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon'): LockCheck {
+/** Can this radar go STT on `targetId` right now? Reason in pilot words when not, ranges in `units` (default: the jet's). */
+export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: LockFrame = 'horizon', units?: 'metric' | 'imperial'): LockCheck {
   if (!isFighterAc(ac)) return { ok: false, reason: 'No air-to-air radar' };
   const spec = specOf(ac), r = spec.radar, st = ac.radar;
   if (st.mode === 'off') return { ok: false, reason: 'Radar is off' };
@@ -1081,7 +1089,8 @@ export function canLock(world: World, ac: Aircraft, targetId: EntityId, frame: L
   }
   if (isJammed(ac, tgt, g.range)) return { ok: false, reason: 'Jammer: no range until burn-through. Lock the strobe (jam lock)' };
   const lockR = LOCK_RANGE_FACTOR * detectionRange(world, ac, tgt);
-  if (g.range > lockR) return { ok: false, reason: `Too far to lock: ${(g.range / 1000).toFixed(0)} km, lock range ${(lockR / 1000).toFixed(0)} km` };
+  const dist = (m: number) => ((units ?? spec.units) === 'imperial' ? `${(m / M_PER_NM).toFixed(0)} nm` : `${(m / 1000).toFixed(0)} km`);
+  if (g.range > lockR) return { ok: false, reason: `Too far to lock: ${dist(g.range)}, lock range ${dist(lockR)}` };
   if (isNotched(world, ac, tgt)) return { ok: false, reason: 'Target is in the notch' };
   return { ok: true, reason: '' };
 }

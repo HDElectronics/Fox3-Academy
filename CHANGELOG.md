@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
+  site's track flickering), as they already did against air-to-air missiles.
+- Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks
+  and fires at its 14 s deadline when the range is opening (behind you, or higher than you), instead of ending the
+  drill as "No shot: needs a lock".
+- HARM & SEAD: the on-screen WEAPON RELEASE button no longer stays lit after a HARM leaves the rail.
+- HARM & SEAD: every drill now says "No HARMs remain ... Restart to rearm" when the last HARM is gone and the lesson
+  is not finished (only the troubleshooting cases said so); the coach no longer waits on a kill step forever.
+- Pattern & landing: the Downwind and Final starts tick the steps they begin past (initial, break, and on Final the
+  abeam), so the checklist and the coach follow the flight instead of asking for the initial the whole way down.
+- HARM & SEAD Radars and Homing lessons: Again and Restart start a fresh attempt instead of completing at once, a
+  scripted screenshot visit no longer counts toward a saved completion, and the films keep playing after the lesson
+  is complete.
+- HARM & SEAD: a SAM launched while its radar holds the lock now stays guided. The guidance check used a range tighter
+  than the lock range, so missiles launched near the edge of the ring went dumb at once ("Their missile lost
+  guidance" while still locked).
+- Pattern & landing keeps your flight when you switch units: the HUD, readouts, steps and an open debrief redraw in
+  the new units instead of the page restarting. Other lessons still restart on a units switch.
+- CAS & JTAC radio subtitles: after a restart, a call that arrives before the first sim tick now shows with its own
+  time instead of being dropped or stamped with the previous run's clock.
+- Pattern & landing: the AoA indexer head reads "AoA · GEAR DN" in full, also beside the IFLOLS at 820 px
+  (it was cut to "A…").
+- Strip readouts stay on one line in narrow windows: CAS & JTAC shows the attack heading window, your heading and the
+  A-10C II laser code on their own rows, and Shkval & Vikhr reads "Laser 116 s / 20 min" (or "cooling").
+- Shkval & Vikhr and CAS & JTAC: once a lesson has ended, the coach no longer shows the live launch refusal, the CCRP
+  cue or the clearance hint; it says the attack is over and points to the debrief.
+- Merge & guns: a refused close-combat radar lock ("Too far to lock: ...") gives its ranges in the units you picked,
+  not the jet's default.
+- CAS & JTAC: a gun burst (one press or a held trigger) or a rocket salvo now counts as one release, with at most one
+  clearance violation, one "away" line and one impact line per result in the log and the debrief.
+- Targeting pod lessons no longer dead-end after misses: when the Mavericks, a GBU-12, APKWS, the AGM-65L or the gun
+  rounds a step needs are used up, the trainer rearms them once the last one resolves and sets up another pass
+  (a trainer convenience, listed under "Simplified and not verified").
+- Screenshot pre-rolls (`?shot=`) no longer save progress on the Radar Lab, Defense and SAM drills, TWS, the RWR quiz,
+  the Missile Lab drill and Pattern & landing (`mode=fly` hand-over); their results read "scripted demo, not saved".
 - A-10C II CDU: a CDU camera on the CAS & JTAC page shows the CDU and the AAP over the 3D view. WP MENU and WAYPT
   pages, R7 copy into a new mission waypoint, L9 grid entry (6, 8 or 10 digits), L7 zone, L5 elevation, R3 name,
   L3 lookup, R9 L/L or UTM, the ± rocker and `CDU INPUT ERR`. STEER PT dial FLT PLAN / MARK / MISSION with the
@@ -265,6 +300,17 @@
 - Expand the Markdown roadmap for broader DCS training, licensed aircraft assets, cockpit exploration, and
   a later user-tested UX redesign. Keep prototype websites outside the repository.
 - B17: Initialize the public Git baseline on `main` and ignore generated output and local secrets.
+- Quote the sim's own head-on detection ranges in the Sortie brief and the TWS search coach: FC3 Russian radars no
+  longer lose 30 % looking down head-on, and the MiG-29S uses its 3 m² reference.
+- Give lock and launch refusals ("Too far to lock", "Out of range", "No ПР yet") in the selected units on the TWS,
+  Sortie and Radar Lab pages; they no longer switch to the jet's default units or to kilometres.
+- Keep an RWR search contact steady between paints of a 1-bar or 3-bar scan: a target near the scan edge no
+  longer blinks off for up to a quarter of the time (and re-triggers "new contact") on every sweep.
+- Keep the arrow keys flying the jet after clicking a segmented control or tab (camera, throttle, weapon, mode):
+  they no longer switch that control instead. A keyboard user who tabs into a control still steps it with arrows.
+- After picking from a dropdown with the mouse (threat, shooter, bandit, missile), page keys work again: Space
+  starts the defense drill or fires in the Missile Lab, and the arrows fly, instead of reopening the dropdown.
+- TWS Practice no longer logs "Checklist complete ... Saved." when it saves nothing.
 
 ## 0.1.0 — 2026-09-20
 

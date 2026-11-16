@@ -5,7 +5,7 @@
  * Styles: src/styles/components.css (.ui-btn, .ui-seg, .ui-slider, ...).
  */
 import { h, append, setText, setAttr, cx, type Child } from './dom';
-import { kbd, ariaShortcut } from './keys';
+import { kbd, ariaShortcut, enteredByPointer, pageBinds, trackArrowGroup } from './keys';
 import { layoutSliderZones, type SliderZones } from './sliderZones';
 export type { SliderZoneBand, SliderZoneMark, SliderZones } from './sliderZones';
 
@@ -31,6 +31,17 @@ export function row(...children: Child[]): HTMLDivElement {
 
 function keyChild(keys: string | undefined): Child {
   return keys ? h('span', { class: 'ui-btn__keys', 'aria-hidden': 'true' }, kbd(keys)) : null;
+}
+
+/**
+ * Should a radio group or tab list leave this arrow key to the page? Yes when the user clicked into it (focus came
+ * with a pointer) and a page key map binds the key: click the Chase camera or the AB throttle segment, and the
+ * arrow keys keep flying the jet. A keyboard user who tabbed in keeps arrow navigation. The pointer state is the
+ * group's, kept in keys.ts where bindKeys reads it too, so a rebuild of the caps or a move between caps keeps it.
+ */
+function arrowsToPage(root: HTMLElement): (e: KeyboardEvent) => boolean {
+  trackArrowGroup(root);
+  return e => enteredByPointer(root) && pageBinds(e);
 }
 
 // ---- button ------------------------------------------------------------------------------------
@@ -240,9 +251,10 @@ export function segmented<T extends string | number>(o: SegmentedOptions<T>): Se
       target?.focus();
     }
   };
+  const toPage = arrowsToPage(group);
   group.addEventListener('keydown', e => {
     const i = buttons.indexOf(e.target as HTMLButtonElement);
-    if (i < 0) return;
+    if (i < 0 || toPage(e)) return;
     const step = (dir: 1 | -1, from: number) => {
       for (let k = 1; k <= options.length; k++) {
         const j = (from + dir * k + options.length) % options.length;
@@ -609,9 +621,10 @@ export function tabs(o: TabsOptions): TabsHandle {
       panels[t.id].hidden = !sel;
     });
   };
+  const toPage = arrowsToPage(list);
   list.addEventListener('keydown', e => {
     const i = btns.indexOf(e.target as HTMLButtonElement);
-    if (i < 0) return;
+    if (i < 0 || toPage(e)) return;
     const n = btns.length;
     let j = -1;
     if (e.key === 'ArrowRight') j = (i + 1) % n;
@@ -636,3 +649,6 @@ export function tabs(o: TabsOptions): TabsHandle {
   render();
   return handle;
 }
+
+/** The pointer-focus arrow rule above, shared with the lesson picker (lessonPicker.ts) so it behaves like segmented. */
+export { arrowsToPage };

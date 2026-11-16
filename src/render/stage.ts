@@ -3,7 +3,7 @@
  * One Stage per 3D viewport. Everything in the scene is in render units (1 unit = 1 km).
  */
 import {
-  ACESFilmicToneMapping, AgXToneMapping, Material, Mesh, NoToneMapping, Object3D, PerspectiveCamera, Plane,
+  ACESFilmicToneMapping, AgXToneMapping, Material, Mesh, NeutralToneMapping, NoToneMapping, Object3D, PerspectiveCamera, Plane,
   Raycaster, Scene, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -12,6 +12,7 @@ import { Environment, type EnvironmentOptions } from './environment';
 import { paletteFromTheme, type Palette } from './palette';
 import { createSharedUniforms, type SharedUniforms } from './shared';
 import { M_PER_UNIT, pxPerUnitAt, UNIT_PER_M } from './units';
+import { MAX_VIEW_ASPECT, wideViewZoom } from './viewFov';
 import './render.css';
 
 export type FrameFn = (dt: number, t: number) => void;
@@ -31,12 +32,24 @@ export interface StageOptions {
   antialias?: boolean;
   /** Device pixel ratio cap. Default 2. */
   maxDpr?: number;
-  /** Default 'aces'. */
-  toneMapping?: 'aces' | 'agx' | 'none';
+  /**
+   * Default 'neutral' (Khronos PBR Neutral): keeps albedo and side colours true and only rolls off highlights
+   * (sun disc, glint, lit cloud tops). The world (sky, ground, clouds, terrain, models) is tone mapped;
+   * symbology is not, so it keeps its token colours.
+   */
+  toneMapping?: 'neutral' | 'aces' | 'agx' | 'none';
   /** Default 1.0. */
   exposure?: number;
-  /** Vertical field of view, degrees. Default 50. */
+  /**
+   * Vertical field of view, degrees. Default 50. On a viewport wider than `maxViewAspect` the Stage narrows the
+   * vertical field (camera.zoom) so the horizontal field stops growing; read `viewFov` for the field on screen.
+   */
   fov?: number;
+  /**
+   * Widest viewport shape (width / height) that still widens the picture. Default MAX_VIEW_ASPECT (2.4, render/
+   * viewFov.ts); wider viewports keep that horizontal field of view and see less above and below. Infinity: off.
+   */
+  maxViewAspect?: number;
   /** Sky, ground, haze and lights. Default true (pass options to customise, false for none). */
   environment?: boolean | EnvironmentOptions;
   /** CSS2D label overlay. Default true. */
@@ -105,12 +118,15 @@ export class Stage {
   private renderOnlyPause = false;
   private lost = false;
   private disposed = false;
+  /** Constructor finished: resizes draw at once from then on. */
+  private ready = false;
   private pendingRender = 0;
   private iterating = false;
   private ro: ResizeObserver | null = null;
   private io: IntersectionObserver | null = null;
   private overlay: HTMLDivElement | null = null;
   private maxDpr: number;
+  private readonly maxViewAspect: number;
   private cleanup: (() => void)[] = [];
   private readonly _v = new Vector3();
   private readonly _ray = new Raycaster();
@@ -120,6 +136,7 @@ export class Stage {
   constructor(container: HTMLElement, opts: StageOptions = {}) {
     this.container = container;
     this.maxDpr = opts.maxDpr ?? 2;
+    this.maxViewAspect = opts.maxViewAspect ?? MAX_VIEW_ASPECT;
     this.theme = readTheme();
     this.palette = paletteFromTheme(this.theme);
 
@@ -143,9 +160,10 @@ export class Stage {
     }
     this.renderer = renderer;
     renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = opts.toneMapping === 'agx' ? AgXToneMapping : opts.toneMapping === 'none' ? NoToneMapping : ACESFilmicToneMapping;
+    const tm = opts.toneMapping ?? 'neutral';
+    renderer.toneMapping = tm === 'aces' ? ACESFilmicToneMapping : tm === 'agx' ? AgXToneMapping : tm === 'none' ? NoToneMapping : NeutralToneMapping;
     renderer.toneMappingExposure = opts.exposure ?? 1.0;
-    renderer.setClearColor(this.palette.skyHorizon, 1);
+    renderer.setClearColor(this.palette.horizon, 1);
     this.canvas = renderer.domElement;
     this.canvas.className = 'r3-canvas';
     this.canvas.setAttribute('role', 'img');
@@ -213,6 +231,7 @@ export class Stage {
 
     if (opts.autoStart ?? true) this.kick();
     else { this.userPaused = true; this.requestRender(); }
+    this.ready = true;
   }
 
   /** Users who asked the OS for less motion (pages may start paused / skip ambient animation). */
@@ -305,6 +324,7 @@ export class Stage {
   }
 
   private draw(): void {
+    this.syncProjection();
     this.renderer.render(this.scene, this.camera);
     if (this.labelRenderer) this.labelRenderer.render(this.labels, this.camera);
   }
@@ -335,22 +355,45 @@ export class Stage {
     this.renderer.setSize(w, h, false);
     this.labelRenderer?.setSize(w, h);
     this.camera.aspect = w / h;
+    this.camera.zoom = wideViewZoom(this.camera.aspect, this.maxViewAspect);
     this.camera.updateProjectionMatrix();
     this.syncShared();
     for (const fn of this.resizeSubs) fn(w, h);
-    if (!this.running) this.requestRender();
+    // A resize clears the canvas. Draw the new size now (inside the ResizeObserver callback, before the paint),
+    // so a window drag never flashes an empty view and a headless screenshot never catches one.
+    if (this.ready && !this.lost && !this.offscreen) this.renderOnce();
+    else if (!this.running) this.requestRender();
   }
 
-  /** Call after changing camera.fov yourself. */
+  /**
+   * Before each draw: put the wide-viewport zoom back if something replaced it, and refresh the pixel-scale
+   * uniforms, so a page that changes camera.fov never leaves symbols sized for the old field of view.
+   */
+  private syncProjection(): void {
+    const cam = this.camera;
+    const zoom = wideViewZoom(cam.aspect, this.maxViewAspect);
+    if (cam.zoom !== zoom) { cam.zoom = zoom; cam.updateProjectionMatrix(); }
+    this.syncShared();
+  }
+
+  /**
+   * Vertical field of view on screen (deg): camera.fov, narrowed by the wide-viewport zoom when the viewport is
+   * wider than `maxViewAspect`. Use it, not camera.fov, for pixel maths and for fitting things in the view.
+   */
+  get viewFov(): number {
+    return this.camera.getEffectiveFOV();
+  }
+
+  /** Refresh the viewport and pixel-scale uniforms now (the Stage also does it before every draw). */
   syncShared(): void {
     this.shared.uViewport.value.set(this.width, this.height);
     this.shared.uDpr.value = this.dpr;
-    this.shared.uPxScale.value = (2 * Math.tan((this.camera.fov * Math.PI) / 360)) / this.height;
+    this.shared.uPxScale.value = (2 * Math.tan((this.viewFov * Math.PI) / 360)) / this.height;
   }
 
   /** CSS pixels per render unit at `distance` units from the camera. */
   pxPerUnit(distance: number): number {
-    return pxPerUnitAt(distance, this.camera.fov, this.height);
+    return pxPerUnitAt(distance, this.viewFov, this.height);
   }
 
   /** Project a render-unit position to client (page) coordinates. Returns false if behind the camera. */

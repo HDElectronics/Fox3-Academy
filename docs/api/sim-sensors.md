@@ -46,6 +46,8 @@ Gameplay-level ACM for the Merge page (issue #11); no change to `Aircraft` or `R
 - `AcmState.helmetLookId` is the look/designation target, separate from `candidateId` and `lockedId`. Merge
   supplies the drill bandit; standalone mode entry defaults to the nearest hostile if there is no live look
   target. HELMET acquisition still requires its area/range, but the look direction survives failed/lost locks.
+- `AcmState.units` (optional): the page's units for the ranges in a refused-lock `msg` ("Too far to lock: ...");
+  unset, the jet's own units apply. Merge sets it from the units switch.
 - `acmPressLock` (Enter; FC3 BORE / HELMET), `acmUnlock`, `toggleUncage` (cage / uncage).
 - Seeker: `caged` on the boresight, `slaved` to the lock inside the missile gimbal, `track` once it tracks. Tone
   `none` / `growl` (heat inside the field of view and IR acquisition range, `launch.irAcquisitionRange`) / `lock`
@@ -89,6 +91,7 @@ next bar (`bar = (bar + 1) % bars`). It is horizon-stabilised (pitch and roll do
 | Export | What it does |
 |---|---|
 | `detectionRange(world, observer, target)` | m. `detectKm` interpolated head-on → tail by `(1 − cos aspect)/2`, with look-down applied to each endpoint (`lookDownHeadOnFactor` or the fallback `lookDownFactor` for hot, `lookDownFactor` for cold), × `(target.rcsM2 / referenceRcsM2)^0.25` (reference defaults to 5). N-001 retains 68.4 km hot and reduces cold to 26.6 km; N-019M uses its 3 m² reference. |
+| `detectionRangeFor(observerType, targetType, aspect, lookDown)` | The same formula without a World (aspect in rad, 0 = hot). Briefs and coaches quote it so their ranges match the sim. |
 | `isNotched(world, observer, target)` | `math.inDopplerNotch` with `notchKts` and `notchNeedsLookDown`. |
 | `explainDetection(world, observer, target, opts?)` | `{ az, el, range, inGimbal, inAzimuth, inBars, detectRange, lookDown, radialSpeed, notchGate, notched, detectable, reasons[] }`. `reasons` are pilot sentences ("Outside the bars: target 4.1° above the scan"). `opts.units` ('metric' default, or 'imperial') sets the distance unit in the sentences (km / nm); notch speeds stay in kt. For the Radar Lab and the TWS lesson. |
 | `paintRange(emitter)` | m an RWR hears this radar: `PAINT_RANGE_FACTOR (1.75) × detectKm.headOn`. |
@@ -130,7 +133,7 @@ detection range to 0 at 100 % (`world.rand()`). Painting (for RWRs) happens on e
 | `designate(world, ac, targetId)` | RWS/VS: lock (STT). TWS: see the per-jet table. STT/ACM/off: no-op. **Designating an already designated track goes STT on F-15C, FC3 Russian and JF-17** (Enter twice); Hornet/F-16/F-14 promote it to primary first. |
 | `undesignate(world, ac, targetId)` | Remove one designation (F-15C "Unlock TWS Target"). |
 | `cycleDesignation(world, ac)` | Next primary: rotates the list (Hornet swaps L&S/DT2), or with one designation steps to the next firm hostile track by range (Hornet Undesignate, F-16 TMS Right, JF-17 S2 Left). |
-| `canLock(world, ac, targetId, frame?)` | `{ ok, reason }`: radar on, has STT, target alive, inside gimbal, range ≤ `LOCK_RANGE_FACTOR (0.85) × detectionRange`, not notched. `LockFrame` defaults to `'horizon'`; `'aircraft'` is the close-combat opt-in. |
+| `canLock(world, ac, targetId, frame?, units?)` | `{ ok, reason }`: radar on, has STT, target alive, inside gimbal, range ≤ `LOCK_RANGE_FACTOR (0.85) × detectionRange`, not notched. `LockFrame` defaults to `'horizon'`; `'aircraft'` is the close-combat opt-in. Ranges in the reason use `units` (pages pass theirs), else the jet's. |
 | `lockTarget(world, ac, targetId, frame?)` | STT if `canLock`. Records the gimbal frame for maintenance. Emits `lock` `locked` (and `unlocked` for a previous STT target). |
 | `unlock(world, ac)` | STT → previous search mode (ACM lock → last BVR mode). TWS → drops all designations (F-15C Return To Search/NDTWS); FC3 Russian also drops those tracks. ACM → last BVR mode. |
 | `setScan(world, ac, change)` | `ScanChange { azHalf?, bars?, azCenter?, elCenter?, rangeScale?, expectedRange?, cursor?, autoCenter? }`. azHalf/bars/rangeScale snap to the jet's options; TWS limits apply (changing only bars shrinks azimuth to fit the frame limit, otherwise bars shrink). FC3 Russian azCenter snaps to −30° / 0 / +30° (three scan positions). Centres clamp so the pattern stays inside the gimbal. |
@@ -175,7 +178,7 @@ sorted most dangerous first (`[0]` is the primary threat):
 
 | state | when | emitter / bearing |
 |---|---|---|
-| `search` | its beam painted us within `searchHoldTime(emitter) = 1.2 × frameTime + 0.5 s`. RWS and TWS look the same. | the radar aircraft |
+| `search` | its beam painted us within `searchHoldTime(emitter) = 1.2 × revisitTime + 0.5 s` (the revisit is two frames for an odd bar count, so the contact does not blink between paints at the scan edges). RWS and TWS look the same. | the radar aircraft |
 | `lock` | it holds us in STT and its beam painted us in the last 0.3 s | the radar aircraft |
 | `launch` | a SARH missile of that emitter is guided on us (`guidance === 'sarh'`, lock held), or an ARH missile was fired at us **from STT** by a jet with `sttArhLaunchWarning`, while still pre-pitbull and the lock is held. `missileType` is set. A TWS Fox 3 never gives a launch warning. | the radar aircraft |
 | `missile` | an ARH missile with `guidance === 'active'` and `seekerOn` = us; held 1.5 s after the seeker leaves us (chaff hop) so it does not flicker | the missile (`emitterType: 'missile'`, `missileType`) |
@@ -241,7 +244,8 @@ Known gaps: aircraft AI (ai.ts) does not react to SAM contacts yet; sites cannot
 
 ## launch.ts
 
-`canLaunch(world, ac, targetId?, missile?) → LaunchCheck` (what `World.canLaunch/launch` use). On failure it still
+`canLaunch(world, ac, targetId?, missile?, units?) → LaunchCheck` (what `World.canLaunch/launch` use; ranges in the
+reason use `units`, else the jet's, and pages that show the reason pass theirs). On failure it still
 returns `targetId`, `range` and `dlz` when it got that far. When the **lock is the only thing missing** (a Fox 1
 or an FC3 missile on a TWS / СНП track before the auto-lock, or an STT in memory) it also returns `range` and
 `dlz` computed from the firm track, so displays can draw the launch zone with the shoot cue off. Rules, in order:
@@ -378,7 +382,7 @@ track within 8° of the designated lead. `snp2Eligibility` checks two live hosti
 scan coverage, at no more than 3 g, neither with `Aircraft.jamming` set. A pair that stops qualifying drops
 to single-target СНП, where normal automatic STT can resume. The jamming flag is a scenario input only.
 
-`canLaunchSnp2(world, ac)` returns `{ ok, reason, targetIds, sepDeg, range, prRange }`; it additionally requires
+`canLaunchSnp2(world, ac, units?)` returns `{ ok, reason, targetIds, sepDeg, range, prRange }`; it additionally requires
 two selected R-77 rounds, both launch cones and minimum ranges, the lead inside 85% Rmax and Ц2 inside Rmax.
 `launchSnp2(world, ac)` validates the entire pair before consuming rounds and returns both missiles or `[]`.
 `World.launch` dispatches an explicit СНП2 shot to this atomic pair operation; ordinary СНП cannot fire R-77

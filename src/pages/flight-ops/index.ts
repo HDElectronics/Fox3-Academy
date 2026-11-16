@@ -23,7 +23,7 @@
  * ?tanker=<id> (refuelling: a tanker the jet uses),
  * ?shot=final|downwind|debrief|rtb|ils|takeoff-ready|takeoff-rotate|takeoff-climb|takeoff-debrief|case1-break|groove|trap
  * |launch-hold|launch-stroke|launch-climb|launch-debrief|aar-rejoin|aar-precontact|aar-contact|aar-debrief (pre-roll the demo for screenshots; mode=fly hands over after
- * the pre-roll; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck|wing|receiver,
+ * the pre-roll, and a pass started from the demo's state is never saved; debrief with start=caseI is the carrier debrief), ?cam=chase|side|tower|lso|cockpit|deck|wing|receiver,
  * ?touch=1 (show the on-screen controls on a fine pointer).
  */
 import './style.css';
@@ -50,14 +50,14 @@ import { FlightOpsScene, ForwardView, Stage, isWebGLAvailable, type FlightOpsCam
 import { Quaternion, Vector3 } from 'three';
 import {
   h, cleanup, labLayout, consolePanel, screenBezel, segmented, button, coachBox, checklist, readouts, callout, placard, lamp,
-  bindKeys, keyHint, disclosure, setText, toggle, parseChord, type ChecklistHandle,
+  bindKeys, keyHint, disclosure, setText, toggle, parseChord, lessonPicker, lessonHref, onlyChanged, type ChecklistHandle,
 } from '../../ui';
 import { BallDisplay, HudDisplay, HUD_VFOV_DEG, IndexerDisplay, NavDisplay, TraceDisplay, hudBoresight, hudHeightM, type TracePoint } from './displays';
 import { carrierCaption, lessonSteps, legCaption } from './lesson';
 import {
   FLIGHT_OPS_JETS, GLIDE_TOL_DEG, LINEUP_TOL_DEG, PASS_SCORE, altFtText, altVal, aoaText, currentStep, errLevel, flapControl,
   gatesForStart, isFlightOpsJet, kt, ktText, lessonPassed, navMilestones, navPicture, placeGates, plannedGates, spdUnit, spdVal,
-  stepOrder, stepsDone, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
+  stepOrder, stepsDone, stepsSkippedBy, altUnit, landingConfigured, overspeedTitle, progressKey, takeoffChecklist, takeoffItems, takeoffItemsNow, throttleMaxKey,
   type FlownPoint, type LessonKind, type NavMilestones, type TakeoffItem,
   ballPicture, ballPrompt, carrierPlannedGates, pointAt, carrierStarts, gradeCard, toLandingOverlay, type CarrierStart,
   TIME_SCALES, timeHold, timeHoldText, type TimeScale,
@@ -70,6 +70,15 @@ import {
 
 type Mode = 'watch' | 'fly';
 type Start = 'initial' | 'downwind' | 'final' | 'rtb' | 'takeoff' | CarrierStart | LaunchStart | AarStart;
+/**
+ * The page's lessons, one per saved goal (src/pages/progress/model.ts order). A lesson may offer several start
+ * points (the pattern from the initial, downwind, final or a return to base); they share its progress key.
+ */
+type FoLesson = 'pattern' | 'takeoff' | 'carrier' | 'launch' | 'aar';
+const lessonOfStart = (st: Start): FoLesson => (st === 'takeoff' ? 'takeoff' : st === 'caseI' || st === 'carrierGroove' ? 'carrier'
+  : st === 'catapult' || st === 'skiJump' ? 'launch' : st === 'aarRejoin' || st === 'aarPrecontact' ? 'aar' : 'pattern');
+/** Params that belong to one start and do not travel into another lesson's link. */
+const START_OPTS = ['station', 'heavy', 'tanker'];
 const CAMS: readonly FlightOpsCamera[] = ['chase', 'side', 'tower', 'lso', 'cockpit', 'deck', 'wing', 'receiver'];
 const SHOTS = ['final', 'downwind', 'debrief', 'rtb', 'ils', 'takeoff-ready', 'takeoff-rotate', 'takeoff-climb', 'takeoff-debrief',
   'case1-break', 'groove', 'trap', 'launch-hold', 'launch-stroke', 'launch-climb', 'launch-debrief',
@@ -86,6 +95,8 @@ const nvTag = (s: Sourced<unknown>) => (s.verified ? null : h('span', { class: '
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, start point, Watch / Fly, Back): applied in place by the lab. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const acParam = ctx.params.get('ac') as AircraftId | null;
@@ -129,6 +140,9 @@ const factory: PageFactory = (): Page => {
     const navLabels = d.nav?.modes.map(m => m.label) ?? [];
 
     let mode: Mode = ctx.params.get('mode') === 'fly' ? 'fly' : 'watch';
+    /** Fly mode took over from a ?shot= demo pre-roll: the demo flew part of the pass, so it is graded, never saved. */
+    let scripted = false;
+    const SCRIPTED_FOOT = 'Started from a scripted demo: not saved. Fly again from the start to complete the lesson.';
     const startParam = ctx.params.get('start');
     const cStarts = carrierStarts(d);
     const cd = d.carrier;
@@ -138,9 +152,10 @@ const factory: PageFactory = (): Page => {
     const aStarts = aarStarts(d);
     const ad = d.aar;
     let tankerId: TankerId | null = aarTanker(d, ctx.params.get('tanker'));
-    let start: Start = startParam === 'downwind' || startParam === 'final' || startParam === 'takeoff' || (startParam === 'rtb' && navOk)
-      || (cStarts as string[]).includes(startParam ?? '') || (lStarts as string[]).includes(startParam ?? '')
-      || (aStarts as string[]).includes(startParam ?? '') ? startParam as Start : 'initial';
+    const parseStart = (p: string | null): Start => (p === 'downwind' || p === 'final' || p === 'takeoff' || (p === 'rtb' && navOk)
+      || (cStarts as string[]).includes(p ?? '') || (lStarts as string[]).includes(p ?? '')
+      || (aStarts as string[]).includes(p ?? '') ? p as Start : 'initial');
+    let start: Start = parseStart(startParam);
     const stParam = Number(ctx.params.get('station'));
     let station = ld && ld.stations.includes(stParam) ? stParam : ld?.stations[0] ?? 1;
     let heavy = ctx.params.get('heavy') === '1';
@@ -198,7 +213,9 @@ const factory: PageFactory = (): Page => {
     const traceCanvas = h('canvas', { class: 'fo-canvas' });
     const navCanvas = h('canvas', { class: 'fo-canvas' });
     const hudBezel = screenBezel({ id: 'fo-hud', label: 'HUD', aspect: '4 / 3', content: hudCanvas, status: 'simplified', class: 'fo-hud' });
-    const idxBezel = screenBezel({ id: 'fo-idx', label: 'AoA indexer', aspect: '1 / 2', content: idxCanvas, status: 'gear dn', class: 'fo-idx' });
+    // "AoA" keeps the head on one line beside the gear placard in a 110 px strip column; the glass shows the indexer.
+    const idxBezel = screenBezel({ id: 'fo-idx', label: 'AoA', aspect: '1 / 2', content: idxCanvas, status: 'gear dn', class: 'fo-idx' });
+    idxBezel.el.querySelector('.ui-bezel__label')?.setAttribute('title', 'AoA indexer');
     const traceBezel = screenBezel({ id: 'fo-trace', label: 'Pattern', aspect: '1', content: traceCanvas, class: 'fo-trace' });
     const navBezel = screenBezel({ id: 'fo-nav', label: 'Nav (HSI)', aspect: '1', content: navCanvas, status: 'simplified', class: 'fo-navd' });
 
@@ -338,10 +355,15 @@ const factory: PageFactory = (): Page => {
       steps_ = checklist({ id: 'fo-steps', steps: stepsDef });
       stepsBox.replaceChildren(steps_.el);
     }
+    // Which lesson (picker, ?start= links) is separate from where it starts (Start at) and who flies it (Watch / Fly).
+    // All three live in the URL; start point and mode replace the history entry, a lesson adds one.
+    let urlParams = new URLSearchParams(ctx.params);
+    const setQuery = (set: Record<string, string | null>, replace: boolean, drop: string[] = []) =>
+      ctx.navigate(lessonHref('flight-ops', urlParams, set, drop).slice(2), { replace });
     const modeSeg = segmented<Mode>({
       id: 'fo-mode', label: 'Mode', value: mode, fill: true,
       options: [{ value: 'watch', label: 'Watch', title: 'The demo pilot flies it' }, { value: 'fly', label: 'Fly', title: 'You fly it with the keyboard or the on-screen controls' }],
-      onChange: v => { mode = v; reset(false); },
+      onChange: v => setQuery({ mode: v }, true),
     });
     const startOpts: { value: Start; label: string; title?: string }[] = [
       { value: 'takeoff', label: 'Takeoff', title: 'Runway takeoff: brakes, power, rotate, gear and flaps up' },
@@ -361,10 +383,58 @@ const factory: PageFactory = (): Page => {
       startOpts.push({ value: 'aarRejoin', label: 'Tanker rejoin', title: `2 nm behind the tanker: call, join, pre-contact, contact, refuel. ${ad.cue}` },
         { value: 'aarPrecontact', label: 'Pre-contact', title: 'Stabilised behind the basket or boom, cleared pre-contact' });
     }
-    const startSeg = segmented<Start>({
-      id: 'fo-start', label: 'Start', value: start, fill: true, options: startOpts,
-      onChange: v => { start = v; rebuildSteps(); reset(false); },
+    const startsOf = (l: FoLesson): Start[] => startOpts.map(o => o.value).filter(v => lessonOfStart(v) === l);
+    const lessons: { id: FoLesson; label: string; title: string; key: string }[] = [
+      { id: 'pattern', label: 'Pattern', title: 'Overhead break, downwind, final and landing', key: progressKey(ac, 'pattern') },
+      { id: 'takeoff', label: 'Takeoff', title: 'Runway takeoff', key: progressKey(ac, 'takeoff') },
+      ...(cd ? [{ id: 'carrier' as const, label: 'Case I', title: `Carrier landing on the ${SHIPS[cd.ship].name}`, key: progressKey(ac, 'carrier') }] : []),
+      ...(ld ? [{ id: 'launch' as const, label: ld.kind === 'catapult' ? 'Catapult' : 'Ski-jump', title: `Deck launch from the ${SHIPS[ld.ship].name}`, key: progressKey(ac, 'launch') }] : []),
+      ...(ad ? [{ id: 'aar' as const, label: 'Refuel', title: 'Air-to-air refuelling', key: aarProgressKey(ac) }] : []),
+    ];
+    const lessonLink = (l: FoLesson) => lessonHref('flight-ops', urlParams, { start: startsOf(l)[0]! }, START_OPTS);
+    const picker = lessonPicker<FoLesson>({
+      id: 'fo-lessons', topic: 'Flight ops', header: false, value: lessonOfStart(start), href: lessonLink,
+      items: lessons.map(l => ({ id: l.id, label: l.label, title: l.title })),
+      isDone: l => ctx.app.getProgress(lessons.find(x => x.id === l)!.key) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') { picker.refresh(); syncNext(); } }));
+    // Where the open lesson starts: shown only for lessons with more than one start point.
+    const startSeg = segmented<Start>({
+      id: 'fo-start', label: 'Start at', value: start, fill: true, size: 's', options: startOpts.filter(o => lessonOfStart(o.value) === lessonOfStart(start)),
+      onChange: v => setQuery({ start: v }, true),
+    });
+    /** Picker, start points and the debrief's Next for the current start. */
+    function syncStart(): void {
+      const l = lessonOfStart(start);
+      picker.set(l);
+      startSeg.setOptions(startOpts.filter(o => lessonOfStart(o.value) === l), start);
+      startSeg.el.hidden = startsOf(l).length < 2;
+      syncNext();
+    }
+    const nextLesson = (): FoLesson | null => { const i = lessons.findIndex(l => l.id === lessonOfStart(start)); return lessons[i + 1]?.id ?? null; };
+    const nextBtn = button({ id: 'fo-next', label: 'Next', variant: 'primary', size: 's', onClick: () => { const n = nextLesson(); if (n) ctx.navigate(lessonLink(n).slice(2)); } });
+    function syncNext(): void {
+      const n = nextLesson();
+      nextBtn.el.hidden = !n;
+      if (n) nextBtn.setLabel(`Next: ${lessons.find(l => l.id === n)!.label}`);
+      // Lit once this lesson is complete: the obvious next move.
+      nextBtn.setLit(ctx.app.getProgress(lessons.find(l => l.id === lessonOfStart(start))!.key) === true);
+    }
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['start', 'mode', 'shot', ...START_OPTS])) return false;
+      urlParams = new URLSearchParams(next);
+      const want = parseStart(next.get('start'));
+      const wantMode: Mode = next.get('mode') === 'fly' ? 'fly' : 'watch';
+      if (want === start && wantMode === mode) return true;
+      const restep = want !== start;
+      start = want; mode = wantMode;
+      modeSeg.set(mode);
+      syncStart();
+      if (restep) rebuildSteps();
+      reset(false);
+      return true;
+    };
     // Launch options: the catapult or position, and the Heavy toggle (trainer weights).
     const stationSeg = segmented<string>({
       id: 'fo-station', label: ld?.kind === 'skiJump' ? 'Position' : 'Catapult', value: String(station), size: 's',
@@ -392,13 +462,13 @@ const factory: PageFactory = (): Page => {
       onChange: v => { showTouch = v; syncTouch(); },
     });
     const lessonPanel = consolePanel({
-      id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`,
-      children: [coach.el, modeSeg.el, startSeg.el, launchOpts, aarOpts, noAar, startBtn.el, touchToggle.el, stepsBox],
+      id: 'fo-lesson', title: `Pattern & landing · ${spec.short}`, actions: picker.status,
+      children: [picker.el, startSeg.el, coach.el, modeSeg.el, launchOpts, aarOpts, noAar, startBtn.el, touchToggle.el, stepsBox],
     });
 
     // ---------------------------------------------------------------- console: debrief
     const debriefBody = h('div', { class: 'fo-debrief' });
-    const debriefPanel = consolePanel({ id: 'fo-debrief-panel', title: 'Debrief', children: [debriefBody] });
+    const debriefPanel = consolePanel({ id: 'fo-debrief-panel', title: 'Debrief', children: [debriefBody, h('div', { class: 'fo-debrief__next' }, nextBtn.el)] });
     debriefPanel.el.hidden = true;
 
     // ---------------------------------------------------------------- console: numbers, keys, notes
@@ -646,6 +716,7 @@ const factory: PageFactory = (): Page => {
       toBlock.hidden = start !== 'takeoff';
       idxBezel.el.hidden = start === 'takeoff' || atLaunch() || atAar();   // the checklist strip takes the indexer's place on the runway
       track = []; flown = []; score = null; finished = false; configured = false; onSpeedRun = 0; acc = 0; steps = 0; gatesSeen = -1;
+      scripted = false;
       navMs = { steering: false, intercept: false, onGlideRunS: 0 };
       lastCall = s.nav?.call ?? null; callAt = -1e9; navKey = '';
       input.pitch = 0; input.roll = 0; input.throttle = s.throttle;
@@ -822,6 +893,7 @@ const factory: PageFactory = (): Page => {
       sc?.update(s);
       if (hudCam && sc) {
         sc.cockpitPose(s, hudPos, hudQ);
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         hudCam.render(hudPos, hudQ, HUD_VFOV_DEG, 0.5, hudBoresight(s));
       }
       hud.draw(s, hudCam?.image ?? null);
@@ -858,7 +930,7 @@ const factory: PageFactory = (): Page => {
 
       const order = stepOrder(kind(), d);
       const gates = liveGates();
-      const done = stepsDone({ gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined, takeoff: tev ? toDone : undefined, ballCalled: cev ? !!s.lso?.ballCalled : undefined });
+      const done = stepsDone({ gates, configured, onSpeedRunS: onSpeedRun, nav: s.nav ? navMs : undefined, takeoff: tev ? toDone : undefined, ballCalled: cev ? !!s.lso?.ballCalled : undefined, skipped: stepsSkippedBy(start) });
       if (tev) {
         for (const c of takeoffChecklist(d, toDone)) {
           const l = toLamps.get(c.id)!;
@@ -1098,12 +1170,12 @@ const factory: PageFactory = (): Page => {
         gateList(sco.gates),
         ...(sco.errors.length ? [h('ul', { class: 'fo-faults', 'aria-label': 'Sequence faults' }, sco.errors.map(e => h('li', null, e)))] : []),
         h('dl', { class: 'fo-numbers' }, rows),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Launch lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the launch lesson.`)
           : 'Demo launch. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'launch'), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'launch'), true);
       refresh(true);
     }
 
@@ -1130,12 +1202,12 @@ const factory: PageFactory = (): Page => {
           h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
         gateList(sco.gates),
         h('dl', { class: 'fo-numbers' }, rows),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Refuelling lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the refuelling lesson.`)
           : 'Demo refuelling. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(aarProgressKey(ac), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(aarProgressKey(ac), true);
       refresh(true);
     }
 
@@ -1160,12 +1232,12 @@ const factory: PageFactory = (): Page => {
           h('span', { class: 'fo-score__n' }, String(sco.total ?? 0)), h('span', { class: 'fo-score__of' }, '/ 100'),
           h('p', { class: 'fo-score__verdict' }, sco.verdict ?? '')),
         gateList(sco.gates),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Carrier lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the carrier lesson.`)
           : 'Demo pass. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
       gatesSeen = -1;
       refresh(true);
     }
@@ -1187,12 +1259,12 @@ const factory: PageFactory = (): Page => {
           h('dt', null, 'Lineup RMS'), h('dd', null, deg(sco.lineupRmsDeg)),
           h('dt', null, 'On speed'), h('dd', null, pct(sco.onSpeedFraction)),
           h('dt', null, 'Touchdown'), h('dd', null, zone)),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the lesson.`)
           : 'Demo flight. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, kind()), true);
       gatesSeen = -1;
       refresh(true);
     }
@@ -1221,12 +1293,12 @@ const factory: PageFactory = (): Page => {
           h('dt', null, 'Rotate'), h('dd', null, `${spd(r?.rotateKt)}, want ${ktText(rotateAtKt(d), u)}`),
           h('dt', null, 'Liftoff'), h('dd', null, r?.liftoffKt === undefined ? 'n/a' : `${spd(r.liftoffKt)}, ${(r.liftoffPitchDeg ?? 0).toFixed(1)}°`),
           h('dt', null, 'Gear up'), h('dd', null, `${spd(r?.gearUpKt)}, limit ${ktText(t.gearUpMaxKt.value, u)}`)),
-        h('p', { class: 'fo-debrief__foot' }, mode === 'fly'
+        h('p', { class: 'fo-debrief__foot' }, mode === 'fly' && scripted ? SCRIPTED_FOOT : mode === 'fly'
           ? (lessonPassed(sco.total) ? `Takeoff lesson complete for the ${spec.short}.` : `Score ${PASS_SCORE} or more in Fly mode to complete the takeoff lesson.`)
           : 'Demo flight. Switch to Fly to be graded.'),
       );
       debriefPanel.el.hidden = false;
-      if (mode === 'fly' && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'takeoff'), true);
+      if (mode === 'fly' && !scripted && lessonPassed(sco.total)) ctx.app.setProgress(progressKey(ac, 'takeoff'), true);
       refresh(true);
     }
 
@@ -1296,12 +1368,21 @@ const factory: PageFactory = (): Page => {
     }
     bag.add(bindKeys(keymap));
     bag.on(window, 'blur', () => { for (const k of Object.keys(held) as (keyof typeof held)[]) held[k] = false; });
+    // Units switch: the router keeps this page mounted (routes.ts liveUnits), so a flight in progress survives and
+    // everything in units is redrawn here; a debrief on screen is rebuilt from its score.
     bag.add(ctx.app.subscribe((_, what) => {
       if (what !== 'units') return;
-      renderNumbers(); rebuildSteps(); refresh(true);
+      renderNumbers(); rebuildSteps();
+      lampOver.el.title = overspeedTitle(d, ktText(d.pattern.gearMaxKt.value, units()));
+      if (finished) {
+        if (aScore) finishAar(aScore); else if (lScore) finishLaunch(lScore); else if (cScore) finishCarrier(cScore);
+        else if (toScore) finishTakeoff(toScore); else if (score) finish(score);
+      }
+      refresh(true);
     }));
 
     // ---------------------------------------------------------------- go
+    syncStart();
     reset(false);
     setCam(cam);
     const shot = ctx.params.get('shot') as Shot | null;
@@ -1316,7 +1397,7 @@ const factory: PageFactory = (): Page => {
       const aarShot = which.startsWith('aar-') && aStarts.length > 0;
       const seaShot = !launchShot && !aarShot && !!cd && (which === 'case1-break' || which === 'groove' || which === 'trap' || (which === 'debrief' && atSea()));
       mode = 'watch'; modeSeg.set('watch');
-      start = aarShot ? (which === 'aar-rejoin' ? 'aarRejoin' : 'aarPrecontact') : toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; startSeg.set(start);
+      start = aarShot ? (which === 'aar-rejoin' ? 'aarRejoin' : 'aarPrecontact') : toShot ? 'takeoff' : launchShot ? lStarts[0]! : navShot ? 'rtb' : seaShot ? 'caseI' : 'initial'; syncStart();
       rebuildSteps();
       reset(true);
       const t0 = s.t;
@@ -1354,9 +1435,11 @@ const factory: PageFactory = (): Page => {
         if (which === 'downwind') return ev.score().gates.some(g => g.id === 'abeam') || (demoLeg(s) === 'downwind' && s.pos.z > -aimPointM(d) - 400 && s.gearDown);
         return finished && s.phase === 'stopped';
       };
-      for (let i = 0; i < 60 * 600 && !doneAt(); i++) tick();
+      let ticks = 0;
+      for (; ticks < 60 * 600 && !doneAt(); ticks++) tick();
       if (wantFly && !finished) {
         mode = 'fly'; modeSeg.set('fly');
+        scripted = ticks > 0;
         input.throttle = s.throttle; input.pitch = 0; input.roll = 0; input.afterburner = s.afterburner;
         startBtn.setLabel('Fly');
         syncTouch();
@@ -1370,7 +1453,9 @@ const factory: PageFactory = (): Page => {
     mount(ctx) {
       try { mount(ctx); } catch (e) { console.error(e); ctx.root.append(h('p', { class: 'page-error' }, 'The pattern page failed to start: ' + String(e))); }
     },
+    update(next) { return applyParams?.(next) ?? false; },
     unmount() {
+      applyParams = null;
       bag.dispose();
     },
   };

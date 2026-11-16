@@ -40,6 +40,60 @@ describe('router deep links and remounts', () => {
     expect(mounted.at(-1)?.params.has('lab')).toBe(false);
     expect(unmount).toHaveBeenCalledTimes(2);
   });
+  it('lets a page apply a same-route query change in place, and remounts when it declines', async () => {
+    const update = vi.fn((params: URLSearchParams) => params.get('lab') !== 'free');
+    vi.mocked(ROUTES.find(route => route.path === 'merge')!.load).mockResolvedValue({ default: () => ({ mount: ctx => { mounted.push(ctx); }, update, unmount }) });
+    router.onChange = vi.fn();
+    location.hash = '#/merge?lesson=corner';
+    await router.resolve();
+    location.hash = '#/merge?lesson=pursuit';
+    await router.resolve();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0]?.[0].get('lesson')).toBe('pursuit');
+    expect(mounted).toHaveLength(1);
+    expect(unmount).not.toHaveBeenCalled();
+    expect(vi.mocked(router.onChange).mock.calls.at(-1)?.[1].get('lesson')).toBe('pursuit');
+    // Back to the first lesson: in place again, because the router now knows the page is on pursuit.
+    location.hash = '#/merge?lesson=corner';
+    await router.resolve();
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(mounted).toHaveLength(1);
+    location.hash = '#/merge?lab=free';
+    await router.resolve();
+    expect(mounted).toHaveLength(2);
+    expect(unmount).toHaveBeenCalledTimes(1);
+  });
+  it('replaces the history entry and resolves at once for navigate with replace', async () => {
+    const update = vi.fn(() => true);
+    vi.mocked(ROUTES.find(route => route.path === 'radar')!.load).mockResolvedValue({ default: () => ({ mount: ctx => { mounted.push(ctx); }, update, unmount }) });
+    router.onChange = vi.fn();
+    location.hash = '#/radar?ex=free';
+    await router.resolve();
+    router.navigate('radar?lab=free&ex=free', { replace: true });
+    await Promise.resolve();
+    expect(history.replaceState).toHaveBeenLastCalledWith(null, '', '#/radar?lab=free&ex=free');
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(mounted).toHaveLength(1);
+    expect(vi.mocked(router.onChange).mock.calls.at(-1)?.[1].get('lab')).toBe('free');
+  });
+  it('remounts on a units change, except a route that re-renders units live (Pattern & landing keeps its flight)', async () => {
+    await router.resolve();
+    app.setUnits(app.units === 'metric' ? 'imperial' : 'metric');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(2);
+    expect(unmount).toHaveBeenCalledTimes(1);
+    location.hash = '#/flight-ops';
+    await router.resolve();
+    expect(mounted).toHaveLength(3);
+    app.setUnits(app.units === 'metric' ? 'imperial' : 'metric');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(3);
+    expect(unmount).toHaveBeenCalledTimes(2);
+    // A jet change still remounts it.
+    app.setAircraft('f14b');
+    await Promise.resolve();
+    expect(mounted).toHaveLength(4);
+  });
   it('does not remount an unchanged route with reordered query keys', async () => {
     location.hash = '#/radar?lab=free&ex=free';
     await router.resolve();

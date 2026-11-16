@@ -32,7 +32,8 @@ import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import { ccrpSolution, predictImpact } from '../../sim/agWeapons';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts, callout, placard,
-  bindKeys, disclosure, modal, radioMenu, radioMenuKeys, radioLog, toggle, type ModalHandle, type Tone, type KeyMap, type KeyHandler,
+  bindKeys, disclosure, modal, radioMenu, withRadioMenuKeys, radioLog, toggle, lessonPicker, lessonHref, onlyChanged,
+  type ModalHandle, type Tone, type KeyMap, type KeyHandler,
 } from '../../ui';
 import { createSu25tCockpit } from '../strike/cockpit';
 import { buildCasScenario, bearingDeg, distM, type CasJet, type CasLessonId, type CasScenario, type XZ } from './scenario';
@@ -82,6 +83,8 @@ interface PageCockpit {
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -107,6 +110,8 @@ const factory: PageFactory = (): Page => {
     let ended = false, endAt: number | null = null, scripted = false;
     let result: ModalHandle | null = null;
     let impacts: Partial<Record<ImpactClass, number>> = {};
+    /** Impact classes already counted per release: a gun burst or a salvo counts each class once. */
+    let impactSeen = new Set<string>();
     let cardPassed = false, cardCorrect = 0;
     let uiClock = 0;
     let showMarkers = false;
@@ -146,7 +151,8 @@ const factory: PageFactory = (): Page => {
       restoreBig: strip => strip.insertBefore(a10!.tgpBezel.el, a10!.rwrBezel.el), rwr: a10!.rwrBezel.el,
       controlRows: a10!.controlRows, keyList: a10!.keyList, mobileActions: a10!.mobileActions, keys: a10!.keys, fallback: a10!.cmsKeys,
       step: dt => a10!.step(dt), draw: (tv, rwr, hud) => a10!.draw(tv, rwr, hud), updateLamps: () => a10!.updateLamps(),
-      resetInputs: () => a10!.resetInputs(), storeText: () => a10!.storeText(),
+      // The laser code has its own readout row here (a narrow strip column keeps each value on one line).
+      resetInputs: () => a10!.resetInputs(), storeText: () => a10!.storeText(false),
     };
     const keyList = ck.keyList;
 
@@ -161,17 +167,36 @@ const factory: PageFactory = (): Page => {
 
     const ro = readouts({
       id: 'cas-ro', variant: 'glass',
-      rows: [{ id: 'jtac', label: 'JTAC' }, { id: 'rng', label: 'To target' }, { id: 'hdg', label: 'Attack hdg' }, { id: 'store', label: 'Store' }, { id: 'tgt', label: 'Targets' }],
+      rows: [
+        { id: 'jtac', label: 'JTAC' }, { id: 'rng', label: 'To target' }, { id: 'win', label: 'Attack hdg' }, { id: 'hdg', label: 'Heading' },
+        { id: 'store', label: 'Store' }, { id: 'code', label: 'Laser code' }, { id: 'tgt', label: 'Targets' },
+      ],
     });
+    const codeRow = ro.row('code');
+    if (codeRow) codeRow.hidden = !!su;   // the Su-25T stores have no laser code
     const card = kneeboard(bag, { onInput: () => checkSteps() });
     const gradeBtn = button({ label: 'Check the card', size: 's', id: 'cas-grade', onClick: () => gradeCard() });
     const cardHost = h('div', { class: 'cas-card' }, card.el, h('div', { class: 'strk-row' }, gradeBtn.el));
 
-    const lessonSeg = segmented<CasLessonId>({
-      id: 'cas-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are links (?lesson=): the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: CasLessonId) => lessonHref('cas', urlParams, { lesson: id });
+    const picker = lessonPicker<CasLessonId>({
+      id: 'cas-lessons', topic: 'CAS', header: false, value: lesson, href: lessonLink,
+      items: ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+      isDone: id => ctx.app.getProgress(progressKey(id, jet)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: CasLessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;
+      const want = next.get('lesson') as CasLessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && ORDER.includes(want) ? want : 'nine-line';
+      restart();
+      return true;
+    };
     const coach = coachBox({ id: 'cas-coach' });
     let steps = checklist({ steps: LESSONS[lesson].steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
     const stepsHost = h('div', null, steps.el);
@@ -203,7 +228,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [...ck.strip, h('div', { class: 'ui-strip-block strk-ro' }, placard('CAS'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'cas-lesson-panel', children: [lessonSeg.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, menu.toggleEl), h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el)] }).el,
+        consolePanel({ title: 'Lesson', id: 'cas-lesson-panel', actions: picker.status, children: [picker.el, coach.el, stepsHost, h('div', { class: 'strk-row' }, menu.toggleEl), h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el)] }).el,
         consolePanel({ title: 'Kneeboard', id: 'cas-kneeboard', children: [cardHost] }).el,
         consolePanel({ title: 'Radio', id: 'cas-radio-log', children: [subs.historyEl, log.el] }).el,
         consolePanel({ title: 'Controls', id: 'cas-controls', children: [...ck.controlRows, markerTog.el] }).el,
@@ -243,8 +268,9 @@ const factory: PageFactory = (): Page => {
       bag.add(() => cancelAnimationFrame(raf));
     }
 
-    // One key map: the cockpit keys, the radio menu (\, F-keys and digits; digits fall back to nothing).
-    bag.add(bindKeys({ ...radioMenuKeys(menu, ck.fallback ? { fallback: ck.fallback } : {}), ...withoutRadioChords(ck.keys) }));
+    // One key map: the cockpit keys and the radio menu (\, F-keys and digits). With the menu closed the digits are the
+    // cockpit's (Su-25T master modes 1 / 7 / 8, A-10C II CMS); with it open they pick menu items.
+    bag.add(bindKeys(withRadioMenuKeys(menu, ck.keys, ck.fallback ? { fallback: ck.fallback } : {})));
 
     // ------------------------------------------------------------------ helpers
     function aim(): AimState {
@@ -313,7 +339,7 @@ const factory: PageFactory = (): Page => {
       scene?.setShooter(me.id);
       scene?.setGeometry({ ip: sc.ip, target: sc.target, attackHeadingDeg: [sc.attackHdgDeg[0], sc.attackHdgDeg[1]] });
       scene?.setLayer('markers', showMarkers);
-      evCursor = 0; done = new Set(); ended = false; endAt = null; scripted = false; impacts = {};
+      evCursor = 0; done = new Set(); ended = false; endAt = null; scripted = false; impacts = {}; impactSeen = new Set();
       cardPassed = false; cardCorrect = 0;
       ck.resetInputs();
       ck.rwr.hidden = !sc.sams.length;
@@ -323,7 +349,7 @@ const factory: PageFactory = (): Page => {
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(fresh.el);
       steps = fresh;
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       endBtn.el.hidden = !def.scored;
       log.clear();
       log.push(def.goal, { t: 0 });
@@ -397,10 +423,14 @@ const factory: PageFactory = (): Page => {
       for (; evCursor < ev.length; evCursor++) {
         const e = ev[evCursor]!;
         switch (e.type) {
-          case 'ag-launch': if (e.shooterId === me.id) log.push(`${su ? (e.weapon === 'vikhr' ? 'Vikhr' : 'Weapon') : AG_WEAPONS[e.weapon].name} away`, { t: e.t }); break;
+          // One line per release: a gun burst or a salvo is one release (jtac.ts).
+          case 'ag-launch': if (e.shooterId === me.id && jtac.releaseOf(e.weaponId) === e.weaponId) log.push(`${su ? (e.weapon === 'vikhr' ? 'Vikhr' : 'Weapon') : AG_WEAPONS[e.weapon].name} away`, { t: e.t }); break;
           case 'ag-impact': {
             if (e.weapon === 'gun25t' && !e.killed.length) break;
             const r = classifyImpact(w, e, { targets: sc.targets, friendlies: [...sc.friendlies, sc.jtac] });
+            const key = `${jtac.releaseOf(e.weaponId) ?? e.weaponId}|${r.cls}`;
+            if (impactSeen.has(key)) break;
+            impactSeen.add(key);
             impacts[r.cls] = (impacts[r.cls] ?? 0) + 1;
             const tone: Tone = r.cls === 'on-target' ? 'ok' : r.cls === 'miss' ? 'caution' : 'warning';
             const text = { 'on-target': 'Impact on the target', 'wrong-target': 'Impact on a vehicle that is not the target', fratricide: 'Friendly hit', 'danger-close': `Impact ${Math.round(r.nearestFriendlyM ?? 0)} m from friendlies`, miss: 'Miss' }[r.cls];
@@ -470,7 +500,7 @@ const factory: PageFactory = (): Page => {
           d.coaching.length ? h('div', null, placard('Coaching'), h('ul', null, d.coaching.map(l => h('li', null, l)))) : null),
         actions: [
           { label: 'Fly again', onClick: () => restart(), id: 'cas-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'cas-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'cas-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -489,7 +519,7 @@ const factory: PageFactory = (): Page => {
       navBox.replaceChildren(
         row('Steer', `${sp.name} ${String(Math.round(brg) % 360).padStart(3, '0')}° ${fmtRange(distM(me.pos, sp), units, 1)}`),
         row('Turn', Math.abs(turn) < 2 ? 'on course' : `${turn > 0 ? 'right' : 'left'} ${Math.abs(turn).toFixed(0)}°`, Math.abs(turn) < 2 ? 'is-ok' : undefined),
-        su ? row('РВ', `${Math.round(agl)} m`) : row('AGL', `${Math.round(agl * 3.28084 / 10) * 10} ft`),
+        su ? row('РВ', `${Math.round(agl)} m`) : row('AGL', units === 'metric' ? `${Math.round(agl)} m` : `${Math.round(agl * 3.28084 / 10) * 10} ft`),
       );
     }
 
@@ -499,17 +529,24 @@ const factory: PageFactory = (): Page => {
       const err = headingErrorDeg(hdgDeg(), sc.attackHdgDeg);
       ro.set('jtac', jtac.state.replace('-', ' '));
       ro.set('rng', fmtRange(distM(me.pos, sc.target), units, 1));
-      ro.set('hdg', `${String(Math.round(hdgDeg()) % 360).padStart(3, '0')} (${String(sc.attackHdgDeg[0]).padStart(3, '0')}–${String(sc.attackHdgDeg[1]).padStart(3, '0')})`);
+      ro.set('win', `${String(sc.attackHdgDeg[0]).padStart(3, '0')}–${String(sc.attackHdgDeg[1]).padStart(3, '0')}`);
+      ro.set('hdg', String(Math.round(hdgDeg()) % 360).padStart(3, '0'));
       ro.setTone('hdg', err === 0 ? 'ok' : null);
       ro.set('store', ck.storeText());
+      const sel = ag.selected, code = sel ? ag.laserCodes[sel] : null;
+      ro.set('code', code ? String(code) : '—');
       ro.set('tgt', `${alive(sc.targets)} of ${sc.targets.length} up`);
       ck.updateLamps();
       updateNav();
       const cur = def.steps.find(s => !done.has(s.id));
       steps.setCurrent(cur?.id ?? null);
-      let text = cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
+      // Once the lesson has ended the trigger is dead (canFire): no clearance or release cue applies any more.
+      let text = ended
+        ? (!def.scored ? 'Lesson complete.' : result ? 'Attack over. Fly again or take the next lesson.' : 'Attack over: the debrief follows.')
+        : cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
       let why = def.goal, tone: Tone | undefined;
-      if (jtac.state === 'cleared') {
+      if (ended) why = def.goal;
+      else if (jtac.state === 'cleared') {
         why = nl.mark === 'none' ? 'Cleared to engage: release on the target, then call Attack Complete.' : 'Cleared hot: release on the target, then call Off.';
         tone = 'ok';
       }
@@ -517,7 +554,7 @@ const factory: PageFactory = (): Page => {
       else if (jtac.busy) { why = 'The JTAC is talking: listen, then answer from the radio menu.'; }
       else if (jtac.state === 'lasing') { why = 'The JTAC is lasing: find the spot with the LSS, then call Spot.'; }
       else if (jtac.state === 'data' && jtac.tasking?.state === 'new') { why = 'The digital 9-line is on the MSG page: WILCO (OSB 19) or CNTCO (OSB 7).'; }
-      if (lesson === 'nine-line' && !done.has('card') && after9()) { text = 'Type each line on the kneeboard card, then Check the card.'; }
+      if (!ended && lesson === 'nine-line' && !done.has('card') && after9()) { text = 'Type each line on the kneeboard card, then Check the card.'; }
       if (force || text) coach.set(text, why, tone);
     }
     const after9 = () => !['idle', 'checked-in'].includes(jtac.state);
@@ -636,14 +673,7 @@ const factory: PageFactory = (): Page => {
     }
   }
 
-  return { mount, unmount() { bag.dispose(); } };
+  return { mount, update: next => applyParams?.(next) ?? false, unmount() { applyParams = null; bag.dispose(); } };
 };
-
-/** Drop cockpit chords the radio menu owns (digits are Su-25T master modes but also the menu's F-key aliases). */
-function withoutRadioChords<T extends Record<string, unknown>>(keys: T): T {
-  const out = { ...keys };
-  for (const k of ['1', '7', '8']) delete out[k];
-  return out;
-}
 
 export default factory;

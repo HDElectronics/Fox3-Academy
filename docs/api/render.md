@@ -1,6 +1,6 @@
 # Render kit (`src/render`): API
 
-The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the hazy
+The three.js layer shared by every 3D page: a `Stage` (renderer, labels, loop), the clear-day
 high-altitude `Environment`, original exterior assets with procedural fallbacks for every `AircraftId` (ten fighters and the Su-25T, straight wing,
 wingtip split airbrakes), `WorldView`
 (live sim), `ReplayView` (recorded sim), `RadarVolume` and `CameraRig`.
@@ -70,9 +70,10 @@ first with `isWebGLAvailable()` if you want your own fallback.
 |---|---|---|
 | `antialias` | `true` | MSAA |
 | `maxDpr` | `2` | device pixel ratio cap |
-| `toneMapping` | `'aces'` | `'aces' \| 'agx' \| 'none'` (symbology and sky are not tone mapped, they keep token colours) |
+| `toneMapping` | `'neutral'` | `'neutral' \| 'aces' \| 'agx' \| 'none'`. Khronos PBR Neutral keeps albedo and side colours true and only rolls off highlights (sun disc, glint, lit cloud tops). The world (sky, ground, clouds, terrain, models) is tone mapped; symbology is not, so it keeps token colours. Render-target passes (Shkval TV, forward views) are never tone mapped, by three.js design |
 | `exposure` | `1` | |
-| `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer |
+| `fov` | `50` | vertical, degrees. Camera near 0.01 (10 m), far 2000 (2000 km), logarithmic depth buffer. Narrowed on viewports wider than `maxViewAspect` (see "Wide viewports") |
+| `maxViewAspect` | `MAX_VIEW_ASPECT` (2.4) | widest viewport shape (width / height) that still widens the picture; `Infinity` turns the cap off |
 | `environment` | `true` | `false`, or `EnvironmentOptions` |
 | `labels` | `true` | CSS2D label overlay |
 | `autoPause` | `true` | while the container is scrolled out of view (IntersectionObserver): `true` pauses the **whole loop, including your sim step**; `'render'` keeps every `onFrame` subscriber running (sim, views, camera) and skips only the drawing, so a fight goes on while the user scrolls to the controls; `false` never pauses. **Sim pages whose fight must continue offscreen pass `autoPause: 'render'`.** |
@@ -93,7 +94,9 @@ first with `isWebGLAvailable()` if you want your own fallback.
 | `isOffscreen` | true while scrolled out of view (only tracked when `autoPause` is on) |
 | `pause()`, `resume()`, `paused`, `running`, `elapsed` | pause stops the RAF loop. While paused, `requestRender()` renders on demand and only runs subscribers registered with `always: true` (the kit's own), with `dt = 0`. |
 | `requestRender()`, `renderOnce()` | |
-| `pxPerUnit(distanceUnits)` | CSS px per km at that distance |
+| `viewFov` | vertical field of view on screen (deg): `camera.fov` narrowed by the wide-viewport zoom. **Use it (or `camera.getEffectiveFOV()`), not `camera.fov`, for pixel maths and for fitting things in the view** |
+| `syncShared()` | refresh the viewport / pixel-scale uniforms now; the Stage also does it before every draw, so changing `camera.fov` needs no call |
+| `pxPerUnit(distanceUnits)` | CSS px per km at that distance (uses `viewFov`) |
 | `projectToClient(posUnits, outVec2) → boolean` | |
 | `rayFromClient(x, y) → Raycaster` | |
 | `clientToPlane(x, y, altitudeM = 0, out?) → Vector3 \| null` | sim metres where the pointer hits a horizontal plane (drag threats on a top-down map) |
@@ -102,20 +105,78 @@ first with `isWebGLAvailable()` if you want your own fallback.
 | `static prefersReducedMotion()` | |
 
 The Stage also resizes when the device pixel ratio changes without a size change (window dragged to
-another screen). WebGL context loss: the loop pauses and a status message shows ("3D view paused … Restoring…");
-on restore it resizes and resumes by itself.
+another screen). A resize clears the canvas, so the Stage draws the new size at once in its ResizeObserver
+callback (subscribers registered with `always` run with `dt = 0`): a window drag never flashes an empty view, and a
+headless screenshot taken right after the final viewport resize shows the scene. WebGL context loss: the loop
+pauses and a status message shows ("3D view paused … Restoring…"); on restore it resizes and resumes by itself.
 
-## Environment (`environment.ts`)
+### Wide viewports (`viewFov.ts`)
 
-Created by the Stage (`stage.env`). Ultramarine zenith to pale horizon haze (`--sky-top`,
-`--sky-horizon`), sun disc and glow, a desaturated sea (default) or muted land (`--earth`) at
-altitude 0 with a faint 10 km grid (every 5th line a bit stronger), altitude-aware distance haze
-(thin looking down from high, thick at the horizon), optional sparse cumulus layer. Lights for the
-flat-shaded models (hemisphere + sun).
+A perspective camera keeps its vertical field of view, so a wider viewport sees more to the sides; on a 3.6 : 1
+view (a 2560 × 1080 window) a 50° vertical field is 119° across and the picture stretches toward the left and
+right edges. Above `maxViewAspect` the Stage sets `camera.zoom = wideViewZoom(aspect)` (`aspect / maxViewAspect`),
+which holds the horizontal field at its `maxViewAspect` value and narrows the vertical field instead. The zoom
+depends on the aspect only, so it composes with any `camera.fov` a page or camera rig sets (Pattern & landing
+LSO zoom, HARM gallery 40°); the Stage puts it back before every draw if something replaced it.
 
-`EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: false |
-true | { altitudeM = 2400, coverage = 0.32 }`, `sunAzimuthDeg = 140`, `sunElevationDeg = 48`,
-`hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`, `sunDirection`.
+`MAX_VIEW_ASPECT = 2.4`: lab views are about 2.3 : 1 at 1440 × 900 and 2560 × 1440, so those pictures do not
+change; the horizontal field is capped near 96° with the default 50° (the field pilots already see at 1440 × 900).
+The lab layout also stops the 3D view growing past about 2.6 : 1 on ultra-wide windows (`docs/api/ui-kit.md`,
+`labLayout`), so the zoom is a small correction there and a guarantee everywhere else.
+
+| Helper | |
+|---|---|
+| `wideViewZoom(aspect, maxAspect = MAX_VIEW_ASPECT)` | the `camera.zoom` above (1 when not wider; bad input or `Infinity` → 1) |
+| `viewFovDeg(fovDeg, aspect, maxAspect?)` | vertical field on screen after that zoom |
+| `horizontalFovDeg(vFovDeg, aspect)` | horizontal field of a picture (inverse of `vFovDeg` in `forwardView.ts`) |
+
+Projection, picking (`rayFromClient`, `clientToPlane`, `projectToClient`), labels and frustum culling use the
+camera matrices and need nothing. Code that turns a field of view into pixels or a fitting distance reads
+`stage.viewFov` / `camera.getEffectiveFOV()`: `pxPerUnit`, the `uPxScale` uniform, `CameraRig.frame()`, the
+Pattern & landing side view, the missile-lab fits, the HARM top view and the Merge cockpit overlay sight do.
+The ATFLIR and JDAM pod views have their own renderer and apply `wideViewZoom` to their cameras the same way.
+
+## Environment (`environment.ts`, `atmosphere.ts`)
+
+Created by the Stage (`stage.env`). A clear high-altitude day for a tactical trainer, not a weather model:
+
+- **Sky dome:** deep-blue zenith (`WORLD.zenith`) through a clear mid blue to a bright warm-white horizon band,
+  a sun disc with a soft glow on the sun direction, high cirrus streaks painted on the dome.
+- **Surface at altitude 0:** a `MeshStandardMaterial` lit like every model, with procedural albedo
+  (`patchSurface`, `atmosphere.ts`). `'sea'`: open water with a noise coastline (land to the north-east, open
+  water within about 40 km of the origin for carrier work), shallow water and a thin beach at the coast, wind
+  ripples and a rougher-than-mirror surface for the sun glint. `'land'`: a field patchwork (rotated, warped
+  grid with hedges and crop rows near the eye), woods, dry scrub and lakes; open farmland within about 3 km of
+  the origin (airfields). The faint km grid (every 5th line a bit stronger) is drawn on top, quiet.
+- **Cumulus deck:** one transparent plane at `altitudeM`, broken cells in groups, sun-side tops bright and the
+  lee side in blue-grey shade; no depth write, so symbology always draws over it. It shadows the ground
+  (`shadow`); the deck itself is hidden from the Shkval TV and HUD passes by the pages.
+- **Aerial perspective:** altitude-aware (8 km scale height): a blue veil that grows with the air between the
+  eye and the point, then the horizon haze (`hazeKm`). At the horizon the ground and clouds fade into exactly
+  the sky's colour in that direction, sun glow included.
+- **Light:** one `DirectionalLight` on the sun direction (warm white), a soft `HemisphereLight`, and a small PMREM
+  (64 px) of the same sky plus the ground below as `scene.environment`, so jets and vehicles have a sky to
+  reflect. Re-captured on `setSurface` and after a restored WebGL context. If float render targets are missing
+  the models keep sun and hemisphere.
+
+`EnvironmentOptions`: `surface: 'sea' | 'land'`, `grid = true`, `gridKm = 10`, `clouds: true (default: 2200 m,
+coverage 0.3) | false | { altitudeM, coverage, shadow = 0.42 }`, `cirrus = true`, `sunAzimuthDeg = 140`,
+`sunElevationDeg = 40`, `hazeKm = 130`. Runtime: `setSurface()`, `setGrid(on)`, `setClouds(opts | false)`,
+`sunDirection`, `atmosphere` (the shared world uniforms: pass it to `TerrainMesh`, `TerrainProps` and
+`RunwayMesh` so they match the sky), `sky`, `ground`, `clouds`, `sun`, `hemi`.
+
+`atmosphere.ts` (shared world shading): `createAtmosphereUniforms(palette, sunDir, clock, hazeKm)`, the GLSL
+chunks (`W_NOISE`, `W_ATMOS`: `atmoSky`, `atmoHaze`, `atmoApply`; `W_CLOUD`; `W_LAND`; `W_GRID`),
+`patchSurface(material, { kind: 'ground' | 'terrain', atmosphere, grid?, detail?, pads?, reliefM? })` and
+`patchHaze(material, atmosphere, key)` (aerial perspective only, for plain lit meshes). World colours are the
+`WORLD` constants in `palette.ts` (flat `Palette` fields `zenith`, `skyMid`, `horizon`, `airHaze`, `sunlight`,
+`cloudLit`, `cloudShade`, `seaDeep`, `seaShallow`, `fieldA..D`, `forest`, `scrub`, `soil`, `rock`, `sand`); both
+cockpit skins share them. `polarDisc(radius, inner, rings, segments)` is the camera-centred ground/cloud mesh.
+
+**Cost:** three draw calls (sky, ground, clouds) as before, plus a one-off PMREM capture. The ground fragment
+shader evaluates about 15 to 25 value-noise samples where land is near (fields, woods, cloud shadow) and fewer
+over open water or far away (detail is skipped once a pixel covers more than it can show); clear sky skips the
+cloud detail. Not yet profiled on an integrated GPU.
 
 ---
 
@@ -393,10 +454,16 @@ camera's view offset, exact at any bank.
 
 ```ts
 const hudCam = new ForwardView(stage, { width: 224, height: 168, near: 0.0005, hidden: () => scene.hudHidden() });
+hudCam.fitTo(hudCanvas);                                    // picture shape = the glass it is drawn on
 hudCam.render(eyePos, quaternion, vFovDeg, boreX, boreY);   // scene units; camera looks down its −z
 hud.draw(state, hudCam.image);
 hudCam.dispose();
 ```
+
+HUD displays stretch `image` over their whole canvas, so the picture must have the canvas's shape or the world
+behind the symbology is distorted. `fitTo(el)` (no-op while `el` has no size) and `setAspect(width / height)`
+reshape the render target at about the same pixel count (`pictureSize(area, aspect)`, held to 1:4 .. 4:1); `width`
+and `height` give the current size. Every HUD page calls `fitTo(hudCanvas)` before `render`.
 
 | HUD | Pose | Field of view | Boresight | Hidden |
 |---|---|---|---|---|
@@ -451,7 +518,7 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   the Stage camera near plane to 0.5 m (cockpit view) and restores it on dispose.
 - `new FlightOpsScene(stage, aircraft: FlightOpsJetId, { camera?, side?, boostPx?, glideDeg?,
   aimPointM?, lengthM?, vTolDeg?, hTolDeg?, minHalfM? })`: switches the Environment to land without
-  the grid, adds the runway, the approach overlay and a `JetMesh`.
+  the grid, with sparse cumulus at 2600 m and a light cloud shadow, adds the runway, the approach overlay and a `JetMesh`.
   - `update(state: FlightOpsState)`: places the jet (`pos.y` = wheel height above the runway, 0 = on
     the runway gear down), applies heading / pitch / bank and `setConfig(gearPos, flapPos,
     speedbrakePos, hookPos ?? 0)`; swaps the jet if `state.aircraft` changed.
@@ -537,8 +604,8 @@ metres, origin at the landing threshold centreline, x east, y up, z south, landi
   than `minTrailSpacingM`, default 2 m, are skipped), `clearTrail()`, `setGeometry(opts)`,
   `setCorridorVisible(on)`. `glidePoint(d, glideDeg, aimPointM)` gives the glide-path point `d` m
   before the aim point.
-- `RunwayMesh(palette, { lengthM?, widthM?, aimPointM? })`: asphalt (default `RUNWAY` 2500 x 45 m),
-  an infield, and generic simplified paint (edge lines, threshold bars at both ends, centreline
+- `RunwayMesh(palette, { lengthM?, widthM?, aimPointM?, atmosphere? })`: asphalt (default `RUNWAY` 2500 x 45 m),
+  a mown-grass infield in the world's pasture tone (with `atmosphere`, all of it fades into the haze like the ground), and generic simplified paint (edge lines, threshold bars at both ends, centreline
   dashes, touchdown-zone bars, aiming-point blocks at the lesson's aim point); `setAimPoint(m)`.
   `runwayMarkings(L, W, aim)` returns the paint rectangles.
 - Harness: `sandbox/flight-ops.html?cam=side|chase|tower|cockpit&ac=<any FighterId>&d=1400&alt=<m>&gear=1&flaps=1&brake=0&sweep=<deg>&nav=x,z&navlabel=WP1&fly=1`;
@@ -566,6 +633,11 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
 
 ## Low-level pieces (for page-specific symbology)
 
+- `ContactShadows(capacity = 96)` (`contactShadows.ts`): an InstancedMesh of soft ground-aligned ellipses in metres
+  (add under a 0.001-scaled root). `sync(groundUnits, sunDir)` for vehicles, or `put(i, x, y, z, heading,
+  halfWidth, halfLength, alpha)` then `show(n)` for anything else; `SHADOW_LIFT_M` (0.35 m) keeps it clear of the
+  surface under the log depth buffer. Flight ops uses one under the true-size jet on the airfield: along the sun ray,
+  fading out by about 110 m above the runway (hidden at sea, behind a tanker and in the boosted side and tower views).
 - `LineBatch(stage.shared, { capacity?, depthTest?, additive?, renderOrder? })`: one draw call of
   screen-space thick lines. `reset()`, `seg(ax..bz, r,g,b,a, r2,g2,b2,a2, widthPx, dashPx, flowPxPerS,
   fill)`, `line(aUnits, bUnits, style)`, `polyline(points, style, closed?)`, `commit()`. Positions in
@@ -579,7 +651,7 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
   `VERT_PRELUDE` / `FRAG_PRELUDE` and end `main()` with `VERT_END` / `FRAG_END` (built-in three
   materials need nothing).
 - `ORDER` render-order bands, `toUnits`, `toMetres`, `mToUnits`, `orientationQuaternion(heading,
-  pitch, roll)` (+roll = right wing down), `headingQuaternion`, `pxPerUnitAt`, `boostedScale`,
+  pitch, roll)` (+roll = right wing down), `headingQuaternion`, `pxPerUnitAt` (pass `stage.viewFov`), `boostedScale`,
   `lerpAngle`, `readPalette()`, `sideColor(palette, side)`.
 
 ---
@@ -588,6 +660,8 @@ straight, radius over 25 km). Symbology only: no ballistics; tracers fly straigh
 
 - **Metres in, km in the scene.** Kit APIs take sim metres; your own scene objects are km units.
 - **The container needs a height.** The Stage fills it; a 0-height container gives a 0-height canvas.
+- **`camera.fov` is not the field on screen.** On a viewport wider than `maxViewAspect` the Stage zooms the
+  camera; pixel maths and fits use `stage.viewFov` (or `camera.getEffectiveFOV()`). Do not set `camera.zoom`.
 - **Order in the frame:** sim (0) → views sync (100) → camera (200) → views late pass: scale boost,
   labels, symbology (300) → environment (400) → render. Register your sim step at the default priority.
 - **Pause vs time scale.** `stage.pause()` stops the loop (reduced motion); pausing the sim is your time
@@ -668,10 +742,15 @@ x east / y up / z south. Seeded layered value noise combines broad valleys and f
 - `chunks: readonly TerrainChunk[]` exposes `xM`, `zM`, `widthM`, `depthM`, `mesh`, and
   `level` (0 = finest, 2 = coarsest) for diagnostics. Normals sampled from the common field
   keep shared edges lit consistently; perimeter skirts conceal gaps between different LODs.
-- Vertex colours mix palette earth/ok for low ground, earth/smoke for higher ground, and
-  smoke/dark on steep slopes. `detail` (default true) adds derivative-filtered procedural
-  pigment variation at 95 m, 18 m and 2.5 m scales for close pod views; all pigments come from
-  the palette. No texture downloads, texture allocation or custom lighting are needed.
+- Shading is procedural (`patchSurface`, kind `'terrain'`), the same land as the Environment's far ground
+  so the map edge blends: field patchwork with hedges and crop rows, woods (more likely on slopes and high
+  ground), dry scrub, bare soil from about 13° and rock from about 22° of slope. Flattened areas
+  (`flattenedAreas`, up to 8) stay open farmland: no woods or scrub around targets. Hill shading draws the
+  field's own normals 1.6 times steeper so gentle relief reads from altitude; heights, normals in the geometry,
+  LOS and masking are untouched. `detail` (default true) adds derivative-filtered albedo and normal detail at
+  about 40 m, 18 m and 2.5 m for pod views. Pass `atmosphere: stage.env.atmosphere` so the terrain shares the
+  Stage's haze, sun, cloud shadows and colours; without it the terrain makes its own (default sun, no clouds).
+  No vertex colours, textures or downloads.
 - `dispose(): void` is idempotent, frees every cached geometry and the shared material, and
   detaches the group. The caller owns Stage, lighting, environment and frame subscriptions.
 
@@ -689,6 +768,7 @@ All values below are drawing choices, not DCS facts.
 - `chunkSizeM` defaults to 2500. `setFocus(x, z): void` shows batches whose nearest edge is
   within `viewDistanceM` (default 3000; `Infinity` disables distance culling). Match the terrain
   focus to the pod aim point. Built-in instance bounds also allow camera frustum culling.
+- `atmosphere` (optional, `stage.env.atmosphere`) fades props into the same haze as the terrain.
 - `counts` reports instantiated `tree`, `trunk`, `building`, `roof`, and `road` counts over the
   whole field, including hidden batches. `dispose(): void` releases instance resources and
   each shared geometry/material exactly once, and detaches the group.
@@ -729,8 +809,12 @@ itDisplay.draw(state, tv.image);
   flattened at its own height. `terrainHook(field)` → `TerrainHook` for `world.terrain`: `heightAt`, and
   `lineOfSight` with end points lifted `LOS_LIFT_M` (2 m) above the ground, because the height-field query treats a
   ray touching the terrain as blocked while ground units sit on it; end points are clamped inside the map.
-- `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: TerrainMesh and
-  TerrainProps (focus follows the Shkval aim point), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
+- `AttackScene(stage, world, view | null, { field, shooterId?, layers?, propDensity? })`: switches the Environment
+  to land with a sparse cumulus deck at 4600 m (well above the attack jets, light shadow), TerrainMesh and
+  TerrainProps sharing the Stage's atmosphere (focus follows the Shkval aim point), soft contact shadows under
+  every ground unit (`ContactShadows`, one instanced draw call: an ellipse a little longer than the vehicle, pushed
+  away from the sun, a darker scorch under wrecks; drawn in the TV too, so vehicles stay separable from the ground;
+  pure helper `contactShadow(unit, sun)`), `GroundUnitLayer` (low-poly tank, APC, truck, bunker, building,
   SAM launcher, AAA; scale follows `sizeM`, charred when dead), A-G weapons in flight (missile, rocket and bomb
   bodies, Vikhr and rocket smoke, gun tracers, a glow at each head), impacts from `ag-impact` events
   (`view.addExplosion` plus a smoke column), and, for the shooter: the laser line jet → aim point while ЛД is on,

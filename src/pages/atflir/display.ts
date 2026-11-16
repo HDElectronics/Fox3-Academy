@@ -10,6 +10,7 @@ import { AtflirSession, FOVS, TARGETS } from './model';
 import { POD_FOV, podAim, setPodCamera } from './camera';
 import { AtflirRange } from './range';
 import { SensorFilter } from './sensorFilter';
+import { wideViewZoom } from '../../render/viewFov';
 
 export class PodView {
   readonly el = h('div', { class: 'atflir-screen' });
@@ -117,6 +118,8 @@ export class PodView {
     this.filter.resize(Math.floor(this.width * this.dpr), Math.floor(this.height * this.dpr));
     this.overlay.width = Math.floor(this.width * this.dpr); this.overlay.height = Math.floor(this.height * this.dpr);
     this.camera.aspect = this.width / this.height; this.overview.aspect = this.camera.aspect;
+    // A wide range view keeps a sane horizontal field instead of stretching (render/viewFov.ts, as the Stage does).
+    this.camera.zoom = this.overview.zoom = wideViewZoom(this.camera.aspect);
     this.overview.updateProjectionMatrix(); this.render(1, 0);
   }
   private render(dt: number, time: number): void {
@@ -192,7 +195,7 @@ export class PodView {
       const truck = TARGETS.find(t => t.id === s.tracked)!;
       const p = new Vector3(truck.x * .001, .0018, truck.y * .001).project(this.camera);
       const x = (p.x + 1) * w / 2, y = (1 - p.y) * h / 2;
-      const radius = Math.max(12, Math.min(w * .22, h * .003 / (2 * Math.tan(this.fov * Math.PI / 360) * this.camera.position.distanceTo(this.aim))));
+      const radius = Math.max(12, Math.min(w * .22, h * .003 / (2 * Math.tan(this.camera.getEffectiveFOV() * Math.PI / 360) * this.camera.position.distanceTo(this.aim))));
       this.corners(c, x, y, radius * .65, radius, 10);
     } else {
       c.beginPath();

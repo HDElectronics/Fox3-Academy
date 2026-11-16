@@ -233,11 +233,12 @@ export function mountQuiz(host: ModeHost): ModeController {
     answersEl.append(grid);
   }
 
-  function answer(g: Given) {
+  /** `scripted`: the ?shot= screenshot helper answered; graded and shown, not counted in the run or saved. */
+  function answer(g: Given, scripted = false) {
     if (!q || answered) return;
     answered = true;
     const ok = grade(q, g);
-    run = applyAnswer(run, ok);
+    if (!scripted) run = applyAnswer(run, ok);
     // Mark the buttons.
     const a = q.answer;
     const correctIds = a.type === 'clock' ? a.correct.map(String) : a.correct;
@@ -257,7 +258,8 @@ export function mountQuiz(host: ModeHost): ModeController {
     const ft = q.threats.find(t => t.id === focusId);
     display.setHighlight(ft && stateAt(ft, 1e6) === 'active' && q.kind !== 'tap-lock' && q.kind !== 'identify' ? missileIdFor(ft.id) : focusId);
     // Debrief.
-    const head = ok ? 'Correct.' : g.type === 'timeout' ? `Time. The answer: ${answerText(q)}.` : `Not quite. The answer: ${answerText(q)}.`;
+    const head = (ok ? 'Correct.' : g.type === 'timeout' ? `Time. The answer: ${answerText(q)}.` : `Not quite. The answer: ${answerText(q)}.`)
+      + (scripted ? ' (Scripted demo, not counted.)' : '');
     const extra: Child[] = [q.explain];
     const adv = q.advice?.action;
     if (adv === 'chaff' || adv === 'notch-left' || adv === 'notch-right') {
@@ -282,8 +284,8 @@ export function mountQuiz(host: ModeHost): ModeController {
     setText(timerEl, '');
     // Progress.
     const best = Number(app.getProgress(bestKey) ?? 0) || 0;
-    if (run.score > best) app.setProgress(bestKey, run.score);
-    if (run.score >= DONE_AT && app.getProgress(doneKey) !== true) {
+    if (!scripted && run.score > best) app.setProgress(bestKey, run.score);
+    if (!scripted && run.score >= DONE_AT && app.getProgress(doneKey) !== true) {
       app.setProgress(doneKey, true);
       toast(`${spec.short} RWR lesson done: ${DONE_AT} right in one run.`, { tone: 'ok' });
     }
@@ -346,11 +348,11 @@ export function mountQuiz(host: ModeHost): ModeController {
         shotDone = true;
         const a = q.answer;
         if (shot === 'answer') {
-          answer(a.type === 'clock' ? { type: 'clock', clock: a.correct[0] } : a.type === 'tap' ? { type: 'tap', id: a.correct[0] } : { type: 'choice', id: a.correct[0] });
+          answer(a.type === 'clock' ? { type: 'clock', clock: a.correct[0] } : a.type === 'tap' ? { type: 'tap', id: a.correct[0] } : { type: 'choice', id: a.correct[0] }, true);
         } else {
           const wrongChoice = a.type === 'clock' ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].find(c => !a.correct.includes(c)) ?? 1
             : (a.type === 'tap' ? a.candidates : a.options).find(o => !a.correct.includes(o.id))?.id ?? '';
-          answer(a.type === 'clock' ? { type: 'clock', clock: Number(wrongChoice) } : a.type === 'tap' ? { type: 'tap', id: String(wrongChoice) } : { type: 'choice', id: String(wrongChoice) });
+          answer(a.type === 'clock' ? { type: 'clock', clock: Number(wrongChoice) } : a.type === 'tap' ? { type: 'tap', id: String(wrongChoice) } : { type: 'choice', id: String(wrongChoice) }, true);
         }
       }
     },

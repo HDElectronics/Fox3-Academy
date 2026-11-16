@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FIGHTER_ORDER } from '../../data/aircraft';
+import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
+import { detectionRangeFor } from '../../sim/radar';
 import { TwsLesson } from './drill';
 import { resolveBinds } from './binds';
 import { article, banditWhy, coachFor, detectWhy, endSummary, introFor, stepsFor } from './lesson';
@@ -107,6 +108,30 @@ describe('tws lesson', () => {
     }
     expect(detectWhy(metric, metric.bandits[0].id)).toContain('km');
     expect(detectWhy(imperial, imperial.bandits[0].id)).toContain('nm');
+  });
+
+  it('the search coach quotes the head-on detection range the sim uses (MiG-29S: 3 m² reference)', () => {
+    const L = new TwsLesson('mig29s', { units: 'metric' });
+    const b0 = L.bandits[0];
+    const m = /sees an? \S+ at about (\d+) km head-on/.exec(coachFor(L, resolveBinds('mig29s')).text);
+    expect(m).toBeTruthy();
+    expect(Number(m?.[1])).toBeCloseTo(detectionRangeFor('mig29s', b0.type, 0, false) / 1000, -0.5);
+    // Head-on, level: the sim's own range for this pair (reference RCS 3 m² on the N019).
+    expect(detectionRangeFor('mig29s', b0.type, 0, false)).toBeCloseTo(
+      AIRCRAFT.mig29s.radar.detectKm.headOn * 1000 * Math.pow(AIRCRAFT[b0.type].rcsM2 / 3, 0.25), 0);
+  });
+
+  it('the fire panel and coach give launch ranges in the lesson units, not the jet\'s (F-15C in km)', () => {
+    const L = new TwsLesson('f15c', { units: 'metric' });
+    L.setMode('tws');
+    for (let i = 0; i < 300 && !L.me.radar.tracks.some(t => t.firm); i++) L.step(0.1);
+    const firm = L.me.radar.tracks.find(t => t.firm);
+    expect(firm).toBeTruthy();
+    if (!firm) return;
+    L.act(firm.targetId);
+    expect(L.canLaunch().reason).toMatch(/^Out of range: \d+ km, Rmax \d+ km$/);
+    expect(L.fire()).toMatch(/km, Rmax \d+ km$/);
+    expect(coachFor(L, resolveBinds('f15c')).text).not.toMatch(/\bnm\b/);
   });
 
   it('refuses TWS on the M-2000C in plain words', () => {

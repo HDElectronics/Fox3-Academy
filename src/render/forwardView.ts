@@ -11,7 +11,10 @@ import { PerspectiveCamera, Vector3, WebGLRenderTarget, type Object3D, type Quat
 import type { Stage } from './stage';
 
 export interface ForwardViewOptions {
-  /** Picture size (default 192 × 192; give the HUD's aspect, e.g. 224 × 168 for a 4:3 HUD). Small is enough: the glass is tinted. */
+  /**
+   * Picture size (default 192 × 192; give the HUD's aspect, e.g. 224 × 168 for a 4:3 HUD, or follow the HUD canvas
+   * with setAspect). Small is enough: the glass is tinted.
+   */
   width?: number;
   height?: number;
   /** Render every n-th call (default 3). */
@@ -49,6 +52,15 @@ export function vFovDeg(hFovDeg: number, aspect: number): number {
 }
 
 /**
+ * Picture size (px) for a picture `aspect` = width / height wide with about `area` pixels: the size setAspect gives a
+ * ForwardView, so the pixel cost stays the same whatever the HUD's shape. The aspect is held to 1:4 .. 4:1.
+ */
+export function pictureSize(area: number, aspect: number): { width: number; height: number } {
+  const a = Math.min(4, Math.max(0.25, Number.isFinite(aspect) && aspect > 0 ? aspect : 1));
+  return { width: Math.max(8, Math.round(Math.sqrt(area * a))), height: Math.max(8, Math.round(Math.sqrt(area / a))) };
+}
+
+/**
  * Point `cam` so its boresight (the camera axis) lands at (`boreX`, `boreY`) of the picture (0..1 from the top left):
  * a view offset of the full frame. Pure camera setup, for tests and for ForwardView.render.
  */
@@ -63,12 +75,13 @@ export class ForwardView {
   /** Increments on each new picture. */
   version = 0;
   private readonly rt: WebGLRenderTarget;
-  private readonly buf: Uint8Array;
-  private readonly img: ImageData;
+  private buf: Uint8Array;
+  private img: ImageData;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly lut = srgbLut();
-  private readonly w: number;
-  private readonly h: number;
+  private w: number;
+  private h: number;
+  private readonly area: number;
   private readonly every: number;
   private n = 0;
   private readonly skyPos = new Vector3();
@@ -76,6 +89,7 @@ export class ForwardView {
   constructor(private readonly stage: Stage, private readonly opts: ForwardViewOptions = {}) {
     this.w = opts.width ?? 192;
     this.h = opts.height ?? 192;
+    this.area = this.w * this.h;
     this.every = Math.max(1, opts.every ?? 3);
     this.rt = new WebGLRenderTarget(this.w, this.h, { depthBuffer: true });
     this.buf = new Uint8Array(this.w * this.h * 4);
@@ -84,6 +98,32 @@ export class ForwardView {
     this.ctx = this.image.getContext('2d')!;
     this.img = this.ctx.createImageData(this.w, this.h);
     this.camera = new PerspectiveCamera(20, this.w / this.h, opts.near ?? 0.02, 90);
+  }
+
+  /** Picture size in pixels (the constructor's size until setAspect changes its shape). */
+  get width(): number { return this.w; }
+  get height(): number { return this.h; }
+
+  /**
+   * Give the picture the shape of the glass it is drawn on (HUD canvas width / height), keeping about the same
+   * pixel count. HUD displays stretch `image` over the whole canvas, so a picture of another shape would be
+   * distorted. Cheap when the shape has not changed; the next render() draws at the new size.
+   */
+  setAspect(aspect: number): void {
+    if (!(aspect > 0) || !Number.isFinite(aspect)) return;
+    const s = pictureSize(this.area, aspect);
+    if (s.width === this.w && s.height === this.h) return;
+    this.w = s.width; this.h = s.height;
+    this.rt.setSize(this.w, this.h);
+    this.buf = new Uint8Array(this.w * this.h * 4);
+    this.image.width = this.w; this.image.height = this.h;
+    this.img = this.ctx.createImageData(this.w, this.h);
+    this.n = 0;   // draw the new shape on the next call
+  }
+
+  /** setAspect from an element's CSS box (the HUD canvas). No-op while it has no size (hidden). */
+  fitTo(el: { clientWidth: number; clientHeight: number }): void {
+    if (el.clientWidth > 0 && el.clientHeight > 0) this.setAspect(el.clientWidth / el.clientHeight);
   }
 
   /**

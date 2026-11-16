@@ -8,7 +8,7 @@ import {
 } from '../../sim/flightOps';
 import {
   FLIGHT_OPS_JETS, NAV_STEP_ORDER, STEP_ORDER, currentStep, flapControl, gateState, gatesForStart, indexerLamps, isFlightOpsJet, lampToken,
-  lessonPassed, navMilestones, navPicture, placeGates, plannedGates, pointAt, stepsDone, type FlownPoint,
+  lessonPassed, navMilestones, navPicture, placeGates, plannedGates, pointAt, stepsDone, stepsSkippedBy, type FlownPoint,
   PASS_SCORE, TAKEOFF_STEP_ORDER, landingConfigured, overspeedTitle, progressKey, showTakeoffCues, stepOrder, takeoffChecklist,
   takeoffItems, takeoffItemsNow, takeoffSpeeds, tapeY, throttleMaxKey, type TakeoffItem,
 } from './logic';
@@ -57,6 +57,17 @@ describe('flight-ops page logic', () => {
     const all = stepsDone({ gates: ['initial', 'break', 'abeam', 'groove', 'touchdown'].map(id => gate(id as GateResult['id'])), configured: true, onSpeedRunS: 5 });
     expect(all.size).toBe(STEP_ORDER.length);
     expect(currentStep(all)).toBeNull();
+  });
+
+  it('a Downwind or Final start begins past the pattern steps it skips, so the checklist follows the flight', () => {
+    expect(stepsSkippedBy('initial')).toEqual([]);
+    // Downwind: the initial and the break are behind the jet; the current step is the configuration.
+    const dw = stepsDone({ gates: [gate('downwind')], configured: false, onSpeedRunS: 0, skipped: stepsSkippedBy('downwind') });
+    expect(currentStep(dw)).toBe('configure');
+    // Final: the abeam too; a flown final with the demo's gates completes the checklist.
+    const fin = stepsDone({ gates: [gate('groove'), gate('touchdown')], configured: true, onSpeedRunS: 5, skipped: stepsSkippedBy('final') });
+    expect(currentStep(fin)).toBeNull();
+    expect(currentStep(stepsDone({ gates: [], configured: true, onSpeedRunS: 0, skipped: stepsSkippedBy('final') }))).toBe('onspeed');
   });
 
   it('maps gate results onto the planned rings, downwind shares the abeam ring', () => {

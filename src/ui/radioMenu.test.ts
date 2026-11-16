@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommsMenuNode } from '../data/types';
-import { radioMenu, radioMenuKey, radioMenuKeys, radioMenuRows, type RadioMenuHandle } from './radioMenu';
+import { radioMenu, radioMenuKey, radioMenuKeys, radioMenuRows, withRadioMenuKeys, type RadioMenuHandle } from './radioMenu';
 
 // ---- minimal DOM (tests run in node) ------------------------------------------------------------
 
@@ -242,6 +242,21 @@ describe('radioMenuKeys', () => {
     expect(e.defaultPrevented).toBe(true);
     expect(weapon).toHaveBeenCalledTimes(1);
     expect(menu.path()).toEqual(['Wingman']);
+  });
+
+  it('withRadioMenuKeys keeps a page digit working while the menu is closed (Su-25T 7 on the CAS page)', () => {
+    const { menu } = make();
+    const ag = vi.fn(), nav = vi.fn(), shkval = vi.fn(), flare = vi.fn();
+    const map = withRadioMenuKeys(menu, { '7': ag, '1': { down: nav }, 'O': shkval }, { fallback: { '9': flare } });
+    expect(map['O']).toBe(shkval);
+    down(map, '7', ev());
+    down(map, '1', ev());
+    down(map, '9', ev());
+    expect([ag, nav, flare].map(f => f.mock.calls.length)).toEqual([1, 1, 1]);
+    down(map, '\\', ev());
+    const e = ev(); down(map, '7', e);
+    expect(e.defaultPrevented).toBe(true);
+    expect(ag).toHaveBeenCalledTimes(1); // open: the menu owns the digit
   });
 
   it('enabled guard turns the whole set off', () => {

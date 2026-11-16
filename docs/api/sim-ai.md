@@ -301,7 +301,7 @@ DEFAULT_AI_CONFIG: AiConfig
 | `maxInFlightPerTarget` | null | override the skill value |
 | `launchFraction` | null | override: launch at this × Rmax |
 | `fireAtRange` | null | drill: launch as soon as range ≤ this (m) and the rules allow |
-| `fireNoLaterThan` | null | drill: sim time after which it fires at any range the rules allow |
+| `fireNoLaterThan` | null | drill: sim time after which it locks (when the shot needs STT) and fires at any range the rules allow |
 | `shots` | null | total missiles it may fire |
 | `targetId` | null | engage only this aircraft |
 | `launchMode` | `'auto'` | `'stt'` / `'tws'` force the radar-missile method |

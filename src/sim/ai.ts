@@ -894,7 +894,10 @@ function prosecute(world: World, ac: Aircraft, b: Brain, k: Known, plan: ShotPla
   // Radar setup.
   if (plan.method === 'stt') {
     const lockAt = b.cfg.fireAtRange != null ? plan.shootAt + closure * 5 : plan.shootAt * sk.lockLead + closure * 2;
-    if (plan.range <= lockAt) tryLock(world, ac, b, k.id);
+    // Past the fire-no-later-than deadline the shot counts as in range (planShot): lock for it, or an opening range
+    // (target running, or the slant range above a scripted fire range) never gets the STT the missile needs.
+    const late = b.cfg.fireNoLaterThan != null && now >= b.cfg.fireNoLaterThan;
+    if (plan.range <= lockAt || (late && plan.inRange)) tryLock(world, ac, b, k.id);
     else if (ac.radar.mode !== 'stt' || ac.radar.stt.targetId !== k.id) {
       ensureMode(world, ac, b, searchMode(ac, true));
       pointRadar(world, ac, b, k);
@@ -989,7 +992,8 @@ function decide(world: World, ac: Aircraft, b: Brain, dt: number): void {
   if (stateOf(ac) === 'defend') {
     // Keep flying the defence briefly through a warning that flickers; end at once if the missile is gone.
     const d = b.mem.defend;
-    const m = d?.missileId ? world.missiles.get(d.missileId) : undefined;
+    // The episode's missile is an air-to-air missile or a SAM (World keeps them in separate maps).
+    const m = d?.missileId ? world.missiles.get(d.missileId) ?? world.samMissiles.get(d.missileId) : undefined;
     const gone = !d || (d.missileId !== null && (!m || !m.alive));
     if (!gone && d && world.t - d.lastSeen < 1.5) return;
     endDefend(world, ac, b);

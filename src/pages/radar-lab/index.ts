@@ -6,18 +6,20 @@
  * ?sel=<n> ?cam=34|side|top|behind ?el=<deg> ?azc=<deg> ?w=<±deg> ?bars=<n> ?mode=rws|tws ?cursor=<units> ?pause=1
  * ?shot=<exercise|1> (jump to an interesting moment; jam, jamlock, jambt: strobe, jam lock, burn-through;
  * iff, iffasked, iffdone: two unknowns, after the interrogation (auto-IFF jets: friend marked), hostile locked;
- * dl, dlcorr: the datalink picture beyond the radar (FC3: radar switched on), then the scan slewed onto it: correlated)
+ * dl, dlcorr: the datalink picture beyond the radar (FC3: radar switched on), then the scan slewed onto it: correlated;
+ * scripted pre-rolls, never saved as progress until the pilot picks or restarts an exercise)
  * ?view=explain (reading section only).
  */
 import './style.css';
 import { mobileAction } from '../../ui/mobileAction';
+import { lessonHref, lessonPicker, onlyChanged } from '../../ui/lessonPicker';
 import type { Page, PageContext, PageFactory } from '../../app/page';
 import { AIRCRAFT } from '../../data/aircraft';
 import type { FighterId, AircraftSpec, RadarModeId } from '../../data/types';
 import { World } from '../../sim/world';
 import type { Aircraft, EntityId } from '../../sim/types';
 import { setManeuver as scriptManeuver } from '../../sim/scenarios';
-import { barBand, burnThroughRange, canLockJammer, explainDetection, isJammed, scanElevationLimits } from '../../sim/radar';
+import { barBand, burnThroughRange, canLock, canLockJammer, explainDetection, isJammed, scanElevationLimits } from '../../sim/radar';
 import { buildRadarPicture } from '../../sim/picture';
 import { D2R, MPS_PER_KT, R2D, aspectAngle, groundRange, headingOf } from '../../sim/math';
 import { fmtAltShort, fmtSpeed, type Units } from '../../app/format';
@@ -66,9 +68,18 @@ const BEZEL_LABEL = (spec: AircraftSpec): string => {
   }
 };
 
+/** Short labels for the exercise picker (the full title shows under it). */
+const EX_SHORT: Record<Exclude<ExerciseId, 'free'>, string> = {
+  low: 'Low bandit', revisit: 'Revisit', notch: 'Notch', aspect: 'Aspect', centre: 'Scan centre', jam: 'Jammer', iff: 'IFF', dl: 'Datalink',
+};
+/** Screenshot and scan deep-link params that apply once and never travel into an exercise link. */
+const ONE_SHOT = ['sel', 'mode', 'w', 'bars', 'azc', 'el', 'cursor', 'pause', 'view', 'units'];
+
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
   let alive = true;
+  /** Same-route URL change (exercise picker, Back): the page applies an exercise change in place. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   const mount = (ctx: PageContext): void => {
     // ---- query overrides (screenshots, deep links) -----------------------------------------------------
@@ -133,6 +144,8 @@ const factory: PageFactory = (): Page => {
     let scene: Scene = EXERCISE_DEFS.free.scene(ac, units);
     let mem: Mem = { latched: [] };
     let doneSaved = false;
+    /** The exercise ran from a ?shot= pre-roll: the script did the pilot's work, so it is never saved. */
+    let scripted = false;
     let timeScale = reduced || q.get('pause') === '1' ? 0 : 1;
     let lastScale = 1;
     let selected: EntityId | null = null;
@@ -146,11 +159,31 @@ const factory: PageFactory = (): Page => {
     // ---- DOM: console ----------------------------------------------------------------------------------
     const exTitle = h('div', { class: 'rl-extitle' });
     const exShort = h('p', { class: 'rl-exshort' });
-    const exSeg = segmented<ExerciseId>({
-      id: 'rl-ex', ariaLabel: 'Exercise', value: 'free', fill: true, size: 's',
-      options: exOptions(),
-      onChange: id => setExercise(id, true),
+    // Exercises are ?ex= links; free play is the Practice link (?lab=free&ex=free), so the top bar shows Practice.
+    let urlParams = new URLSearchParams(ctx.params);
+    const exLink = (id: Exclude<ExerciseId, 'free'>) => lessonHref('radar', urlParams, { ex: id, lab: null }, ONE_SHOT);
+    const exPicker = lessonPicker<Exclude<ExerciseId, 'free'>>({
+      id: 'rl-exercises', topic: 'Radar', noun: 'Exercise', header: false, value: null, href: exLink,
+      items: EXERCISES.map(id => {
+        const na = EXERCISE_DEFS[id].unavailable(ac) !== null;
+        return { id, label: EX_SHORT[id], title: EXERCISE_DEFS[id].title, disabled: na, note: na ? 'not on this jet' : undefined };
+      }),
+      isDone: id => ctx.app.getProgress(`radar:${ac}:${id}`) === true,
+      free: { label: 'Free scan', href: '#/radar?lab=free&ex=free', title: EXERCISE_DEFS.free.short },
     });
+    bag.add(() => exPicker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') exPicker.refresh(); }));
+    applyParams = next => {
+      const want = next.get('ex') as ExerciseId | null;
+      const ch = onlyChanged(urlParams, next, ['ex', 'shot', 't', ...ONE_SHOT]);
+      // ?ex=free opened without lab=free: the URL is normalised to the Practice link (below); nothing to rebuild.
+      const toPractice = exId === 'free' && next.get('lab') === 'free' && (next.get('ex') ?? 'free') === 'free' && onlyChanged(urlParams, next, ['lab', 'ex']);
+      if (toPractice) { urlParams = new URLSearchParams(next); return true; }
+      if (!ch || !want || want === 'free' || !(want in EXERCISE_DEFS) || exId === 'free') return false;
+      urlParams = new URLSearchParams(next);
+      setExercise(want, true);
+      return true;
+    };
     const coach = coachBox({ id: 'rl-coach', title: 'Now' });
     const stepsHost = h('div', { class: 'rl-steps' });
     let steps: ChecklistHandle | null = null;
@@ -178,13 +211,12 @@ const factory: PageFactory = (): Page => {
     dlUnlockBtn.el.hidden = !df.has;
     const dlList = h('ul', { class: 'rl-dllist', 'aria-label': 'Datalink tracks', 'aria-live': 'off' });
     const dlRow = h('div', { class: 'rl-dlrow' }, h('div', { class: 'ui-row rl-notchrow' }, dlRadarBtn.el, dlUnlockBtn.el), df.has ? dlList : null);
-    const progressEl = h('span', { class: 'rl-progress' });
     const log = eventLog({ id: 'rl-log', max: 30, empty: 'Paints and losses show here.' });
     log.el.style.setProperty('--log-h', '6.5em');
 
     const exPanel = consolePanel({
-      title: 'Exercises', id: 'rl-expanel', actions: progressEl,
-      children: [exSeg.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, iffRow, dlRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
+      title: 'Exercises', id: 'rl-expanel', actions: exPicker.status,
+      children: [exPicker.el, exTitle, exShort, coach.el, stepsHost, notchRow, jamRow, iffRow, dlRow, h('div', { class: 'ui-row' }, resetBtn.el), disclosure({ title: 'Events', content: log.el })],
     });
 
     // Radar controls.
@@ -312,7 +344,7 @@ const factory: PageFactory = (): Page => {
       id: 'rl-lab', mobileTabs: true,
       mobileActions: mobileButtons.map(action => action.el), class: 'rl-lab',
       header: {
-        title: ctx.params.get('lab') === 'free' ? 'Radar practice' : 'Radar lab',
+        title: ctx.params.get('lab') === 'free' || ctx.params.get('ex') === 'free' ? 'Radar practice' : 'Radar lab',
         meta: `${spec.short} · ${r.name} · ${spec.module === 'fc3' ? 'FC3' : spec.developer}`,
         lede: 'Move the scan. Find the contact. See why it disappears.',
       },
@@ -422,10 +454,11 @@ const factory: PageFactory = (): Page => {
       const def = EXERCISE_DEFS[id];
       scene = def.scene(ac, units);
       mem = { latched: [] };
+      scripted = false;
       doneSaved = id !== 'free' && ctx.app.getProgress(`radar:${ac}:${id}`) === true;
       inspected.clear();
       selected = null;
-      exSeg.set(id);
+      exPicker.set(id === 'free' ? null : id);
       setText(exTitle, id === 'free' ? def.title : `${def.num} · ${def.title}`);
       setText(exShort, def.short);
       const na = def.unavailable(ac);
@@ -486,7 +519,7 @@ const factory: PageFactory = (): Page => {
     function tryNormalLock(): void {
       const id = targetIds[0];
       if (!me || !id || exId !== 'jam') return;
-      const c = world.canLock(PLAYER, id);
+      const c = canLock(world, me, id, 'horizon', units);
       recordLockTry(mem, c);
       if (c.ok) world.lock(PLAYER, id);
       else toast(`Lock refused: ${c.reason}`, { within: lab.view, tone: 'caution', ms: 3200 });
@@ -519,7 +552,7 @@ const factory: PageFactory = (): Page => {
       const st = me.radar;
       if (st.mode === 'stt' && st.stt.targetId === id) return;
       if (st.mode === 'stt') world.unlock(PLAYER);
-      const c = world.canLock(PLAYER, id);
+      const c = canLock(world, me, id, 'horizon', units);
       if (!c.ok || !world.lock(PLAYER, id)) toast(`Lock refused: ${c.reason || 'no lock'}`, { within: lab.view, tone: 'caution', ms: 3200 });
       updateUi(true);
     }
@@ -877,33 +910,17 @@ const factory: PageFactory = (): Page => {
       if (exId === 'dl') syncDl(snap.dl);
       if (exId === 'jam') syncJamButtons();
       else view?.setLayer('tracks', true);
-      if (ev.done && exId !== 'free' && !doneSaved) {
+      if (ev.done && exId !== 'free' && !doneSaved && scripted) {
+        doneSaved = true;
+        toast(`Exercise ${def.num} done: ${def.title} (scripted demo, not saved)`, { within: lab.view, tone: 'dim' });
+      } else if (ev.done && exId !== 'free' && !doneSaved) {
         doneSaved = true;
         ctx.app.setProgress(`radar:${ac}:${exId}`, true);
         toast(`Exercise ${def.num} done: ${def.title}`, { within: lab.view, tone: 'ok' });
         const all = availableExercises(ac).every(id => ctx.app.getProgress(`radar:${ac}:${id}`) === true);
         if (all) ctx.app.setProgress(`radar:${ac}:done`, true);
-        exSeg.setOptions(exOptions(), exId);
-        updateProgress();
+        exPicker.refresh();
       }
-    }
-
-    function exOptions() {
-      return [
-        { value: 'free' as ExerciseId, label: 'Free', sub: 'play', title: EXERCISE_DEFS.free.short },
-        ...EXERCISES.map(id => {
-          const d = EXERCISE_DEFS[id];
-          const done = ctx.app.getProgress(`radar:${ac}:${id}`) === true;
-          const na = d.unavailable(ac) !== null;
-          return { value: id as ExerciseId, label: String(d.num), sub: na ? 'n/a' : done ? 'done' : '\u00a0', title: `${d.num}. ${d.title}${na ? ' (not on this jet)' : done ? ' (done)' : ''}` };
-        }),
-      ];
-    }
-
-    function updateProgress(): void {
-      const av = availableExercises(ac);
-      const n = av.filter(id => ctx.app.getProgress(`radar:${ac}:${id}`) === true).length;
-      setText(progressEl, `${n} / ${av.length} done`);
     }
 
     function updateUi(force = false): void {
@@ -1023,9 +1040,17 @@ const factory: PageFactory = (): Page => {
     bag.add(() => { offWorld?.(); offWorld = null; });
 
     // ---- start -------------------------------------------------------------------------------------------
-    updateProgress();
     const wantEx = q.get('ex') as ExerciseId | null;
-    setExercise(wantEx && wantEx in EXERCISE_DEFS ? wantEx : 'free', true);
+    // No exercise in the URL: free scan under Practice (lab=free), else the first exercise this jet can fly.
+    const firstEx = availableExercises(ac)[0] ?? 'free';
+    setExercise(wantEx && wantEx in EXERCISE_DEFS ? wantEx : q.get('lab') === 'free' ? 'free' : firstEx, true);
+    // Free scan is Practice: a link that opened it without lab=free is rewritten, so the top bar says Practice.
+    if (exId === 'free' && ctx.params.get('lab') !== 'free') {
+      const fixed = new URLSearchParams(ctx.params);
+      fixed.delete('ac'); fixed.delete('units'); fixed.set('lab', 'free'); fixed.set('ex', 'free');
+      queueMicrotask(() => { if (alive) ctx.navigate(`radar?${fixed}`, { replace: true }); });
+    }
+    scripted = !!shot;
     // Deep-link scan overrides (screenshots): ?mode= ?w= ?bars= ?azc= ?el= ?cursor=
     const num = (k: string) => { const v = q.get(k); return v !== null && v !== '' && isFinite(Number(v)) ? Number(v) : null; };
     const qm = q.get('mode');
@@ -1064,7 +1089,7 @@ const factory: PageFactory = (): Page => {
     function jamPreroll(): void {
       const st = me?.radar;
       if (!st || !st.strobes.length || exId !== 'jam') return;
-      if (mem.reason === undefined) recordLockTry(mem, world.canLock(PLAYER, targetIds[0]));
+      if (mem.reason === undefined && me) recordLockTry(mem, canLock(world, me, targetIds[0], 'horizon', units));
       if (world.t > 10 && st.mode !== 'stt') {
         const s0 = st.strobes[0];
         world.setScan(PLAYER, { cursor: { az: s0.az, range: st.cursor.range } });
@@ -1102,9 +1127,11 @@ const factory: PageFactory = (): Page => {
   };
 
   return {
-    mount(ctx) { mount(ctx); },
+    mount(ctx) { alive = true; mount(ctx); },
+    update(next) { return applyParams?.(next) ?? false; },
     unmount() {
       alive = false;
+      applyParams = null;
       bag.dispose();
     },
   };

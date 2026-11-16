@@ -19,29 +19,7 @@
 .mrg-readouts .ui-readout__value { font-size: var(--fs-s); white-space: nowrap; }
 
 /* ---- lesson panel ---- */
-.mrg-lessons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.mrg-lesson {
-  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center;
-  column-gap: 8px; min-height: 42px; padding: 5px 9px 8px; text-align: left;
-  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--ui-cap-line); border-bottom-width: 2px; border-radius: var(--r-1);
-  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.2;
-}
-.mrg-lesson:last-child { grid-column: 1 / -1; min-height: 34px; }
-.mrg-lesson::after {
-  content: ''; position: absolute; left: 9px; right: 9px; bottom: 3px; height: 3px; border-radius: 1px;
-  background: color-mix(in srgb, var(--btn-on) 13%, var(--btn));
-}
-.mrg-lesson:hover { background: color-mix(in srgb, var(--btn) 86%, var(--btn-ink)); }
-.mrg-lesson[aria-pressed="true"] { color: var(--btn-on); }
-.mrg-lesson[aria-pressed="true"]::after { background: var(--btn-on); box-shadow: var(--ui-glow); }
-.mrg-lesson__n {
-  grid-row: 1 / span 2; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
-  border: 1px solid currentColor; font-size: 0.7rem;
-}
-.mrg-lesson__title { min-width: 0; }
-.mrg-lesson__best { grid-column: 2; font-size: 0.64rem; letter-spacing: 0.08em; color: color-mix(in srgb, var(--btn-ink) 62%, var(--btn)); }
-.mrg-lesson__best:empty { display: none; }
-.mrg-lesson.is-done .mrg-lesson__n { background: var(--btn-on); color: var(--btn-on-ink); border-color: var(--btn-on); }
+/* The lesson list is the shared lesson picker (ui-lessons). */
 .mrg-goal { margin: 10px 0 8px; font-size: var(--fs-s); line-height: 1.45; color: var(--s-ink); }
 #mrg-lesson-panel .ui-console__body, #mrg-fly-panel .ui-console__body { display: flex; flex-direction: column; gap: 10px; }
 .mrg-note { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-label); }

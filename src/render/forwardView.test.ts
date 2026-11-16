@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
-import { placeBoresight, srgbLut, toColourImage, vFovDeg } from './forwardView';
+import { pictureSize, placeBoresight, srgbLut, toColourImage, vFovDeg } from './forwardView';
 import { orientationQuaternion } from './units';
 
 /** Picture position (0..1 from the top left) of the point `dist` units along a camera's boresight. */
@@ -44,6 +44,27 @@ describe('forward view geometry', () => {
     const l = new Vector3(-10, 0, -100).project(cam), r = new Vector3(10, 0, -100).project(cam);
     // Right bank: the right side of the horizon rises on the picture (canvas rotate(-bank) turns it the same way).
     expect(r.y).toBeGreaterThan(l.y);
+  });
+});
+
+describe('picture shape follows the HUD glass', () => {
+  it('keeps the constructor size for the matching shape', () => {
+    expect(pictureSize(192 * 192, 1)).toEqual({ width: 192, height: 192 });
+    expect(pictureSize(224 * 168, 4 / 3)).toEqual({ width: 224, height: 168 });
+  });
+
+  it('gives a wide glass a wide picture at about the same pixel count (no stretch when drawn over the glass)', () => {
+    for (const a of [0.7, 1.18, 2.64, 3.5]) {
+      const s = pictureSize(192 * 192, a);
+      expect(s.width / s.height).toBeCloseTo(a, 1);
+      expect(Math.abs(s.width * s.height - 192 * 192) / (192 * 192)).toBeLessThan(0.02);
+    }
+  });
+
+  it('holds odd shapes and bad input to sane sizes', () => {
+    expect(pictureSize(192 * 192, 40).width / pictureSize(192 * 192, 40).height).toBeCloseTo(4, 1);
+    expect(pictureSize(192 * 192, 0)).toEqual({ width: 192, height: 192 });
+    expect(pictureSize(192 * 192, NaN)).toEqual({ width: 192, height: 192 });
   });
 });
 

@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import { World } from '../../sim/world';
 import { twsDrill, type TwsDrill } from '../../sim/scenarios';
 import { buildRadarPicture } from '../../sim/picture';
-import { frameTimeFor, isNotched, radarRules, revisitTime, setCursor, setSnp2, snp2SeparationDeg as separationDeg, SNP2_MAX_SEP_DEG, trackOf } from '../../sim/radar';
+import { canLock, frameTimeFor, isNotched, radarRules, revisitTime, setCursor, setSnp2, snp2SeparationDeg as separationDeg, SNP2_MAX_SEP_DEG, trackOf } from '../../sim/radar';
 import { rwrRank } from '../../sim/rwr';
 import { D2R, R2D, relBearing, wrapPi } from '../../sim/math';
 import { AIRCRAFT } from '../../data/aircraft';
@@ -15,7 +15,7 @@ import { MISSILES } from '../../data/missiles';
 import type { FighterId, AircraftSpec, MissileId, SeekerKind } from '../../data/types';
 import type { Aircraft, EntityId, LaunchCheck, Missile, RadarPicture, RwrContact, SimEvent } from '../../sim/types';
 import { fmtRange, type Units } from '../../app/format';
-import { canLaunchSnp2, launchSnp2, type Snp2LaunchCheck as Snp2Check } from '../../sim/launch';
+import { canLaunch, canLaunchSnp2, launchSnp2, type Snp2LaunchCheck as Snp2Check } from '../../sim/launch';
 
 export type PageMode = 'off' | 'rws' | 'tws' | 'snp2' | 'stt' | 'vs' | 'acm';
 export type BanditState = 'quiet' | 'search' | 'lock' | 'launch' | 'missile' | 'dead';
@@ -246,19 +246,20 @@ export class TwsLesson {
     return revisitTime(this.me.radar);
   }
 
+  /** The launch check, its reasons in the lesson's units. */
   canLaunch(): LaunchCheck {
-    return this.world.canLaunch(this.me.id);
+    return canLaunch(this.world, this.me, undefined, undefined, this.units);
   }
 
   snp2Status(): Snp2Check | null {
-    return this.snp2 ? canLaunchSnp2(this.world, this.me) : null;
+    return this.snp2 ? canLaunchSnp2(this.world, this.me, this.units) : null;
   }
 
   /** The radar picture for the display, with the local СНП2 cue on the MiG-29S. */
   picture(): RadarPicture | null {
     const pic = buildRadarPicture(this.world, this.me.id, { units: this.units });
     if (pic && this.snp2 && this.me.radar.mode === 'tws') {
-      const c = this.lastSnp2 ?? canLaunchSnp2(this.world, this.me);
+      const c = this.lastSnp2 ?? canLaunchSnp2(this.world, this.me, this.units);
       pic.shootCue = c.ok;
       pic.launchBlockedReason = c.ok ? '' : c.reason;
       pic.cueLabel = 'ПР';
@@ -355,7 +356,7 @@ export class TwsLesson {
 
   private snp2Upkeep(): void {
     if (this.me.radar.designated.length >= 2) this.flags.snp2Pair = true;
-    this.lastSnp2 = canLaunchSnp2(this.world, this.me);
+    this.lastSnp2 = canLaunchSnp2(this.world, this.me, this.units);
     if (this.lastSnp2.ok) this.flags.snp2Ready = true;
   }
 
@@ -571,7 +572,7 @@ export class TwsLesson {
 
   /** STT on a target (RWS click, Hornet SCS, "designate again"). */
   lock(id: EntityId): string | null {
-    const chk = this.world.canLock(this.me.id, id);
+    const chk = canLock(this.world, this.me, id, 'horizon', this.units);
     if (!chk.ok) return `Cannot lock ${this.bandit(id)?.callsign ?? 'that'}: ${chk.reason}.`;
     this.userLock = true;
     this.world.lock(this.me.id, id);
@@ -629,14 +630,14 @@ export class TwsLesson {
   fire(): string | null {
     if (this.ended) return null;
     if (this.snp2 && this.me.radar.mode === 'tws') {
-      const c = canLaunchSnp2(this.world, this.me);
+      const c = canLaunchSnp2(this.world, this.me, this.units);
       if (!c.ok) return c.reason;
       const ms = launchSnp2(this.world, this.me);
       this.flags.snp2Salvo = ms.map(m => m.id);
       return null;
     }
     const r = this.world.launch(this.me.id);
-    return 'kind' in r ? null : r.reason;
+    return 'kind' in r ? null : this.canLaunch().reason || r.reason;
   }
 
   selectWeapon(id: MissileId): void {

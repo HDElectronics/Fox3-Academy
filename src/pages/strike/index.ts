@@ -10,7 +10,7 @@
  * progress), ?loadout=<SU25T_LOADOUTS id>, ?sa11=1.
  *
  * URL params: ?lesson=<id>, ?shot=shkval|locked|vikhr-flight|impact|debrief|ccrp|sead|sead-lock|threat|threat-debrief
- * (pre-roll for screenshots), ?cam=chase|target|tv, ?touch=1 (show the touch pad on a fine pointer),
+ * (scripted pre-rolls for screenshots, never saved as progress), ?cam=chase|target|tv, ?touch=1 (show the touch pad on a fine pointer),
  * ?sa11=1 (SAM-threat lesson: add the SA-11 behind the SA-15).
  */
 import './style.css';
@@ -25,7 +25,7 @@ import { Stage, WorldView, CameraRig, ForwardView, isWebGLAvailable, FramePriori
 import { AttackScene, ImpactTrail, ShkvalTv } from '../../render/attack';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, readouts,
-  callout, placard, bindKeys, disclosure, modal, select, toggle, type ModalHandle, type Tone,
+  callout, placard, bindKeys, disclosure, modal, select, toggle, lessonPicker, lessonHref, onlyChanged, type ModalHandle, type Tone,
 } from '../../ui';
 import { readTheme } from '../../ui/theme';
 import {
@@ -64,6 +64,8 @@ const SORTIE_PLAN: MapPlan = {
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -119,16 +121,30 @@ const factory: PageFactory = (): Page => {
     const ro = readouts({
       id: 'strk-ro', variant: 'glass',
       rows: [
-        { id: 'rng', label: 'Slant range' }, { id: 'laser', label: 'Laser used', title: 'Laser heat, s. S1: the laser switches off at its limit and cools about as long as it was on (simplified)' },
+        { id: 'rng', label: 'Slant range' }, { id: 'laser', label: 'Laser', title: 'Laser heat, s. S1: the laser switches off at its limit and cools about as long as it was on (simplified)' },
         { id: 'store', label: 'Store' }, { id: 'tgt', label: 'Targets' }, { id: 'sam', label: 'SAM' },
       ],
     });
 
-    const lessonSeg = segmented<LessonId>({
-      id: 'strk-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: LESSON_ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are links (?lesson=): the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: LessonId) => lessonHref('strike', urlParams, { lesson: id });
+    const picker = lessonPicker<LessonId>({
+      id: 'strk-lessons', topic: 'Strike', header: false, value: lesson, href: lessonLink,
+      items: LESSON_ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+      isDone: id => ctx.app.getProgress(progressKey(id)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: LessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;
+      const want = next.get('lesson') as LessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && LESSONS[want] ? want : 'shkval';
+      restart();
+      return true;
+    };
     const coach = coachBox({ id: 'strk-coach' });
     const sortieHost = h('div', { class: 'strk-sortie', id: 'strk-sortie' });
     const navBox = h('div', { class: 'strk-nav', role: 'status', 'aria-label': 'Steering cue (trainer)' });
@@ -161,7 +177,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [tvBezel.el, hudBezel.el, rwrBezel.el, touchPad, h('div', { class: 'ui-strip-block strk-ro' }, placard('Attack'), ro.el)],
       console: [
-        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', children: [lessonSeg.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
+        consolePanel({ title: 'Lesson', id: 'strk-lesson-panel', actions: picker.status, children: [picker.el, coach.el, sortieHost, stepsHost, h('div', { class: 'strk-row' }, restartBtn.el, endBtn.el), log.el] }).el,
         controls.el, keyList, caveats,
       ],
       mobileActions: ck.mobileActions,
@@ -264,7 +280,7 @@ const factory: PageFactory = (): Page => {
       const fresh = checklist({ steps: def.steps.map(s => ({ id: s.id, text: s.text, keys: s.keys })) });
       stepsHost.replaceChildren(fresh.el);
       steps = fresh;
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       endBtn.el.hidden = !def.scored;
       log.clear();
       log.push(def.goal, { t: 0 });
@@ -595,7 +611,7 @@ const factory: PageFactory = (): Page => {
       }
       if (changed && !def.scored && done.size === def.steps.length && !ended) {
         ended = true;
-        ctx.app.setProgress(progressKey(lesson), true);
+        if (!scripted) ctx.app.setProgress(progressKey(lesson), true);
         showDebrief({ stars: 3, title: `${def.title}: complete`, lines: def.steps.map(x => x.text.split(':')[0]!), coaching: [], passed: true });
       }
     }
@@ -625,7 +641,7 @@ const factory: PageFactory = (): Page => {
             : lesson === 'threat'
               ? scoreThreat({ tanks: sc.tanks.length, tanksKilled: dead(sc.tanks), samsKilled, hitsTaken: Math.max(hitsTaken, me.alive ? 0 : 1), ringS, samLaunches })
               : scoreCcip({ salvos, kills: dead(sc.trucks), bestMissM });
-      if (d.passed) ctx.app.setProgress(progressKey(lesson), true);
+      if (d.passed && !scripted) ctx.app.setProgress(progressKey(lesson), true);
       showDebrief(d);
     }
 
@@ -634,14 +650,14 @@ const factory: PageFactory = (): Page => {
       const stars = '★'.repeat(d.stars) + '☆'.repeat(3 - d.stars);
       const next = LESSON_ORDER[LESSON_ORDER.indexOf(lesson) + 1];
       result = modal({
-        id: 'strk-debrief', title: d.title, within: lab.view, tone: d.passed ? 'ok' : 'caution', open: true,
+        id: 'strk-debrief', title: `${d.title}${scripted ? ' (scripted demo, not saved)' : ''}`, within: lab.view, tone: d.passed ? 'ok' : 'caution', open: true,
         body: h('div', { class: 'strk-debrief' },
           h('p', { class: 'strk-debrief__stars', 'aria-label': `${d.stars} of 3` }, stars),
           h('ul', null, d.lines.map(l => h('li', null, l))),
           d.coaching.length ? h('div', null, placard('Coaching'), h('ul', null, d.coaching.map(l => h('li', null, l)))) : null),
         actions: [
           { label: 'Fly again', onClick: () => restart(), id: 'strk-again' },
-          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'strk-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'strk-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -665,7 +681,8 @@ const factory: PageFactory = (): Page => {
       const check = w.canAgLaunch(me.id);
       const aim = shkvalAimPoint(w, me);
       ro.set('rng', sh.laserOn && aim ? `${(me.pos.distanceTo(aim) / 1000).toFixed(1)} km` : sh.on ? 'laser off' : '—');
-      ro.set('laser', `${Math.round(sh.laserUsedS)} s / ${LASER_LIMIT_S / 60} min${sh.laserCoolS > 0 ? ' cooling' : ''}`);
+      // Short enough for one line in a narrow strip column: the limit, or "cooling" while it cools.
+      ro.set('laser', `${Math.round(sh.laserUsedS)} s ${sh.laserCoolS > 0 ? 'cooling' : `/ ${LASER_LIMIT_S / 60} min`}`);
       ro.setTone('laser', sh.laserCoolS > 0 ? 'warning' : sh.laserOn ? 'caution' : null);
       const sel = ag.selected;
       ro.set('store', ck.storeText());
@@ -680,13 +697,16 @@ const factory: PageFactory = (): Page => {
       const cur = def.steps.find(s => !done.has(s.id));
       steps.setCurrent(cur?.id ?? null);
       let tone: Tone | undefined;
-      let text = cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
-      let why = check.reason && ag.master !== 'nav' && sel ? check.reason : def.goal;
-      if (check.pr) { tone = 'ok'; why = 'ПР: launch authorised.'; }
+      // Once the lesson has ended the trigger is dead (canFire): no launch check or release cue applies any more.
+      let text = ended
+        ? (!def.scored ? 'Lesson complete.' : result ? 'Attack over. Fly again or take the next lesson.' : 'Attack over: the debrief follows.')
+        : cur ? cur.text : def.scored ? 'Finish the attack; the debrief follows.' : 'Lesson complete.';
+      let why = !ended && check.reason && ag.master !== 'nav' && sel ? check.reason : def.goal;
+      if (!ended && check.pr) { tone = 'ok'; why = 'ПР: launch authorised.'; }
       const flying = [...w.agWeapons.values()].some(x => x.alive && x.guided && x.shooterId === me.id && x.type === 'vikhr');
       if (flying) { text = 'Vikhr in flight: hold the lock and the laser until impact.'; tone = 'caution'; why = 'Beam-riding: the missile follows the Shkval line of sight to the end.'; }
       const ccrp = ccrpSolution(w, me);
-      if (ccrp.active && lesson === 'bombs' && bombPhase === 'ccrp') {
+      if (!ended && ccrp.active && lesson === 'bombs' && bombPhase === 'ccrp') {
         why = ag.ccrpHeld
           ? `Release held. ${ccrp.inCircle ? 'Keel in the circle' : `Steer ${ccrp.errDeg! > 0 ? 'right' : 'left'} into the circle`}; ${ccrp.ttrS! > 10 ? 'the arrow starts 10 s before release' : `release in ${Math.max(0, Math.ceil(ccrp.ttrS!))} s`}.`
           : 'CCRP ready: hold Space until the bomb releases itself.';
@@ -754,7 +774,9 @@ const factory: PageFactory = (): Page => {
       view?.syncNow();
     }
 
+    /** Scripted pilot for screenshots (never saved as progress). */
     function preroll(s: Shot): void {
+      scripted = true;
       const w = world(), id = me.id;
       const tank = w.groundUnits.get(sc.tanks[1]!)!;
       const run = (sec: number) => { for (let t = 0; t < sec; t += 1 / 30) tick(1 / 30); };
@@ -849,7 +871,8 @@ const factory: PageFactory = (): Page => {
 
   return {
     mount,
-    unmount() { bag.dispose(); },
+    update: next => applyParams?.(next) ?? false,
+    unmount() { applyParams = null; bag.dispose(); },
   };
 };
 

@@ -52,15 +52,32 @@ service or automatic agent-launch hook is configured by this project.
 
 The app is a single-page application with a hash router (`#/tws`, `#/sortie`, ...). The shell in `src/app` draws
 the top bar, keeps global state in `AppStore` (selected jet, units, lesson progress), and mounts one page at a
-time. Switching jets or units remounts the current page, so pages read the jet once on mount.
+time. Switching jets or units remounts the current page, so pages read the jet once on mount. A route with
+`liveUnits: true` (`src/app/routes.ts`; today Pattern & landing) stays mounted on a units switch and redraws its
+numbers from its own store subscription, so a flight in progress survives.
 
-`src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference. The selected jet comes first: the
-second row lists only links whose route accepts the jet (`linkOpensFor`, through `roleGate.ts`), and Learn groups
-them (`lessonGroups`: BVR, Close combat, Flying, then the jet's own pages under its name). A new lesson link
-needs a `group` in `LESSON_LINKS`. `#/learn` aliases the original
+`src/app/navigation.ts` maps routes to Learn, Practice, Fly and Reference (`destinationFor`) and names the
+browser tab (`pageTitle`). `src/app/lessonPath.ts` holds the lesson path: `LESSON_LINKS` lists every Learn page
+once, in path order, with a label, a short title and a topic `group`; `lessonSteps(jet)` keeps the pages whose
+route accepts the jet (`linkOpensFor`, through `roleGate.ts`); the path hands off to Fly (`flyLinkFor`).
+`pathStatus` is the pure position and next-step logic (sequential Next on a step, Start/Continue elsewhere,
+Fly after the last step). `src/pages/progress/model.ts` (`pathProgress`) knows the goals each page awards and
+marks a step complete when all of them are. The Learn bar, the Learn home cards and Progress all read these, so
+they agree on order, numbers and completion. A new lesson page needs one `LESSON_LINKS` entry and a case in
+`stepGoals`.
+
+The shell's second row is one fixed-height line on every destination: the path on Learn (steps, done marks,
+`Lesson n/m` and Next, lit once the current step is complete), the labs on Practice, the page itself on
+Reference and Fly, where the right end offers Continue into the path. It loads the progress model lazily
+(`import()`), since the goals pull in page modules, and re-renders on every progress change. Learn versus
+Practice is chosen in the top bar only; pages do not carry their own switch. `#/learn` aliases the original
 `#/hangar`; a `lab=free` query selects the Practice context. The router compares normalized query parameters,
 so switching guided/free sessions remounts even on the same path. It consumes `ac` once before mounting.
 The shell measures both navigation rows into `--shell-h` for viewport sizing.
+
+On the dev server, `?progress=start|mid|complete` (`src/app/progressFixture.ts`) shows fixture progress for
+screenshots without touching saved progress, for example `scripts/shot.sh '/#/tws?ac=su27&progress=mid' ...`.
+Production builds ignore it.
 
 3D labs opt into `labLayout({ mobileTabs: true, mobileActions })`. Narrow-screen tab changes hide panels without
 rebuilding their World or Stage. Dispose the layout with the page's cleanup bag. `mobileAction` mirrors an

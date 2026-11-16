@@ -1,6 +1,6 @@
 /** F/A-18C ATFLIR foundations. Page-local synthetic pod and simplified laser delivery exercises. */
 import type { PageFactory } from '../../app/page';
-import { h, button, row, group, labLayout, bindKeys, cleanup, setText } from '../../ui';
+import { h, button, row, group, labLayout, bindKeys, cleanup, setText, lessonPicker, lessonHref } from '../../ui';
 import { ATFLIR_CAVEATS, ATFLIR_SOURCE } from '../../data/atflir';
 import { LESSON_ORDER, LESSONS, lessonId, progressKey } from './lessons';
 import { AtflirSession, FOVS } from './model';
@@ -11,6 +11,10 @@ import { LGB_CAVEATS, LGB_SOURCE } from '../../data/fa18cLgb';
 import { createLaserCockpit } from './cockpit';
 import { PodView } from './display';
 import './style.css';
+/** Short labels for the lesson picker (the full title heads the brief). */
+const SHORT: Record<typeof LESSON_ORDER[number], string> = {
+  control: 'Control', find: 'Find', track: 'Track', recover: 'Recover', laser: 'Laser', delivery: 'GBU-12', troubleshoot: 'Troubleshoot',
+};
 const page: PageFactory = () => {
   const clean = cleanup();
   return {
@@ -53,7 +57,16 @@ const page: PageFactory = () => {
       const result = h('p', { class: 'atflir-result', role: 'status' });
       const steps = lesson.steps.map(text => h('li', null, text));
       const nextId = LESSON_ORDER[LESSON_ORDER.indexOf(id) + 1];
-      const next = button({ label: nextId ? 'Next lesson' : 'View progress', onClick: () => ctx.navigate(nextId ? `atflir?lesson=${nextId}` : 'progress') });
+      // Lessons are ?lesson= links (the page remounts on each). Next follows the same link.
+      const lessonLink = (key: typeof LESSON_ORDER[number]) => lessonHref('atflir', ctx.params, { lesson: key }, ['case']);
+      const picker = lessonPicker({
+        id: 'atflir-lesson-picker', topic: 'ATFLIR', value: id, href: lessonLink,
+        items: LESSON_ORDER.map(key => ({ id: key, label: SHORT[key], title: LESSONS[key].title })),
+        isDone: key => ctx.app.getProgress(progressKey(key)) === true,
+      });
+      clean.add(() => picker.destroy());
+      clean.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+      const next = button({ label: nextId ? `Next: ${SHORT[nextId]}` : 'View progress', onClick: () => ctx.navigate(nextId ? lessonLink(nextId).slice(2) : 'progress') });
       const act = (fn: () => void) => { fn(); update(); };
       const look = button({ label: 'Night vision look', lamp: true, onClick: () => act(() => { nightVision = !nightVision; }) });
       const cameraButton = button({ label: 'Camera: follow bomb', size: 's', onClick: () => act(() => { followBomb = !followBomb; }) });
@@ -103,10 +116,7 @@ const page: PageFactory = () => {
         if (session.obscured) { session.obscured = false; session.message = 'Obstruction cleared. Reposition in INR/SCENE and request AUTO again.'; }
         else session.loseTrack();
       }) });
-      const tabs = h('nav', { class: 'atflir-lessons', 'aria-label': 'ATFLIR lessons' }, LESSON_ORDER.map((key, i) => h('a', {
-        href: `#/atflir?lesson=${key}`, 'aria-current': key === id ? 'page' : undefined,
-      }, `${i + 1}. ${LESSONS[key].title}`)));
-      const controls = h('div', { class: 'atflir-controls' }, tabs,
+      const controls = h('div', { class: 'atflir-controls' }, picker.el,
         h('section', { class: 'atflir-brief' }, h('div', { class: 'ui-placard' }, `Exercise ${LESSON_ORDER.indexOf(id) + 1} / ${LESSON_ORDER.length}`),
           h('h2', null, lesson.title), h('p', null, lesson.goal), h('ol', { class: 'atflir-steps' }, steps), result, next.el),
         id === 'troubleshoot' ? h('nav', { class: 'atflir-lessons', 'aria-label': 'Troubleshooting cases' }, cases.map(c => h('a', { href: `#/atflir?lesson=troubleshoot&case=${c}`, 'aria-current': troubleCase === c ? 'page' : undefined }, `${c === 'code' ? 'Code mismatch' : c === 'track' ? 'Lost track' : 'Laser off'}${ctx.app.getProgress(`atflir:troubleshoot:${c}:fa18c`) ? ' · Done' : ''}`))) : null,

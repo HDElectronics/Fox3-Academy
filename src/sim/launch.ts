@@ -111,21 +111,22 @@ function noTargetReason(ac: Aircraft, ms: MissileSpec): string {
   return `${ms.name} needs a lock (STT)`;
 }
 
-export function canLaunch(world: World, ac: Aircraft, targetId?: EntityId, missile?: MissileId): LaunchCheck {
+/** Ranges in the reasons use `units` (the page's), else the jet's own. */
+export function canLaunch(world: World, ac: Aircraft, targetId?: EntityId, missile?: MissileId, units?: 'metric' | 'imperial'): LaunchCheck {
   if (ac.radar.snp2 && ac.radar.mode === 'tws') {
-    const pair = canLaunchSnp2(world, ac);
+    const pair = canLaunchSnp2(world, ac, units);
     const mid = missile ?? ac.selectedWeapon;
     if (!pair.ok || mid !== 'r77' || (targetId && !pair.targetIds?.includes(targetId))) {
       return { ok: false, reason: pair.reason || 'СНП2 fires two R-77s at Ц1 and Ц2', targetId: targetId ?? pair.targetIds?.[0] ?? null, missile: mid, range: pair.range, dlz: null };
     }
-    return canLaunchSingle(world, ac, targetId ?? pair.targetIds![0], 'r77', true);
+    return canLaunchSingle(world, ac, targetId ?? pair.targetIds![0], 'r77', true, units);
   }
-  return canLaunchSingle(world, ac, targetId, missile);
+  return canLaunchSingle(world, ac, targetId, missile, false, units);
 }
 
-function canLaunchSingle(world: World, ac: Aircraft, targetId?: EntityId, missile?: MissileId, snp2 = false): LaunchCheck {
+function canLaunchSingle(world: World, ac: Aircraft, targetId?: EntityId, missile?: MissileId, snp2 = false, unitsOpt?: 'metric' | 'imperial'): LaunchCheck {
   if (!isFighterAc(ac)) return { ok: false, reason: `The ${AIRCRAFT[ac.type].short} has no air-to-air radar`, targetId: null, missile: null, range: null, dlz: null };
-  const spec = AIRCRAFT[ac.type], units = spec.units, st = ac.radar;
+  const spec = AIRCRAFT[ac.type], units = unitsOpt ?? spec.units, st = ac.radar;
   const mid = missile ?? ac.selectedWeapon;
   let tid: EntityId | null = null, range: number | null = null, dlz: Dlz | null = null;
   const fail = (reason: string): LaunchCheck => ({ ok: false, reason, targetId: tid, missile: mid ?? null, range, dlz });
@@ -213,14 +214,14 @@ export interface Snp2LaunchCheck {
 }
 
 /** Atomic two-round launch check. Neither missile leaves unless both targets qualify. */
-export function canLaunchSnp2(world: World, ac: Aircraft): Snp2LaunchCheck {
+export function canLaunchSnp2(world: World, ac: Aircraft, units?: 'metric' | 'imperial'): Snp2LaunchCheck {
   const eligibility = snp2Eligibility(world, ac);
   const result: Snp2LaunchCheck = { ...eligibility, range: null, prRange: null };
   if (!eligibility.ok || !eligibility.targetIds) return result;
   if ((ac.stores.r77 ?? 0) < 2) return { ...result, ok: false, reason: 'СНП2 needs two R-77s' };
   if (ac.selectedWeapon !== 'r77') return { ...result, ok: false, reason: 'Select R-77: СНП2 fires two R-77s' };
   for (const target of eligibility.targetIds) {
-    const check = canLaunchSingle(world, ac, target, 'r77', true);
+    const check = canLaunchSingle(world, ac, target, 'r77', true, units);
     if (target === eligibility.targetIds[0]) {
       result.range = check.range;
       result.prRange = check.dlz ? check.dlz.rmax * 0.85 : null;

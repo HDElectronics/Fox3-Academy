@@ -3,7 +3,8 @@
  * multi-target shots where the jet allows them, and above all what each bandit's RWR hears.
  * Route #/tws teaches the lesson; #/tws?lab=free opens Practice. ?ac=<id> selects the jet once on mount.
  * ?shot=tracks|mid|active|stt|end|demo pre-rolls the
- * drill with the demo pilot (screenshots); &pause=1 starts paused; &cam=top|chase picks the camera.
+ * drill with the demo pilot (screenshots; a demo-flown checklist is never saved, a reset hands the drill back);
+ * &pause=1 starts paused; &cam=top|chase picks the camera.
  */
 import './style.css';
 import type { Page, PageContext, PageFactory } from '../../app/page';
@@ -101,6 +102,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   let selected: EntityId | null = null;
   let saved = !!ctx.app.getProgress(`tws:${ac}:done`);
   const autoplay = !L.freeLab && shot === 'demo';
+  /** The demo pilot flew this drill (?shot= pre-roll or autoplay): the checklist shows, nothing is saved. */
+  let scripted = autoplay;
   const labInput = new FreeLabInput();
   const holds = new LabTimers();
   bag.add(() => labInput.clear());
@@ -141,7 +144,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     options: [{ value: '0', label: 'Pause' }, { value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }],
     onChange: v => { labInput.clear(); holds.clear(); if (v === '0') paused = true; else { paused = false; speed = Number(v); } },
   });
-  const resetBtn = button({ label: 'Reset', size: 's', onClick: () => reset(), title: 'Put the four bandits back at 70–100 km' });
+  const resetBtn = button({ label: 'Reset', size: 's', onClick: () => reset(), title: `Put the four bandits back at ${rangeSpan(70000, 100000)}` });
   const clock = h('div', { class: 'tws-clock tws-plate' }, clockEl, speedSeg.el, resetBtn.el);
 
   const legend = h('div', { class: 'tws-legend tws-plate', 'aria-label': 'Legend' },
@@ -172,9 +175,6 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   const sessionNote = h('p', { class: 'tws-hint' });
   const snapToggle = toggle({ id: 'tws-cursor-snap', label: 'DCS СНП cursor snap', value: false,
     onChange: value => { L.dcsCursorSnap = value; radar.setOptions({ manualCursor: L.freeLab && !value }); updateSession(); } });
-  const sessionMode = segmented<'guided' | 'free'>({ id: 'tws-session', ariaLabel: 'Learning or practice', value: L.freeLab ? 'free' : 'guided', fill: true,
-    options: [{ value: 'guided', label: 'Learn' }, { value: 'free', label: 'Practice' }],
-    onChange: value => ctx.navigate(value === 'free' ? 'tws?lab=free' : 'tws') });
   const sessionPanel = consolePanel({ id: 'tws-practice', title: 'Practice mode', dense: true,
     children: [sessionNote, snapToggle.el] });
   function updateSession(): void {
@@ -184,7 +184,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     snapToggle.el.hidden = !L.freeLab || !L.cursorSnaps;
     sessionNote.textContent = L.freeLab
       ? 'Hold cursor keys to slew; Designate / Lock acts only under the cursor. Click the radar to position the cursor. Arrow keys command heading and altitude (trainer controls). No merge or time limit.' + (L.cursorSnaps ? L.dcsCursorSnap ? ' DCS СНП: moving onto a firm track snaps and designates; 85% Rmax auto-lock still applies.' : ' Manual designation is a trainer aid: DCS СНП normally snaps when slewed onto a track. After designation, 85% Rmax auto-lock still applies.' : '')
-      : 'Guided course: cursor keys step between detected contacts as a teaching shortcut. Use Free lab for continuous cursor control.';
+      : 'Guided course: cursor keys step between detected contacts as a teaching shortcut. For continuous cursor control, open the Free TWS lab under Practice.';
   }
 
   const modeSeg = segmented<PageMode>({
@@ -331,7 +331,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   // ------------------------------------------------------------------ layout
   const lab = labLayout({
     id: 'tws-lab', class: 'tws', mobileTabs: true, mobileActions,
-    header: { title: 'Track while scan', actions: sessionMode.el, meta: `${spec.short} · ${spec.radar.name}` },
+    // Learn or Practice is the top bar's choice (#/tws or #/tws?lab=free); the header names which one this is.
+    header: { title: L.freeLab ? 'Free TWS lab' : 'Track while scan', meta: `${spec.short} · ${spec.radar.name}` },
     viewport: viewEl,
     strip: [radarBezel.el, brief],
     console: [cockpitPanel.el,
@@ -712,9 +713,13 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     setText(mobileNow, now - flashAt < FLASH_MS ? flashText : L.freeLab
       ? 'Practice · Select a contact in World or position the cursor in Displays.'
       : `Now · ${currentStep?.text ?? 'Checklist complete'} (${done}/${steps.length})`);
-    if (done === steps.length && !saved) {
+    // Practice (free lab) hides the checklist and saves nothing: it must not claim a save either.
+    if (done === steps.length && !saved && !L.freeLab && scripted) {
       saved = true;
-      if (!L.freeLab) ctx.app.setProgress(`tws:${ac}:done`, true);
+      log.push(`Checklist complete for the ${spec.short} (scripted demo, not saved).`, { t: w.t, tone: 'dim' });
+    } else if (done === steps.length && !saved && !L.freeLab) {
+      saved = true;
+      ctx.app.setProgress(`tws:${ac}:done`, true);
       log.push(`Checklist complete for the ${spec.short}. Saved.`, { t: w.t, tone: 'ok' });
     }
     // Bandit cards.
@@ -793,6 +798,8 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
     labInput.clear();
     holds.clear();
     L.reset();
+    scripted = autoplay;
+    saved = !!ctx.app.getProgress(`tws:${ac}:done`);
     log.clear();
     view?.setWorld(L.world);
     view?.setObserver(L.me.id);
@@ -819,6 +826,7 @@ function mountTws(ctx: PageContext, bag: ReturnType<typeof cleanup>): void {
   updateUi();
 
   function preroll(kind: string): void {
+    scripted = true;
     const until: Record<string, () => boolean> = {
       tracks: () => L.flags.des1 || L.world.t > 60,
       mid: () => L.playerMissiles().some(m => m.guidance === 'datalink' && (m.timeToActive ?? 99) < 14) || L.world.t > 110,

@@ -6,7 +6,7 @@ Cockpit controls, panels and layouts for every page. Plain DOM factories: each r
 
 ```ts
 import { labLayout, consolePanel, disclosure, screenBezel, segmented, slider, button, coachBox,
-         checklist, eventLog, readouts, callout, bindKeys, kbd, cleanup } from '../../ui';
+         checklist, eventLog, readouts, callout, bindKeys, kbd, cleanup, lessonPicker } from '../../ui';
 ```
 
 Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=kit|lab|doc`
@@ -44,15 +44,73 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
 |---|---|---|
 | `button({ label, id?, onClick?, variant?: 'cap'\|'primary'\|'ghost', size?: 's'\|'m'\|'l', keys?, lamp?, lit?, disabled?, title?, ariaLabel?, block?, keepCase?, class? })` | `{ el, setLabel(c), setDisabled(b), setLit(b) }` | `primary` = lit cap for the one main action on a panel. `lamp: true` adds a lamp strip that `setLit(true)` lights (SHOOT / ПР cue). `ghost` = underlined text action. A lit `primary` (FIRE with the shoot cue) keeps its dark legend and glows, with a dark lamp bar when it has `lamp`; a lit `ghost` goes bold in the surface ink. |
 | `toggle({ id, label, value?, onChange?, style?: 'lamp'\|'switch', states?: [off, on], keys?, size?, disabled?, title? })` | `{ el, value, set(v, emit?), toggle(emit = true), setDisabled }` | `lamp`: latching push-button, `aria-pressed`, lamp strip lit when on. `switch`: lever with ON/OFF legend, `role=switch` + `aria-checked` (use for settings: audio, master arm). |
-| `segmented<T extends string\|number>({ id, label?, ariaLabel?, options: { value, label, sub?, title?, disabled?, keys? }[], value, onChange?, size?: 's', fill? })` | `{ el, group, value, set(v, emit?), setDisabled(v, b), setOption(v, patch), setOptions(opts, value?) }` | Radio group of caps. Arrow keys / Home / End move and select (skipping disabled), roving tabindex. `sub` is a small second line (e.g. frame time). `fill` stretches segments; they wrap when there is no room. **`setOption(v, { label?, sub?, title?, disabled?, keys? })` updates one cap in place** (no rebuild, focus stays): use it for live frame times or per-jet limits. `setOptions` rebuilds only when something a cap shows changed, and keeps keyboard focus on the same value. |
+| `segmented<T extends string\|number>({ id, label?, ariaLabel?, options: { value, label, sub?, title?, disabled?, keys? }[], value, onChange?, size?: 's', fill? })` | `{ el, group, value, set(v, emit?), setDisabled(v, b), setOption(v, patch), setOptions(opts, value?) }` | Radio group of caps. Arrow keys / Home / End move and select (skipping disabled), roving tabindex; after a click, a key the page binds (`pageBinds`) goes to the page instead. `sub` is a small second line (e.g. frame time). `fill` stretches segments; they wrap when there is no room. **`setOption(v, { label?, sub?, title?, disabled?, keys? })` updates one cap in place** (no rebuild, focus stays): use it for live frame times or per-jet limits. `setOptions` rebuilds only when something a cap shows changed, and keeps keyboard focus on the same value. |
 | `slider({ id, label, min, max, step?, value, unit?, format?, onInput?, onChange?, marks?, zones?, readoutCh?, disabled?, hint? })` | `{ el, input, value, set(v, emit?), setUnit(u), setRange(min, max, step?), setDisabled, setMarks(marks), setZones(zones) }` | Native range input with a black-glass digital readout (`<output>`). `onInput` is live while dragging, `onChange` on release. `marks`: numbers or `{ value, label?, title? }` ticks; **`setMarks(marks)` replaces them live** (e.g. Rmin / Rne / Rmax from `dlzFor`), is cheap when unchanged, and drops marks outside min..max. `aria-valuetext` includes the unit. |
 | `select<T extends string>({ id, label?, ariaLabel?, options: { value, label, disabled?, group? }[], value, onChange?, inline? })` | `{ el, select, value, set(v, emit?), setOptions(opts, v?), setDisabled }` | Native select as a cap; `group` builds `<optgroup>`s. |
 | `chips<T extends string>({ id, label?, ariaLabel?, options: { value, label, title?, disabled?, keys? }[], value: T[], onChange?(values, changed, on) })` | `{ el, value, has(v), set(values, emit?), toggle(v, on?, emit = true) }` | Any-of-N switches with an indicator lamp (`aria-pressed`). For 3D layer toggles and filters. |
-| `tabs({ id, tabs: { id, label, content?, keys? }[], value?, onChange?, ariaLabel?, fill? })` | `{ el, list, panels: Record<id, HTMLElement>, value, set(id, emit?) }` | `role=tablist`; arrows move and select. Fill `panels[id]` any time. |
+| `tabs({ id, tabs: { id, label, content?, keys? }[], value?, onChange?, ariaLabel?, fill? })` | `{ el, list, panels: Record<id, HTMLElement>, value, set(id, emit?) }` | `role=tablist`; arrows move and select (after a click, a key the page binds goes to the page). Fill `panels[id]` any time. |
 | `placard(text, { id?, for?, tag? })` | `HTMLElement` | Small letter-spaced label (a `<label>` when `for` is given). |
 | `group({ label, children, hint?, inline?, id?, class? })` | `HTMLFieldSetElement` | Fieldset with a placard legend. |
 | `row(...children)` | `HTMLDivElement` | Wrapping flex row; top-aligns when it holds labelled fields. |
 | `mobileAction(source, label?)` | `{ el, destroy() }` | Compact phone action that mirrors a source button's label, disabled/hidden/lit state and clicks it. Put `el` in `labLayout.mobileActions`; call `destroy()` in unmount. |
+
+## Lesson picker (`lessonPicker.ts`)
+
+### `lessonPicker<T>({ id, topic, noun?, items, value, href, free?, isDone?, header?, publish? })`
+→ `{ el, status, value, set(id | null), refresh(), setItems(items), destroy() }`
+
+The lessons of one page, drawn like the lesson path in the top chrome one level down: a numbered chip per lesson
+(lit when done, the open lesson a pressed cap), the short label beside it, the position (`3/8`) in a small glass
+window. The chips flow and wrap like text, so eight or nine lessons take two or three 26 px rows of the side console.
+
+- **Every lesson is a link.** `href(id)` gives the URL (build it with `lessonHref`); choosing a lesson changes the
+  page's own query parameter (`?lesson=`, `?ex=`, `?drill=`, `?start=`), so Back, Forward and shared links work. The
+  picker never restarts anything: the router hands the new query to the page's `update(params)` (`src/app/page.ts`),
+  which applies it in place (or declines and is remounted), then calls `set(id)`. A debrief's Next goes the same way:
+  `ctx.navigate(lessonHref(...).slice(2))`.
+- `items: { id, label, title?, done?, disabled?, note?, group? }[]`. `label` is the short name beside the number,
+  `title` the full lesson name (tooltip). `disabled` lessons stay listed and numbered but cannot be opened (say why in
+  `note`, e.g. "not on this jet"; screen readers hear a disabled link and the note). `group: true` draws a hairline divider before the item
+  (SAM sites after the missile drills). `note` also carries scores ("best 86").
+- **Done** comes from the progress store: `isDone(id)` is read on create and on `refresh()`. Call `refresh()` from
+  an `app.subscribe` on `'progress'`, so a lesson lights the moment it is saved. Use the keys the page already writes.
+- **Free mode is not a lesson.** `free: { label, href, title? }` adds a quieter dotted link after a dashed divider,
+  outside the numbering. Point it at the Practice link (`lab=free`), so the top bar shows Practice. `value: null`
+  shows free mode open: no lesson pressed, the free link pressed, and the readout says `DONE 3/8`. The numbered
+  lessons stay listed, which is the way back.
+- **Header.** By default a row with the topic ("CAS lessons") and the readout. In a console panel pass `header: false`
+  and put `status` in the panel's title row: `consolePanel({ title: 'Lesson', actions: picker.status, ... })`.
+- **Keyboard.** One Tab stop (roving tabindex on the open lesson); arrows, Home and End move focus and skip disabled
+  lessons; Enter opens. As with `segmented`, after a pointer click the arrow keys go to the page when a live
+  `bindKeys` map binds them (`arrowsToPage`), so "pick a lesson, then fly with the arrows" works.
+- **Accessibility.** A `nav` landmark ("CAS lessons") with an ordered list of links; the open lesson has
+  `aria-current="step"`; done and notes are text (", done"), not colour only; the readout has a spoken form
+  ("Lesson 3 of 8, 2 done").
+- **Chrome.** Unless `publish: false`, the picker publishes `{ topic, noun, index, total, done, free }` for the shell,
+  which prints it beside the lesson-path position ("LESSON 8/10 · HARM 3/8"). `watchLessonPosition(fn)`,
+  `lessonPosition()` and `clearLessonPosition()` are that hook; the shell imports only this module, never page code.
+  **Call `destroy()` in unmount.**
+
+Pure rules, exported for tests and pages: `lessonHref(route, base, set, drop?)` (drops `ac`, `shot`, `t`, `progress`
+and `drop`; `null` in `set` deletes), `changedParams(a, b)`, `onlyChanged(prev, next, keys)` (what a page's
+`update` checks before applying in place), `pickerPosition(items, value)`, `rovingTarget(disabled, from, key)`,
+`positionText(pos)`.
+
+```ts
+let urlParams = new URLSearchParams(ctx.params);
+const link = (id: LessonId) => lessonHref('cas', urlParams, { lesson: id });
+const picker = lessonPicker<LessonId>({ id: 'cas-lessons', topic: 'CAS', header: false, value: lesson, href: link,
+  items: ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title })),
+  isDone: id => ctx.app.getProgress(progressKey(id)) === true });
+bag.add(() => picker.destroy());
+bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+applyParams = next => {             // the page's update(params)
+  if (!onlyChanged(urlParams, next, ['lesson', 'shot'])) return false;   // anything else: remount
+  urlParams = new URLSearchParams(next);
+  lesson = parseLesson(next.get('lesson')); restart();                    // restart() calls picker.set(lesson)
+  return true;
+};
+```
 
 ## Panels (`panels.ts`)
 
@@ -67,7 +125,7 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
 | `readouts({ id?, rows: { id, label, value?, unit?, title? }[], variant?: 'panel'\|'glass', columns?: 1\|2 })` | `{ el, set(id, value, unit?), setTone(id, tone\|null), row(id) }` | Label/value rows with tabular numbers. `set` is cheap when unchanged; still throttle to ~10 Hz. `glass` = phosphor digits in a black window (tones colour the digits); `panel` tones show a lamp dot. |
 | `callout({ kind: 'simplified'\|'dcs'\|'real'\|'note', title?, body, id? })` | `HTMLElement` | "Simplified here" (dashed), "In DCS" (dark bar), "Real jet" (double bar), or your own title. |
 | `lamp({ label, tone?: 'caution'\|'warning'\|'ok'\|'hi'\|'advisory', state?, id?, title? })` | `{ el, state, set('off'\|'on'\|'flash'\|boolean) }` | Annunciator legend (LOCK, LAUNCH, ПР, SHOOT). `flash` blinks at 2 Hz, steady under reduced motion. `advisory` uses the lit-button colour. |
-| `modal({ title, body?, actions?: { label, onClick?, primary?, keys?, id?, closes? = true }[], id?, within?, dismissable? = true, tone?, onClose?, open?, class? })` | `{ el, dialog, body, isOpen, open(), close(), setTitle, setBody, setTone, destroy() }` | Result overlay. Focus goes to the primary action, Tab is trapped, Escape / backdrop / × close (when dismissable), focus returns to where it was. `within: lab.view` covers only the 3D viewport. `tone` shows a lamp by the title. **Call `destroy()` in unmount.** |
+| `modal({ title, body?, actions?: { label, onClick?, primary?, keys?, id?, closes? = true }[], id?, within?, dismissable? = true, tone?, onClose?, open?, class? })` | `{ el, dialog, body, isOpen, open(), close(), setTitle, setBody, setTone, destroy() }` | Result overlay. Focus goes to the primary action, Tab is trapped, Escape / backdrop / × close (when dismissable), focus returns to where the keyboard left it (`restorableFocus`: a control reached with Tab, or a text field); a button the user clicked is not refocused, so after closing, Space and Enter go to the page. `within: lab.view` covers only the 3D viewport. `tone` shows a lamp by the title. **Call `destroy()` in unmount.** |
 | `toast(text, { tone?, ms? = 3200, within? })` | `dismiss()` | Bottom-centre status line with a lamp; max 4 stacked. `ms: 0` stays until dismissed. `clearToasts(within?)` removes all. |
 | `dataTable({ columns: { key, label, cell?, num?, mono? }[], rows, caption?, id?, highlight? })` | `HTMLElement` | Scrolls sideways inside its own box on narrow screens (never the page). `num` = right-aligned tabular; `highlight(row)` tints a row (e.g. the selected jet). |
 
@@ -97,12 +155,25 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
 
 - `viewport`: your 3D container (give it to `Stage`). It gets class `ui-fill` and fills the area.
 - `strip`: screen bezels (with `aspect`) sized to the strip height (`--lab-strip-h`,
-  `clamp(210px, 31vh, 320px)`), plus optional data blocks. For readouts in the strip wrap them in
+  `clamp(210px, 31vh, 320px)`; on tall windows, 1150 px and up, `clamp(210px, 34vh, 500px)`; on ultra-wide windows,
+  21:10 and wider, `clamp(210px, 38vh, 520px)`, so true-aspect displays grow into the width), plus optional data blocks. For readouts in the strip wrap them in
   `h('div', { class: 'ui-strip-block' }, placard('Own ship'), readouts(...).el)` rather than a nested
   console panel. Do not give strip bezels a `footer` (their glass height is computed without one).
+  **A strip bezel with an `aspect` keeps it**: on desktop it grows no wider than its glass (`max-width:
+  max-content`, so a page `flex-grow` only adds room around it), and its content (canvas or `.ui-fill`) is
+  letterboxed to the declared aspect whatever shape the glass ends up (the glass is a size container). A TV, pod or
+  HUD picture drawn over the whole canvas is therefore never stretched; give spare strip width to data blocks.
 - `header`: `{ title, lede?, meta?, actions? }` rendered compact (title in Russo One).
 - `overlay('tl'|'tr'|'bl'|'br', ...)`: controls over a viewport corner (camera selector, layer chips).
-- Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`.
+- Ultra-wide windows (> 900 px): the lab is centred and capped at the console plus a 3D view of
+  `--lab-view-aspect` (default 2.6) times the view's estimated height, so the view does not become a slit on a
+  2560 × 1080 or 3440 × 1440 window; 16:9 and 16:10 windows stay full width. The Stage caps the horizontal field of
+  view as well (`docs/api/render.md`, "Wide viewports"). The top bar and the lesson row keep their full-bleed paint but
+  line their content up with the centred lab: the shell measures the mounted `.ui-lab` (`--chrome-inset`), and pages
+  without a lab use the default lab's width.
+- Page CSS overrides: `--lab-console-w` (default `clamp(300px, 27vw, 380px)`), `--lab-strip-h`, `--lab-view-aspect`.
+  A `--lab-strip-h` that is not a length (the Sortie debrief's `auto`) must set `--lab-strip-est` to one as well,
+  or the ultra-wide cap is invalid and the lab jumps to full width (`src/styles/labStrip.test.ts` checks this).
 
 ### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocHeader?, id?, class? })`
 → `{ el, main, toc, links, go(id), destroy() }`
@@ -154,10 +225,31 @@ const unbind = bindKeys({
 - Per binding: `down`, `up` (also called with no event if the window loses focus while held),
   `repeat` (default false: one call per press), `preventDefault` (default true), `inInputs`,
   `inModal` (both default false).
-- Ignored: typing in text fields; keys inside an `aria-modal` dialog; Enter/Space on a control the
+- Ignored: typing in text fields and selects (except a select the user just picked from with the mouse:
+  page keys such as Space to start work again once its list has closed, that is after a `change`, a second click
+  on it, Enter or Escape on it, or a click on one of its options; until then Firefox delivers the list's Enter and
+  type-ahead letters to the page, and they stay with the select); keys inside an `aria-modal` dialog; Enter/Space on a control the
   user reached **by keyboard** (it activates the control) — but a control the user just **clicked**
   does not swallow Enter/Space, so "click TWS, then Enter to designate" works; arrow keys inside
-  sliders, radio groups, tab lists and selects.
+  sliders and menus, and inside radio groups, tab lists and selects reached by keyboard. A segment, tab
+  or select the user just **clicked** gives a bound arrow key to the page ("click the Chase camera, then the
+  arrows still fly"); `pageBinds(e)` tells `segmented` and `tabs` whether a live map binds the key.
+- **Pointer focus is one document-wide state** (keys.ts, capture listeners on the document), read by every key map,
+  by `segmented` / `tabs` and by the shell, so a page that mounts after the click still knows. It holds the control
+  the user last pressed with a pointer (while focus stays in it) and the radio group or tab list they entered with a
+  pointer. The group state belongs to the group element: it survives `setOptions` rebuilding the caps and focus
+  moves between caps (End on a clicked segment, then Left still flies), and ends when focus leaves the group.
+  Both are taken from the pointerdown, since Safari and Firefox on macOS do not focus a button on click, and both
+  end when Tab moves focus: tabbing into a group the user clicked earlier is a keyboard entry with arrow navigation.
+  `pressedByPointer(el)` and `enteredByPointer(group)` read it; `trackArrowGroup(root)` makes a custom arrow-key
+  group (not `role=radiogroup` / `tablist`) behave the same way.
+- **Restoring focus after a re-render**: only when `focusedByKeyboard(el)` (Tab put focus there and the ring shows).
+  `:focus-visible` alone is not enough: Chrome rings a clicked link after the next key press. The shell's lesson
+  path row lets a clicked link's focus go on every re-render, route changes included, so on the new page Enter and
+  Space start the lesson instead of following the link; a keyboard user keeps their place in the row.
+- **Controls that remount the page** (the shell's jet picker and units button) call `releasePointerFocus(el)`: used
+  with the mouse, focus goes back to the page, so Space starts at once and an unbound arrow cannot step the picker to
+  another jet; used with the keyboard, focus stays (keep arrowing through jets).
 - **First binding wins**: a handled key is `preventDefault`ed and later `bindKeys` maps skip events
   that are already `defaultPrevented`. Keep one map per page.
 
@@ -191,8 +283,9 @@ behaves as the player sees it (docs/research/cas-jtac.md, sections 1 and 4).
 - `el` is the panel (hidden while closed; place it with `lab.overlay('tl', menu.el)`). `toggleEl` is a
   "Radio \" cap for touch users: place it anywhere; a click opens the menu and focuses the first item.
 - Rows are real `<button role="menuitem">` in a `role="menu"`; arrows / Home / End move focus, Esc closes
-  (focus returns to the toggle), Left or Backspace go back. One polite status line announces open,
-  submenu and close only.
+  (focus returns to the toggle when the keyboard opened the menu: Enter on a tabbed-to toggle, or `\`), Left or
+  Backspace go back. Opened with a click, closing leaves focus with the page, so Space is the trigger again and does
+  not press the toggle. One polite status line announces open, submenu and close only.
 - The widget binds no keys. `handleKey(chord)` returns true when consumed: `\` toggles; while open,
   `F1`..`F12` pick by number (F11 back and F12 exit unless pinned), digits `1`..`9`, `0` and `Num1`..`Num0`
   alias F1..F10, `Esc` closes. While open every F-key and digit is consumed, even an empty number, as in
@@ -224,6 +317,14 @@ bag.add(menu.destroy); bag.add(subs.destroy);
 // in the frame loop: subs.tick(world.time); after a JTAC state change: menu.refresh();
 ```
 
+### `withRadioMenuKeys(menu, keys, { fallback?, enabled? }?)` → `KeyMap`
+
+The page's own key map merged with `radioMenuKeys`: every page chord the menu also uses (a digit such as the
+Su-25T master modes `1` / `7` / `8`, an F-key, `Esc`) moves into the fallback, so it still works while the
+menu is closed, and the menu owns it while open. A chord written with alternatives (`'7 / 8'`) passes
+through unchanged. An explicit `fallback` wins over a page key on the same chord.
+`bag.add(bindKeys(withRadioMenuKeys(menu, cockpit.keys, { fallback: cmsKeys })))`.
+
 ### `radioLog({ id, max? = 3, ttlS? = 8, historyMax? = 100, historyLabel? })`
 → `{ el, historyEl, push({ from, text, t?, tone?, unverified? }), tick(nowS), clear(), visible, size, destroy() }`
 
@@ -231,7 +332,8 @@ bag.add(menu.destroy); bag.add(subs.destroy);
   "You: Ready to copy"). Hidden when empty. It is the one `aria-live="polite"` region.
 - No timers: `tick(nowS)` in sim seconds fades a line in its last second and removes it at `ttlS`, so a
   paused sim keeps its subtitles. `t` defaults to the last tick time. A clock that goes back (restarted
-  scenario) removes older lines. `radioLineState(age, ttl)` is the pure rule.
+  scenario) removes older lines. `radioLineState(age, ttl)` is the pure rule. `clear()` empties both lists and
+  resets the clock to 0, so a restarted scenario's first call shows even before its first `tick`.
 - `historyEl`: the full transcript, newest first, `mm:ss` stamped, capped at `historyMax`; put it in a
   console panel if the page wants one (height via `--log-h`).
 - `unverified: true` tags the line "simplified" (wording not verified against the game, rule 2).

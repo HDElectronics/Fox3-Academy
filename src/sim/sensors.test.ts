@@ -9,7 +9,7 @@ import type { Aircraft, SimEvent } from './types';
 import type { FighterId, MissileId } from '../data/types';
 import { AIRCRAFT } from '../data/aircraft';
 import {
-  cycleDesignation, designate, detectionRange, explainDetection, frameTimeFor, guidanceSupport, lastPainted, lockTarget, radarRules,
+  canLock, cycleDesignation, designate, detectionRange, explainDetection, frameTimeFor, guidanceSupport, lastPainted, lockTarget, radarRules,
   revisitTime, scanElevationLimits, setCursor, setRadarMode, setScan, setSnp2, snp2Eligibility, stepRadar, undesignate,
 } from './radar';
 import { updateRwr } from './rwr';
@@ -426,6 +426,24 @@ describe('RWR', () => {
     expect(mine()?.state).toBe('search');
   });
 
+  it('keeps a search contact steady between paints of an odd-bar scan (target near the scan edge)', () => {
+    for (const [type, bars, az] of [['fa18c', 1, 70], ['f16c', 3, 60], ['m2000c', 1, 60]] as const) {
+      const w = new World();
+      const me = jet(w, type, 'blue', { x: 0, y: 9000, z: 0 }, 0);
+      setScan(w, me, { azHalf: az * D2R, bars, autoCenter: false, azCenter: 0, elCenter: 0 });
+      expect(me.radar.bars).toBe(bars);
+      const su = jet(w, 'su27', 'red', off(me, 30000, az - 2, 9000), Math.PI);
+      su.vel.set(0, 0, 0);
+      run(w, 2 * revisitTime(me.radar), false);
+      let gaps = 0;
+      for (let i = 0; i < 30 * 60; i++) {
+        run(w, H, false);
+        if (!su.rwr.some(c => c.emitterId === me.id)) gaps++;
+      }
+      expect(gaps, `${type} ${bars} bar: search contact dropped between paints`).toBe(0);
+    }
+  });
+
   it('shows an active ARH seeker as a missile contact from the missile bearing', () => {
     const w = new World();
     const me = jet(w, 'f15c', 'blue', { x: 0, y: 9000, z: 0 }, 0, { aim120c: 2 });
@@ -492,6 +510,25 @@ describe('launch rules', () => {
     const d = canLaunch(w, me, undefined, 'r27er');
     expect(d.reason).toBe('');
     expect(d.ok).toBe(true);
+  });
+
+  it('lock and launch reasons give ranges in the units asked for (the page\'s), else the jet\'s', () => {
+    const { w, me } = setup('f15c', { aim120c: 4 }, 82_000);
+    expect(canLaunch(w, me, undefined, 'aim120c').reason).toMatch(/^Out of range: \d+ nm, Rmax \d+ nm$/);
+    expect(canLaunch(w, me, undefined, 'aim120c', 'metric').reason).toMatch(/^Out of range: \d+ km, Rmax \d+ km$/);
+    me.selectedWeapon = 'aim120c';
+    expect(buildRadarPicture(w, me.id, { units: 'metric' })?.launchBlockedReason).toMatch(/km, Rmax \d+ km$/);
+    expect(buildRadarPicture(w, me.id)?.launchBlockedReason).toMatch(/nm, Rmax \d+ nm$/);
+
+    const w2 = new World();
+    const su = jet(w2, 'su27', 'blue', { x: 0, y: 9000, z: 0 }, 0);
+    const far = bandit(w2, su, 75_000, 0, 9000, 'f15c');
+    expect(canLock(w2, su, far.id).reason).toMatch(/^Too far to lock: \d+ km, lock range \d+ km$/);
+    expect(canLock(w2, su, far.id, 'horizon', 'imperial').reason).toMatch(/^Too far to lock: \d+ nm, lock range \d+ nm$/);
+    const ea = jet(w2, 'f15c', 'blue', { x: 0, y: 9000, z: 2000 }, 0);
+    const far2 = bandit(w2, ea, 120_000, 0, 9000);
+    expect(canLock(w2, ea, far2.id).reason).toMatch(/ nm, lock range \d+ nm$/);
+    expect(canLock(w2, ea, far2.id, 'horizon', 'metric').reason).toMatch(/ km, lock range \d+ km$/);
   });
 
   it('J-11A fires the R-77 from STT only; RWS without a lock is refused; out of range is refused', () => {

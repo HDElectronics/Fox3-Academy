@@ -37,6 +37,7 @@ import { GUN_HUD_BORE_Y } from '../../ui/displays/gunSight';
 import { BANDIT_LABEL, isAiMode, type BanditMode } from './bandit';
 import { autoLock, eas } from './bfm';
 import { CIRCLE_EVAL_S, IR_LESSONS, LESSONS, LESSON_ORDER, SCORED_LESSONS, PURSUIT_HOLD_S, debrief, type Debrief, type LessonId } from './lessons';
+import { lessonHref, lessonPicker, onlyChanged } from '../../ui/lessonPicker';
 import { anglesOf } from './runner';
 import { chooseCircle } from '../../sim/bfmAi';
 import { MergeRun, type Autopilot } from './runner';
@@ -69,9 +70,19 @@ function goalText(id: LessonId, corner: string): string {
   }
 }
 
+/** Short labels for the lesson picker (the full titles stay in the tooltip and the goal). */
+const LESSON_SHORT: Record<LessonId, string> = {
+  corner: 'Corner', pursuit: 'Pursuit', merge: 'Merge', circles: '1 or 2 circle', yoyo: 'Yo-yo',
+  tracking: 'Guns track', defence: 'Guns defence', ir: 'IR shot', fight: 'Free fight',
+};
+/** Free fight: the Practice row's link, so the top bar shows Practice. It is not a numbered lesson. */
+const FREE_PATH = 'merge?lab=free';
+
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
   let dead = false;
+  /** Same-route URL change (lesson picker, Next, Back): the page applies a lesson change in place. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const acParam = ctx.params.get('ac') as AircraftId | null;
@@ -135,16 +146,27 @@ const factory: PageFactory = (): Page => {
     const stripBlock = h('div', { class: 'ui-strip-block mrg-readouts' }, ro.el);
 
     // ------------------------------------------------------------------ DOM: lesson panel
-    const lessonBtns = new Map<LessonId, { el: HTMLButtonElement; best: HTMLElement }>();
-    const lessonList = h('div', { class: 'mrg-lessons', role: 'group', 'aria-label': 'Lesson' },
-      LESSON_ORDER.map(id => {
-        const d = LESSONS[id];
-        const best = h('span', { class: 'mrg-lesson__best' });
-        const el = h('button', { type: 'button', class: 'mrg-lesson', id: `mrg-lesson-${id}`, 'aria-pressed': 'false', onclick: () => chooseLesson(id) },
-          h('span', { class: 'mrg-lesson__n' }, d.n === null ? '·' : String(d.n)), h('span', { class: 'mrg-lesson__title' }, d.title), best);
-        lessonBtns.set(id, { el, best });
-        return el;
-      }));
+    // Lessons are ?lesson= links: the page applies a change in place (update); the free fight is the Practice link.
+    let urlParams = new URLSearchParams(ctx.params);
+    const lessonLink = (id: LessonId) => lessonHref('merge', urlParams, { lesson: id, lab: null }, ['bandit']);
+    const best = (id: LessonId) => Number(ctx.app.getProgress(`merge:${id}:${ac}`) ?? 0) || 0;
+    const pickerItems = () => SCORED_LESSONS.map(id => ({
+      id, label: LESSON_SHORT[id], title: LESSONS[id].title, done: best(id) >= 50, note: best(id) ? `best ${best(id)}` : undefined,
+    }));
+    const picker = lessonPicker<LessonId>({
+      id: 'mrg-lessons', topic: 'Merge', header: false, value: lesson === 'fight' ? null : lesson, href: lessonLink, items: pickerItems(),
+      free: { label: 'Free fight', href: '#/' + FREE_PATH, title: 'Merge with the fighting AI; not a scored lesson' },
+    });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.setItems(pickerItems()); }));
+    const goLesson = (id: LessonId) => ctx.navigate(id === 'fight' ? FREE_PATH : lessonLink(id).slice(2));
+    applyParams = next => {
+      const want = next.get('lesson') as LessonId | null;
+      if (free || !onlyChanged(urlParams, next, ['lesson', 'shot', 'bandit']) || !want || !LESSONS[want]) return false;
+      urlParams = new URLSearchParams(next);
+      chooseLesson(want);
+      return true;
+    };
     const goalEl = h('p', { class: 'mrg-goal' });
     const banditSel = select<BanditMode>({
       id: 'mrg-bandit', label: 'Bandit', value: banditMode, options: [],
@@ -166,8 +188,8 @@ const factory: PageFactory = (): Page => {
     }) : null;
     const startBtn = button({ id: 'mrg-start', label: 'Start', variant: 'primary', keys: 'Enter', block: true, onClick: () => start() });
     const lessonPanel = consolePanel({
-      id: 'mrg-lesson-panel', title: 'Lesson',
-      children: [lessonList, goalEl, banditSel.el, lockSeg.el, pickSeg?.el ?? null, startBtn.el],
+      id: 'mrg-lesson-panel', title: 'Lesson', actions: picker.status,
+      children: [picker.el, goalEl, banditSel.el, lockSeg.el, pickSeg?.el ?? null, startBtn.el],
     });
 
     // ------------------------------------------------------------------ DOM: fly panel
@@ -330,6 +352,7 @@ const factory: PageFactory = (): Page => {
         log: (text, t) => { if (!dead) log.push(text, { t }); },
         finished: () => { if (!dead) finished(); },
       });
+      if (run.acm) run.acm.units = units;   // lock refusals ("Too far to lock: ...") in the page's units
       paused = false;
       locked = false; shoot = false;
       if (!IR_LESSONS.includes(lesson)) weapon = 'gun';
@@ -449,7 +472,7 @@ const factory: PageFactory = (): Page => {
           h('ul', { class: 'mrg-coaching' }, d.coaching.map(c => h('li', null, c)))),
         actions: [
           { label: 'Retry', keys: 'R', onClick: () => retry() },
-          ...(next ? [{ label: `Next: ${LESSONS[next].title}`, keys: 'N', primary: true, onClick: () => chooseLesson(next) }] : []),
+          ...(next ? [{ label: `Next: ${LESSON_SHORT[next]}`, keys: 'N', primary: true, onClick: () => goLesson(next) }] : []),
         ],
       });
     }
@@ -471,12 +494,7 @@ const factory: PageFactory = (): Page => {
 
     // ------------------------------------------------------------------ refresh
     function refreshStatic(): void {
-      for (const [id, b] of lessonBtns) {
-        b.el.setAttribute('aria-pressed', String(id === lesson));
-        const best = Number(ctx.app.getProgress(`merge:${id}:${ac}`) ?? 0) || 0;
-        b.best.textContent = best ? `Best ${best}` : '';
-        b.el.classList.toggle('is-done', best >= 50 && id !== 'fight');
-      }
+      picker.set(lesson === 'fight' ? null : lesson);
       goalEl.textContent = goalText(lesson, cornerTxt);
       banditSel.setOptions(LESSONS[lesson].banditModes.map(m => ({ value: m, label: BANDIT_LABEL[m] })));
       banditSel.set(banditMode);
@@ -609,6 +627,7 @@ const factory: PageFactory = (): Page => {
         hudUp.crossVectors(hudRight, hudFwd).normalize();
         hudQ.setFromRotationMatrix(hudM.makeBasis(hudRight, hudUp, hudBack.copy(hudFwd).negate()));
         hudPos.set(me.pos.x * UNIT_PER_M, me.pos.y * UNIT_PER_M, me.pos.z * UNIT_PER_M);
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         hudCam.render(hudPos, hudQ, HUD_FOV_DEG, 0.5, GUN_HUD_BORE_Y);
         world = hudCam.image;
       }
@@ -617,7 +636,7 @@ const factory: PageFactory = (): Page => {
         const st2 = sightStyleFor(ac, locked, pick);
         hudBezel.setStatus(`${pic.style.name}${st2 && !st2.verified ? ' · not verified' : ''}`);
       }
-      if (cam === 'cockpit' && stage) { over.setFov(stage.camera.fov); over.draw(pic, acmPic); }
+      if (cam === 'cockpit' && stage) { over.setFov(stage.viewFov); over.draw(pic, acmPic); }
     }
 
     function frame(dt: number): void {
@@ -660,7 +679,7 @@ const factory: PageFactory = (): Page => {
       'Enter': () => { startAudio(); if (run.phase === 'setup') start(); else pressLock(); },
       'P': () => togglePause(),
       'R': { down: () => retry(), inModal: true },
-      'N': { down: () => { const n = LESSON_ORDER[LESSON_ORDER.indexOf(lesson) + 1]; if (run.phase === 'end' && n) chooseLesson(n); }, inModal: true },
+      'N': { down: () => { const n = LESSON_ORDER[LESSON_ORDER.indexOf(lesson) + 1]; if (run.phase === 'end' && n) goLesson(n); }, inModal: true },
       'F1': () => setCam('cockpit'),
       'F2': () => setCam('chase'),
       'F3': () => setCam('bandit'),
@@ -707,7 +726,8 @@ const factory: PageFactory = (): Page => {
       dead = false;
       try { mount(ctx); } catch (e) { console.error(e); ctx.root.append(h('p', { class: 'page-error' }, 'The merge page failed to start: ' + String(e))); }
     },
-    unmount() { dead = true; bag.dispose(); },
+    update(next) { return applyParams?.(next) ?? false; },
+    unmount() { dead = true; applyParams = null; bag.dispose(); },
   };
 };
 export default factory;

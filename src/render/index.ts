@@ -4,6 +4,7 @@
  */
 export { Stage, FramePriority, disposeTree, isWebGLAvailable, WebGLUnavailableError } from './stage';
 export type { StageOptions, FrameFn, FrameOptions } from './stage';
+export { MAX_VIEW_ASPECT, wideViewZoom, viewFovDeg, horizontalFovDeg } from './viewFov';
 export { Environment } from './environment';
 export type { EnvironmentOptions, CloudOptions } from './environment';
 export { WorldView } from './worldView';
@@ -15,7 +16,7 @@ export type { Layers, TacticalOptions, PickOptions, EntitySource, AircraftLike, 
 export { RadarVolume, altitudeCoverage, scanElevationLimits, barElevation, stepSyntheticScan, coverageText } from './radarVolume';
 export type { RadarVolumeOptions, ScanStateLike } from './radarVolume';
 export { CameraRig, orbitBasis, fitDistance } from './cameras';
-export { ForwardView, placeBoresight, vFovDeg, srgbLut, toColourImage } from './forwardView';
+export { ForwardView, placeBoresight, pictureSize, vFovDeg, srgbLut, toColourImage } from './forwardView';
 export type { ForwardViewOptions } from './forwardView';
 export type { CameraMode, CameraRigOptions, FocusTarget, ModeOptions, FrameOptions as CameraFrameOptions } from './cameras';
 export {

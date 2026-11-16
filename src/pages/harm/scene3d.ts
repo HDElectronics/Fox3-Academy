@@ -167,8 +167,8 @@ export class HarmScene implements EntitySource {
       let r = 3000;
       if (this.view.jet) r = Math.max(r, Math.hypot(this.view.jet.pos.x - c.x, this.view.jet.pos.z - c.z));
       for (const s of this.view.sites) for (const veh of s.vehicles) r = Math.max(r, Math.hypot(veh.pos.x - c.x, veh.pos.z - c.z));
-      const cam = this.stage.camera;
-      const half = Math.min(cam.fov, (2 * Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect) * 180) / Math.PI) / 2;
+      const cam = this.stage.camera, fov = this.stage.viewFov;
+      const half = Math.min(fov, (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * cam.aspect) * 180) / Math.PI) / 2;
       rig.setMode('top', { focus: 'center', distance: (r * 1.25) / Math.tan((half * Math.PI) / 180) });
     }
   }

@@ -14,7 +14,7 @@
  */
 import type { CommsMenuNode } from '../data/types';
 import { h, cleanup, setAttr, cx } from './dom';
-import { parseChord, type KeyHandler, type KeyMap } from './keys';
+import { focusedByKeyboard, parseChord, type KeyHandler, type KeyMap } from './keys';
 import { button } from './controls';
 
 export interface RadioMenuOptions {
@@ -113,6 +113,9 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
   let stack: string[] = [];
   let rows: RadioMenuRow[] = [];
   let items: HTMLButtonElement[] = [];
+  /** The toggle was used from the keyboard: closing puts focus back on it. Opened with the mouse, focus goes back to
+   * the page instead, so Space (trigger, release) is not swallowed by the toggle and reopens the menu. */
+  let keyboardOpen = false;
 
   const titleId = o.id + '-title';
   const listId = o.id + '-list';
@@ -193,7 +196,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
       setAttr(toggleEl, 'aria-expanded', 'false');
       tb.setLit(false);
       announce('Radio menu closed');
-      if (hadFocus) toggleEl.focus();
+      if (hadFocus && keyboardOpen) toggleEl.focus();
       o.onClose?.();
     },
     toggle(opts) { if (openState) handle.close(); else handle.open(opts); },
@@ -227,7 +230,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
     handleKey(chord) {
       const k = radioMenuKey(chord);
       if (k === null) return false;
-      if (k === 'toggle') { handle.toggle(); return true; }
+      if (k === 'toggle') { keyboardOpen = true; handle.toggle(); return true; }
       if (!openState) return false;
       if (k === 'esc') { handle.close(); return true; }
       // While open the menu owns F1..F12 and the digit aliases, even for empty numbers, as in DCS.
@@ -271,7 +274,7 @@ export function radioMenu(o: RadioMenuOptions): RadioMenuHandle {
     }
     e.preventDefault();
   });
-  bag.on(toggleEl, 'click', () => handle.toggle({ focus: true }));
+  bag.on(toggleEl, 'click', () => { keyboardOpen = focusedByKeyboard(toggleEl); handle.toggle({ focus: true }); });
 
   return handle;
 }
@@ -283,6 +286,24 @@ export const RADIO_MENU_CHORDS: readonly string[] = [
   ...Array.from({ length: 10 }, (_, i) => String(i)),
   ...Array.from({ length: 10 }, (_, i) => 'Num' + i),
 ];
+
+/**
+ * The page's own key map merged with radioMenuKeys(): a page chord the menu also uses (a digit, an F-key, Esc) moves
+ * to the menu's fallback, so it still works while the menu is closed and the menu owns it while open. Chords given
+ * with alternatives ('7 / 8') pass through unchanged. `opts.fallback` wins over a page key on the same chord.
+ *   bag.add(bindKeys(withRadioMenuKeys(menu, cockpit.keys, { fallback: cms })));
+ */
+export function withRadioMenuKeys(menu: Pick<RadioMenuHandle, 'handleKey'>, keys: KeyMap, opts: { fallback?: Record<string, KeyHandler>; enabled?: () => boolean } = {}): KeyMap {
+  const radio = new Set(RADIO_MENU_CHORDS.map(c => parseChord(c)!.text));
+  const own: KeyMap = {}, moved: Record<string, KeyHandler> = {};
+  for (const [k, v] of Object.entries(keys)) {
+    const c = parseChord(k);
+    if (!c || !radio.has(c.text)) { own[k] = v; continue; }
+    const fn = typeof v === 'function' ? v : v.down;
+    if (fn) moved[c.text] = fn;
+  }
+  return { ...radioMenuKeys(menu, { ...opts, fallback: { ...moved, ...opts.fallback } }), ...own };
+}
 
 /**
  * A KeyMap to spread into the page's single bindKeys map. Each chord goes to menu.handleKey(); when

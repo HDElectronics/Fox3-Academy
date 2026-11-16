@@ -12,12 +12,32 @@ displays and the lesson steps, which a phone screen cannot show together.
 1. Pick your jet in the **Jet** menu (top right). The app repaints itself in that jet's cockpit colour:
    turquoise for Flankers and Fulcrums, grey for Western jets.
 2. Set units with the button next to it (km and m, or nm and ft). Russian jets start metric.
-3. Open **Learn** and follow the lesson path: Radar, TWS, Missiles, Defense and RWR. Each lesson remembers
-   when you finish it for that jet (stored in your browser only). The second row lists only the pages your jet
-   can open, grouped as BVR, Close combat, Flying and the jet's own pages under its name (HARM & SEAD on the
-   F/A-18C; Shkval & Vikhr or Targeting pod, and CAS & JTAC, on the attack jets).
-4. Open **Practice** for the manual TWS lab and configurable Radar, Missile and Defense experiments.
+3. Open **Learn** and follow the lesson path. The big button says what is next: **Start** before your first
+   lesson, **Continue** after it, **Fly a sortie** once every lesson is done. Each lesson remembers when you
+   finish it for that jet (stored in your browser only).
+4. Open **Practice** for the manual TWS lab and the Radar, Missile and Defense practice labs.
 5. Open **Fly** for a sortie, or **Reference** for bindings, procedures and aircraft facts.
+
+### Finding your way
+
+The second row under the top bar is your lesson path while you are in Learn: numbered steps for the selected
+jet, a lit number for each lesson you have finished, and the lesson you are on pressed in. Its right end says
+where you are (**Lesson 2/7**) and offers **Next**. When you finish the lesson, Next lights up; after the last
+lesson it hands you to **Fly a sortie**. In Practice, Reference and Fly the same row lists that area's pages and
+offers **Continue**, the way back to the next lesson on your path.
+
+The path is the same for every fighter: Radar, TWS, Missiles, Defense, RWR, Merge & guns, Pattern & landing.
+The F/A-18C adds HARM & SEAD, ATFLIR and JDAM. The Su-25T starts with Shkval & Vikhr and the A-10C II with
+Targeting pod & Mavericks; both continue with CAS & JTAC. A page with several lessons (Pattern & landing,
+HARM & SEAD, CAS & JTAC...) counts as done when all of its lessons are. Learn and Practice are chosen in the
+top bar only: a lesson page and its practice lab are separate links.
+
+Inside such a page the lessons look the same, one level down: numbered, lit when done, the open one pressed in,
+with the position at the top of the lesson panel (and beside the path position on wide windows:
+**Lesson 8/10 · HARM 3/9**). Each lesson is a link, so the browser's Back button returns to the previous one
+and you can share or bookmark it. After a lesson the debrief offers **Next** with the following lesson's name.
+Where a page has free practice (Radar, Defense, Merge & guns), it is the quieter link after the numbers: it
+opens the Practice version of the page, and the numbered lessons beside it take you back.
 
 The 3D world remains the main lab surface. On narrow screens (tablets, small windows), **World**, **Displays** and **Controls** tabs show
 one workspace at a time; switching tabs keeps the current simulation. The bottom action bar keeps the
@@ -28,11 +48,14 @@ Supported jets: Su-27, Su-33, J-11A, MiG-29S, F-15C (Flaming Cliffs 3), F/A-18C,
 ## The modules
 
 ### Learn
-What your jet can and cannot do in BVR: radar modes with the cockpit's own labels (for example ОБЗ, СНП, АТК
-on the Su-27), how many tracks and how many targets can have missiles at once, whether you can launch from TWS,
-detection range, RWR, chaff and flares, and one card per missile with its launch-zone ranges and the rule you
-must obey to guide it. Use the Jet selector in the top bar to switch aircraft. With the Su-25T or A-10C II
-selected, Learn shows that jet's own pages with how many lessons you have done and a Continue button.
+The top of the page is your jet, how many lessons you have done and the one button for what comes next,
+followed by the lesson path as cards (each says what the lesson teaches in your jet) and the sortie it leads
+to. Below the path: what your jet can and cannot do in BVR (radar modes with the cockpit's own labels, for
+example ОБЗ, СНП, АТК on the Su-27; how many tracks and how many targets can have missiles at once; whether you
+can launch from TWS; detection range, RWR, chaff and flares), one card per missile with its launch-zone ranges
+and the rule you must obey to guide it, and what this app simplifies. Use the Jet selector in the top bar to
+switch aircraft. With the Su-25T or A-10C II selected, the path is that jet's own pages, each with how many of
+its lessons you have done.
 
 ### Radar
 The scan volume in 3D. Change azimuth width, bars, antenna elevation and range and watch what the radar can
@@ -67,8 +90,8 @@ real procedure (Su-27: designate in СНП and the radar locks by itself at 85 %
 designations and one AIM-120 per track; MiG-29S: the two-target СНП2 R-77 shot; M-2000C: no multi-target TWS).
 The **Your jet** control lets you crank to keep the group in your gimbal.
 
-Choose **Learn** for the checklist, or **Practice** for independent practice without a merge or time
-limit. Guided cursor keys step between contacts. Free lab keys `,` / `/` slew left/right and `;` / `.` slew
+**Learn** (the lesson path) gives you the checklist; the **Free TWS lab** under **Practice** is independent
+practice without a merge or time limit. Guided cursor keys step between contacts. Free lab keys `,` / `/` slew left/right and `;` / `.` slew
 up/down; click the radar to place the cursor, then use the aircraft's displayed Designate/Lock action.
 Empty space does not select the nearest contact. Use Unlock to return to search. Arrow left/right command
 heading and up/down command altitude; these are tactical trainer commands, not DCS stick inputs.
@@ -79,7 +102,8 @@ after designation.
 
 ### Progress across jets
 
-Open **Learn → Progress** to see saved completions for all eleven aircraft. Your selected jet appears first.
+Open **Flight log, all jets** on the Learn page to see saved completions for every aircraft. Your selected jet
+appears first, with its lessons grouped and numbered the way the lesson path numbers them.
 Each card shows completed goals, available lessons, saved RWR and winning Sortie best scores, and a
 **Continue** link to the next incomplete lesson. That link selects the matching jet automatically.
 Carrier and refuelling lessons appear only where supported; the Su-25T lists its strike lessons.

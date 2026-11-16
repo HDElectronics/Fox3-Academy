@@ -6,6 +6,7 @@ import { AIRCRAFT, FIGHTER_ORDER } from '../../data/aircraft';
 import { BURN_THROUGH_M, ECM_USING, OWN_JAMMER } from '../../data/ecm';
 import { fmtRange } from '../../app/format';
 import { World } from '../../sim/world';
+import { detectionRange } from '../../sim/radar';
 import { simulateSortie } from './headless';
 
 describe('brief facts', () => {
@@ -17,6 +18,22 @@ describe('brief facts', () => {
     expect(article('J-11A')).toBe('a');
     const f = briefFacts('fa18c', defaultSetup('fa18c'), 'imperial');
     expect(f.radar).toMatch(/sees a MiG-29S head-on/);
+  });
+
+  test('head-on detection ranges in the brief are the ones the sim uses (reference RCS, head-on look-down)', () => {
+    const km = (text: string, re: RegExp) => Number(re.exec(text)?.[1]);
+    for (const ac of FIGHTER_ORDER) {
+      for (const enemy of FIGHTER_ORDER) {
+        // He flies 6 km below you: your radar looks down at him, his looks up at you.
+        const s = { ...defaultSetup(ac), enemy, playerAlt: 9000, enemyAlt: 3000 };
+        const w = new World(1);
+        const me = w.spawnAircraft({ type: ac, side: 'blue', controller: 'script', pos: { x: 0, y: s.playerAlt, z: 0 }, heading: 0, speed: 250 });
+        const him = w.spawnAircraft({ type: enemy, side: 'red', controller: 'script', pos: { x: 0, y: s.enemyAlt, z: -150_000 }, heading: Math.PI, speed: 250 });
+        const text = briefFacts(ac, s, 'metric').radar;
+        expect(km(text, /head-on at about (\d+) km/), `${ac} sees ${enemy}`).toBeCloseTo(detectionRange(w, me, him) / 1000, -0.5);
+        expect(km(text, /sees you at about (\d+) km/), `${enemy} sees ${ac}`).toBeCloseTo(detectionRange(w, him, me) / 1000, -0.5);
+      }
+    }
   });
 
   test('multi-target Fox 3 never claims more targets than missiles carried', () => {

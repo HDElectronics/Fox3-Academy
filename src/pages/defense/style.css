@@ -22,30 +22,7 @@
 .dfn-readouts .ui-readout__value { font-size: var(--fs-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* ---- drill panel ---- */
-.dfn-drills { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.dfn-drill {
-  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center;
-  column-gap: 8px; min-height: 42px; padding: 5px 9px 8px; text-align: left;
-  background: var(--btn); color: var(--btn-ink); border: 1px solid var(--ui-cap-line); border-bottom-width: 2px; border-radius: var(--r-1);
-  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.2;
-}
-.dfn-drill:last-child { grid-column: 1 / -1; min-height: 34px; }
-.dfn-drill::after {
-  content: ''; position: absolute; left: 9px; right: 9px; bottom: 3px; height: 3px; border-radius: 1px;
-  background: color-mix(in srgb, var(--btn-on) 13%, var(--btn));
-}
-.dfn-drill:hover { background: color-mix(in srgb, var(--btn) 86%, var(--btn-ink)); }
-.dfn-drill[aria-pressed="true"] { color: var(--btn-on); }
-.dfn-drill[aria-pressed="true"]::after { background: var(--btn-on); box-shadow: var(--ui-glow); }
-.dfn-drill__n {
-  grid-row: 1 / span 2; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
-  border: 1px solid currentColor; font-size: 0.7rem;
-}
-.dfn-drill__title { min-width: 0; }
-.dfn-drill__best { grid-column: 2; font-size: 0.64rem; letter-spacing: 0.08em; color: color-mix(in srgb, var(--btn-ink) 62%, var(--btn)); }
-.dfn-drill.is-done .dfn-drill__n { background: var(--btn-on); color: var(--btn-on-ink); border-color: var(--btn-on); }
-.dfn-drill__best:empty { display: none; }
-
+/* The drill list is the shared lesson picker (ui-lessons, picker.ts). */
 .dfn-goal { margin: 10px 0 2px; font-size: var(--fs-s); line-height: 1.45; color: var(--s-ink); }
 .dfn-cue {
   margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--s-label);
@@ -185,8 +162,7 @@
   .dfn-lab #dfn-log-panel { order: 5; }
   .dfn-lab .ui-lab__console > .ui-callout { order: 6; }
   /* While flying, the drill list and goal fold away (the summary keeps "Change setup"). */
-  .dfn-lab.is-running .dfn-drills, .dfn-lab.is-running .dfn-goal { display: none; }
-  .dfn-drills { grid-template-columns: 1fr 1fr; }
+  .dfn-lab.is-running #dfn-lessons, .dfn-lab.is-running .dfn-goal { display: none; }
   .ui-lab__strip > .ui-bezel.dfn-gauge { flex: 1 1 100%; min-width: 0; max-width: none; }
   .ui-lab__strip > .ui-bezel.dfn-gauge > .ui-bezel__glass { height: 220px; }
   .ui-lab__strip > .dfn-readouts { max-width: none; flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -205,9 +181,6 @@
 }
 
 /* SAM drills (samLab.ts) */
-.dfn-drills .dfn-drill--sam .dfn-drill__n { color: var(--hostile); }
-.sam-sites { grid-template-columns: 1fr 1fr 1fr; }
-.sam-sites > .ui-btn { grid-column: 1 / -1; }
 .sam-brief { display: grid; gap: 6px; }
 .sam-facts { grid-template-columns: 1fr 1fr 1fr; }
 .sam-defeat { margin: 0; padding-left: 18px; font-size: var(--fs-s); line-height: 1.45; }

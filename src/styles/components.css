@@ -30,6 +30,11 @@
   --bezel-head: 16px;
   --bezel-gap: 5px;
 }
+/* Wide windows: a taller display strip, so displays kept at their true aspect grow into the width instead of leaving
+   the strip half empty. Tall windows (2560 × 1440, 1920 × 1200) and ultra-wide ones (2560 × 1080, where a taller strip
+   also narrows the centred lab) get more. Pages that set their own --lab-strip-h keep it. */
+@media (min-width: 901px) and (min-height: 1150px) { :root { --lab-strip-h: clamp(210px, 34vh, 500px); } }
+@media (min-width: 901px) and (min-aspect-ratio: 21 / 10) { :root { --lab-strip-h: clamp(210px, 38vh, 520px); } }
 .ui-console, .ui-surface, .ui-lab__strip, .ui-modal__dialog, .ui-doc__toc {
   --s-ink: var(--panel-ink);
   --s-label: var(--panel-muted);
@@ -285,6 +290,51 @@
 }
 .ui-tabs__panel { padding-top: var(--gap-3); }
 .ui-tabs__panel[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- lesson picker (lessonPicker.ts) */
+/* The lesson path of the top chrome one level down: number chip (lit = done), label, the open lesson a pressed cap,
+   the position in a glass window. The chips flow and wrap like text, so eight lessons take two or three short rows. */
+.ui-lessons { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ui-lessons__head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-2); min-height: 20px; }
+.ui-lessons__topic {
+  font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--s-label);
+}
+.ui-lessons__pos { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--fs-xs); white-space: nowrap; }
+.ui-lessons__cap { letter-spacing: 0.1em; text-transform: uppercase; color: var(--s-label); }
+.ui-lessons__glass {
+  min-width: 4.4ch; padding: 1px 6px; border-radius: 2px; text-align: center; font-variant-numeric: tabular-nums;
+  background: var(--screen); color: color-mix(in srgb, var(--sym) 70%, var(--screen)); border: 1px solid var(--screen-line);
+}
+.ui-lessons__glass b { color: var(--sym); font-weight: 700; }
+.ui-lessons__list { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ui-lessons__li { display: flex; }
+.ui-lessons__li.is-group-start { margin-left: 3px; padding-left: 4px; border-left: 1px solid var(--s-rule); }
+.ui-lessons__item, .ui-lessons__free {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 7px 0 3px; border-radius: var(--r-1);
+  border: 1px solid transparent; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1; white-space: nowrap;
+  color: var(--s-ink); text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.ui-lessons__item[href]:hover, .ui-lessons__free:hover { background: color-mix(in srgb, var(--s-ink) 10%, transparent); }
+.ui-lessons__item[aria-current], .ui-lessons__free[aria-current] {
+  background: var(--btn); color: var(--btn-on); border-color: var(--ui-cap-line);
+}
+.ui-lessons__item[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.ui-lessons__item[aria-disabled="true"] .ui-lessons__label { text-decoration: line-through; }
+.ui-lessons :focus-visible { outline-offset: 1px; }
+.ui-lessons__num {
+  display: grid; place-items: center; flex: none; width: 19px; height: 19px; border-radius: 2px;
+  border: 1px solid currentColor; font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.8;
+}
+.ui-lessons__item[data-done="true"] .ui-lessons__num { opacity: 1; background: var(--btn-on); color: var(--btn-on-ink); border-color: var(--btn-on); }
+.ui-lessons__item[aria-current] .ui-lessons__num { opacity: 1; }
+.ui-lessons__item[aria-current][data-done="false"] .ui-lessons__num { border-color: var(--btn-on); }
+/* Amber on turquoise is too close in tone: on the Soviet paint a done number is a lit lamp in a black window. */
+:root[data-cockpit="ru"] .ui-lessons__item[data-done="true"] .ui-lessons__num { background: var(--btn); color: var(--btn-on); border-color: var(--btn); }
+:root[data-cockpit="ru"] .ui-lessons__item[data-done="true"][aria-current] .ui-lessons__num { border-color: var(--btn-on); }
+/* Free practice: outside the numbering, quieter, after a divider. */
+.ui-lessons__li--free { margin-left: 3px; padding-left: 4px; border-left: 1px dashed var(--s-rule); }
+.ui-lessons__free { padding: 0 7px; color: var(--s-label); text-decoration: underline dotted; text-underline-offset: 3px; }
+.ui-lessons__free[aria-current] { text-decoration: none; }
 
 /* ---------------------------------------------------------------- keys */
 .ui-keys { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px 4px; vertical-align: middle; }
@@ -626,10 +676,24 @@
   grid-template-columns: minmax(0, 1fr) var(--lab-console-w);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "view console";
+  /* Widest 3D view (width : height) on a wide window; the estimates below give the view's height. */
+  --lab-view-aspect: 2.6;
+  --lab-head-est: 0px;
+  --lab-strip-est: 0px;
 }
-.ui-lab.has-head { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head console" "view console"; }
-.ui-lab.has-strip { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view console" "strip console"; }
+.ui-lab.has-head { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head console" "view console"; --lab-head-est: calc(54px + var(--lab-gap)); }
+.ui-lab.has-strip { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view console" "strip console"; --lab-strip-est: calc(var(--lab-strip-h) + var(--lab-gap)); }
 .ui-lab.has-head.has-strip { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "head console" "view console" "strip console"; }
+/* Ultra-wide windows (2560 × 1080, 3440 × 1440): the lab is centred and no wider than a --lab-view-aspect view plus
+   the console, so the 3D view does not turn into a letterbox slit. 16:9 and 16:10 windows stay full width. The Stage
+   caps the horizontal field of view as well (render/viewFov.ts), so a view that ends up wider is not stretched. */
+@media (min-width: 901px) {
+  .ui-lab {
+    width: 100%; margin-inline: auto;
+    max-width: calc(var(--lab-console-w) + 3 * var(--lab-gap) + var(--lab-view-aspect) * (max(560px, 100dvh - var(--shell-h, var(--topbar-h)))
+      - 2 * var(--lab-gap) - var(--lab-head-est) - var(--lab-strip-est)));
+  }
+}
 .ui-lab__head { grid-area: head; padding: 4px 6px 2px; }
 .ui-lab__view {
   grid-area: view; position: relative; min-height: 0; min-width: 0; overflow: hidden;
@@ -657,6 +721,15 @@
   height: calc(var(--lab-strip-h) - 2 * var(--strip-pad) - 4px - 2 * var(--bezel-pad) - var(--bezel-head) - var(--bezel-gap));
 }
 .ui-lab__strip > .ui-bezel > .ui-bezel__glass:not(.has-aspect) { min-width: 260px; }
+/* A display with an aspect keeps it. Its bezel grows no wider than the glass (pages may still let it shrink), and
+   whatever shape the glass ends up (a page's flex rule, a long status, a crowded strip) the content is letterboxed
+   to the declared aspect: a TV or HUD picture is never stretched. */
+@media (min-width: 901px) { .ui-lab__strip > .ui-bezel:has(> .ui-bezel__glass.has-aspect) { max-width: max-content; } }
+.ui-lab__strip > .ui-bezel > .ui-bezel__glass.has-aspect { container-type: size; }
+.ui-lab__strip > .ui-bezel > .ui-bezel__glass.has-aspect > :not(.ui-bezel__corner) {
+  inset: 0; margin: auto;
+  width: min(100cqw, 100cqh * (var(--bezel-aspect))); height: min(100cqh, 100cqw / (var(--bezel-aspect)));
+}
 .ui-lab__strip > :not(.ui-bezel) { flex: 1 1 220px; min-width: 200px; overflow: auto; }
 /* A plain data block in the strip: placards + readouts straight on the panel paint. */
 .ui-strip-block { display: flex; flex-direction: column; gap: 6px; padding: 2px 6px; }

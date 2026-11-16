@@ -16,7 +16,7 @@ import type { Page, PageContext, PageFactory } from '../../app/page';
 import { Stage, isWebGLAvailable } from '../../render';
 import {
   h, cleanup, labLayout, consolePanel, segmented, button, coachBox, checklist, eventLog, callout, placard, bindKeys,
-  disclosure, modal, screenBezel, type ModalHandle, type Tone,
+  disclosure, modal, screenBezel, lessonPicker, lessonHref, onlyChanged, type ModalHandle, type Tone,
 } from '../../ui';
 import { HarmAvionics, type ActionResult } from './avionics';
 import { ALIC_TABLE, CLASS_MEANING, HARM_CAVEATS, SYSTEMS, SYSTEM_ORDER } from './data';
@@ -71,6 +71,8 @@ const KEYS: [string, string][] = [
 
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
+  /** Same-route URL change (lesson picker, Next, Back): applied in place by the mounted page. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     const params = ctx.params;
@@ -154,11 +156,26 @@ const factory: PageFactory = (): Page => {
     const ufcBlock = h('div', { class: 'ui-strip-block harm-ufc-block' }, placard('UFC'), ufc.el);
 
     // ------------------------------------------------------------------ console
-    const lessonSeg = segmented<HarmLessonId>({
-      id: 'harm-lesson', label: 'Lesson', fill: true, value: lesson,
-      options: HARM_LESSON_ORDER.map(id => ({ value: id, label: LESSONS[id].short, title: LESSONS[id].title })),
-      onChange: id => { lesson = id; restart(); },
+    // Lessons are ?lesson= links: the URL is the state, so Back and shared links work. update() applies it.
+    let urlParams = new URLSearchParams(params);
+    const lessonLink = (id: HarmLessonId) => lessonHref('harm', urlParams, { lesson: id }, ['case', 'sys', 'scn']);
+    const picker = lessonPicker<HarmLessonId>({
+      id: 'harm-lessons', topic: 'HARM', header: false, value: lesson, href: lessonLink,
+      items: HARM_LESSON_ORDER.map(id => ({ id, label: LESSONS[id].short, title: LESSONS[id].title, note: LESSONS[id].kind === 'brief' ? 'mission files, nothing to score' : undefined })),
+      isDone: id => LESSONS[id].kind !== 'brief' && ctx.app.getProgress(progressKey(id)) === true,
     });
+    bag.add(() => picker.destroy());
+    bag.add(ctx.app.subscribe((_, what) => { if (what === 'progress') picker.refresh(); }));
+    const goLesson = (id: HarmLessonId) => ctx.navigate(lessonLink(id).slice(2));
+    applyParams = next => {
+      if (!onlyChanged(urlParams, next, ['lesson', 'shot', 'case', 'sys', 'scn'])) return false;
+      const want = next.get('lesson') as HarmLessonId | null;
+      urlParams = new URLSearchParams(next);
+      lesson = want && HARM_LESSON_ORDER.includes(want) ? want : 'radars';
+      if (next.has('case')) trouble = troubleId(next.get('case'));
+      restart();
+      return true;
+    };
     const troubleSeg = segmented<TroubleId>({
       id: 'harm-trouble-case', label: 'Troubleshooting case', fill: true, value: trouble,
       options: TROUBLE_ORDER.map(id => ({ value: id, label: TROUBLE_CASES[id].label })),
@@ -210,7 +227,7 @@ const factory: PageFactory = (): Page => {
           h('a', { href: `./missions/${m.file}`, download: m.file, class: 'harm-missions__file' }, m.title),
           h('span', { class: 'harm-small' }, m.text)))),
         h('p', { class: 'harm-small' }, 'Route: WP1 fence, WP2 on the SA-6 radar, WP3 between the SA-8 and SA-15, WP4 on the SA-11 Snow Drift, WP5 Kobuleti.'),
-        button({ label: 'Open the mission guide', size: 's', onClick: () => { lesson = 'missions'; restart(); } }).el,
+        button({ label: 'Open the mission guide', size: 's', onClick: () => goLesson('missions') }).el,
       ],
     });
     const kneeboard = disclosure({
@@ -255,7 +272,7 @@ const factory: PageFactory = (): Page => {
       viewport,
       strip: [hudBezel.el, ewBezel.el, ddiBezel.el, ufcBlock],
       console: [
-        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', children: [lessonSeg.el, troublePanel, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), animRow, h('div', { class: 'harm-row' }, apxBtn.el)] }).el,
+        consolePanel({ title: 'Lesson', id: 'harm-lesson-panel', actions: picker.status, children: [picker.el, troublePanel, coach.el, stepsHost, h('div', { class: 'harm-row' }, restartBtn.el, speedSeg.el), animRow, h('div', { class: 'harm-row' }, apxBtn.el)] }).el,
         radarPanel.el, filmPanel.el, log.el, missionsPanel.el, kneeboard, keysBox, caveats,
       ],
     });
@@ -308,9 +325,10 @@ const factory: PageFactory = (): Page => {
 
     /** Weapon release pressed (true) or let go (false), from RAlt+Space, R or the on-screen button. */
     function release(held: boolean): void {
+      // The lamp follows the button even when the avionics already let go (a launch clears releaseHeld).
+      releaseBtn.setLit(held);
       if (held === av.releaseHeld) return;
       const r = av.setRelease(held);
-      releaseBtn.setLit(held);
       if (r) act(r, 'Weapon release');
     }
 
@@ -415,8 +433,10 @@ const factory: PageFactory = (): Page => {
     function restart(): void {
       result?.destroy(); result = null;
       ended = false; scripted = false; stepIdx = 0; film = null;
+      // A new attempt starts fresh: radars looked at and films watched before (or by a scripted pre-roll) do not count.
+      visited.clear(); watched.clear();
       const def = currentLesson();
-      lessonSeg.set(lesson, false);
+      picker.set(lesson);
       troublePanel.hidden = lesson !== 'troubleshoot';
       troubleSeg.set(trouble, false);
       troubleBrief.textContent = def.goal;
@@ -481,7 +501,8 @@ const factory: PageFactory = (): Page => {
 
     function tick(dt: number): void {
       const def = currentLesson();
-      if (def.kind !== 'gallery' && def.kind !== 'brief' && !ended && !doc) {
+      // Films keep playing once the Homing lesson is complete (the pilot may watch them again).
+      if (def.kind !== 'gallery' && def.kind !== 'brief' && (!ended || def.kind === 'film') && !doc) {
         const sdt = dt * timeScale;
         stepFilm(sdt);
         sim.step(sdt);
@@ -535,8 +556,11 @@ const factory: PageFactory = (): Page => {
       const pb = av.pullbackLabel();
       if (!ended && pb === 'HARM') { why = 'Pullback ready: HARM in the HUD. Weapon release now.'; tone = 'warning'; }
       else if (!ended && pb === 'PLBK') { why = 'A radar has locked you. PLBK: Pullback is inhibited (HRM OVRD boxed).'; tone = 'caution'; }
-      if (!ended && lesson === 'troubleshoot' && av.station === null && !sim.harms.some(m => m.alive)) {
-        why = 'No HARMs remain and the assigned radar was not destroyed. Restart this case to rearm, then check the target and setup before firing.';
+      // Out of HARMs with the job unfinished (misses, or a radar that went quiet with HARMs in the air): say so.
+      if (!ended && def.kind === 'drill' && av.station === null && !sim.harms.some(m => m.alive)) {
+        why = lesson === 'troubleshoot'
+          ? 'No HARMs remain and the assigned radar was not destroyed. Restart this case to rearm, then check the target and setup before firing.'
+          : 'No HARMs remain and the lesson is not finished. Restart to rearm.';
         tone = 'caution';
       }
       if (force || cur) coach.set(cur ? cur.text : def.steps.length ? 'Lesson complete.' : 'Read the guide, download a mission, then fly it.', why, tone);
@@ -570,7 +594,7 @@ const factory: PageFactory = (): Page => {
         body: h('div', null, h('ul', null, lines.map(l => h('li', null, l)))),
         actions: [
           { label: 'Again', onClick: () => restart(), id: 'harm-again' },
-          ...(nextCase ? [{ label: `Next: ${TROUBLE_CASES[nextCase].label}`, primary: true, id: 'harm-next-case', onClick: () => { trouble = nextCase; restart(); } }] : next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'harm-next', onClick: () => { lesson = next; restart(); } }] : []),
+          ...(nextCase ? [{ label: `Next: ${TROUBLE_CASES[nextCase].label}`, primary: true, id: 'harm-next-case', onClick: () => { trouble = nextCase; restart(); } }] : next ? [{ label: `Next: ${LESSONS[next].short}`, primary: true, id: 'harm-next', onClick: () => goLesson(next) }] : []),
         ],
       });
       bag.add(() => result?.destroy());
@@ -622,7 +646,7 @@ const factory: PageFactory = (): Page => {
     }
   }
 
-  return { mount, unmount() { bag.dispose(); } };
+  return { mount, update: next => applyParams?.(next) ?? false, unmount() { applyParams = null; bag.dispose(); } };
 };
 
 export default factory;

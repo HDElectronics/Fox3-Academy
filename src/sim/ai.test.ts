@@ -7,7 +7,7 @@ import {
   twoVTwo, twsDrill,
 } from './scenarios';
 import { D2R, R2D, aspectAngle, bearingTo, relBearing, wrapPi } from './math';
-import type { Aircraft, AiMemory, Missile, MissileGuidance, RwrContact, SimEvent } from './types';
+import type { Aircraft, AiMemory, Missile, MissileGuidance, RwrContact, SamMissile, SimEvent } from './types';
 import type { MissileId } from '../data/types';
 import { FIGHTER_ORDER } from '../data/aircraft';
 
@@ -151,6 +151,27 @@ describe('scenario builders', () => {
     expect(d2.method).toBe('tws');
     const d3 = defenseDrill(new World(5), 'su27', 'aim120c', { range: 40_000, mode: 'stt' });
     expect(d3.method).toBe('stt');
+  });
+
+  it('defenseDrill: a SARH shooter behind and above still locks and fires by its deadline on an opening range', () => {
+    // Su-27 running from an F-15C 10 km behind and 4 km higher: the slant range stays above the fire range, so only
+    // the fire-no-later-than deadline puts the shot in range, and the shot needs a lock (STT).
+    const w = new World(9);
+    w.record = false;
+    const d = defenseDrill(w, 'su27', 'aim7m', { range: 10_000, aspectDeg: 180, side: 'right', mode: 'auto', playerAlt: 5500, shooterAlt: 9500 },
+      { shooterType: 'f15c', skill: 'veteran' });
+    const sh = w.get(d.shooterId)!;
+    let firedAt: number | null = null, lockedAt: number | null = null;
+    for (let i = 0; i < 400 && firedAt === null; i++) {
+      w.step(0.1);
+      if (lockedAt === null && sh.radar.mode === 'stt') lockedAt = w.t;
+      if (d.missile()) firedAt = w.t;
+    }
+    // Locked at the 14 s deadline; the launch then waits only for the sim's own Rmax rule.
+    expect(lockedAt, aiStatus(sh)?.lastLaunchBlock).not.toBeNull();
+    expect(lockedAt!).toBeLessThan(16);
+    expect(firedAt, aiStatus(sh)?.lastLaunchBlock).not.toBeNull();
+    expect(firedAt!).toBeLessThan(35);
   });
 
   it('radarLab puts targets at range, bearing, altitude and aspect', () => {
@@ -298,6 +319,24 @@ describe('AI defence decisions', () => {
     think(w, b, 1, () => { b.rwr = []; });
     expect(aiOf(b).state).toBe('patrol');
     expect(aiEvents(w, b.id).at(-1)?.text).toMatch(/defeated the AIM-120C/);
+  });
+
+  it('holds a SAM defence through a launch warning that flickers off while the missile still flies', () => {
+    const w = new World(3);
+    w.record = false;
+    const site = w.spawnSam({ id: 'sam', side: 'red', type: 'sa11', pos: { x: 0, z: 0 } });
+    const ac = w.spawnAircraft({ id: 'ai', side: 'blue', type: 'f16c', controller: 'ai', skill: 'veteran', pos: { x: 0, y: 6000, z: 25_000 }, heading: 0, speed: 250 });
+    const pos = new Vector3(0, 4000, 12_000);
+    w.samMissiles.set('SM1', {
+      kind: 'sam-missile', id: 'SM1', type: 'sa11', side: 'red', siteId: site.id, targetId: ac.id, pos, vel: ac.pos.clone().sub(pos).setLength(900),
+      launchedAt: w.t, alive: true, guided: true, motorLeft: 0, timeToImpact: null, result: null, closestApproach: Infinity,
+    } as unknown as SamMissile);
+    const cue = () => { ac.rwr = [{ ...contact(ac, site.id, site.pos, 'launch'), emitterType: 'sam-medium' }]; };
+    think(w, ac, 3, cue);
+    expect(aiOf(ac).state).toBe('defend');
+    // A 0.2 s dropout of the warning (the site's track blinks): the defence holds, as it does against an AAM.
+    think(w, ac, 0.2, () => { ac.rwr = []; });
+    expect(aiOf(ac).state).toBe('defend');
   });
 });
 

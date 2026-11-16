@@ -2,7 +2,8 @@
  * [OWNER: page-defense] The SAM drill lab (#/defense?drill=sa10|sa11|sa15): one SAM site ahead of you, its
  * threat ring and altitude band in 3D, your RWR going search, lock, launch, and the defences that work in DCS
  * (beam the site with chaff, get under the ridge, leave the ring). Pure logic lives in samRun.ts.
- * URL params: ?drill=<sam>, ?alt=high|mid|low, ?ridge=0|1, ?shot=lock|launch|notch|result|live, ?cam=tactical.
+ * URL params: ?drill=<sam>, ?alt=high|mid|low, ?ridge=0|1, ?shot=lock|launch|notch|result|live (every
+ * state but live is scripted and never saved), ?cam=tactical.
  */
 import { Vector3 } from 'three';
 import type { PageContext } from '../../app/page';
@@ -20,9 +21,10 @@ import { RwrDisplay } from '../../ui/displays';
 import { mobileAction } from '../../ui/mobileAction';
 import { MANEUVER_LABEL, THROTTLES, type Maneuver, type Throttle } from './pilot';
 import { cmKeys } from './cmkeys';
+import { defenseHref, defenseLabel, defensePicker, nextDefenseLesson } from './picker';
 import {
-  RIDGE_M, SAM_ALTS, SAM_DRILLS, SamRunner, samBrief, samCoach, samDebrief, samSetupFor, samShort,
-  type SamAlt, type SamMetrics, type SamSetup,
+  RIDGE_M, SAM_ALTS, SamRunner, samBrief, samCoach, samDebrief, samSetupFor, samShort,
+  type SamAlt, type SamDrillId, type SamMetrics, type SamSetup,
 } from './samRun';
 
 const SHOTS = ['lock', 'launch', 'notch', 'result', 'live'] as const;
@@ -45,6 +47,8 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
   let run!: SamRunner;
   let attempt = 0;
   let paused = false;
+  /** This run came from a ?shot= pre-roll flown by the scripted defence: shown, never saved. */
+  let scripted = false;
   let timeScale = 1;
   let fastForward = true;
   let camMode: 'chase' | 'tactical' = ctx.params.get('cam') === 'tactical' ? 'tactical' : 'chase';
@@ -56,15 +60,11 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
 
   // ------------------------------------------------------------------ brief panel
   const brief = samBrief(sam, ac, units);
-  const siteButtons = SAM_DRILLS.map(id => {
-    const b = h('button', {
-      type: 'button', class: 'dfn-drill', 'aria-pressed': String(id === sam), id: `dfn-drill-${id}`,
-      onclick: () => { if (id !== sam) ctx.navigate(`defense?drill=${id}`); },
-    }, h('span', { class: 'dfn-drill__n' }, '▲'), h('span', { class: 'dfn-drill__title' }, samShort(id)),
-    h('span', { class: 'dfn-drill__best' }, bestText(id)));
-    return b;
-  });
-  const missileBtn = button({ label: 'Missile drills', size: 's', variant: 'ghost', onClick: () => ctx.navigate('defense') });
+  // The Defense drill picker (picker.ts): every drill is a ?drill= link; another site or a missile drill remounts.
+  const urlParams = new URLSearchParams(ctx.params);
+  const picker = defensePicker(ctx, sam as SamDrillId, () => urlParams);
+  bag.add(() => picker.destroy());
+  const nextSite = nextDefenseLesson(sam as SamDrillId);
   const altSeg = segmented<SamAlt>({
     id: 'dfn-sam-alt', label: 'Your altitude', value: setup.alt, fill: true, size: 's',
     options: SAM_ALTS.map(a => ({ value: a.value, label: a.label, title: a.title })),
@@ -87,8 +87,8 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
     h('p', { class: 'dfn-note sam-nv' }, h('span', { class: 'ui-tag sam-tag' }, 'not verified'), ' ', brief.notVerified.join(' ')));
   const startBtn = button({ id: 'dfn-start', label: 'Start', variant: 'primary', keys: 'Space', block: true, onClick: () => start() });
   const briefPanel = consolePanel({
-    id: 'dfn-drill-panel', title: 'SAM drill',
-    children: [h('div', { class: 'dfn-drills sam-sites', role: 'group', 'aria-label': 'SAM site' }, siteButtons, missileBtn.el),
+    id: 'dfn-drill-panel', title: 'SAM drill', actions: picker.status,
+    children: [picker.el,
       briefEl, altSeg.el, ridgeSw.el, startBtn.el],
   });
 
@@ -223,6 +223,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       finished: m => { if (!isDead()) finished(m); },
     });
     paused = false;
+    scripted = false;
     camAim = null;
     thrSeg.set(run.pilot.thr);
     if (st) {
@@ -255,7 +256,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
     const d = samDebrief(m);
     const key = `defense:${sam}:${ac}`;
     const prev = Number(ctx.app.getProgress(key) ?? 0);
-    if (d.passed) ctx.app.setProgress(key, Math.max(prev, d.score, 1));
+    if (d.passed && !scripted) ctx.app.setProgress(key, Math.max(prev, d.score, 1));
     refresh();
     showResult(m);
   }
@@ -275,7 +276,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       ['Score', `${d.score} / 100`],
     ];
     result = modal({
-      id: 'dfn-result', title: d.headline, tone: d.survived ? 'ok' : 'warning', within: viewport,
+      id: 'dfn-result', title: `${d.headline}${scripted ? ' (scripted demo, not saved)' : ''}`, tone: d.survived ? 'ok' : 'warning', within: viewport,
       body: h('div', { class: 'dfn-result' },
         h('p', { class: 'ui-placard dfn-result__drill' }, `SAM drill · ${samShort(sam)}`),
         h('p', { class: 'dfn-result__why' }, d.why),
@@ -284,16 +285,11 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
       actions: [
         { label: 'Review', id: 'dfn-res-close' },
         { label: 'Retry', id: 'dfn-res-retry', keys: 'R', primary: !d.passed, onClick: () => retry() },
-        { label: 'Next site', id: 'dfn-res-next', primary: d.passed, onClick: () => ctx.navigate(`defense?drill=${SAM_DRILLS[(SAM_DRILLS.indexOf(sam) + 1) % SAM_DRILLS.length]}`) },
+        ...(nextSite ? [{ label: `Next: ${defenseLabel(nextSite)}`, id: 'dfn-res-next', primary: d.passed, onClick: () => ctx.navigate(defenseHref(nextSite, urlParams).slice(2)) }] : []),
       ],
       open: true,
     });
     bag.add(() => result?.close());
-  }
-
-  function bestText(id: SamId): string {
-    const v = Number(ctx.app.getProgress(`defense:${id}:${ac}`) ?? 0);
-    return v > 0 ? `best ${v}` : '';
   }
 
   // ------------------------------------------------------------------ camera
@@ -406,6 +402,7 @@ export function mountSamLab(ctx: PageContext, bag: Cleanup, sam: SamId, isDead: 
   function preroll(s: Shot): void {
     start();
     if (s === 'live') return;
+    scripted = true;
     const dt = 1 / 30, mt = run.metrics, cmState = { lastChaff: -9 };
     const done = (): boolean => {
       if (run.phase !== 'run') return true;

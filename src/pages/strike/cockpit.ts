@@ -385,6 +385,7 @@ export function createSu25tCockpit(host: CockpitHost): Su25tCockpit {
       if (hudCam && ac.alive) {
         // The ИЛС draws in heading and pitch only (no roll): the view ahead uses the same frame.
         const aspect = Math.max(0.2, hudCanvas.clientWidth / Math.max(1, hudCanvas.clientHeight));
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         _hudPos.set(ac.pos.x * UNIT_PER_M, ac.pos.y * UNIT_PER_M, ac.pos.z * UNIT_PER_M);
         hudCam.render(_hudPos, orientationQuaternion(ac.heading, ac.pitch, 0, _hudQ), vFovDeg(HUD_FOV_DEG, aspect), 0.5, HUD_BORE_Y);
       }

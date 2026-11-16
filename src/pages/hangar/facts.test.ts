@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AIRCRAFT, FIGHTER_ORDER, MISSILES } from '../../data';
 import type { Units } from '../../app/format';
 import {
-  LESSON_PATH, capFacts, detectSource, detectionScale, guidanceRuleFor, headlineBind, isDone, lessonLine, modeChips,
-  nextLesson, niceScale, primaryRadarMissile, refLegend, tileFacts, twsRule, weaponCols, weaponFacts, weaponScale, weaponsSummary,
+  SINGLE_FLAG_ROUTES, capFacts, detectSource, detectionScale, guidanceRuleFor, headlineBind, isDone, lessonLine, modeChips,
+  niceScale, primaryRadarMissile, refLegend, tileFacts, twsRule, weaponCols, weaponFacts, weaponScale, weaponsSummary,
   type LessonRoute,
 } from './facts';
 
@@ -66,7 +66,7 @@ describe('capability readout', () => {
   });
   it('never says a TWS target hears nothing (his RWR still shows your search)', () => {
     for (const id of FIGHTER_ORDER) for (const u of UNITS) {
-      const texts = [twsRule(AIRCRAFT[id], u).rule, weaponsSummary(AIRCRAFT[id]), ...LESSON_PATH.map(r => lessonLine(r, AIRCRAFT[id], u))];
+      const texts = [twsRule(AIRCRAFT[id], u).rule, weaponsSummary(AIRCRAFT[id]), ...SINGLE_FLAG_ROUTES.map(r => lessonLine(r, AIRCRAFT[id], u))];
       for (const t of texts) expect(t).not.toMatch(/hears nothing|silent until/);
     }
     expect(twsRule(AIRCRAFT.f15c, 'imperial').rule).toContain('no lock or launch warning');
@@ -162,7 +162,7 @@ describe('weapons', () => {
 
 describe('lessons', () => {
   it('has jet-aware copy for every route, jet and unit', () => {
-    const routes: LessonRoute[] = [...LESSON_PATH, 'reference'];
+    const routes: LessonRoute[] = [...SINGLE_FLAG_ROUTES, 'reference'];
     for (const id of FIGHTER_ORDER) for (const u of UNITS) for (const r of routes) clean(lessonLine(r, AIRCRAFT[id], u));
     expect(lessonLine('tws', AIRCRAFT.su27, 'metric')).toContain('0.85 Rmax');
     expect(lessonLine('tws', AIRCRAFT.m2000c, 'imperial')).toContain('no multi-target TWS');
@@ -178,10 +178,8 @@ describe('lessons', () => {
     expect(isDone('radar', 'su27', get)).toBe(true);
     expect(isDone('missiles', 'su27', get)).toBe(true);
     expect(isDone('tws', 'su27', get)).toBe(false);
-    expect(nextLesson('su27', get)).toBe('tws');
-    expect(nextLesson('f16c', get)).toBe('radar');
-    const all = Object.fromEntries(LESSON_PATH.map(r => [`${r}:jf17:done`, 1]));
-    expect(nextLesson('jf17', k => all[k])).toBe(null);
+    const all = Object.fromEntries(SINGLE_FLAG_ROUTES.map(r => [`${r}:jf17:done`, 1]));
+    for (const r of SINGLE_FLAG_ROUTES) expect(isDone(r, 'jf17', k => all[k]), r).toBe(true);
     expect(isDone('radar', 'su27', () => false)).toBe(false);
   });
   it('has a headline bind for every jet', () => {

@@ -90,7 +90,8 @@ export interface A10cCockpit {
   resetInputs(): void;
   draw(podCam: ShkvalTv | null, showRwr: boolean, hudCam?: ForwardView | null): void;
   updateLamps(): void;
-  storeText(): string;
+  /** Selected store, count, its laser code (unless `withCode` is false) and the master mode. */
+  storeText(withCode?: boolean): string;
   hudView(): A10cHudView;
   tgpView(image: CanvasImageSource | null): TgpPageView;
   mavView(image: CanvasImageSource | null): MavPageView;
@@ -130,8 +131,6 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   const slew = { up: 0, down: 0, left: 0, right: 0 };
   const applySlew = () => hotas.slew(slew.right - slew.left, slew.up - slew.down);
   let noseDir: -1 | 0 | 1 = 0, noseHeldS = 0, holdGamma: number | null = null;
-  /** Gun trigger held: the gun fires every step while held (trainer rate). */
-  let triggerHeld = false;
   const nosePress = (d: -1 | 1) => { if (noseDir !== d) { noseDir = d; noseHeldS = 0; holdGamma = null; } };
   const noseRelease = () => { if (noseDir) { noseDir = 0; holdGamma = me().pitch; } };
 
@@ -332,7 +331,8 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
   }
 
   // ------------------------------------------------------------------ keys
-  const hold = (sw: HotasSwitch) => ({ down: () => hotas.press(sw), up: () => hotas.release(sw) });
+  // bindKeys calls up() without an event when the window loses focus: drop the press rather than finish it.
+  const hold = (sw: HotasSwitch) => ({ down: () => hotas.press(sw), up: (e?: KeyboardEvent) => (e ? hotas.release(sw) : hotas.cancel(sw)) });
   const slewKey = (k: keyof typeof slew) => ({ down: () => { slew[k] = 1; applySlew(); }, up: () => { slew[k] = 0; applySlew(); } });
   const keys: KeyMap = {
     'LCtrl+Up': hold('tmsF'), 'LCtrl+Down': hold('tmsA'), 'LCtrl+Left': hold('tmsL'), 'LCtrl+Right': hold('tmsR'),
@@ -343,7 +343,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     'Insert': { down: () => hotas.setLaserHeld(true), up: () => hotas.setLaserHeld(false) },
     'M': () => log(`Master mode ${hotas.cycleMaster()}`),
     'RAlt+Space': { down: () => { hotas.pressRelease(); }, up: () => hotas.letGoRelease(), inModal: false },
-    'Space': { down: () => { triggerHeld = true; hotas.gun(); }, up: () => { triggerHeld = false; }, inModal: false },
+    'Space': { down: () => hotas.setTrigger(true), up: () => hotas.setTrigger(false), inModal: false },
     'Left': { down: () => steer(-2), repeat: true },
     'Right': { down: () => steer(2), repeat: true },
     'Up': { down: () => nosePress(-1), up: () => noseRelease(), repeat: true },
@@ -460,10 +460,10 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
     const tk = host.jtac()?.tasking;
     return tk ? { title: 'CAS 9-LINE', lines: tk.lines, state: tk.state } : null;
   }
-  function storeText(): string {
+  function storeText(withCode = true): string {
     const ag = me().ag!, sel = ag.selected;
     if (!sel) return 'none';
-    const code = ag.laserCodes[sel];
+    const code = withCode ? ag.laserCodes[sel] : null;
     return `${AG_WEAPONS[sel].hudLabel} ×${ag.stores[sel] ?? 0}${code ? ` · ${code}` : ''} · ${hotas.master}`;
   }
 
@@ -475,10 +475,9 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (noseDir) { noseHeldS += dt; ac.cmd.altitude = ac.pos.y + noseDir * noseOffsetM(noseHeldS); }
       else if (holdGamma != null && ac.alive) ac.cmd.altitude = holdAngleAltitude(ac.pos.y, ac.vel.length(), holdGamma);
       hotas.step(dt);
-      if (triggerHeld) hotas.gun();
     },
     resetInputs() {
-      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null; triggerHeld = false;
+      slew.up = slew.down = slew.left = slew.right = 0; noseDir = 0; noseHeldS = 0; holdGamma = null;
       hotas.reset();
       if (cdu && host.cdu) cdu.reset(host.cdu());
     },
@@ -508,6 +507,7 @@ export function createA10cCockpit(host: A10cCockpitHost): A10cCockpit {
       if (onTad) tad.draw(tadView()); else msg.draw(msgView());
       if (hudCam && ac.alive) {
         const aspect = Math.max(0.2, hudCanvas.clientWidth / Math.max(1, hudCanvas.clientHeight));
+        hudCam.fitTo(hudCanvas);   // the picture fills the glass: same shape, or it is stretched
         _pos.set(ac.pos.x * UNIT_PER_M, ac.pos.y * UNIT_PER_M, ac.pos.z * UNIT_PER_M);
         hudCam.render(_pos, orientationQuaternion(ac.heading, ac.pitch, ac.roll, _q), vFovDeg(HUD_FOV, aspect), 0.5, HUD_BORE);
       }

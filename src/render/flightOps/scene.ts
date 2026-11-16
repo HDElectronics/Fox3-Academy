@@ -15,6 +15,7 @@ import { basketRest, boomPoint } from '../../sim/flightOps/aar';
 import { SHIPS } from '../../data/ships';
 import { aimPointU, landingHeading, shipFrame } from '../../sim/flightOps/carrier';
 import { LineBatch } from '../lines';
+import { ContactShadows, SHADOW_LIFT_M } from '../contactShadows';
 import { Note } from '../tags';
 import type { FlightOpsJetId, FlightOpsState, ShipId, TankerFrameVec, TankerId } from '../../sim/flightOps/types';
 import { JetMesh, NOMINAL_JET_M } from '../jets';
@@ -113,6 +114,8 @@ export class FlightOpsScene {
   private probe: Mesh | null = null;
   private probeMat: MeshStandardMaterial | null = null;
   private readonly tipMark = new Object3D();
+  /** Soft shadow under the jet near the runway (true-size views only). */
+  private readonly jetShadow = new ContactShadows(1);
 
   constructor(stage: Stage, aircraft: FlightOpsJetId, opts: FlightOpsSceneOptions = {}) {
     this.stage = stage;
@@ -121,6 +124,8 @@ export class FlightOpsScene {
     this.boostPx = opts.boostPx ?? 56;
     stage.env?.setSurface('land');
     stage.env?.setGrid(false);
+    // Fair-weather cumulus above the pattern, sparse and with a light shadow so the runway paint stays clear.
+    stage.env?.setClouds({ altitudeM: 2600, coverage: 0.24, shadow: 0.3 });
     this.baseFov = stage.camera.fov;
     this.oldNear = stage.camera.near;
     stage.camera.near = 0.0005;
@@ -128,9 +133,9 @@ export class FlightOpsScene {
 
     this.root.name = 'flightOps';
     this.root.scale.setScalar(UNIT_PER_M);
-    this.runway = new RunwayMesh(stage.palette, { aimPointM: opts.aimPointM });
+    this.runway = new RunwayMesh(stage.palette, { aimPointM: opts.aimPointM, atmosphere: stage.env?.atmosphere });
     this.overlay = new ApproachOverlay(stage.shared, stage.palette, opts);
-    this.root.add(this.runway, this.landing);
+    this.root.add(this.runway, this.landing, this.jetShadow);
     this.landing.name = 'flightOps:landingFrame';
     this.landing.add(this.overlay);
     this.runwayApproach = { ...opts, glideDeg: this.overlay.glideDeg, aimPointM: this.overlay.aimPointM, lengthM: opts.lengthM ?? 4 * 1852 };
@@ -352,6 +357,21 @@ export class FlightOpsScene {
     // In the air behind a tanker the model origin is the sim reference (the probe and receptacle key on it).
     _v.set(0, s.aar ? 0 : this.jet.groundClearanceM * scale, 0).applyQuaternion(this.jet.quaternion);
     this.jet.position.set(s.pos.x * UNIT_PER_M, s.pos.y * UNIT_PER_M, s.pos.z * UNIT_PER_M).add(_v);
+    this.placeShadow(scale);
+  }
+
+  /**
+   * Blob shadow on the airfield along the sun ray, fading out by about 110 m above the runway: a depth cue for
+   * the flare and the takeoff roll. Only for the true-size jet (not the boosted side and tower views), not at sea.
+   */
+  private placeShadow(scale: number): void {
+    const s = this.state, sun = this.stage.env?.sunDirection;
+    const k = s && sun && !s.ship && !s.aar && !this.carrier && !this.tanker && Math.abs(scale - UNIT_PER_M) < 1e-12
+      ? 1 - Math.min(1, Math.max(0, (s.pos.y - 12) / 98)) : 0;
+    if (!s || !sun || k <= 0) { this.jetShadow.show(0); return; }
+    const t = (s.pos.y + this.jet.groundClearanceM) / Math.max(0.2, sun.y), L = this.jet.lengthM;
+    this.jetShadow.put(0, s.pos.x - sun.x * t, SHADOW_LIFT_M, s.pos.z - sun.z * t, s.heading, 0.36 * L, 0.5 * L, 0.5 * k * k);
+    this.jetShadow.show(1);
   }
 
   /** Jet reference point (units), for the camera. */
@@ -436,7 +456,7 @@ export class FlightOpsScene {
         const base = aimP.y;
         const yc = Math.max(base + (jet.y - base) / 2, base + 0.02);
         const spanZ = Math.abs(along) * 1.3 + (carrier ? 0.25 : 0.4), spanY = Math.max(0, jet.y - base) * 1.3 + 0.1;
-        const vf = (cam.fov * Math.PI) / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
+        const vf = (cam.getEffectiveFOV() * Math.PI) / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
         const dist = Math.max(launch ? 0.12 : carrier ? 0.3 : 0.4, spanZ / 2 / Math.tan(hf), spanY / 2 / Math.tan(vf)) + Math.max(0, across);
         want.set(cxw + rx * dist, yc + dist * 0.14, czw + rz * dist);
         look.set(cxw, yc, czw);
@@ -521,6 +541,7 @@ export class FlightOpsScene {
     this.tanker?.dispose();
     this.probe?.geometry.dispose();
     this.probeMat?.dispose();
+    this.jetShadow.dispose();
     this.overlay.dispose();
     this.nav.dispose();
     this.navNote.dispose();

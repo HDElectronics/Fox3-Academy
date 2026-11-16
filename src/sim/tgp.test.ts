@@ -112,4 +112,15 @@ describe('A-10C II targeting pod (docs/research/a10c.md §3)', () => {
     run(world, 0.1);
     expect(own.alive).toBe(false);
   });
+
+  it('an empty GAU-8 stays selected: the gun trigger never moves on to a bomb or a missile', () => {
+    const { world, ac } = setup();
+    world.setAgMaster('hog', 'ag');
+    world.selectAgWeapon('hog', 'gau8');
+    ac.ag!.stores.gau8 = 2;
+    for (let i = 0; i < 2; i++) expect(world.agLaunch('hog')).toHaveLength(1);
+    expect(ac.ag!.selected).toBe('gau8');
+    expect(world.agLaunch('hog')).not.toBeInstanceOf(Array);
+    expect([...world.agWeapons.values()].every(w => w.type === 'gau8')).toBe(true);
+  });
 });

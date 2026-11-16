@@ -6,7 +6,8 @@
  * a score and coaching; progress saved per jet. Explainer below the lab.
  *
  * URL params: ?ac=<id> (select a jet once), ?drill=lock|pitbull|drag|late|free, ?threat=<missile>,
- * ?method=auto|tws|stt, ?shot=launch|notch|active|result|live (pre-roll to a state for screenshots), ?cam=tactical,
+ * ?method=auto|tws|stt, ?shot=launch|notch|active|result|live (pre-roll to a state for screenshots; every state but live
+ * is scripted and never saved), ?cam=tactical,
  * ?scroll=explainer (open at the explainer), ?only=explainer (explainer alone, for screenshots).
  * ?drill=sa10|sa11|sa15 opens the SAM drill lab instead (samLab.ts, its own params).
  */
@@ -30,8 +31,8 @@ import {
 } from '../../ui';
 import { RwrDisplay, RwrAudio } from '../../ui/displays';
 import {
-  ALTS, ASPECTS, DRILLS, DRILL_ORDER, SCORED_DRILLS, SKILLS, canTwsShot, cueText, defaultRange, defaultSetup,
-  drillGoal, launchMethod, missileLabel, nextDrill, normalizeSetup, rangeBounds, setupFor, shootersFor, sttLaunchWarns, threatsFor, zoneFor,
+  ALTS, ASPECTS, DRILLS, SCORED_DRILLS, SKILLS, canTwsShot, cueText, defaultRange, defaultSetup,
+  drillGoal, launchMethod, missileLabel, normalizeSetup, rangeBounds, setupFor, shootersFor, sttLaunchWarns, threatsFor, zoneFor,
   type AltSetup, type AspectSetup, type DrillId, type MethodSetup, type Setup,
 } from './drills';
 import { MANEUVER_LABEL, THROTTLES, type Maneuver, type Throttle } from './pilot';
@@ -41,8 +42,10 @@ import type { Debrief } from './debrief';
 import { DrillRunner } from './runner';
 import { cmKeys } from './cmkeys';
 import { buildExplainer } from './explainer';
-import { SAM_DRILLS, isSamDrill, samShort } from './samRun';
+import { isSamDrill } from './samRun';
 import { mountSamLab } from './samLab';
+import { DEFENSE_FREE_PATH, defenseHref, defenseLabel, defensePicker, nextDefenseLesson } from './picker';
+import { onlyChanged } from '../../ui/lessonPicker';
 
 const RWR_LABEL: Record<string, string> = {
   spo15: 'СПО-15', alr56c: 'TEWS', alr67: 'ALR-67', alr56m: 'ALR-56M', jf17rwr: 'RWR', serval: 'SERVAL',
@@ -56,6 +59,8 @@ const CHASE_M = 130;
 const factory: PageFactory = (): Page => {
   const bag = cleanup();
   let dead = false;
+  /** Same-route URL change (drill picker, Next, Back): the missile drill lab applies a drill change in place. */
+  let applyParams: ((next: URLSearchParams) => boolean) | null = null;
 
   function mount(ctx: PageContext): void {
     // ?ac=<id>: select that jet once, then drop the param so a later jet change in the top bar sticks.
@@ -92,6 +97,8 @@ const factory: PageFactory = (): Page => {
     let timeScale = 1;
     let fastForward = true;
     let attempt = 0;
+    /** This run came from a ?shot= pre-roll flown by the scripted defense: shown, never saved. */
+    let scripted = false;
     let refMode: RefMode = 'auto';
     let camMode: 'chase' | 'tactical' = ctx.params.get('cam') === 'tactical' ? 'tactical' : 'chase';
     let camAim: { h: number; e: number } | null = null;
@@ -130,26 +137,20 @@ const factory: PageFactory = (): Page => {
       h('div', null, placard('Threat'), threatRO.el), h('div', null, placard('Own ship'), ownRO.el));
 
     // ------------------------------------------------------------------ DOM: drill panel
-    const drillButtons = new Map<DrillId, { el: HTMLButtonElement; best: HTMLElement }>();
-    const drillList = h('div', { class: 'dfn-drills', role: 'group', 'aria-label': 'Drill' },
-      DRILL_ORDER.map(id => {
-        const d = DRILLS[id];
-        const best = h('span', { class: 'dfn-drill__best' });
-        const el = h('button', {
-          type: 'button', class: 'dfn-drill', 'aria-pressed': 'false', id: `dfn-drill-${id}`,
-          onclick: () => chooseDrill(id),
-        },
-        h('span', { class: 'dfn-drill__n' }, d.n === null ? '·' : String(d.n)),
-        h('span', { class: 'dfn-drill__title' }, d.title),
-        best);
-        drillButtons.set(id, { el, best });
-        return el;
-      }),
-      // SAM sites open their own lab (samLab.ts).
-      SAM_DRILLS.map(id => h('button', {
-        type: 'button', class: 'dfn-drill dfn-drill--sam', 'aria-pressed': 'false', id: `dfn-drill-${id}`,
-        onclick: () => ctx.navigate(`defense?drill=${id}`),
-      }, h('span', { class: 'dfn-drill__n' }, '▲'), h('span', { class: 'dfn-drill__title' }, `${samShort(id)} site`))));
+    // Drills are ?drill= links (picker.ts): a missile drill applies in place (update), a SAM site or free practice
+    // remounts the page. The picker lists the SAM sites too; they open their own lab (samLab.ts).
+    let urlParams = new URLSearchParams(ctx.params);
+    const picker = defensePicker(ctx, setup.drill === 'free' ? null : setup.drill, () => urlParams);
+    bag.add(() => picker.destroy());
+    const goDrill = (id: DrillId | ReturnType<typeof nextDefenseLesson>) =>
+      ctx.navigate(id === null || id === 'free' ? DEFENSE_FREE_PATH : defenseHref(id, urlParams).slice(2));
+    applyParams = next => {
+      const want = next.get('drill') as DrillId | null;
+      if (!onlyChanged(urlParams, next, ['drill', 'shot', 'threat', 'method']) || isSamDrill(want)) return false;
+      urlParams = new URLSearchParams(next);
+      chooseDrill(want && DRILLS[want] ? want : 'lock');
+      return true;
+    };
     const goalEl = h('p', { class: 'dfn-goal' });
     const cueEl = h('p', { class: 'dfn-cue' });
     const threatSel = select<MissileId>({
@@ -200,7 +201,8 @@ const factory: PageFactory = (): Page => {
     const startBtn = button({ id: 'dfn-start', label: 'Start', variant: 'primary', keys: 'Space', block: true, onClick: () => start() });
     const drillPanel = consolePanel({
       id: 'dfn-drill-panel', title: 'Drill',
-      children: [drillList, goalEl, cueEl, setupForm, summary, startBtn.el],
+      actions: picker.status,
+      children: [picker.el, goalEl, cueEl, setupForm, summary, startBtn.el],
     });
 
     // ------------------------------------------------------------------ DOM: defend panel
@@ -364,6 +366,7 @@ const factory: PageFactory = (): Page => {
       });
       run.refMode = refMode;
       paused = false;
+      scripted = false;
       camAim = null;
       thrSeg.set(run.pilot.thr);
       if (st) {
@@ -435,8 +438,10 @@ const factory: PageFactory = (): Page => {
     }
 
     function nextDrillGo(): void {
+      const next = nextDefenseLesson(setup.drill);
+      if (!next) return;
       closeResult();
-      chooseDrill(nextDrill(setup.drill));
+      goDrill(next);
     }
 
     function closeResult(): void {
@@ -506,7 +511,7 @@ const factory: PageFactory = (): Page => {
 
     // ------------------------------------------------------------------ end of a run
     function finished(d: Debrief): void {
-      if (d.passed && setup.drill !== 'free') {
+      if (d.passed && setup.drill !== 'free' && !scripted) {
         const key = `defense:${ac}:${setup.drill}`;
         const prev = Number(ctx.app.getProgress(key) ?? 0) || 0;
         ctx.app.setProgress(key, Math.max(prev, d.score, 1));
@@ -553,14 +558,14 @@ const factory: PageFactory = (): Page => {
           h('span', { class: 'dfn-parts__label' }, p.label), h('span', { class: 'dfn-parts__pts' }, `${p.pts}/${p.max}`), h('span', { class: 'dfn-parts__note' }, p.note)))),
         h('div', { class: 'dfn-result__coach' }, h('span', { class: 'ui-placard' }, 'Debrief'), ...d.coaching.map(c => h('p', null, c))),
         DRILLS[setup.drill].pass === 'fly' && mm.result !== null ? h('p', { class: 'dfn-note' }, 'Drill 4 counts as done once flown: its point is to feel how little time is left.') : null);
-      const nextId = nextDrill(setup.drill);
+      const nextId = nextDefenseLesson(setup.drill);
       result = modal({
-        id: 'dfn-result', title: d.headline, body,
+        id: 'dfn-result', title: `${d.headline}${scripted ? ' (scripted demo, not saved)' : ''}`, body,
         tone: d.survived ? 'ok' : mm.result === 'hit' ? 'warning' : 'caution',
         actions: [
           { label: 'Review', id: 'dfn-res-close' },
           { label: 'Retry', id: 'dfn-res-retry', keys: 'R', primary: !d.passed, onClick: () => retry() },
-          { label: `Next: ${DRILLS[nextId].cap}`, id: 'dfn-res-next', keys: 'N', primary: d.passed, onClick: () => nextDrillGo() },
+          ...(nextId ? [{ label: `Next: ${defenseLabel(nextId)}`, id: 'dfn-res-next', keys: 'N', primary: d.passed, onClick: () => nextDrillGo() }] : []),
         ],
         open: true,
       });
@@ -569,12 +574,7 @@ const factory: PageFactory = (): Page => {
     // ------------------------------------------------------------------ UI refresh
     /** Things that change with the setup or phase (not per frame). */
     function refreshStatic(): void {
-      for (const [id, b] of drillButtons) {
-        setAttr(b.el, 'aria-pressed', String(id === setup.drill));
-        const best = ctx.app.getProgress(`defense:${ac}:${id}`);
-        setText(b.best, id === 'free' || !best ? '' : typeof best === 'number' ? `best ${best}` : 'done');
-        b.el.classList.toggle('is-done', !!best && id !== 'free');
-      }
+      picker.set(setup.drill === 'free' ? null : setup.drill);
       setText(goalEl, drillGoal(setup));
       setText(cueEl, cueText(setup.drill));
       threatSel.setOptions(threatsFor(setup.drill).map(m => ({ value: m, label: missileLabel(m), group: MISSILES[m].seeker === 'sarh' ? 'Semi-active (SARH)' : 'Active (ARH)' })), setup.threat);
@@ -867,6 +867,7 @@ const factory: PageFactory = (): Page => {
     function preroll(s: ShotState): void {
       start();
       if (s === 'live') return;
+      scripted = true;
       const dt = 1 / 30;
       const auto = s !== 'launch';
       const chaffState = { lastChaff: -9 };
@@ -899,8 +900,10 @@ const factory: PageFactory = (): Page => {
       dead = false;
       try { mount(ctx); } catch (e) { console.error(e); ctx.root.append(h('p', { class: 'page-error' }, 'The defense page failed to start: ' + String(e))); }
     },
+    update(next) { return applyParams?.(next) ?? false; },
     unmount() {
       dead = true;
+      applyParams = null;
       bag.dispose();
     },
   };

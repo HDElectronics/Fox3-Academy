@@ -90,6 +90,19 @@ describe('radioLog', () => {
     expect(log.visible).toBe(0);
   });
 
+  it('clear() resets the clock: a restarted scenario shows its first call before the next tick, with its own time', () => {
+    const log = radioLog({ id: 'subs', ttlS: 8 });
+    log.tick(300);
+    log.push({ from: 'Axeman 11', text: 'Continue', t: 300 });
+    log.clear();
+    // The sim restarted at 0: the first call arrives before the page ticks the new clock.
+    log.push({ from: 'Axeman 11', text: 'Mark is on the deck.', t: 0.5 });
+    expect(log.visible).toBe(1);
+    log.push({ from: 'You', text: 'Contact the mark' });
+    expect(lines(log.historyEl)[0]).toBe('00:00You: Contact the mark');
+    expect(log.visible).toBe(2);
+  });
+
   it('destroy() detaches both elements', () => {
     const log = radioLog({ id: 'subs' });
     const host = new FakeEl('div');

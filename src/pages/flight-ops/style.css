@@ -84,6 +84,8 @@
 .fo-gates__label { text-transform: uppercase; letter-spacing: 0.05em; }
 .fo-gates__notes { color: var(--s-label); font-family: var(--font-body); font-size: var(--fs-xs); }
 .fo-debrief__foot { margin: 0; font-family: var(--font-body); font-size: var(--fs-s); }
+/* The next lesson on the page, after the debrief (lit once this lesson is complete). */
+.fo-debrief__next { display: flex; justify-content: flex-end; margin-top: 10px; }
 
 /* ---- takeoff checklist strip (#24) ---- */
 .ui-lab__strip > .fo-to { flex: 0 1 250px; min-width: 200px; }
@@ -98,8 +100,9 @@
 /* ---- carrier Case I (#26) ---- */
 .fo-call.is-waveoff { color: var(--warning); }
 .fo-lab .ui-lab__strip > .ui-bezel.fo-ball { flex: 0 1 118px; min-width: 96px; }
-/* At sea the landing aid joins the strip: a squarer HUD and a narrower configuration block keep it on one row. */
-@media (min-width: 901px) { .fo-lab--sea .ui-lab__strip > .ui-bezel.fo-hud > .ui-bezel__glass.has-aspect { aspect-ratio: 1 / 1 !important; } }
+/* At sea the landing aid joins the strip: a squarer HUD and a narrower configuration block keep it on one row.
+   The HUD canvas follows the square glass (--bezel-aspect) and the view through it follows the canvas (fitTo). */
+@media (min-width: 901px) { .fo-lab--sea .ui-lab__strip > .ui-bezel.fo-hud > .ui-bezel__glass.has-aspect { --bezel-aspect: 1 !important; aspect-ratio: 1 / 1 !important; } }
 .fo-lab--sea .ui-lab__strip > .fo-cfg { flex: 1 1 150px; min-width: 140px; }
 .fo-lso { display: flex; flex-direction: column; gap: 6px; }
 .fo-lso__latest {
@@ -187,7 +190,7 @@
 @media (max-width: 900px) {
   .fo-lab .ui-lab__view { aspect-ratio: 16 / 10; max-height: 44vh; min-height: 200px; }
   .fo-lab .ui-lab__strip > .ui-bezel.fo-hud { flex: 1 1 100%; }
-  .fo-lab .ui-lab__strip > .ui-bezel.fo-idx { flex: 0 1 110px; }
+  .fo-lab .ui-lab__strip > .ui-bezel.fo-idx { flex: 0 1 128px; }   /* room for "AoA" beside the GEAR DN placard */
   .fo-lab .ui-lab__strip > .ui-bezel.fo-trace,
   .fo-lab .ui-lab__strip > .ui-bezel.fo-navd { flex: 1 1 180px; }
   .ui-lab__strip > .fo-cfg { max-width: none; flex-basis: 100%; }

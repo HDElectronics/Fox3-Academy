@@ -363,7 +363,8 @@ export class CameraRig {
     if (!n) return 0;
     out.divideScalar(n);
     const cam = this.stage.camera;
-    const vf = (cam.fov * Math.PI) / 180;
+    // The field actually on screen: camera.fov narrowed by the Stage's wide-viewport zoom.
+    const vf = (cam.getEffectiveFOV() * Math.PI) / 180;
     const hf = 2 * Math.atan(Math.tan(vf / 2) * cam.aspect);
     const minDist = this.groupMin / Math.sin(Math.min(vf, hf) / 2);
     if (this.groupFit === 'viewport') {

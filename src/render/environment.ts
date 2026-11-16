@@ -1,85 +1,116 @@
 /**
- * Environment: a hazy high-altitude day. Ultramarine zenith fading to pale haze at the horizon, a sun
- * glow, a desaturated sea or land surface at altitude 0 with a faint 10 km grid and distance haze,
- * an optional sparse cloud layer, and the lights for flat-shaded models. Colours come from tokens.
+ * Environment: a clear high-altitude day. A deep-blue zenith over a bright warm-white horizon band with a sun disc
+ * and glow and a few high cirrus streaks; a stylised earth far below (sea with a coastline and sun glint, or land:
+ * a field patchwork with woods and lakes) under a faint km grid; a broken cumulus deck that shadows the ground;
+ * altitude-aware aerial perspective that fades everything into the horizon colour. One sun (directional) plus a
+ * hemisphere fill and a small PMREM of the same sky light every model, so jets have a sky to reflect.
+ *
+ * Shading lives in atmosphere.ts and is shared with the attack terrain. All values are drawing choices.
  */
 import {
-  BackSide, Color, DirectionalLight, HemisphereLight, Mesh, PlaneGeometry, ShaderMaterial, SphereGeometry, Vector3,
+  BackSide, BufferGeometry, Color, DirectionalLight, DoubleSide, Float32BufferAttribute, HemisphereLight, Mesh,
+  MeshStandardMaterial, PMREMGenerator, Scene, ShaderMaterial, SphereGeometry, Vector3, type WebGLRenderTarget,
 } from 'three';
 import type { Stage } from './stage';
 import { FRAG_END, FRAG_PRELUDE, ORDER, VERT_END, VERT_PRELUDE } from './shared';
+import { createAtmosphereUniforms, patchSurface, W_ATMOS, W_CLOUD, W_NOISE, type AtmosphereUniforms } from './atmosphere';
 
 export interface EnvironmentOptions {
-  /** 'sea' (default) or muted 'land'. */
+  /** 'sea' (default: open water with a coastline) or 'land' (fields, woods and lakes). */
   surface?: 'sea' | 'land';
   /** Faint km grid on the surface. Default true. */
   grid?: boolean;
   /** Grid spacing in km. Default 10 (every fifth line slightly stronger). */
   gridKm?: number;
-  /** Sparse cloud layer. Default false. */
+  /** Broken cumulus deck. Default true (2200 m, coverage 0.3); false for none. */
   clouds?: boolean | CloudOptions;
+  /** High cirrus streaks painted on the sky. Default true. */
+  cirrus?: boolean;
   /** Sun azimuth, degrees clockwise from north. Default 140. */
   sunAzimuthDeg?: number;
-  /** Sun elevation, degrees. Default 48. */
+  /** Sun elevation, degrees. Default 40. */
   sunElevationDeg?: number;
   /** Sea-level visibility scale (km) at which haze reaches ~63 %; thinner with altitude. Default 130. */
   hazeKm?: number;
 }
 
 export interface CloudOptions {
-  /** Cloud-layer altitude in metres. Default 2400. */
+  /** Cloud-deck altitude in metres. Default 2200. */
   altitudeM?: number;
-  /** 0..1, default 0.32. */
+  /** 0..1, default 0.3. */
   coverage?: number;
+  /** How much the deck's shadow darkens the ground, 0..1. Default 0.42. */
+  shadow?: number;
 }
 
-const NOISE = /* glsl */ `
-float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-float vnoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x), mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+/** Disc in the xz plane, rings growing geometrically from `inner` to `radius` (km): dense near the eye, cheap far out. */
+export function polarDisc(radius: number, inner: number, rings: number, segments: number): BufferGeometry {
+  const pos: number[] = [0, 0, 0], nrm: number[] = [0, 1, 0], idx: number[] = [];
+  const k = Math.pow(radius / inner, 1 / (rings - 1));
+  for (let r = 0; r < rings; r++) {
+    const rad = inner * Math.pow(k, r);
+    for (let s = 0; s < segments; s++) {
+      const a = (s / segments) * Math.PI * 2;
+      pos.push(Math.cos(a) * rad, 0, Math.sin(a) * rad);
+      nrm.push(0, 1, 0);
+    }
+  }
+  const at = (r: number, s: number) => 1 + r * segments + (s % segments);
+  for (let s = 0; s < segments; s++) idx.push(0, at(0, s + 1), at(0, s));
+  for (let r = 0; r < rings - 1; r++) for (let s = 0; s < segments; s++) {
+    const a = at(r, s), b = at(r, s + 1), c = at(r + 1, s), d = at(r + 1, s + 1);
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new Float32BufferAttribute(nrm, 3));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
 }
-float fbm(vec2 p) {
-  float a = 0.5, s = 0.0;
-  for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(17.1, 9.2); a *= 0.5; }
-  return s;
-}`;
 
 const skyVert = /* glsl */ `
 varying vec3 vDir;
 void main() {
   vDir = position;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_Position = projectionMatrix * mv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
 const skyFrag = /* glsl */ `
-uniform vec3 uTop;
-uniform vec3 uHorizon;
-uniform vec3 uHaze;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform vec3 uBelow;
+${W_NOISE}
+${W_ATMOS}
+uniform float uCirrus;
+uniform float uSunDisc;
+uniform vec3 uEnvGround;
 varying vec3 vDir;
+float wCirrus(vec3 d) {
+  if (d.y < 0.012) return 0.0;
+  vec2 q = d.xz / (d.y + 0.06) * 5.0;
+  q = mat2(0.87, 0.49, -0.49, 0.87) * q;
+  float streak = wFbm5(vec2(q.x * 0.3, q.y * 1.9) + 3.0);
+  float mask = wFbm3(q * 0.11 + 9.0);
+  return smoothstep(0.52, 0.82, streak) * smoothstep(0.5, 0.72, mask) * smoothstep(0.012, 0.16, d.y);
+}
 void main() {
   vec3 d = normalize(vDir);
-  float h = d.y;
-  vec3 col;
-  if (h >= 0.0) {
-    float k = pow(clamp(h, 0.0, 1.0), 0.42);
-    col = mix(uHorizon, uTop, smoothstep(0.0, 1.0, k));
-    col = mix(col, uHaze, exp(-h * 22.0) * 0.55);
-  } else {
-    col = mix(uHaze, uBelow, clamp(-h * 3.0, 0.0, 1.0));
+  vec3 col = atmoSky(d);
+#ifdef ENV_CAPTURE
+  // Lighting capture: the ground below (lit albedo) fading into the haze toward the horizon.
+  if (d.y < 0.0) col = mix(uEnvGround, col, pow(1.0 - min(-d.y * 1.4, 1.0), 4.0));
+#else
+  if (uCirrus > 0.0) {
+    float c = wCirrus(d) * uCirrus;
+    col = mix(col, uHorizon * 1.04 + atmoGlow(d) * 1.5, c * 0.32);
   }
-  float s = max(dot(d, uSunDir), 0.0);
-  col += uSunColor * (smoothstep(0.99965, 0.99985, s) * 0.9 + pow(s, 90.0) * 0.28 + pow(s, 9.0) * 0.07);
+  float s = dot(d, uSunDir);
+  col += uSunGlow * (smoothstep(0.99990, 0.99995, s) * uSunDisc + pow(max(s, 0.0), 900.0) * 0.6);
+#endif
   gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
 
-const groundVert = /* glsl */ `
+const surfaceVert = /* glsl */ `
 ${VERT_PRELUDE}
 varying vec3 vWorld;
 void main() {
@@ -89,99 +120,56 @@ void main() {
   ${VERT_END}
 }`;
 
-const groundFrag = /* glsl */ `
-${FRAG_PRELUDE}
-uniform vec3 uGround;
-uniform vec3 uHaze;
-uniform vec3 uGrid;
-uniform vec3 uCam;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform float uHazeKm;
-uniform float uGridKm;
-uniform float uGridAlpha;
-uniform float uSea;
-varying vec3 vWorld;
-${NOISE}
-float gridLine(vec2 p, float spacing) {
-  vec2 q = p / spacing;
-  vec2 fw = max(fwidth(q), vec2(1e-5));
-  vec2 g = abs(fract(q - 0.5) - 0.5) / fw;
-  float l = 1.0 - min(min(g.x, g.y), 1.0);
-  float lod = clamp(1.0 - max(fw.x, fw.y) * 3.0, 0.0, 1.0); // fade out when lines crowd (moire)
-  return l * lod;
-}
-void main() {
-  vec2 p = vWorld.xz;
-  vec3 col = uGround;
-  if (uSea > 0.5) {
-    float n = fbm(p * 0.018) * 0.6 + fbm(p * 0.11) * 0.4;
-    col *= 0.9 + 0.2 * n;
-  } else {
-    float n = fbm(p * 0.012);
-    float m = fbm(p * 0.07 + 3.0);
-    col *= 0.78 + 0.34 * n;
-    col = mix(col, col * vec3(1.05, 1.02, 0.9), smoothstep(0.45, 0.7, m) * 0.5);
-  }
-  vec3 toCam = uCam - vWorld;
-  float dist = length(toCam);
-  vec3 v = toCam / max(dist, 1e-4);
-  // Sun glint / diffuse brightening toward the sun.
-  vec3 hv = normalize(v + uSunDir);
-  float spec = pow(max(hv.y, 0.0), uSea > 0.5 ? 180.0 : 30.0);
-  col += uSunColor * spec * (uSea > 0.5 ? 0.22 : 0.06);
-  float grid = gridLine(p, uGridKm) * 0.45 + gridLine(p, uGridKm * 5.0) * 0.55;
-  col = mix(col, uGrid, grid * uGridAlpha);
-  // Haze thins with altitude (scale height ~8 km): integrate density along the ray to the surface.
-  float hc = max(uCam.y, 0.001);
-  float od = dist * (8.0 / hc) * (1.0 - exp(-hc / 8.0));
-  float fog = 1.0 - exp(-pow(od / uHazeKm, 1.15));
-  // Thicker haze near the horizon (grazing view).
-  fog = max(fog, smoothstep(0.12, 0.0, v.y) * 0.55 * min(1.0, dist / 40.0));
-  col = mix(col, uHaze, clamp(fog, 0.0, 1.0));
-  gl_FragColor = vec4(col, 1.0);
-  ${FRAG_END}
-}`;
-
-const cloudVert = groundVert;
 const cloudFrag = /* glsl */ `
 ${FRAG_PRELUDE}
-uniform vec3 uCam;
-uniform vec3 uTopColor;
-uniform vec3 uBaseColor;
-uniform vec3 uHaze;
-uniform float uCoverage;
-uniform float uHazeKm;
-uniform float uClock;
+${W_NOISE}
+${W_ATMOS}
+${W_CLOUD}
+uniform vec3 uCloudLit;
+uniform vec3 uCloudDark;
 varying vec3 vWorld;
-${NOISE}
 void main() {
-  vec2 p = vWorld.xz + vec2(uClock * 0.004, uClock * 0.002);
-  float n = fbm(p * 0.09) * 0.65 + fbm(p * 0.33 + 7.0) * 0.35;
-  float thr = 1.0 - uCoverage;
-  float a = smoothstep(thr, thr + 0.16, n);
-  vec3 toCam = uCam - vWorld;
-  float dist = length(toCam);
-  a *= 1.0 - smoothstep(180.0, 280.0, dist);
-  if (a < 0.1) discard;
-  float lit = smoothstep(thr, thr + 0.35, n);
-  vec3 col = uCam.y > vWorld.y ? mix(uBaseColor, uTopColor, 0.55 + 0.45 * lit) : mix(uBaseColor * 0.86, uBaseColor, lit);
-  float hc = max(uCam.y, vWorld.y + 0.001);
-  float h0 = min(uCam.y, vWorld.y);
-  float od = dist * exp(-h0 / 8.0) * (8.0 / max(hc - h0, 0.001)) * (1.0 - exp(-max(hc - h0, 0.001) / 8.0));
-  float fog = 1.0 - exp(-pow(od / uHazeKm, 1.15));
-  col = mix(col, uHaze, fog * 0.9);
-  gl_FragColor = vec4(col, a * 0.92);
+  vec2 p = vWorld.xz;
+  float dist = length(cameraPosition - vWorld);
+  float fade = smoothstep(0.4, 2.0, dist) * (1.0 - smoothstep(200.0, 290.0, dist));
+  vec2 q = wCloudQ(p);
+  float cb = wCloudBase(q);
+  // Clear sky: the puff detail adds at most 0.2, so skip it early.
+  if (fade <= 0.0 || cb + 0.2 < wCloudThr()) discard;
+  float n = cb + wFbm3(q * 0.55 + 7.0) * 0.2;
+  // Crisper cauliflower edges on the near clouds.
+  float cNear = 1.0 - smoothstep(20.0, 45.0, dist);
+  if (cNear > 0.0) n += ((wNoise(q * 2.4 + 3.0) - 0.5) * 0.06 + (wNoise(q * 6.5 + 1.0) - 0.5) * 0.035) * cNear;
+  float th = wCloudThr();
+  float a = smoothstep(th, th + mix(0.06, 0.035, cNear), n) * fade;
+  if (a < 0.02) discard;
+  // Sun side of each puff brighter, lee side in the blue-grey shade; thick cores read white from above.
+  float ns = wCloudField(p + normalize(uSunDir.xz + 1e-4) * 0.7);
+  float lit = clamp(0.58 + (n - ns) * 8.0, 0.0, 1.0);
+  float thick = smoothstep(th, th + 0.2, n);
+  vec3 top = mix(uCloudDark, uCloudLit, clamp(lit * 0.75 + thick * 0.4, 0.0, 1.0));
+  vec3 base = mix(uCloudDark, uCloudLit * 0.7, (1.0 - thick) * 0.6 + lit * 0.15);
+  vec3 col = cameraPosition.y > vWorld.y ? top : base;
+  col = atmoApply(col, cameraPosition, vWorld);
+  gl_FragColor = vec4(col, a * 0.94);
   ${FRAG_END}
 }`;
 
 export class Environment {
   readonly sunDirection = new Vector3();
+  /** Shared world-shader uniforms (sky, haze, clouds, land colours); pass to TerrainMesh so it matches. */
+  readonly atmosphere: AtmosphereUniforms;
   readonly sky: Mesh<SphereGeometry, ShaderMaterial>;
-  readonly ground: Mesh<PlaneGeometry, ShaderMaterial>;
-  readonly clouds: Mesh<PlaneGeometry, ShaderMaterial>;
+  readonly ground: Mesh<BufferGeometry, MeshStandardMaterial>;
+  readonly clouds: Mesh<BufferGeometry, ShaderMaterial>;
   readonly sun: DirectionalLight;
   readonly hemi: HemisphereLight;
+  private readonly grid: { uGridColor: { value: Color }; uGridKm: { value: number }; uGridAlpha: { value: number } };
+  private readonly capture: Scene;
+  private readonly captureSky: Mesh<SphereGeometry, ShaderMaterial>;
+  private pmrem: PMREMGenerator | null = null;
+  private envMap: WebGLRenderTarget | null = null;
+  private surface: 'sea' | 'land';
   private off: () => void;
   private stage: Stage;
 
@@ -189,100 +177,116 @@ export class Environment {
     this.stage = stage;
     const p = stage.palette;
     const az = ((opts.sunAzimuthDeg ?? 140) * Math.PI) / 180;
-    const el = ((opts.sunElevationDeg ?? 48) * Math.PI) / 180;
+    const el = ((opts.sunElevationDeg ?? 40) * Math.PI) / 180;
     this.sunDirection.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)).normalize();
+    const atmo = this.atmosphere = createAtmosphereUniforms(p, this.sunDirection, stage.shared.uClock, opts.hazeKm ?? 130);
+    this.surface = opts.surface ?? 'sea';
+    atmo.uLandMode.value = this.surface === 'land' ? 1 : 0;
 
     // Sky dome (follows the camera; drawn first, no depth).
-    this.sky = new Mesh(
-      new SphereGeometry(1500, 48, 24),
-      new ShaderMaterial({
-        uniforms: {
-          uTop: { value: p.skyTop.clone() },
-          uHorizon: { value: p.skyHorizon.clone().lerp(p.skyTop, 0.12) },
-          uHaze: { value: p.haze.clone() },
-          uBelow: { value: p.haze.clone().lerp(p.earth, 0.25) },
-          uSunDir: { value: this.sunDirection },
-          uSunColor: { value: p.sun.clone() },
-        },
-        vertexShader: skyVert, fragmentShader: skyFrag,
-        side: BackSide, depthWrite: false, depthTest: false, toneMapped: false,
-      }),
-    );
+    const skyMaterial = (capture: boolean) => new ShaderMaterial({
+      uniforms: { ...atmo, uCirrus: { value: opts.cirrus === false ? 0 : 1 }, uSunDisc: { value: 9 }, uEnvGround: { value: new Color() } },
+      vertexShader: skyVert, fragmentShader: skyFrag, defines: capture ? { ENV_CAPTURE: '' } : {},
+      side: BackSide, depthWrite: false, depthTest: false,
+    });
+    this.sky = new Mesh(new SphereGeometry(1500, 48, 24), skyMaterial(false));
     this.sky.renderOrder = ORDER.sky;
     this.sky.frustumCulled = false;
     stage.scene.add(this.sky);
 
-    // Surface at altitude 0.
-    const surface = opts.surface ?? 'sea';
-    this.ground = new Mesh(
-      new PlaneGeometry(4000, 4000, 1, 1).rotateX(-Math.PI / 2),
-      new ShaderMaterial({
-        uniforms: {
-          uGround: { value: (surface === 'sea' ? p.sea : p.earth).clone() },
-          uHaze: { value: p.haze.clone() },
-          uGrid: { value: p.skyHorizon.clone().lerp(p.missile, 0.4) },
-          uCam: { value: new Vector3() },
-          uSunDir: { value: this.sunDirection },
-          uSunColor: { value: p.sun.clone() },
-          uHazeKm: { value: opts.hazeKm ?? 130 },
-          uGridKm: { value: opts.gridKm ?? 10 },
-          uGridAlpha: { value: opts.grid === false ? 0 : 0.13 },
-          uSea: { value: surface === 'sea' ? 1 : 0 },
-        },
-        vertexShader: groundVert, fragmentShader: groundFrag, toneMapped: false,
-      }),
-    );
+    // Surface at altitude 0: lit like every other model, procedural albedo and haze (atmosphere.ts).
+    this.grid = {
+      uGridColor: { value: p.horizon.clone().lerp(p.missile, 0.5) },
+      uGridKm: { value: opts.gridKm ?? 10 },
+      uGridAlpha: { value: opts.grid === false ? 0 : GRID_ALPHA },
+    };
+    const groundMat = new MeshStandardMaterial({ roughness: 0.96, metalness: 0 });
+    patchSurface(groundMat, { kind: 'ground', atmosphere: atmo, grid: this.grid });
+    this.ground = new Mesh(polarDisc(2000, 0.05, 26, 48), groundMat);
     this.ground.renderOrder = ORDER.ground;
     this.ground.frustumCulled = false;
     stage.scene.add(this.ground);
 
-    // Clouds.
+    // Cumulus deck.
     this.clouds = new Mesh(
-      new PlaneGeometry(600, 600, 1, 1).rotateX(-Math.PI / 2),
+      polarDisc(300, 0.05, 20, 48),
       new ShaderMaterial({
         uniforms: {
-          uCam: { value: new Vector3() },
-          uTopColor: { value: p.missile.clone().lerp(p.sun, 0.3) },
-          uBaseColor: { value: p.skyHorizon.clone().lerp(p.smoke, 0.4) },
-          uHaze: { value: p.haze.clone() },
-          uCoverage: { value: 0.32 },
-          uHazeKm: { value: opts.hazeKm ?? 130 },
-          uClock: stage.shared.uClock,
+          ...atmo,
+          uCloudLit: { value: p.cloudLit.clone().multiply(p.sunlight).multiplyScalar(1.08) },
+          uCloudDark: { value: p.cloudShade.clone() },
         },
-        vertexShader: cloudVert, fragmentShader: cloudFrag,
-        transparent: true, depthWrite: true, side: 2 /* DoubleSide */, toneMapped: false,
+        vertexShader: surfaceVert, fragmentShader: cloudFrag,
+        transparent: true, depthWrite: false, side: DoubleSide,
       }),
     );
     this.clouds.renderOrder = ORDER.clouds;
     this.clouds.frustumCulled = false;
     this.clouds.visible = false;
     stage.scene.add(this.clouds);
-    this.setClouds(opts.clouds ?? false);
+    this.setClouds(opts.clouds ?? true);
 
-    // Lights for flat-shaded models.
-    this.hemi = new HemisphereLight(p.skyHorizon.clone().lerp(p.skyTop, 0.35), p.earth.clone(), 1.35);
-    this.sun = new DirectionalLight(p.sun.clone(), 2.3);
+    // One sun plus a soft sky fill; the PMREM below adds the sky's light and reflections.
+    this.hemi = new HemisphereLight(p.skyMid.clone().lerp(p.horizon, 0.4), p.fieldB.clone().multiplyScalar(0.6), HEMI_INTENSITY);
+    this.sun = new DirectionalLight(p.sunlight.clone(), SUN_INTENSITY);
     this.sun.position.copy(this.sunDirection);
     stage.scene.add(this.hemi, this.sun, this.sun.target);
+
+    this.capture = new Scene();
+    this.captureSky = new Mesh(new SphereGeometry(50, 32, 16), skyMaterial(true));
+    this.capture.add(this.captureSky);
+    this.updateEnvMap();
+    // A restored WebGL context comes back with an empty environment map: capture it again.
+    stage.canvas.addEventListener('webglcontextrestored', this.onRestored);
 
     this.off = stage.onFrame(() => this.update(), { priority: 400, always: true });
   }
 
-  setSurface(s: 'sea' | 'land'): void {
+  private readonly onRestored = () => {
+    // The old generator and map died with the lost context; disposing them would touch dead GL objects.
+    this.pmrem = null;
+    this.envMap = null;
+    this.updateEnvMap();
+  };
+
+  /** Re-capture the sky (and the ground colour below it) into the scene's environment map. */
+  private updateEnvMap(): void {
     const p = this.stage.palette;
-    const u = this.ground.material.uniforms;
-    (u.uGround.value as Color).copy(s === 'sea' ? p.sea : p.earth);
-    u.uSea.value = s === 'sea' ? 1 : 0;
+    const below = this.surface === 'land'
+      ? p.fieldB.clone().lerp(p.forest, 0.3)
+      : p.seaDeep.clone().lerp(p.fieldB, 0.3);
+    (this.captureSky.material.uniforms.uEnvGround.value as Color).copy(below).multiplyScalar(0.9).lerp(p.airHaze, 0.25);
+    try {
+      this.pmrem ??= new PMREMGenerator(this.stage.renderer);
+      const rt = this.pmrem.fromScene(this.capture, 0, 0.1, 100, { size: 64 });
+      this.envMap?.dispose();
+      this.envMap = rt;
+      this.stage.scene.environment = rt.texture;
+      this.stage.scene.environmentIntensity = ENV_INTENSITY;
+    } catch (e) {
+      // No float render targets: models keep the sun and hemisphere light.
+      console.warn('render: sky environment map unavailable', e);
+    }
   }
 
-  setGrid(on: boolean): void { this.ground.material.uniforms.uGridAlpha.value = on ? 0.13 : 0; }
+  setSurface(s: 'sea' | 'land'): void {
+    if (s === this.surface) return;
+    this.surface = s;
+    this.atmosphere.uLandMode.value = s === 'land' ? 1 : 0;
+    this.updateEnvMap();
+  }
+
+  setGrid(on: boolean): void { this.grid.uGridAlpha.value = on ? GRID_ALPHA : 0; }
 
   setClouds(c: boolean | CloudOptions): void {
-    if (!c) { this.clouds.visible = false; return; }
+    const a = this.atmosphere;
+    if (!c) { this.clouds.visible = false; a.uCloudCover.value = 0; return; }
     const o = c === true ? {} : c;
     this.clouds.visible = true;
-    this.clouds.position.y = (o.altitudeM ?? 2400) / 1000;
-    this.clouds.material.uniforms.uCoverage.value = Math.min(1, Math.max(0, o.coverage ?? 0.32));
+    a.uCloudAlt.value = (o.altitudeM ?? 2200) / 1000;
+    a.uCloudCover.value = Math.min(1, Math.max(0, o.coverage ?? 0.3));
+    a.uCloudShadow.value = Math.min(1, Math.max(0, o.shadow ?? 0.42));
+    this.clouds.position.y = a.uCloudAlt.value;
   }
 
   /** Follow the camera (called by the Stage every frame). */
@@ -290,15 +294,22 @@ export class Environment {
     const cam = this.stage.camera.position;
     this.sky.position.copy(cam);
     this.ground.position.set(cam.x, 0, cam.z);
-    (this.ground.material.uniforms.uCam.value as Vector3).copy(cam);
     this.clouds.position.x = cam.x; this.clouds.position.z = cam.z;
-    (this.clouds.material.uniforms.uCam.value as Vector3).copy(cam);
   }
 
   dispose(): void {
     this.off();
-    for (const m of [this.sky, this.ground, this.clouds]) { m.removeFromParent(); m.geometry.dispose(); m.material.dispose(); }
+    this.stage.canvas.removeEventListener('webglcontextrestored', this.onRestored);
+    for (const m of [this.sky, this.ground, this.clouds, this.captureSky]) { m.removeFromParent(); m.geometry.dispose(); m.material.dispose(); }
+    if (this.stage.scene.environment === this.envMap?.texture) this.stage.scene.environment = null;
+    this.envMap?.dispose(); this.envMap = null;
+    this.pmrem?.dispose(); this.pmrem = null;
     this.hemi.removeFromParent(); this.sun.removeFromParent(); this.sun.target.removeFromParent();
     this.sun.dispose(); this.hemi.dispose();
   }
 }
+
+const GRID_ALPHA = 0.16;
+const SUN_INTENSITY = 3.0;
+const HEMI_INTENSITY = 0.35;
+const ENV_INTENSITY = 0.9;

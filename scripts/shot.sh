@@ -3,15 +3,17 @@
 #   scripts/shot.sh '/#/tws' .shots/tws.png 1440 900 5000
 #   scripts/shot.sh '/sandbox/render.html' .shots/render.png
 # Needs the dev server on :5190 (starts one if missing). Prints browser console messages.
+# SHOT_PORT=<port> uses another port, so parallel worktrees each shoot their own checkout.
 # To log from a page for this script, use console.error / console.warn / console.log (all captured).
 set -u
+PORT=${SHOT_PORT:-5190}
 URLPATH=${1:-/}; OUT=${2:-.shots/shot.png}; W=${3:-1440}; H=${4:-900}; WAIT=${5:-5000}
 cd "$(dirname "$0")/.."
 [[ "$OUT" = /* ]] || OUT="$PWD/$OUT"
 mkdir -p "$(dirname "$OUT")"
-if ! curl -s -o /dev/null http://localhost:5190/; then
-  (npx vite --port 5190 --strictPort > /tmp/fox3academy-vite.log 2>&1 &)
-  for i in {1..40}; do curl -s -o /dev/null http://localhost:5190/ && break; sleep 0.25; done
+if ! curl -s -o /dev/null http://localhost:$PORT/; then
+  (npx vite --port $PORT --strictPort > /tmp/fox3academy-vite-$PORT.log 2>&1 &)
+  for i in {1..40}; do curl -s -o /dev/null http://localhost:$PORT/ && break; sleep 0.25; done
 fi
 # Headless Chrome lays out at >= 500 CSS px. For phone widths, host the page in an iframe of the real
 # width and crop the screenshot afterwards.
@@ -27,7 +29,7 @@ rm -f "$OUT"
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --user-data-dir="$PROFILE" \
   --no-first-run --no-default-browser-check --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist \
   --hide-scrollbars --window-size=$W,$H --virtual-time-budget=$WAIT --enable-logging=stderr --v=0 \
-  --screenshot="$OUT" "http://localhost:5190$TARGET" > "$LOG" 2>&1 &
+  --screenshot="$OUT" "http://localhost:$PORT$TARGET" > "$LOG" 2>&1 &
 PID=$!
 LIMIT=$(( WAIT / 1000 + 25 ))
 for i in $(seq 1 $(( LIMIT * 4 ))); do

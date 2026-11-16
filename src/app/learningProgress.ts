@@ -1,9 +1,13 @@
-/** Saved lesson completion shared by Learn and the fleet progress overview. */
+/**
+ * Saved completion keys for the pages that award one flag per jet (the BVR lessons, Merge & guns, the Sortie)
+ * and the Reference visit. The path order lives in lessonPath.ts; per-page goals in src/pages/progress/model.ts.
+ */
 import type { FighterId } from '../data/types';
 import { FIGHTER_ORDER } from '../data/aircraft';
 
 export type LessonRoute = 'radar' | 'tws' | 'missiles' | 'defense' | 'rwr' | 'merge' | 'sortie' | 'reference';
-export const LESSON_PATH: LessonRoute[] = ['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'sortie'];
+/** Pages that write one '<route>:<aircraft>:done' flag, in path order (the Sortie is the Fly hand-off). */
+export const SINGLE_FLAG_ROUTES: readonly LessonRoute[] = ['radar', 'tws', 'missiles', 'defense', 'rwr', 'merge', 'sortie'];
 
 /** Progress keys the lesson pages may write: '<route>:<aircraft>:done' (and the page-folder name as a fallback). */
 const ALT_KEY: Partial<Record<LessonRoute, string>> = { radar: 'radar-lab', missiles: 'missile-lab', rwr: 'rwr-trainer' };
@@ -23,8 +27,3 @@ export function isDone(route: LessonRoute, id: FighterId, get: ProgressReader): 
 /** Other jets that have this lesson done. */
 export const doneElsewhere = (route: LessonRoute, id: FighterId, get: ProgressReader): FighterId[] =>
   FIGHTER_ORDER.filter(o => o !== id && isDone(route, o, get));
-
-/** First lesson in the path not done for this jet; null when all are done. */
-export function nextLesson(id: FighterId, get: ProgressReader): LessonRoute | null {
-  return LESSON_PATH.find(r => !isDone(r, id, get)) ?? null;
-}

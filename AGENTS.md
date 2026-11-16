@@ -102,8 +102,9 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   the tuning workflow to refit it and regenerate the DLZ tables. Keep it gameplay-level (rule 1).
 - **Add a page:** folder in `src/pages/<name>/` default-exporting a `PageFactory` (`src/app/page.ts`), add a
   route in `src/app/routes.ts`, support `?ac=<id>` and `?shot=<state>` for screenshots, write progress with
-  `ctx.app.setProgress('<route>:<aircraft>:done', true)`. A lesson page also gets a `LESSON_LINKS` entry with its
-  Learn group in `src/app/navigation.ts`; the bar shows it only to jets the route accepts.
+  `ctx.app.setProgress('<route>:<aircraft>:done', true)`. A lesson page also gets a `LESSON_LINKS` entry (its
+  place in the lesson path, label, title, group) in `src/app/lessonPath.ts` and its goals in `stepGoals`
+  (`src/pages/progress/model.ts`); the Learn bar, the Learn home and Progress show it only to jets the route accepts.
 - **Change a radar rule:** `src/sim/radar.ts` (`radarRules`, scan, detection, TWS, STT), then
   `src/sim/sensors.test.ts`. Launch rules are in `launch.ts`, the display model in `picture.ts`.
 - **Publish:** merging to `main` deploys `dist-web/` to Cloudflare Pages (https://fox3-academy.pages.dev);
@@ -132,7 +133,8 @@ scripts/shot.sh '/#/tws?ac=su27' .shots/tws-su27.png 1440 900 6000   # path, out
 scripts/shot.sh '/#/tws?ac=f15c' .shots/tws-820.png 820 1180 6000   # tablet / narrow window layout
 ```
 
-It starts a dev server on :5190 if none is running, takes a headless-Chrome screenshot (WebGL works via
+It starts a dev server on :5190 if none is running (`SHOT_PORT=<port>` picks another port, one per parallel
+worktree), takes a headless-Chrome screenshot (WebGL works via
 SwiftShader) and prints the page's console output. View the PNG. Check at least su27 (Russian skin, metric,
 no Fox 3), f15c (US skin, multi-target) and m2000c or f14b (edge cases), at 1440 and 820 wide.
 The app is desktop only: phones (touch-only, short screen side under 600 px) get the panel in

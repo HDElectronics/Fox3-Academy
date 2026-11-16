@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCasScenario, bearingDeg, type CasLessonId, type CasScenario } from './scenario';
 import { lineText, makeNineLine, markFor } from './nineLine';
 import { JtacController, type AimState, type JtacAction } from './jtac';
-import { A10cHotas, LONG_PRESS_S, type HotasHost, type Markpoint } from './a10cHotas';
+import { A10cHotas, GUN_ROUNDS_PER_S, LONG_PRESS_S, type HotasHost, type Markpoint } from './a10cHotas';
 import { A10cCdu } from './a10cCdu';
 import { a10cAim, casSnap } from './snap';
 import { A10C_LESSON_ORDER, CAS_LESSON_ORDER, lessonOrder, lessonsFor, progressKey, LESSONS, type CasSnap } from './lessons';
@@ -206,6 +206,17 @@ describe('digital 9-line', () => {
     expect(hotas.slaveCount).toBe(1);
   });
 
+  it('drops a held switch when the window loses focus, with no Short or Long action', () => {
+    let clock = 100;
+    const { hotas } = setup('digital', { now: () => clock });
+    hotas.press('coolieR'); clock += 0.4; hotas.step(0.1);
+    hotas.cancel('coolieR');
+    expect([hotas.rightPage, hotas.soi]).toEqual(['tgp', 'hud']);
+    // Back in the window an hour later: the key-up of the old press does nothing either.
+    clock += 3600; hotas.release('coolieR'); hotas.step(0.1);
+    expect([hotas.rightPage, hotas.soi]).toEqual(['tgp', 'hud']);
+  });
+
   it('times long presses on the summed sim dt without a host clock', () => {
     const { hotas } = setup('digital');
     hotas.press('coolieR'); hotas.step(0.1); hotas.release('coolieR');
@@ -360,6 +371,36 @@ describe('A-10C II held CCRP release (M p. 455-459)', () => {
     run(120, () => !hotas.holding);
     expect(hotas.holding).toBe(false);
     expect(released()).toBe(0);
+  });
+
+  it('keeps the gun in GUNS: DMS Left / Right there cycles gunsights (research §5), so the trigger never drops a bomb', () => {
+    const { sc, hotas, w } = ccrpRun('mk82');
+    hotas.setSoi('hud');
+    hotas.setMaster('GUNS');
+    expect(sc.me.ag!.selected).toBe('gau8');
+    hotas.tap('dmsR');
+    hotas.tap('dmsL');
+    expect(sc.me.ag!.selected).toBe('gau8');
+    hotas.gun();
+    expect([...w.agWeapons.values()].every(x => x.type === 'gau8')).toBe(true);
+    hotas.setMaster('CCIP');
+    hotas.tap('dmsR');
+    expect(sc.me.ag!.selected).not.toBe('gau8');
+  });
+
+  it('fires a held gun trigger at the same rate whatever the frame rate', () => {
+    const rounds = (fps: number) => {
+      const { sc, hotas } = setup('jtac-laser');
+      hotas.setMaster('GUNS');
+      const before = sc.me.ag!.stores.gau8!;
+      hotas.setTrigger(true);
+      for (let i = 0; i < fps; i++) { sc.world.step(1 / fps); hotas.step(1 / fps); }
+      hotas.setTrigger(false);
+      hotas.step(0.5);
+      return before - sc.me.ag!.stores.gau8!;
+    };
+    expect(rounds(30)).toBe(1 + GUN_ROUNDS_PER_S);
+    expect(rounds(144)).toBe(1 + GUN_ROUNDS_PER_S);
   });
 
   it('still releases rockets and CCIP bombs on the press', () => {
