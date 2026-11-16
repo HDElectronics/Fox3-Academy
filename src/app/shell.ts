@@ -51,9 +51,14 @@ export function buildShell(root: HTMLElement, app: AppStore) {
   );
   const outlet = h('main', { class: 'outlet', id: 'outlet' });
   root.replaceChildren(bar, contextNav, outlet);
+  // --shell-h: both rows (labs fit the window below it). --shell-sticky-h: the top bar alone, the part that stays on
+  // screen while a reading page scrolls (the second row scrolls away), for sticky page chrome and jump offsets.
   const syncHeight = () => {
-    const height = bar.getBoundingClientRect().height + (contextNav.hidden ? 0 : contextNav.getBoundingClientRect().height);
+    const barH = bar.getBoundingClientRect().height;
+    const height = barH + (contextNav.hidden ? 0 : contextNav.getBoundingClientRect().height);
     document.documentElement.style.setProperty('--shell-h', `${Math.ceil(height)}px`);
+    // Rounded down: sticky chrome tucks a fraction of a pixel under the bar instead of leaving a seam.
+    document.documentElement.style.setProperty('--shell-sticky-h', `${Math.floor(barH)}px`);
   };
   // The steps scroll sideways when they do not fit (narrow windows); fade the edge that hides more.
   const syncOverflow = () => {

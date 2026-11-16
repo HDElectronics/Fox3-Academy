@@ -844,6 +844,48 @@
   .ui-doc__section { scroll-margin-top: calc(var(--topbar-h) * 2); }
 }
 
+/* ---------------------------------------------------------------- doc layout with a side column (docLayout `side`)
+   The side content (a search box) and the contents share one sticky column under the top bar. --shell-sticky-h is the
+   chrome that stays on screen while the page scrolls (shell.ts). Narrow windows: the side content stays above the
+   text and the contents become one sticky row under the top bar, in the second row's paint, scrolling sideways.
+   --doc-jump-top is where a jumped-to section lands (its scroll-margin), below whatever is sticky. */
+.ui-doc--side {
+  --doc-sticky-top: var(--shell-sticky-h, var(--topbar-h));
+  --doc-jump-top: calc(var(--doc-sticky-top) + 16px);
+}
+.ui-doc--side .ui-doc__section { scroll-margin-top: var(--doc-jump-top); }
+.ui-doc__side {
+  position: sticky; top: calc(var(--doc-sticky-top) + 16px); max-height: calc(100dvh - var(--doc-sticky-top) - 32px);
+  display: grid; gap: var(--gap-2); align-content: start; min-width: 0;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--panel-line) transparent;
+}
+.ui-doc__side > .ui-doc__toc { position: static; max-height: none; overflow: visible; }
+@media (max-width: 1000px) {
+  .ui-doc--side {
+    --doc-toc-row-h: 44px;
+    --doc-jump-top: calc(var(--doc-sticky-top) + var(--doc-toc-row-h) + 12px);
+  }
+  .ui-doc__side { display: contents; }
+  .ui-doc__side > .ui-doc__toc {
+    position: sticky; top: var(--doc-sticky-top); z-index: 5; height: var(--doc-toc-row-h);
+    display: flex; align-items: center; margin-inline: -16px; padding: 0 10px;
+    background: var(--panel-2); border: 0; border-bottom: 1px solid var(--panel-line); border-radius: 0;
+  }
+  .ui-doc__side .ui-doc__toc-title { display: none; }
+  .ui-doc__side .ui-doc__toc ol {
+    flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
+    padding: 0 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  }
+  .ui-doc__side .ui-doc__toc ol::-webkit-scrollbar { display: none; }
+  .ui-doc__side .ui-doc__toc li { flex: none; }
+  .ui-doc__side .ui-doc__toc-link { white-space: nowrap; }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="both"] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
+}
+
 /* Prose: 65ch measure for running text; tables and figures may use the full column. */
 .ui-prose { font-size: 1rem; line-height: 1.62; }
 .ui-prose :is(p, ul, ol, h2, h3, h4, blockquote, .ui-callout, .ui-keyhint) { max-width: 65ch; }

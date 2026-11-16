@@ -175,17 +175,31 @@ remove the media-query listener and ResizeObserver. Layouts without `mobileTabs`
   A `--lab-strip-h` that is not a length (the Sortie debrief's `auto`) must set `--lab-strip-est` to one as well,
   or the ultra-wide cap is invalid and the lab jumps to full width (`src/styles/labStrip.test.ts` checks this).
 
-### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocHeader?, id?, class? })`
-→ `{ el, main, toc, links, go(id), destroy() }`
+### `docLayout({ title, lede?, meta?, actions?, sections?, content?, toc?, tocTitle?, tocLabel?, tocHeader?, side?, onCurrent?, id?, class? })`
+→ `{ el, main, toc, links, go(id, { smooth?, focus?, scroll? }?), current(), refresh(), destroy() }`
 
-`tocHeader` goes at the top of the contents panel under its placard (a filter box); `links` maps each
-section id to its contents button (count badges, hiding links) without querying kit markup.
+Reading page: page title, 65ch prose measure (`.ui-prose`) and a contents `nav` that marks the section in view
+(`aria-current="true"`). `sections: { id, title, content }[]` renders `<section id>` with an `h2` each and lists
+them; or pass your own `content` and `toc`. Tables, splits and bezels may use the full column width.
 
-Reading page: page title, 65ch prose measure (`.ui-prose`), a sticky contents panel on wide
-screens (a wrapped list on top ≤ 1000 px) with scroll-spy. `sections: { id, title, content }[]`
-renders `<section id>` with an `h2` each and lists them; or pass your own `content` and `toc`.
-Tables, splits and bezels may use the full column width. **Call `destroy()` in unmount** (it
-disconnects the IntersectionObserver).
+- `tocTitle` is the visible placard (default 'Contents'); `tocLabel` the nav's accessible name when the placard is
+  terse ('Reference sections'). `tocHeader` goes inside the contents panel, under its placard.
+- `side` (a search box) goes above the contents, outside the nav landmark. With it, wide screens get one sticky side
+  column under the top bar; at ≤ 1000 px the side content stays above the text and the contents become one sticky
+  row under the top bar that scrolls sideways (the current link is kept in view, the hidden edge fades). Without
+  `side`, the contents panel is sticky on wide screens and a wrapped list on top when narrow.
+- The current section is the last shown one whose top has passed the probe line: the section's CSS
+  `scroll-margin-top`, which the side layout sets to `--doc-jump-top` (the top bar's measured height,
+  `--shell-sticky-h`, plus the contents row when narrow). At the end of the page a short last section counts once
+  its heading is on screen. The rule is the pure `sectionInView(tops, probe, { height, atEnd })`.
+- `go(id)` scrolls a section under the sticky chrome, focuses its heading (`focus: false` to keep focus) and holds it
+  current until the reader scrolls on (wheel, touch, a key, a pointer, or a scroll away from where the jump came to
+  rest), so a jump near the end of the page stays marked. `scroll: false` only marks it (a screenshot pre-roll).
+- `onCurrent(id)` fires when the current section changes: sync a URL parameter from it.
+- `refresh()` after the page changed: contents links of sections with `hidden` set are hidden, and the current
+  section is recomputed. `links` maps each section id to its contents button (count badges) without querying kit
+  markup.
+- **Call `destroy()` in unmount** (it removes the scroll, resize and input listeners).
 
 ### `split({ items, columns?, stackBelow?: 480 | 620 | 760 = 480, id?, class? })` → `HTMLElement`
 Side-by-side displays (radar + RWR bezels) that stack when *their own box* is narrower than
