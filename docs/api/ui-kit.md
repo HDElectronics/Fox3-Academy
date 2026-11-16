@@ -26,6 +26,11 @@ Harness with every component in both skins: `/sandbox/ui.html?skin=ru|us&view=ki
   `button({ keepCase: true })` keeps case.
 - **`keys`** on buttons, toggles, segments, chips and tabs prints the DCS key on the cap as `<kbd>`
   and sets `aria-keyshortcuts`. It does not bind anything: bind with `bindKeys`.
+- **Text is never cut short.** A button given less than its one-line width (an equal-width grid cell, a flex
+  share with `min-width: 0`) puts its key below the legend, then breaks the legend between words; with room it
+  stays on one line. A slider too narrow for its label and readout puts the readout on a second line, and a
+  readout label wraps instead of ending in an ellipsis. Do not add `text-overflow: ellipsis` to a control or a
+  readout; `npm run check:layout` reports clipped text.
 - **Surfaces.** Components without their own background (placards, tabs, readouts, checklist, ghost
   buttons, key hints) take colours from the surface they sit on: *ground* (page background, light
   ink), *panel* (`.ui-console`, `.ui-surface`, the lab strip, modal: the cockpit paint and its ink),

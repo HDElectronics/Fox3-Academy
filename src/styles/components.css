@@ -106,6 +106,12 @@
 .ui-btn--s { --ui-cap-h: 28px; padding: 0 9px; font-size: var(--fs-xs); gap: 6px; }
 .ui-btn--l { --ui-cap-h: 44px; padding: 0 20px; font-size: var(--fs-m); letter-spacing: 0.08em; }
 .ui-btn__legend { display: inline-flex; align-items: center; gap: 6px; }
+/* A cap given less than its one-line width (an equal-width grid cell, a flex share with min-width: 0) wraps
+   instead of clipping: the key hint drops below the legend, and a legend still too wide breaks between words.
+   A cap with room stays on one line. Placed after the sizes so their gap does not reset the row gap. */
+.ui-btn { flex-wrap: wrap; row-gap: 2px; white-space: normal; text-align: center; }
+.ui-btn > .ui-btn__legend, .ui-btn > .ui-btn__keys { margin-block: 2px; }
+.ui-btn__keys { white-space: nowrap; }
 
 /* Lamp strip: an unlit bar under the legend of latching caps; lit when pressed / selected. */
 .ui-btn.has-lamp, .ui-seg__opt { padding-bottom: 6px; }
@@ -208,7 +214,9 @@
 
 /* ---------------------------------------------------------------- slider + digital readout */
 .ui-slider { display: grid; gap: 4px; min-width: 0; }
-.ui-slider__head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-2); }
+/* A narrow slider puts its readout on a second line, at the right, rather than past the column edge. */
+.ui-slider__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px var(--gap-2); }
+.ui-slider__head > .ui-slider__readout { margin-left: auto; }
 .ui-slider__readout {
   display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 0.4ch;
   min-width: calc(var(--ch, 4) * 1ch + 4ch); padding: 2px 7px;
@@ -512,9 +520,10 @@
   padding: 5px 0; border-bottom: 1px solid var(--s-rule); min-width: 0;
 }
 .ui-readouts--panel > .ui-readout:last-child { border-bottom: 0; }
+/* A label too long for its row wraps between words; it is never cut short. */
 .ui-readout__label {
   font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--s-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--s-label);
 }
 .ui-readout__value {
   margin: 0; display: inline-flex; align-items: baseline; gap: 0.35ch;

@@ -14,6 +14,14 @@
 - Reference → 3D models: every 3D model the app ships (jets, missiles, stores, ground units, SAM vehicles) at true
   size on a scale grid, with camera presets, a turntable, clay and wire shadings, a side-by-side compare, the size
   measured from the file beside the app's own figures, the manifest caveats, and which part of the app draws it.
+- Control caps no longer cut their text when a panel gives them less than one line of room: the key hint drops
+  below the legend, and a legend still too wide breaks between words. Fixed "Lock / unlock (Enter)" in the Su-25T
+  controls (Shkval & Vikhr, CAS & JTAC), "Slower (Control)" on the Sortie fly screen and the Flare cap's count on
+  Missile defense (cut to "FLARE 6"). In the same way a readout label that does not fit wraps ("Sees a fighter" in
+  the Radar lab's scan numbers), and a narrow slider puts its readout on a second line instead of past the panel
+  edge (Missile lab flight conditions).
+- The Next and Start caps in the lesson bar show their whole label instead of ending in "...": "Next: Pattern &
+  landing" at 820 px, "Start: Targeting pod & Mavericks" for the A-10C II.
 - AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
   site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks
