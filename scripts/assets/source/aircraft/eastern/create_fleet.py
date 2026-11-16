@@ -4,7 +4,7 @@ from mathutils import Vector
 from pathlib import Path
 parser=argparse.ArgumentParser();parser.add_argument('--out',default=str(Path(__file__).parent));parser.add_argument('--only',nargs='*');parser.add_argument('--render-threads',type=int,default=3);args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 ROOT=Path(args.out)
-SPECS={'su27':('Su-27S',21.9,14.7),'su33':('Su-33',21.2,14.7),'j11a':('J-11A',21.9,14.7),'mig29s':('MiG-29S (9-13)',17.3,11.4),'su25t':('Su-25T',15.3,14.4)}
+SPECS={'su27':('Su-27S',21.9,14.7),'su33':('Su-33',21.2,14.7),'j11a':('J-11A',21.9,14.7),'mig29s':('MiG-29S (9-13)',17.3,11.4)}
 def mat(name,col,metal=0,rough=.5):
  m=bpy.data.materials.new(name);m.diffuse_color=(*col,1);m.use_nodes=True;p=m.node_tree.nodes.get('Principled BSDF');p.inputs['Base Color'].default_value=(*col,1);p.inputs['Metallic'].default_value=metal;p.inputs['Roughness'].default_value=rough;return m
 # Author longitudinal coordinate is distance aft of nose. Blender +Y nose -> glTF -Z nose.
