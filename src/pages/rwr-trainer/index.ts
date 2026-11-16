@@ -1,10 +1,12 @@
 /**
- * [OWNER: page-rwr-trainer] #/rwr: learn the selected jet's RWR at a glance, then prove it in a quiz.
- * Learn: the RWR big in the centre with a numbered anatomy guide, and a sandbox plan with draggable
+ * [OWNER: page-rwr-trainer] #/rwr: study the selected jet's RWR at a glance, then prove it in a quiz.
+ * Two modes, named Study and Quiz on the page ('Learn' is the top-bar destination, so the page does not reuse it).
+ * Study: the RWR big in the centre with a numbered anatomy guide, and a sandbox plan with draggable
  * threats. Quiz: generated pictures on the RWR alone, answered by tap, clock or choice, then the truth.
  *
- * URL params: ?mode=learn|quiz, ?ac=<FighterId> (sets the jet once, then drops the param),
- * learn: ?shot=demo|lock|sarh|fox3|busy|clear|part-<id>, ?tab=parts|cues|misreads;
+ * URL params: ?mode=learn|quiz (learn is Study; the values stay for existing links), ?ac=<FighterId> (sets the jet
+ * once, then drops the param),
+ * study: ?shot=demo|lock|sarh|fox3|busy|clear|part-<id>, ?tab=parts|cues|misreads;
  * quiz: ?diff=easy|medium|hard, ?timer=1, ?kind=<QuestionKind>, ?seed=<n>, ?shot=answer|wrong (a scripted answer,
  * not counted in the run or saved).
  */
@@ -19,6 +21,7 @@ import { type ModeController, type ModeHost, RWR_SHORT } from './common';
 import { mountLearn } from './learn';
 import { mountQuiz } from './quizView';
 
+/** The URL value: 'learn' is the Study mode. */
 type Mode = 'learn' | 'quiz';
 
 const factory: PageFactory = (): Page => {
@@ -54,7 +57,10 @@ const factory: PageFactory = (): Page => {
       });
       const modeSeg = segmented<Mode>({
         id: 'rwrt-mode', ariaLabel: 'Mode', value: current, size: 's',
-        options: [{ value: 'learn', label: 'Learn' }, { value: 'quiz', label: 'Quiz' }],
+        options: [
+          { value: 'learn', label: 'Study', title: 'Study the receiver part by part and place threats in a sandbox' },
+          { value: 'quiz', label: 'Quiz', title: 'Scored: read pictures on the receiver alone' },
+        ],
         onChange: m => switchMode(m),
       });
       const lede = h('span');

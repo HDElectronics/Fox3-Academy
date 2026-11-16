@@ -135,7 +135,7 @@ ridge in the brief. Ring sizes and altitude bands are community figures from the
 the Mission Editor.
 
 ### RWR
-Learn mode explains your jet's RWR part by part (the SPO-15 lamp panel, or the round scope on Western jets) with a
+Study mode explains your jet's RWR part by part (the SPO-15 lamp panel, or the round scope on Western jets) with a
 sandbox where you drag threats around your jet and set them to search, lock, launch or active. Quiz mode asks you
 to read the display: who is locking you, where the launch is, which jet is at 2 o'clock, and what to do now.
 
