@@ -1,0 +1,82 @@
+/* 3D models page (#/models). Tokens only. The 3D view is a review stage: the page ground, a phosphor scale grid. */
+.mdl-lab { --lab-console-w: clamp(320px, 27vw, 400px); }
+.mdl-lab .ui-lab__view { background: var(--ground); }
+.mdl-viewport .r3-stage { background: var(--ground); }
+.mdl-viewport .r3-canvas { cursor: grab; }
+.mdl-viewport .r3-canvas:active { cursor: grabbing; }
+.mdl-no3d {
+  position: absolute; inset: auto 16px 16px 16px; margin: 0; padding: 10px 12px; border-radius: var(--r-1);
+  background: var(--screen); color: var(--sym); font-family: var(--font-mono); font-size: var(--fs-s);
+}
+
+/* ---- overlays on the view */
+.mdl-plate {
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 10px 7px; max-width: 100%;
+  border: 1px solid var(--screen-line); border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--screen) 82%, transparent);
+  font-family: var(--font-mono); color: var(--sym);
+}
+.mdl-plate__name { font-size: var(--fs-s); font-weight: 700; letter-spacing: 0.03em; color: var(--sym); }
+.mdl-plate__sub { font-size: var(--fs-xs); color: color-mix(in srgb, var(--sym) 62%, var(--screen)); }
+.mdl-plate[data-state="loading"] .mdl-plate__sub { color: var(--sym-hi); }
+.mdl-plate[data-state="failed"] .mdl-plate__sub { color: var(--caution); }
+.mdl-legend {
+  padding: 3px 8px; border-radius: var(--r-1); border: 1px solid var(--screen-line);
+  background: color-mix(in srgb, var(--screen) 70%, transparent);
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: color-mix(in srgb, var(--sym) 70%, var(--screen));
+}
+/* Bracket values in the view (kit Note labels). */
+.r3-note.mdl-dim { --note-color: var(--sym-hi); }
+.r3-note.mdl-dim > span { font-size: 10.5px; letter-spacing: 0.02em; }
+
+/* ---- catalogue */
+.mdl-count { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--s-label); white-space: nowrap; }
+.mdl-list__title { margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--s-label); }
+.mdl-list {
+  position: relative; margin: -6px 0 0; padding: 2px; list-style: none; display: flex; flex-direction: column; gap: 1px;
+  max-height: min(36vh, 330px); overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--s-rule); border-radius: var(--r-1);
+  scrollbar-width: thin; scrollbar-color: var(--panel-line) transparent;
+}
+.mdl-item {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-height: 26px; padding: 4px 8px;
+  border: 1px solid transparent; border-radius: var(--r-1); color: var(--s-ink); text-decoration: none;
+  font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.25;
+}
+.mdl-item:hover { background: color-mix(in srgb, var(--s-ink) 10%, transparent); }
+.mdl-item__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdl-item__id { flex: none; color: var(--s-label); }
+/* The open model: the pressed cap of the lesson picker. */
+.mdl-item[aria-current] { background: var(--btn); color: var(--btn-on); border-color: var(--ui-cap-line); }
+.mdl-item[aria-current] .mdl-item__id { color: color-mix(in srgb, var(--btn-on) 65%, var(--btn)); }
+/* The compared model: an outlined cap. */
+.mdl-item[data-compare="true"] { border: 1px dashed var(--s-ink); }
+.mdl-list__note { margin: -4px 0 0; font-size: var(--fs-xs); line-height: 1.4; color: var(--s-label); }
+
+/* ---- compare */
+/* Long option names must not widen the native select past the panel. */
+#mdl-compare-panel .ui-select, #mdl-compare-panel .ui-select__box, #mdl-compare-panel .ui-select__input { min-width: 0; max-width: 100%; }
+#mdl-compare-panel .ui-select__input { width: 100%; text-overflow: ellipsis; }
+.mdl-compare-facts { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-mono); font-size: var(--fs-xs); }
+.mdl-compare-facts p { margin: 0; }
+.mdl-compare-facts__name { font-weight: 700; }
+.mdl-compare-facts__dims { color: var(--s-label); }
+#mdl-compare-panel .ui-console__body > .ui-btn { align-self: flex-start; }
+
+/* ---- facts */
+.mdl-facts { display: flex; flex-direction: column; gap: 10px; }
+.mdl-facts__name { margin: 0; font-family: var(--font-mono); font-size: var(--fs-s); letter-spacing: 0.03em; }
+.mdl-note { margin: 0; font-size: var(--fs-xs); line-height: 1.45; color: var(--s-label); }
+.mdl-note--warn { padding: 6px 8px; border: 1px dashed var(--s-ink); border-radius: var(--r-1); color: var(--s-ink); }
+.mdl-prose { margin: 0; font-size: var(--fs-s); line-height: 1.5; }
+.mdl-used { display: flex; flex-direction: column; gap: 4px; }
+.mdl-used__title { margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--s-label); }
+.mdl-used__list { margin: 0; padding-left: 16px; font-size: var(--fs-xs); line-height: 1.45; }
+.mdl-caveats, .mdl-refs { margin: 0; padding-left: 16px; font-size: var(--fs-xs); line-height: 1.5; }
+.mdl-caveats li, .mdl-refs li { margin-bottom: 4px; }
+.mdl-refs a { color: inherit; overflow-wrap: anywhere; }
+.mdl-refs__use { display: block; color: var(--s-label); }
+
+@media (max-width: 900px) {
+  .mdl-list { max-height: 260px; }
+}
