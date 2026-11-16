@@ -92,6 +92,11 @@ function tintable(material: ColoredMaterial): boolean {
 export interface AssetVisualOptions {
   /** Called only after attachment, and never after disposal. */
   onReady?: (visual: AssetVisual) => void;
+  /**
+   * Called once, asynchronously, when the browser has no bundled file for the id or the file fails to load, so a
+   * consumer that must say so (the 3D models page) can. Never after disposal; never in Node (tests stay offline).
+   */
+  onFail?: (visual: AssetVisual) => void;
 }
 
 export class AssetVisual extends Group {
@@ -108,10 +113,17 @@ export class AssetVisual extends Group {
     this.name = 'asset:' + assetId;
     const url = assetUrl(assetId);
     // Node-side render/model tests must remain offline. Browsers load only bundled URLs.
-    if (typeof window === 'undefined' || !url) return;
+    if (typeof window === 'undefined') return;
+    const fail = () => {
+      if (this.disposed) return;
+      try { options.onFail?.(this); } catch (error) { console.warn('Asset visual fail callback failed', error); }
+    };
+    if (!url) { if (options.onFail) void Promise.resolve().then(fail); return; }
     this.entry = acquire(assetId, url);
     void this.entry.load.then(template => {
-      if (this.disposed || !template) return;
+      if (this.disposed) return;
+      // A null template while this instance is still alive means the load failed.
+      if (!template) { fail(); return; }
       const scene = template.clone(true);
       scene.traverse(node => {
         if (!(node instanceof Mesh)) return;

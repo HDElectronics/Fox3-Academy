@@ -157,6 +157,37 @@ describe('AssetVisual ownership and optional loading', () => {
     expect(b.ready).toBe(false);
     expect(mock.load).not.toHaveBeenCalled();
   });
+
+  it('reports a failed or missing file once through onFail, never after disposal and never in node', async () => {
+    mock.load.mockRejectedValueOnce(new Error('network failed'));
+    const onFail = vi.fn(), onReady = vi.fn();
+    const a = visual({ onFail, onReady });
+    await flush();
+    expect(onFail).toHaveBeenCalledExactlyOnceWith(a);
+    expect(onReady).not.toHaveBeenCalled();
+
+    mock.url.mockReturnValueOnce(undefined);
+    const missing = vi.fn();
+    const b = visual({ onFail: missing });
+    expect(missing).not.toHaveBeenCalled(); // asynchronous, like onReady
+    await flush();
+    expect(missing).toHaveBeenCalledExactlyOnceWith(b);
+
+    const pending = deferred<{ scene: Group }>();
+    mock.load.mockReturnValueOnce(pending.promise);
+    const late = vi.fn();
+    const c = visual({ onFail: late });
+    c.dispose();
+    pending.reject(new Error('network failed'));
+    await flush();
+    expect(late).not.toHaveBeenCalled();
+
+    vi.stubGlobal('window', undefined);
+    const offline = vi.fn();
+    visual({ onFail: offline });
+    await flush();
+    expect(offline).not.toHaveBeenCalled();
+  });
 });
 
 describe('AssetVisual materials and transforms', () => {

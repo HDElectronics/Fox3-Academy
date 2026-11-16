@@ -186,12 +186,20 @@ See [asset library](../assets/README.md) for provenance, source, budgets and con
 `AssetId` covers current aircraft, missiles, non-gun A-G stores, ground units, SAM sites and SAM missiles,
 plus the loadout-only R-60 and Litening pod (`tgp`). Maverick `agm65d/h/l` resolve to the single `agm65` file through `assetFileId`. `assetUrl(id)` resolves a bundled URL; no external service is required.
 
-`new AssetVisual(id, { onReady? })` extends `Group`. `ready`, `content` and intrinsic metre `bounds`
+`new AssetVisual(id, { onReady?, onFail? })` extends `Group`. `ready`, `content` and intrinsic metre `bounds`
 become available after loading. Each consumer owns its fallback and fitting transform. `setTint(Color | null)`
 retains glass/dark detail; `setMaterial(Material | null)` borrows a full override for shadows or wrecks.
 Both work before loading. `dispose()` is idempotent and releases shared resources only after the last user;
 late completion after disposal cannot attach a model or call `onReady`. Request a Stage render on readiness
 so paused scenes refresh. Register standalone consumers for cleanup or dispose them explicitly.
+`onFail` (optional) is called once, asynchronously, when the browser has no bundled file for the id or the file
+fails to load, never after disposal and never in Node; consumers that only keep their fallback can ignore it (the
+3D models page uses it to say the file failed).
+
+`bundledAssetIds()` (`assetRegistry.ts`) lists the ids of the bundled files, sorted (aliases such as `agm65d` are not
+files). `meshStats(root)` (`assetStats.ts`) measures loaded geometry: exact bounds of every mesh vertex in `root`'s own
+frame (`bounds`, `size`: x span, y height, z length for nose-to-−z models), `triangles`, `vertices`, `meshes`; lines
+and points are skipped. Unlike `AssetVisual.bounds` (the template's node boxes) it is exact for rotated nodes.
 
 `JetMesh(id, side, palette, { onReady? })` retains its existing API and adds `usingAsset` and `dispose()`.
 Clean states use the exterior; unrigged models use the complete procedural airframe for gear/flaps/brakes.
