@@ -402,7 +402,10 @@ export function docLayout(o: DocLayoutOptions): DocLayoutHandle {
     }, { passive: true });
     bag.on(window, 'resize', () => { syncOverflow(); schedule(); }, { passive: true });
     if (list) bag.on(list, 'scroll', syncOverflow, { passive: true });
-    bag.add(() => { cancelAnimationFrame(frame); frame = 0; });
+    // Web fonts change the row's width once they load.
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) syncOverflow(); });
+    bag.add(() => { live = false; cancelAnimationFrame(frame); frame = 0; });
     const first = tocItems.find(t => shown(t.id));
     if (first) setCurrent(first.id);
     // The page appends the layout after this returns: measure once it is in the document.
