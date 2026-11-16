@@ -451,6 +451,10 @@ the whole fight using truth. This is a simplified sensor replay, without recorde
 Your kneeboard: the jet's bindings (FC3 keyboard defaults, or HOTAS function names on full-fidelity modules),
 step-by-step procedures, radar numbers, a missile table for all seventeen missiles, a comparison of all ten
 jets, your RWR's symbols and the three SAM sites (ring and altitude band), a BVR glossary, and the research sources. The quick filter searches it all.
+The Sections list stays in reach while you scroll (beside the text in a wide window, a row under the top bar in a
+narrow one), marks the section you are reading and jumps to a section on click or Enter. While the filter is on it
+shows how many matches each section holds. The address follows the section you read (`#/reference?go=missiles`),
+so a reload, Back or a copied link opens the same section.
 
 ## Keys
 

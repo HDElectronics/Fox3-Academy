@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reference: the Sections list stays in reach while you scroll. Wide windows keep it beside the text under the quick
+  filter; narrow windows (tablet, 820 px) get one row under the top bar that scrolls sideways. It marks the section
+  you are reading, also at the end of the page, jumps on click or Enter and lands the heading below the sticky bars.
+  The address follows the section (`#/reference?go=missiles`), so reload, Back and a copied link reopen it. With
+  the filter on, sections without a match dim.
 - AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
   site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks

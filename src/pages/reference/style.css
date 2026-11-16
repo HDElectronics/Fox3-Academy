@@ -4,10 +4,10 @@
 .ref-fit { width: fit-content; }
 .ref-doc .ui-doc__section > p:first-of-type,
 .ref-doc .ui-doc__section > div > p:first-child { color: var(--s-ink); }
-.ref-doc h3 { scroll-margin-top: calc(var(--topbar-h) + 16px); }
+.ref-doc h3 { scroll-margin-top: var(--doc-jump-top, calc(var(--topbar-h) + 16px)); }
 
-/* ---- quick filter (top of the sticky contents panel) ---- */
-.ref-filter { padding: 0 4px 12px; margin-bottom: 10px; border-bottom: 1px solid var(--s-rule); }
+/* ---- quick filter (its own panel at the top of the sticky side column; above the text on narrow windows) ---- */
+.ref-filter { min-width: 0; }
 .ref-filter__label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: var(--s-title); font-weight: 700; letter-spacing: 0.14em; }
 .ref-filter__label kbd { font-size: 0.72rem; padding: 0 5px; }
 .ref-filter__box { position: relative; }
@@ -27,12 +27,19 @@
 .ref-filter__clear:hover { background: color-mix(in srgb, var(--btn-ink) 14%, transparent); }
 .ref-filter__status { margin: 6px 0 0; font-size: var(--fs-xs); line-height: 1.4; color: var(--s-label); max-width: none; }
 
+/* ---- section list: match counts while the filter is on; a section with no match dims ---- */
 .ref-doc .ui-doc__toc-link { padding-right: 34px; }
 .ref-toc-count {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%); min-width: 20px; padding: 0 5px; border-radius: 9px; text-align: center;
   background: var(--btn); color: var(--btn-on); font-size: 0.68rem; line-height: 18px; letter-spacing: 0;
 }
 .ref-toc-count[data-zero="1"] { color: color-mix(in srgb, var(--btn-ink) 45%, var(--btn)); }
+.ref-doc .ui-doc__toc-link[data-empty="1"]:not([aria-current="true"]) { color: color-mix(in srgb, var(--s-ink) 55%, transparent); }
+/* Narrow windows: one sticky row; the count sits after the label instead of in a reserved gutter. */
+@media (max-width: 1000px) {
+  .ref-doc .ui-doc__toc-link { padding-right: 10px; }
+  .ref-toc-count { position: static; transform: none; display: inline-block; margin-left: 6px; vertical-align: 1px; }
+}
 
 .ref-mark { background: color-mix(in srgb, var(--btn-on) 34%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
 
