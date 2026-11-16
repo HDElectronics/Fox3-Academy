@@ -9,6 +9,8 @@
   the filter on, sections without a match dim.
 - RWR trainer: the page's mode switch reads STUDY / QUIZ instead of LEARN / QUIZ, so "Learn" only names the top-bar
   destination. Existing `?mode=learn` and `?mode=quiz` links still open the same modes.
+- RWR trainer fits the window like the other labs: its height left out the lesson-path row, so at 1440 × 900 the page
+  scrolled 44 px and cut off the RWR MODE control under the receiver.
 - AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
   site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks

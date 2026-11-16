@@ -1,9 +1,11 @@
 /* [OWNER: page-rwr-trainer] #/rwr page styles. Colours from tokens only. */
 
 /* ---------------------------------------------------------------- page grid */
+/* The page fits the window below both chrome rows (--shell-h: top bar and lesson path), like the labs; the receiver
+   is the biggest square left in the centre column. */
 .rwrt {
   flex: 1 0 auto; display: grid; gap: 6px; padding: 6px;
-  height: calc(100dvh - var(--topbar-h)); min-height: 620px; min-width: 0;
+  height: calc(100dvh - var(--shell-h, var(--topbar-h))); min-height: 620px; min-width: 0;
   grid-template-columns: minmax(270px, 330px) minmax(0, 1fr) minmax(300px, 370px);
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "head head head" "left centre right";
