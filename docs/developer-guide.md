@@ -151,6 +151,14 @@ the page (`src/pages/<name>/style.css`).
   print to the console; `radar-lab.html` and `rwr-trainer.html` need real time, so open them in a browser
   rather than `scripts/shot.sh`. `frame.html` hosts phone widths for `scripts/shot.sh`.
 - `scripts/shot.sh` takes headless screenshots and prints console output. See `AGENTS.md` for the gotchas.
+- `npm run check:layout` (`scripts/layout-check.mjs`) visits every route in headless Chrome at 1440x900 and
+  820x1180, with sample jets and the lesson, `?shot=` and `lab=free` states listed in the script, and reports
+  controls that clip their text (a cap, segment, key, the Next cap, a slider head, a readout row), horizontal
+  page scroll and console errors. It parses the routes from `src/app/routes.ts`, so a new page is covered; add
+  a page's extra states to `EXTRA` in the script. It uses the dev server on `SHOT_PORT` (starting one if none
+  runs), takes about two minutes, and exits 1 with route, width, element and sizes. `--only <text>` limits it to
+  visits whose URL contains the text, `--width <px>` to one width. Run it after a UI change, with the
+  screenshots. It needs Chrome, so it is not part of `npm run check`.
 
 ## Publishing
 

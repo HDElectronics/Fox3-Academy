@@ -49,6 +49,7 @@ npm test             # vitest: sim, data, kits, page logic (a few seconds)
 npm run build        # dist/index.html (single file, three.js inlined)
 npm run build:web    # dist-web/ (code split: shell, one chunk per page, three.js vendor chunk)
 npm run check        # typecheck + test + both builds
+npm run check:layout # headless Chrome: clipped controls, page h-scroll, console errors on every route (~2 min)
 ```
 
 Offline tuning (slow, only when changing the missile model):
@@ -72,7 +73,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `docs/` | Human docs: user guide, developer guide, DCS accuracy, decisions | `docs/README.md` |
 | `sandbox/` | Dev-only kit and page harnesses, `frame.html` for narrow shots (not in the build) | `docs/developer-guide.md` |
 | `tests/tune/` | Env-gated tuning, AI duel sweep, DLZ generator | |
-| `scripts/` | `shot.sh` (headless screenshots) | |
+| `scripts/` | `shot.sh` (headless screenshots), `layout-check.mjs` (`npm run check:layout`) | |
 
 ## How the layers talk
 
@@ -139,6 +140,9 @@ It starts a dev server on :5190 if none is running (`SHOT_PORT=<port>` picks ano
 worktree), takes a headless-Chrome screenshot (WebGL works via
 SwiftShader) and prints the page's console output. View the PNG. Check at least su27 (Russian skin, metric,
 no Fox 3), f15c (US skin, multi-target) and m2000c or f14b (edge cases), at 1440 and 820 wide.
+After a UI change, also run `SHOT_PORT=<port> npm run check:layout`: it visits every route (with sample jets and the
+states in its `EXTRA` table) at both widths and exits 1 listing any control that clips its text, any horizontal page
+scroll and any console error. It needs Chrome, so it is not part of `npm run check`.
 The app is desktop only: phones (touch-only, short screen side under 600 px) get the panel in
 `src/app/deviceGate.ts` instead of the app, so there is no phone layout to check. Tablets and narrow windows
 keep the responsive layouts and the touch controls.
