@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Reference: the Sections list stays in reach while you scroll. Wide windows keep it beside the text under the quick
+  filter; narrow windows (tablet, 820 px) get one row under the top bar that scrolls sideways. It marks the section
+  you are reading, also at the end of the page, jumps on click or Enter and lands the heading below the sticky bars.
+  The address follows the section (`#/reference?go=missiles`), so reload, Back and a copied link reopen it. With
+  the filter on, sections without a match dim.
+- RWR trainer: the page's mode switch reads STUDY / QUIZ instead of LEARN / QUIZ, so "Learn" only names the top-bar
+  destination. Existing `?mode=learn` and `?mode=quiz` links still open the same modes.
+- RWR trainer fits the window like the other labs: its height left out the lesson-path row, so at 1440 × 900 the page
+  scrolled 44 px and cut off the RWR MODE control under the receiver.
+- Reference → 3D models: every 3D model the app ships (jets, missiles, stores, ground units, SAM vehicles) at true
+  size on a scale grid, with camera presets, a turntable, clay and wire shadings, a side-by-side compare, the size
+  measured from the file beside the app's own figures, the manifest caveats, and which part of the app draws it.
+- Control caps no longer cut their text when a panel gives them less than one line of room: the key hint drops
+  below the legend, and a legend still too wide breaks between words. Fixed "Lock / unlock (Enter)" in the Su-25T
+  controls (Shkval & Vikhr, CAS & JTAC), "Slower (Control)" on the Sortie fly screen and the Flare cap's count on
+  Missile defense (cut to "FLARE 6"). In the same way a readout label that does not fit wraps ("Sees a fighter" in
+  the Radar lab's scan numbers), and a narrow slider puts its readout on a second line instead of past the panel
+  edge (Missile lab flight conditions).
+- The Next and Start caps in the lesson bar show their whole label instead of ending in "...": "Next: Pattern &
+  landing" at 820 px, "Start: Targeting pod & Mavericks" for the A-10C II.
 - AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
   site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks

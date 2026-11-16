@@ -1,5 +1,5 @@
 /**
- * [OWNER: page-rwr-trainer] Learn mode: the jet's RWR big in the centre with a numbered anatomy guide,
+ * [OWNER: page-rwr-trainer] Study mode (?mode=learn): the jet's RWR big in the centre with a numbered anatomy guide,
  * and a sandbox plan where you place threats (type, state, bearing, range, altitude) and watch the
  * RWR react. Coach lines explain what changed and why, including the classic misreads.
  */

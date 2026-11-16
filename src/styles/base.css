@@ -145,7 +145,6 @@ kbd {
   box-shadow: 0 0 6px color-mix(in srgb, var(--btn-on) 55%, transparent);
 }
 .pathnext[data-ready="true"]:hover { background: color-mix(in srgb, var(--btn-on) 86%, var(--btn-on-ink)); }
-.pathnext__text { overflow: hidden; text-overflow: ellipsis; max-width: 30ch; }
 
 /* Ultra-wide windows centre the lab (components.css, .ui-lab max-width). The bars stay full-bleed but their content
    lines up with the lab, so the brand and the jet picker do not sit a hand's width away from the page. The shell
@@ -171,7 +170,6 @@ kbd {
   .pathpos__cap { display: none; }
   /* Without its caption a second '3/9' would read as the path position: the page's picker shows it instead. */
   .pathpos--sub { display: none; }
-  .pathnext__text { max-width: 22ch; }
 }
 @media (max-width: 620px) {
   .modnav { justify-content: space-between; }

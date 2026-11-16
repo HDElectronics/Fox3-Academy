@@ -1,5 +1,5 @@
 /**
- * [OWNER: page-rwr-trainer] Shared bits for the Learn and Quiz modes: the RWR bezel, per-jet binds
+ * [OWNER: page-rwr-trainer] Shared bits for the Study and Quiz modes: the RWR bezel, per-jet binds
  * (RWR mode, chaff) read from PROCEDURES, and the mode-controller contract.
  */
 import type { FighterId, AircraftSpec, RwrId } from '../../data/types';
@@ -75,7 +75,7 @@ export function rwrBezel(spec: AircraftSpec, id: string): RwrBezel {
   return { bezel, canvas, el };
 }
 
-/** A mode (Learn / Quiz) fills the three columns and runs inside the page loop. */
+/** A mode (Study / Quiz) fills the three columns and runs inside the page loop. */
 export interface ModeController {
   /** Called every animation frame with page time (s). */
   frame(t: number): void;

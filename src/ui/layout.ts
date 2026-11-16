@@ -2,7 +2,7 @@
  * Page layouts: labLayout (one-screen tool: 3D viewport, side console, display strip), docLayout
  * (reading page with a 65ch measure and a side contents list) and split (display + display).
  */
-import { h, append, setAttr, cx, type Child } from './dom';
+import { h, append, setAttr, cx, cleanup, type Child } from './dom';
 
 // ---- page header -------------------------------------------------------------------------------
 
@@ -238,29 +238,69 @@ export interface DocLayoutOptions {
   /** Or your own content plus a contents list pointing at element ids inside it. */
   content?: Child;
   toc?: { id: string; label: string }[];
-  /** Contents placard (default 'Contents'). */
+  /** Contents placard (default 'Contents'); also the nav's accessible name unless `tocLabel` is set. */
   tocTitle?: string;
-  /** Extra content at the top of the contents panel, under its placard (e.g. a filter box). */
+  /** Accessible name of the contents nav when the placard alone is terse ('Reference sections'). */
+  tocLabel?: string;
+  /** Extra content at the top of the contents panel, under its placard. */
   tocHeader?: Child;
+  /**
+   * Content above the contents panel and outside its nav landmark (a search box). Wide screens: one sticky side
+   * column under the top bar. Narrow screens: it stays above the text and the contents become one sticky row.
+   */
+  side?: Child;
+  /** The section marked current changed: the reading position moved, a jump, or a refresh that hid sections. */
+  onCurrent?(id: string): void;
   id?: string;
   class?: string;
+}
+export interface DocJumpOptions {
+  /** Smooth scroll (default true; reduced motion always jumps). */
+  smooth?: boolean;
+  /** Move keyboard focus to the section heading (default true, as for a contents click or Enter). */
+  focus?: boolean;
+  /** false: only mark the section current, without scrolling (the page already shows it, e.g. a screenshot pre-roll). */
+  scroll?: boolean;
 }
 export interface DocLayoutHandle {
   el: HTMLElement;
   main: HTMLElement;
   toc: HTMLElement | null;
-  /** The contents buttons by section id (add count badges, hide filtered-out sections' links). */
+  /** The contents buttons by section id (add count badges). */
   links: ReadonlyMap<string, HTMLButtonElement>;
-  /** Scroll to a section by id (also used by the contents list). */
-  go(id: string): void;
-  /** Disconnect the scroll-spy observer (call in unmount). */
+  /** Scroll to a section by id and mark it current until the reader scrolls on (also used by the contents list). */
+  go(id: string, opts?: DocJumpOptions): void;
+  /** The section marked current (null when no section is shown). */
+  current(): string | null;
+  /** After the page changed (a filter hid sections, content grew): list only shown sections, recompute the current. */
+  refresh(): void;
+  /** Remove the scroll-spy listeners (call in unmount). */
   destroy(): void;
 }
 
+/** A shown section's top edge, px from the top of the viewport. */
+export interface SectionTop { id: string; top: number }
+
 /**
- * Reading page: page title, a sticky contents list on wide screens (a wrapped list on top when
- * narrow) and a 65ch prose measure. Contents links are buttons that scroll, because the app uses
- * hash routing and a '#id' link would navigate away.
+ * The section a reader is in: the last one whose top has reached the probe line (the bottom of the sticky chrome, px
+ * from the viewport top), else the first. At the end of the page a last section too short to reach the line counts
+ * once its top is on screen. `tops` in document order, hidden sections left out.
+ */
+export function sectionInView(tops: readonly SectionTop[], probe: number, view: { height: number; atEnd: boolean }): string | null {
+  if (!tops.length) return null;
+  let id = tops[0]!.id;
+  for (const t of tops) if (t.top <= probe) id = t.id;
+  const last = tops[tops.length - 1]!;
+  if (view.atEnd && last.top > probe && last.top < view.height) id = last.id;
+  return id;
+}
+
+/**
+ * Reading page: page title, a sticky contents list and a 65ch prose measure. With `side`, the contents share a sticky
+ * side column with it on wide screens and become one sticky row on narrow ones; without, a wrapped list on top when
+ * narrow. Contents links are buttons that scroll, because the app uses hash routing and a '#id' link would navigate
+ * away. The current section follows the reading position; its probe line is each section's CSS scroll-margin-top,
+ * so it sits wherever the page's sticky chrome ends.
  */
 export function docLayout(o: DocLayoutOptions): DocLayoutHandle {
   const sections = o.sections ?? [];
@@ -269,48 +309,120 @@ export function docLayout(o: DocLayoutOptions): DocLayoutHandle {
     o.content ?? null,
     sections.map(s => h('section', { class: 'ui-doc__section', id: s.id, 'aria-labelledby': s.id + '-h' },
       h('h2', { id: s.id + '-h', tabindex: '-1' }, s.title), s.content)));
+  const targets = new Map(tocItems.map(t => [t.id, main.querySelector<HTMLElement>('#' + CSS.escape(t.id))]));
+  const shown = (id: string) => { const t = targets.get(id); return !!t && !t.hidden; };
 
   const links = new Map<string, HTMLButtonElement>();
-  const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const go = (id: string) => {
-    const target = main.querySelector<HTMLElement>('#' + CSS.escape(id));
-    if (!target) return;
-    target.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
-    const focusable = target.matches('h1, h2, h3, h4') ? target : target.querySelector<HTMLElement>('h2, h3');
-    if (focusable) { if (!focusable.hasAttribute('tabindex')) focusable.setAttribute('tabindex', '-1'); focusable.focus({ preventScroll: true }); }
-    setCurrent(id);
-  };
-  const setCurrent = (id: string) => { for (const [k, b] of links) setAttr(b, 'aria-current', k === id ? 'true' : null); };
-
+  let list: HTMLOListElement | null = null;
   let toc: HTMLElement | null = null;
   if (tocItems.length) {
-    toc = h('nav', { class: 'ui-doc__toc', 'aria-label': o.tocTitle ?? 'Contents' },
-      h('div', { class: 'ui-placard ui-doc__toc-title' }, o.tocTitle ?? 'Contents'),
+    list = h('ol', null, tocItems.map(t => {
+      const b = h('button', { type: 'button', class: 'ui-doc__toc-link', onclick: () => go(t.id) }, t.label);
+      links.set(t.id, b);
+      return h('li', null, b);
+    }));
+    toc = h('nav', { class: 'ui-doc__toc', 'aria-label': o.tocLabel ?? o.tocTitle ?? 'Contents' },
+      h('div', { class: 'ui-placard ui-doc__toc-title', 'aria-hidden': 'true' }, o.tocTitle ?? 'Contents'),
       o.tocHeader !== undefined && o.tocHeader !== null ? h('div', { class: 'ui-doc__toc-header' }, o.tocHeader) : null,
-      h('ol', null, tocItems.map(t => {
-        const b = h('button', { type: 'button', class: 'ui-doc__toc-link', onclick: () => go(t.id) }, t.label);
-        links.set(t.id, b);
-        return h('li', null, b);
-      })));
+      list);
   }
-  const el = h('article', { class: cx('ui-doc', o.class), id: o.id },
+  const side = o.side !== undefined && o.side !== null ? h('div', { class: 'ui-doc__side' }, o.side, toc) : toc;
+  const el = h('article', { class: cx('ui-doc', side && side !== toc && 'ui-doc--side', o.class), id: o.id },
     pageHeader({ title: o.title, lede: o.lede, meta: o.meta, actions: o.actions, class: 'ui-doc__head' }),
-    h('div', { class: cx('ui-doc__grid', !toc && 'ui-doc__grid--solo') }, toc, main));
+    h('div', { class: cx('ui-doc__grid', !side && 'ui-doc__grid--solo') }, side, main));
 
-  // Scroll-spy: the topmost visible section is current.
-  let io: IntersectionObserver | null = null;
-  if (toc && typeof IntersectionObserver === 'function') {
-    const visible = new Set<string>();
-    io = new IntersectionObserver(entries => {
-      for (const e of entries) { if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id); }
-      const first = tocItems.find(t => visible.has(t.id));
-      if (first) setCurrent(first.id);
-    }, { rootMargin: '-80px 0px -55% 0px' });
-    for (const t of tocItems) { const n = main.querySelector('#' + CSS.escape(t.id)); if (n) io.observe(n); }
+  // ---- the current section
+  let current: string | null = null;
+  /** A jump holds its section current until the reader scrolls on (the end of the page may never reach it). */
+  let hold: string | null = null;
+  /** Where the jump's scroll came to rest: moving away from it (a scrollbar drag) also lets go. */
+  let holdY: number | null = null;
+
+  // Narrow screens: the contents row scrolls sideways. Keep the current link in view; fade the edge that hides more.
+  const syncOverflow = () => {
+    if (!list) return;
+    const max = list.scrollWidth - list.clientWidth;
+    list.dataset.overflow = max <= 1 ? 'none' : list.scrollLeft <= 1 ? 'end' : list.scrollLeft >= max - 1 ? 'start' : 'both';
+  };
+  const reveal = (id: string) => {
+    const li = links.get(id)?.parentElement;
+    if (!list || !li || list.scrollWidth <= list.clientWidth + 1) return;
+    const r = li.getBoundingClientRect(), s = list.getBoundingClientRect();
+    list.scrollLeft += (r.left - s.left) - (s.width - r.width) / 2;
+    syncOverflow();
+  };
+  const setCurrent = (id: string | null) => {
+    if (id === current) return;
+    current = id;
+    for (const [k, b] of links) setAttr(b, 'aria-current', k === id ? 'true' : null);
+    if (id) { reveal(id); o.onCurrent?.(id); }
+  };
+
+  let frame = 0;
+  const measure = () => {
+    frame = 0;
+    if (hold && shown(hold)) { setCurrent(hold); return; }
+    hold = null;
+    const tops: SectionTop[] = [];
+    let probe = 0;
+    for (const t of tocItems) {
+      const n = targets.get(t.id);
+      if (!n || n.hidden || !n.getClientRects().length) continue;
+      if (!tops.length) probe = (parseFloat(getComputedStyle(n).scrollMarginTop) || 0) + 8;
+      tops.push({ id: t.id, top: n.getBoundingClientRect().top });
+    }
+    if (!tops.length) return;
+    const root = document.scrollingElement ?? document.documentElement;
+    const atEnd = window.scrollY + window.innerHeight >= root.scrollHeight - 2;
+    setCurrent(sectionInView(tops, probe, { height: window.innerHeight, atEnd }));
+  };
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
+
+  const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const go = (id: string, opts: DocJumpOptions = {}) => {
+    const target = targets.get(id) ?? main.querySelector<HTMLElement>('#' + CSS.escape(id));
+    if (!target || target.hidden) return;
+    const smooth = opts.scroll !== false && opts.smooth !== false && !reduced();
+    if (opts.scroll !== false) target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    if (opts.focus !== false) {
+      const focusable = target.matches('h1, h2, h3, h4') ? target : target.querySelector<HTMLElement>('h2, h3');
+      if (focusable) { if (!focusable.hasAttribute('tabindex')) focusable.setAttribute('tabindex', '-1'); focusable.focus({ preventScroll: true }); }
+    }
+    if (links.has(id)) { hold = id; holdY = smooth ? null : window.scrollY; setCurrent(id); }
+  };
+
+  const bag = cleanup();
+  if (toc) {
+    const release = () => { if (hold) { hold = null; holdY = null; schedule(); } };
+    for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) bag.on(window, type, release, { capture: true, passive: true });
+    bag.on(window, 'scrollend', () => { if (hold && holdY === null) holdY = window.scrollY; }, { passive: true });
+    bag.on(window, 'scroll', () => {
+      if (hold && holdY !== null && Math.abs(window.scrollY - holdY) > 4) release();
+      schedule();
+    }, { passive: true });
+    bag.on(window, 'resize', () => { syncOverflow(); schedule(); }, { passive: true });
+    if (list) bag.on(list, 'scroll', syncOverflow, { passive: true });
+    // Web fonts change the row's width once they load.
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) syncOverflow(); });
+    bag.add(() => { live = false; cancelAnimationFrame(frame); frame = 0; });
+    const first = tocItems.find(t => shown(t.id));
+    if (first) setCurrent(first.id);
+    // The page appends the layout after this returns: measure once it is in the document.
+    schedule();
   }
-  if (tocItems[0]) setCurrent(tocItems[0].id);
 
-  return { el, main, toc, links, go, destroy() { io?.disconnect(); io = null; } };
+  return {
+    el, main, toc, links, go,
+    current: () => current,
+    refresh() {
+      for (const [id, b] of links) { const li = b.parentElement; if (li) li.hidden = !shown(id); }
+      if (hold && !shown(hold)) { hold = null; holdY = null; }
+      syncOverflow();
+      measure();
+    },
+    destroy() { bag.dispose(); },
+  };
 }
 
 // ---- split -------------------------------------------------------------------------------------

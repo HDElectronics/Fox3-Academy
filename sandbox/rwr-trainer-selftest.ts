@@ -1,6 +1,6 @@
 /**
  * [OWNER: page-rwr-trainer] In-browser behaviour checks for the RWR trainer page: keyboard and click
- * paths in Learn and Quiz, mode switching, timer, and clean unmount (listeners, animation loop, DOM).
+ * paths in Study and Quiz, mode switching, timer, and clean unmount (listeners, animation loop, DOM).
  * Needs real time (headless virtual time barely runs requestAnimationFrame): open
  * /sandbox/rwr-trainer.html in a browser, or drive headless Chrome over CDP and read window.__rwrtResult.
  */
@@ -59,37 +59,40 @@ async function run() {
   app.setAircraft('su27');
   const baseKeys = keyListeners;
 
-  // ---------------------------------------------------------------- Learn (SPO-15)
+  // ---------------------------------------------------------------- Study (SPO-15, mode=learn)
   let { root, page } = mount(app, 'mode=learn');
   await sleep(300);
   const chips = () => root.querySelectorAll('.rwrt-chip').length;
-  ok('learn: demo preset has 3 threats', chips() === 3);
-  ok('learn: anatomy lists the 7 SPO-15 parts', root.querySelectorAll('.rwrt-part').length === 7);
+  ok('study: the mode switch reads Study / Quiz (Learn is the top-bar destination)',
+    [...root.querySelectorAll('#rwrt-mode .ui-seg__legend')].map(e => e.textContent).join(' / ') === 'Study / Quiz'
+    && $('#rwrt-mode-learn', root)?.getAttribute('aria-checked') === 'true');
+  ok('study: demo preset has 3 threats', chips() === 3);
+  ok('study: anatomy lists the 7 SPO-15 parts', root.querySelectorAll('.rwrt-part').length === 7);
   const cv = $<HTMLCanvasElement>('.rwrt-rwr__canvas', root);
   const px = cv?.getContext('2d')?.getImageData(0, 0, cv.width, cv.height).data;
   let lit = 0;
   if (px) for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] > 300) lit++;
-  ok('learn: RWR canvas is drawn', lit > 200);
+  ok('study: RWR canvas is drawn', lit > 200);
   key('KeyN');
-  ok('learn: N adds a threat', chips() === 4);
+  ok('study: N adds a threat', chips() === 4);
   key('Digit2');
-  ok('learn: 2 sets Lock', $('#rwrt-state-lock', root)?.getAttribute('aria-checked') === 'true');
+  ok('study: 2 sets Lock', $('#rwrt-state-lock', root)?.getAttribute('aria-checked') === 'true');
   const typeSel = $<HTMLSelectElement>('#rwrt-type select, select#rwrt-type', root);
   if (typeSel) { typeSel.value = 'su27'; typeSel.dispatchEvent(new Event('change', { bubbles: true })); }
   key('Digit4');
-  ok('learn: Su-27 cannot go Missile active', $('#rwrt-state-active', root)?.getAttribute('aria-checked') !== 'true'
+  ok('study: Su-27 cannot go Missile active', $('#rwrt-state-active', root)?.getAttribute('aria-checked') !== 'true'
     && /no Fox 3/.test($('#rwrt-learn-coach', root)?.textContent ?? '') && ($('#rwrt-state-active', root) as HTMLButtonElement | null)?.disabled === true);
   const brgBefore = $<HTMLInputElement>('#rwrt-brg input, input#rwrt-brg', root)?.value;
   key('ArrowRight');
-  ok('learn: Right arrow turns the threat', $<HTMLInputElement>('#rwrt-brg input, input#rwrt-brg', root)?.value !== brgBefore);
+  ok('study: Right arrow turns the threat', $<HTMLInputElement>('#rwrt-brg input, input#rwrt-brg', root)?.value !== brgBefore);
   key('Delete');
-  ok('learn: Delete removes it', chips() === 3);
+  ok('study: Delete removes it', chips() === 3);
   key('ShiftRight', { shiftKey: true, location: 2 });
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ShiftRight', key: 'Shift', shiftKey: true, location: 2, bubbles: true }));
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'R', shiftKey: true, bubbles: true, cancelable: true }));
   window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'R', shiftKey: true, bubbles: true }));
   window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ShiftRight', key: 'Shift', location: 2, bubbles: true }));
-  ok('learn: RShift+R toggles RWR mode', $('#rwrt-rwrmode-lock', root)?.getAttribute('aria-checked') === 'true');
+  ok('study: RShift+R toggles RWR mode', $('#rwrt-rwrmode-lock', root)?.getAttribute('aria-checked') === 'true');
   // Tap the primary lamp (T1 lock at 30 deg right) to select T1.
   ($<HTMLButtonElement>('.rwrt-chip:nth-child(2)', root))?.click();
   await sleep(100);
@@ -99,15 +102,15 @@ async function run() {
     const a = (30 * 0.88 * Math.PI) / 180;
     cv.dispatchEvent(new MouseEvent('click', { clientX: ox + (50 + Math.sin(a) * 40) * s / 100, clientY: oy + (60 - Math.cos(a) * 40) * s / 100, bubbles: true }));
   }
-  ok('learn: tapping the yellow lamp selects its threat', $('.rwrt-chip.is-on', root)?.textContent?.startsWith('T1') === true);
+  ok('study: tapping the yellow lamp selects its threat', $('.rwrt-chip.is-on', root)?.textContent?.startsWith('T1') === true);
   ($<HTMLButtonElement>('#rwrt-preset-busy', root))?.click();
-  ok('learn: Busy sky preset', chips() === 5);
+  ok('study: Busy sky preset', chips() === 5);
 
   // ---------------------------------------------------------------- Quiz
   ($<HTMLButtonElement>('#rwrt-mode-quiz', root))?.click();
   await sleep(300);
   ok('quiz: mode switch shows a question', ($('#rwrt-q-prompt', root)?.textContent ?? '').length > 5);
-  ok('quiz: learn keys unbound after switch', keyListeners === baseKeys + 1);
+  ok('quiz: study keys unbound after switch', keyListeners === baseKeys + 1);
   ok('quiz: answers offered', root.querySelectorAll('.rwrt-answers button').length >= 2);
   key('Digit1');
   await sleep(50);

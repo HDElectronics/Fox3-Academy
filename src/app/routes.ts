@@ -35,6 +35,7 @@ export const ROUTES: RouteDef[] = [
   { path: 'rwr', label: 'RWR', title: 'Read your warning receiver: who is searching, locking, launching', load: () => import('../pages/rwr-trainer/index') },
   { path: 'sortie', label: 'Sortie', title: 'Fly a full BVR engagement against AI that shoots back, then debrief it', load: () => import('../pages/sortie/index') },
   { path: 'reference', label: 'Reference', title: 'Key bindings, HOTAS and step-by-step procedures for your jet', load: () => import('../pages/reference/index'), roles: ['fighter', 'attack'] },
+  { path: 'models', label: '3D models', title: 'Every 3D model the app ships at true size: check the shape and compare two side by side', load: () => import('../pages/models/index'), roles: ['fighter', 'attack'] },
 ];
 
 export function routeFor(path: string): RouteDef {

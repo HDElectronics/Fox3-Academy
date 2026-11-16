@@ -106,6 +106,12 @@
 .ui-btn--s { --ui-cap-h: 28px; padding: 0 9px; font-size: var(--fs-xs); gap: 6px; }
 .ui-btn--l { --ui-cap-h: 44px; padding: 0 20px; font-size: var(--fs-m); letter-spacing: 0.08em; }
 .ui-btn__legend { display: inline-flex; align-items: center; gap: 6px; }
+/* A cap given less than its one-line width (an equal-width grid cell, a flex share with min-width: 0) wraps
+   instead of clipping: the key hint drops below the legend, and a legend still too wide breaks between words.
+   A cap with room stays on one line. Placed after the sizes so their gap does not reset the row gap. */
+.ui-btn { flex-wrap: wrap; row-gap: 2px; white-space: normal; text-align: center; }
+.ui-btn > .ui-btn__legend, .ui-btn > .ui-btn__keys { margin-block: 2px; }
+.ui-btn__keys { white-space: nowrap; }
 
 /* Lamp strip: an unlit bar under the legend of latching caps; lit when pressed / selected. */
 .ui-btn.has-lamp, .ui-seg__opt { padding-bottom: 6px; }
@@ -208,7 +214,9 @@
 
 /* ---------------------------------------------------------------- slider + digital readout */
 .ui-slider { display: grid; gap: 4px; min-width: 0; }
-.ui-slider__head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-2); }
+/* A narrow slider puts its readout on a second line, at the right, rather than past the column edge. */
+.ui-slider__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px var(--gap-2); }
+.ui-slider__head > .ui-slider__readout { margin-left: auto; }
 .ui-slider__readout {
   display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 0.4ch;
   min-width: calc(var(--ch, 4) * 1ch + 4ch); padding: 2px 7px;
@@ -512,9 +520,10 @@
   padding: 5px 0; border-bottom: 1px solid var(--s-rule); min-width: 0;
 }
 .ui-readouts--panel > .ui-readout:last-child { border-bottom: 0; }
+/* A label too long for its row wraps between words; it is never cut short. */
 .ui-readout__label {
   font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--s-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--s-label);
 }
 .ui-readout__value {
   margin: 0; display: inline-flex; align-items: baseline; gap: 0.35ch;
@@ -842,6 +851,48 @@
 }
 @media (max-width: 900px) {
   .ui-doc__section { scroll-margin-top: calc(var(--topbar-h) * 2); }
+}
+
+/* ---------------------------------------------------------------- doc layout with a side column (docLayout `side`)
+   The side content (a search box) and the contents share one sticky column under the top bar. --shell-sticky-h is the
+   chrome that stays on screen while the page scrolls (shell.ts). Narrow windows: the side content stays above the
+   text and the contents become one sticky row under the top bar, in the second row's paint, scrolling sideways.
+   --doc-jump-top is where a jumped-to section lands (its scroll-margin), below whatever is sticky. */
+.ui-doc--side {
+  --doc-sticky-top: var(--shell-sticky-h, var(--topbar-h));
+  --doc-jump-top: calc(var(--doc-sticky-top) + 16px);
+}
+.ui-doc--side .ui-doc__section { scroll-margin-top: var(--doc-jump-top); }
+.ui-doc__side {
+  position: sticky; top: calc(var(--doc-sticky-top) + 16px); max-height: calc(100dvh - var(--doc-sticky-top) - 32px);
+  display: grid; gap: var(--gap-2); align-content: start; min-width: 0;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--panel-line) transparent;
+}
+.ui-doc__side > .ui-doc__toc { position: static; max-height: none; overflow: visible; }
+@media (max-width: 1000px) {
+  .ui-doc--side {
+    --doc-toc-row-h: 44px;
+    --doc-jump-top: calc(var(--doc-sticky-top) + var(--doc-toc-row-h) + 12px);
+  }
+  .ui-doc__side { display: contents; }
+  .ui-doc__side > .ui-doc__toc {
+    position: sticky; top: var(--doc-sticky-top); z-index: 5; height: var(--doc-toc-row-h);
+    display: flex; align-items: center; margin-inline: -16px; padding: 0 10px;
+    background: var(--panel-2); border: 0; border-bottom: 1px solid var(--panel-line); border-radius: 0;
+  }
+  .ui-doc__side .ui-doc__toc-title { display: none; }
+  .ui-doc__side .ui-doc__toc ol {
+    flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
+    padding: 0 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  }
+  .ui-doc__side .ui-doc__toc ol::-webkit-scrollbar { display: none; }
+  .ui-doc__side .ui-doc__toc li { flex: none; }
+  .ui-doc__side .ui-doc__toc-link { white-space: nowrap; }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+  .ui-doc__side .ui-doc__toc ol[data-overflow="both"] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
 }
 
 /* Prose: 65ch measure for running text; tables and figures may use the full column. */

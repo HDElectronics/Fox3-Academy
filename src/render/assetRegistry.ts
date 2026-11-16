@@ -19,3 +19,5 @@ export function assetFileId(id: AssetId): AssetId {
   return id === 'agm65d' || id === 'agm65h' || id === 'agm65l' ? 'agm65' : id;
 }
 export function assetUrl(id: AssetId): string | undefined { return urls.get(assetFileId(id)); }
+/** Ids of the bundled exterior files (file names without `.glb`), sorted. Every one is an AssetId. */
+export function bundledAssetIds(): AssetId[] { return [...urls.keys()].sort() as AssetId[]; }
