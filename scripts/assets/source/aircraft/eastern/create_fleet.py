@@ -135,40 +135,15 @@ def mig29():
   seams_on(wing,[[(s*x,13.25+(x-1.85)*.155-.72) for x in [2.0,3.2,4.4,5.5]],[(s*x,9.08+(x-1.85)*.94+.5) for x in [2.0,3.2,4.4,5.5]]],tag+' wing control seams')
   for j in range(6):seams_on(body,[[(s*x,7.0+j*.15) for x in [.72,.88,1.04]]],tag+' auxiliary intake louver '+str(j))
   curve(tag+' navigation light',[(s*5.71,12.95,-.19),(s*5.71,13.15,-.19)],.023,red if s<0 else green)
-def frogfoot():
- nose=loft('01 Su-25T long sensor nose',[(0,.015,.025,-.13),(.55,.25,.26,-.10),(1.5,.42,.46,-.02),(2.8,.57,.65,.06),(3.5,.62,.78,.10)],radome,power=.8)
- loft('02 Su-25T deep central fuselage',[(3.3,.61,.78,.10),(4.8,.69,.86,.13),(6.6,.68,.80,.12),(8.8,.64,.73,.12),(11,.55,.59,.18),(13,.37,.43,.25),(14.9,.14,.21,.34),(15.3,.015,.02,.35)])
- loft('03 Raised cockpit and dorsal hump',[(3.25,.19,.12,.83),(4,.46,.44,.75),(5.4,.55,.49,.74),(6.9,.56,.43,.69),(8.8,.46,.27,.70),(10.3,.10,.06,.73)])
- canopy([(3.2,.02,.02,.88),(3.49,.28,.31,.97),(3.93,.42,.55,1.06),(4.51,.44,.66,1.08),(4.96,.36,.52,1.10),(5.35,.22,.29,1.08),(5.63,.015,.015,1.05)],'Raised single-seat Su-25T canopy')
- # Seat the exterior window directly on the lower nose shell, never below it.
- window=[]
- for x,y in [(-.13,.70),(.13,.70),(.22,1.10),(-.22,1.10)]:
-  hit,loc,norm,face=nose.ray_cast(Vector(P((x,y,-5))),Vector((0,0,1)))
-  assert hit, 'Nose window vertex missed its host shell'
-  loc=loc+norm*.009;window.append((loc.x,L/2-loc.y,loc.z))
- mesh('Nose optical window',window,[(0,1,2,3)],glass,False)
- curve('Nose window surround',window+[window[0]],.014,frame)
- for s in [-1,1]:
-  tag='Port' if s<0 else 'Starboard'
-  loft(tag+' Su-25 engine nacelle',[(5.35,.38,.44,.01),(6.2,.51,.56,-.02),(8.2,.56,.60,-.01),(10.7,.51,.53,.01),(12.8,.41,.45,.03),(13.10,.39055,.39055,.045)],paint,s*1.0)
-  inlet(tag+' rounded side intake',s*1.0,5.29,0,.34,.40,1);nozzle(tag+' short exhaust',s*1.0,13.40,.045,.365,.60)
-  wing=foil(tag+' straight tapered attack wing',[(.55,6.36,10.70,.44,.17),(1.35,6.58,10.62,.43,.16),(2.6,6.98,10.51,.37,.13),(4.3,7.54,10.32,.30,.105),(5.9,8.08,10.15,.23,.073),(7.07,8.47,10.02,.18,.036)],s)
-  loft(tag+' wingtip airbrake pod',[(7.97,.013,.013,.18),(8.35,.12,.16,.18),(9.9,.13,.16,.18),(10.7,.062,.08,.18),(10.90,.015,.025,.18)],light,s*7.08,steps=3,n=32)
-  foil(tag+' Su-25 tailplane',[(.27,12.67,15.03,.52,.09),(.7,12.87,15.00,.56,.08),(1.6,13.36,14.91,.67,.055),(2.60,13.96,14.74,.81,.025)],s,light)
-  seams_on(wing,[[(s*x,9.68+(7-x)*.04) for x in [1.3,2.6,4.3,5.9,7.02]],[(s*x,6.91+(x-1.3)*.32) for x in [1.3,2.6,4.3,5.9,7.0]]],tag+' flap and leading panel')
-  for x in [2.35,4.72]:
-   y=6.60+(x-1.35)*.34;z=.44-(x-.55)*.04;mesh(tag+' wing fence '+str(x),[(s*x,y,z),(s*x,y+2.3,z),(s*x,y+2.3,z+.20),(s*x,y+.10,z+.27)],[(0,1,2,3)],paint,False)
- foil('Single Su-25T swept vertical fin',[(0,11.15,15.3,.59,.12),(.60,11.74,15.18,.59,.095),(1.48,12.58,15.02,.59,.07),(2.52,13.61,14.84,.59,.039),(2.81,13.96,14.72,.59,.024)],1,vertical=True,xbase=0)
 def build(id):
  global L,air,aircoll,paint,light,radome,dark,seam,steel,frame,glass,red,green
  name,L,span=SPECS[id];out=ROOT/id;out.mkdir(parents=True,exist_ok=True)
  bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
  air=[];aircoll=bpy.data.collections.new(name+' | Original visual exterior');bpy.context.scene.collection.children.link(aircoll)
- colors={'su27':(.37,.48,.54),'su33':(.31,.43,.50),'j11a':(.43,.47,.49),'mig29s':(.39,.46,.44),'su25t':(.40,.42,.31)}
+ colors={'su27':(.37,.48,.54),'su33':(.31,.43,.50),'j11a':(.43,.47,.49),'mig29s':(.39,.46,.44)}
  paint=mat(name+' satin paint',colors[id],.22,.46);light=mat('Light control panels',tuple(min(1,c*1.10) for c in colors[id]),.18,.48);radome=mat('Dielectric nose',(.32,.36,.34) if id!='j11a' else(.28,.30,.31),.07,.56);dark=mat('Deep recess',(.008,.012,.014),.1,.62);seam=mat('Restrained panel seam',(.18,.23,.24),.15,.6);steel=mat('Heat-darkened exhaust metal',(.17,.16,.14),.78,.32);frame=mat('Canopy structural frame',tuple(c*.64 for c in colors[id]),.4,.32);glass=mat('Tinted canopy',(.028,.087,.106),.52,.18);glass.node_tree.nodes.get('Principled BSDF').inputs['Coat Weight'].default_value=.55;red=mat('Port lens',(.35,.012,.012),.3,.22);green=mat('Starboard lens',(.02,.29,.08),.3,.22)
  if id in ['su27','su33','j11a']:flanker(id)
- elif id=='mig29s':mig29()
- else:frogfoot()
+ else:mig29()
  bpy.ops.object.select_all(action='DESELECT')
  for o in air:o.select_set(True)
  bpy.context.view_layer.objects.active=air[0];bpy.ops.object.convert(target='MESH');air=list(bpy.context.selected_objects)
@@ -204,7 +179,6 @@ def build(id):
  if id=='j11a':caveats+=['J-11A uses the closely related Su-27 external shell; subtle antenna and production-block differences not verified.']
  if id=='su33':caveats+=['Canards, wing-fold seam and retracted hook indicated; exact naval wing and folding mechanisms simplified.']
  if id=='mig29s':caveats+=['9-13 recognition cues represented: enlarged dorsal hump, broad flat centre body with LERX, raked wedge intakes under the LERX, widely spaced nacelles over a flat tunnel, outboard canted fins with root extensions on the tail booms, boom-mounted tailplanes, beaver tail between the nozzles and nose pitot probe; exact 9-13S panel and antenna fit not verified.','Planform, side and front proportions measured from the public Wikimedia Commons line drawing "Mikoyan MiG-29 3-view.svg" (https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg, a 9-12 airframe) as a size reference only; no lines or geometry imported. The 9-13 hump height is an artist estimate.']
- if id=='su25t':caveats+=['Raised single-seat canopy, dorsal hump and nose optical window indicate T variant; exact fairing outlines simplified.']
  manifest={'id':id,'name':name,'status':'review','length_m':L,'span_m':span,'dimensions_measured_m':{'span_x':dims[0],'length_z':dims[1],'height_y':dims[2]},'axis':{'gltf':'nose -Z, up +Y, right +X','blender':'nose +Y, up +Z, right +X','units':'metres','origin':'centered lateral and longitudinal bounds'},'reference_urls':['https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/','https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/'],'variant_caveats':caveats,'geometry_provenance':'Original scripted meshes; no downloaded meshes or external textures. Public recognition cues and original src/render/jets.ts silhouette guidance.','generator':'../create_fleet.py','rebuild_command':'Blender --background --python create_fleet.py -- --out OUTPUT --only '+id,'blender_version':bpy.app.version_string,'stats':{'objects':len(air),'triangles':tris,'vertices':sum(len(o.data.vertices) for o in air),'glb_bytes':(out/'model.glb').stat().st_size},'validation':{'actual_model_renders':['front.png','top.png','side.png','rear.png'],'visual_review':'pending image inspection','outstanding':'Browser/device performance, animation, exact variant review and app integration not performed'}}
  (out/'manifest.json').write_text(json.dumps(manifest,indent=2));print('FLEET_MODEL_COMPLETE',id,manifest['stats'],flush=True)
 for id in args.only or list(SPECS):build(id)
