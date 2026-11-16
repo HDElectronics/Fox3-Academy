@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The MiG-29S 3D model reads as a Fulcrum, not a small Flanker: the fins stand on tail booms outboard of the engines
+  with a slight outward cant and run forward onto the wing, a broad flat centre body with LERX sits over two
+  widely spaced nacelles with raked wedge intakes, and the 9-13 hump ends in a beaver tail between the nozzles.
+  Proportions follow a public MiG-29 three-view.
 - Reference: the Sections list stays in reach while you scroll. Wide windows keep it beside the text under the quick
   filter; narrow windows (tablet, 820 px) get one row under the top bar that scrolls sideways. It marks the section
   you are reading, also at the end of the page, jumps on click or Enter and lands the heading below the sticky bars.

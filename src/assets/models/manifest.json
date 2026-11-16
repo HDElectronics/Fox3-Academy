@@ -143,12 +143,13 @@
     "id": "mig29s",
     "category": "aircraft",
     "name": "MiG-29S Fulcrum-C",
-    "source_sha256": "8620749d3cdce591f3803f1a173df90933c548b33b3b8de7b4a99cb0b0fad7fe",
-    "sha256": "ee979499dfc06ec77e460754d661361c340ed95929a646f7f3b0008f85859155",
-    "bytes": 371692,
+    "source_sha256": "70ede6c477091c75bf03964adb5e62f1da3454b41231ea3009f0734d9744f26e",
+    "sha256": "38a46ca170546013683c9ea8a1107734b9bfa10bc1245b5562c32bd182649a50",
+    "bytes": 374128,
     "references": [
       "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
-      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/",
+      "https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg"
     ],
     "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
     "source_caveats": [
@@ -156,7 +157,8 @@
       "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
       "Neutral review paint, not an authentic service livery.",
       "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
-      "Enlarged 9-13 dorsal spine represented; exact 9-13S panel and antenna fit not verified."
+      "9-13 recognition cues represented: enlarged dorsal hump, broad flat centre body with LERX, raked wedge intakes under the LERX, widely spaced nacelles over a flat tunnel, outboard canted fins with root extensions on the tail booms, boom-mounted tailplanes, beaver tail between the nozzles and nose pitot probe; exact 9-13S panel and antenna fit not verified.",
+      "Planform, side and front proportions measured from the public Wikimedia Commons line drawing \"Mikoyan MiG-29 3-view.svg\" (https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg, a 9-12 airframe) as a size reference only; no lines or geometry imported. The 9-13 hump height is an artist estimate."
     ]
   },
   {
