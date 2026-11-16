@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The MiG-29S 3D model reads as a Fulcrum, not a small Flanker: the fins stand on tail booms outboard of the engines
+  with a slight outward cant and run forward onto the wing, a broad flat centre body with LERX sits over two
+  widely spaced nacelles with raked wedge intakes, and the 9-13 hump ends in a beaver tail between the nozzles.
+  Proportions follow a public MiG-29 three-view.
 - Reference: the Sections list stays in reach while you scroll. Wide windows keep it beside the text under the quick
   filter; narrow windows (tablet, 820 px) get one row under the top bar that scrolls sideways. It marks the section
   you are reading, also at the end of the page, jumps on click or Enter and lands the heading below the sticky bars.
@@ -14,6 +18,11 @@
 - Reference → 3D models: every 3D model the app ships (jets, missiles, stores, ground units, SAM vehicles) at true
   size on a scale grid, with camera presets, a turntable, clay and wire shadings, a side-by-side compare, the size
   measured from the file beside the app's own figures, the manifest caveats, and which part of the app draws it.
+- The Su-25T 3D model has the jet's own shape instead of a fighter's: a deep slab-sided body with a short blunt nose
+  and the flat optical window in its tip, a raised canopy running into the dorsal hump, a nearly straight shoulder
+  wing on two big side nacelles with oval cheek intakes, blunt airbrake pods at the wingtips, five empty pylons a
+  side, one tall fin on a slim tail boom and tailplanes with dihedral. It has its own Blender builder
+  (`scripts/assets/source/aircraft/eastern/create_su25t.py`).
 - Control caps no longer cut their text when a panel gives them less than one line of room: the key hint drops
   below the legend, and a legend still too wide breaks between words. Fixed "Lock / unlock (Enter)" in the Su-25T
   controls (Shkval & Vikhr, CAS & JTAC), "Slower (Control)" on the Sortie fly screen and the Flare cap's count on

@@ -143,12 +143,13 @@
     "id": "mig29s",
     "category": "aircraft",
     "name": "MiG-29S Fulcrum-C",
-    "source_sha256": "8620749d3cdce591f3803f1a173df90933c548b33b3b8de7b4a99cb0b0fad7fe",
-    "sha256": "ee979499dfc06ec77e460754d661361c340ed95929a646f7f3b0008f85859155",
-    "bytes": 371692,
+    "source_sha256": "70ede6c477091c75bf03964adb5e62f1da3454b41231ea3009f0734d9744f26e",
+    "sha256": "38a46ca170546013683c9ea8a1107734b9bfa10bc1245b5562c32bd182649a50",
+    "bytes": 374128,
     "references": [
       "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
-      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/",
+      "https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg"
     ],
     "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
     "source_caveats": [
@@ -156,7 +157,8 @@
       "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
       "Neutral review paint, not an authentic service livery.",
       "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
-      "Enlarged 9-13 dorsal spine represented; exact 9-13S panel and antenna fit not verified."
+      "9-13 recognition cues represented: enlarged dorsal hump, broad flat centre body with LERX, raked wedge intakes under the LERX, widely spaced nacelles over a flat tunnel, outboard canted fins with root extensions on the tail booms, boom-mounted tailplanes, beaver tail between the nozzles and nose pitot probe; exact 9-13S panel and antenna fit not verified.",
+      "Planform, side and front proportions measured from the public Wikimedia Commons line drawing \"Mikoyan MiG-29 3-view.svg\" (https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg, a 9-12 airframe) as a size reference only; no lines or geometry imported. The 9-13 hump height is an artist estimate."
     ]
   },
   {
@@ -203,21 +205,31 @@
     "id": "su25t",
     "category": "aircraft",
     "name": "Su-25T Frogfoot",
-    "source_sha256": "13d633d6ca537f752ef1fcdc5759e89b44b8bfe05b5d04b38bed3ce32258a986",
-    "sha256": "8a9e722b412b303d31c2c631b8d658eb9e863856b8245163794c63569f5ecfdb",
-    "bytes": 363264,
+    "source_sha256": "c89463a5f3990bacf87255ab66a6a5353620fa1538f98bc8141f5691c23c00aa",
+    "sha256": "2640d10e78245077567df972e3c2f2424ebf8b6c27abea579058e04f09e2c570",
+    "bytes": 354668,
     "references": [
-      "https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/",
-      "https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/"
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Suchoi_Su-25.svg",
+        "use": "Three-view of the basic Su-25 inspected 2026-11-16 for plan, side and front proportions; family reference, the T nose and hump are artist approximations; no image included in assets"
+      },
+      {
+        "url": "https://commons.wikimedia.org/wiki/File:Sukhoi_Su-25_two-view_silhouette.png",
+        "use": "Plan and head-on silhouette inspected 2026-11-16 as a recognition check"
+      },
+      {
+        "url": "https://www.digitalcombatsimulator.com/en/products/world/",
+        "use": "DCS variant identity: the Su-25T attack jet included with DCS World"
+      }
     ],
-    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license.",
     "source_caveats": [
-      "Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.",
-      "Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.",
-      "Neutral review paint, not an authentic service livery.",
-      "Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.",
-      "Raised single-seat canopy, dorsal hump and nose optical window indicate T variant; exact fairing outlines simplified."
-    ]
+      "Original artist approximation for a game tutorial; proportions follow a public three-view of the basic Su-25 fitted to the Fox3 envelope of 15.3 m length and 14.4 m span, not survey measurements.",
+      "T variant cues are approximate: the dorsal hump behind the canopy, the deeper nose and the flat raked optical window in its tip. Exact fairing outlines and window size are not verified.",
+      "Shoulder wing on the nacelles with about 20 degrees of leading-edge sweep and slight anhedral, blunt wingtip airbrake pods shown closed, five empty pylons per side, tailplanes with dihedral.",
+      "Closed canopy, retracted landing gear, no stores, no gun, antennas or sensors beyond two nose probes; simplified intakes and plain exhausts.",
+      "Neutral review paint, not an authentic service livery."
+    ],
+    "authorship": "Original Fox3 scripted exterior art; no third-party meshes or textures. Distributed under the repository MIT license."
   },
   {
     "id": "r27r",

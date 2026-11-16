@@ -4,7 +4,7 @@ from mathutils import Vector
 from pathlib import Path
 parser=argparse.ArgumentParser();parser.add_argument('--out',default=str(Path(__file__).parent));parser.add_argument('--only',nargs='*');parser.add_argument('--render-threads',type=int,default=3);args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 ROOT=Path(args.out)
-SPECS={'su27':('Su-27S',21.9,14.7),'su33':('Su-33',21.2,14.7),'j11a':('J-11A',21.9,14.7),'mig29s':('MiG-29S (9-13)',17.3,11.4),'su25t':('Su-25T',15.3,14.4)}
+SPECS={'su27':('Su-27S',21.9,14.7),'su33':('Su-33',21.2,14.7),'j11a':('J-11A',21.9,14.7),'mig29s':('MiG-29S (9-13)',17.3,11.4)}
 def mat(name,col,metal=0,rough=.5):
  m=bpy.data.materials.new(name);m.diffuse_color=(*col,1);m.use_nodes=True;p=m.node_tree.nodes.get('Principled BSDF');p.inputs['Base Color'].default_value=(*col,1);p.inputs['Metallic'].default_value=metal;p.inputs['Roughness'].default_value=rough;return m
 # Author longitudinal coordinate is distance aft of nose. Blender +Y nose -> glTF -Z nose.
@@ -104,57 +104,46 @@ def flanker(kind):
   if naval:
    can=foil(tag+' naval canard',[(.97,6.35,8.95,.17,.085),(1.5,6.62,8.84,.16,.071),(2.55,7.24,8.69,.12,.045),(3.31,7.75,8.51,.10,.022)],s,light);seams_on(can,[[(s*x,8.4) for x in [1.45,2.15,2.9]]],tag+' canard panel')
  if naval:curve('Retracted naval arrestor hook',[(0,18,-.45),(0,20.2,-.49),(0,20.5,-.42)],.060,steel)
+def fulcrum_nacelle(tag,s,st,rake,fade=2.4,n=48):
+ # Stations: (aft distance, lateral centre, half width, half height, centre height, section power). The mouth is raked so the lower lip sits aft of the upper lip: the wedge intake seen from the side.
+ ss=interp(st,3);vs=[];y0=ss[0][0]
+ for y,x,w,h,z,p in ss:
+  f=max(0,1-(y-y0)/fade)
+  for j in range(n):a=2*pi*j/n;vx=x+w*math.copysign(abs(cos(a))**p,cos(a));vz=z+h*math.copysign(abs(sin(a))**p,sin(a));vs.append((s*vx,y+rake*f*(z+h-vz)/(2*h),vz))
+ fs=[(i*n+j,i*n+(j+1)%n,(i+1)*n+(j+1)%n,(i+1)*n+j) for i in range(len(ss)-1) for j in range(n)]+[tuple((len(ss)-1)*n+j for j in range(n))]
+ mesh(tag+' Fulcrum engine nacelle',vs,fs);cx=s*ss[0][1];cz=ss[0][4];mouth=vs[:n]
+ # A closed dark plug just inside the mouth, so the duct never shows daylight from any angle or shading.
+ mesh(tag+' wedge intake recessed shadow',[(cx+(vx-cx)*.99,vy+d,cz+(vz-cz)*.99) for d in(.16,.4) for vx,vy,vz in mouth],[(j,(j+1)%n,n+(j+1)%n,n+j) for j in range(n)]+[tuple(range(n-1,-1,-1)),tuple(range(n,2*n))],dark,False);curve(tag+' wedge intake rolled lip',mouth+[mouth[0]],.03,light)
 def mig29():
- fore=[(0,.005,.005,.03),(.6,.23,.22,.04),(1.8,.45,.44,.06),(3.15,.60,.61,.08)]
- loft('01 Fulcrum radome',fore,radome)
- loft('02 Fulcrum central body',[fore[-1],(4.7,.70,.79,.12),(6.7,.84,.83,.16),(8.8,1.05,.65,.10),(11,1.15,.53,.03),(13.3,.97,.36,.04),(15.5,.38,.23,.05),(16.15,.08,.10,.08)],power=.85)
- canopy([(3.7,.015,.015,.87),(4.03,.29,.28,.88),(4.5,.44,.56,.91),(5.12,.46,.63,.96),(5.65,.40,.48,.96),(6.05,.26,.21,.94),(6.4,.01,.01,.94)])
- loft('03 MiG-29S 9-13 enlarged dorsal spine',[(6.12,.26,.18,.90),(6.75,.57,.40,.71),(8.2,.63,.47,.68),(10,.62,.44,.64),(11.9,.51,.32,.56),(13.3,.31,.20,.46),(14.3,.035,.025,.40)],power=.82)
- ellipsoid('IRST housing',(.29,3.87,.94),(.15,.20,.15),frame);ellipsoid('IRST lens',(.29,3.76,.99),(.115,.075,.10),glass)
+ # Stations measured aft of the pitot tip (tailplane tips at 17.3 m) from a public MiG-29 three-view; the 9-13 dorsal hump is added on top.
+ loft('00 Nose pitot probe',[(0,.014,.014,-.34),(.62,.018,.018,-.34),(.68,.032,.032,-.34),(1.3,.04,.04,-.34)],frame,steps=2,n=12)
+ loft('01 Fulcrum radome',[(1.1,.012,.012,-.34),(1.42,.14,.14,-.31),(1.78,.26,.27,-.27),(2.32,.38,.41,-.20),(2.87,.44,.48,-.14)],radome)
+ loft('02 Fulcrum forward fuselage and keel',[(2.80,.45,.49,-.14),(3.4,.48,.56,-.08),(4.0,.51,.64,-.02),(4.8,.55,.70,.03),(5.8,.56,.71,.04),(6.8,.52,.66,0),(7.8,.44,.56,-.06),(8.8,.38,.42,-.08),(9.6,.28,.26,-.06),(10.2,.06,.06,-.03)],power=.8,steps=3)
+ body=loft('03 Broad flat centre body and LERX',[(4.3,.48,.13,.07),(5.3,.78,.18,.06),(6.2,1.06,.21,.05),(7.0,1.29,.23,.04),(7.9,1.50,.24,.03),(8.8,1.66,.25,.02),(9.6,1.80,.25,.01),(11,1.86,.25,0),(12.5,1.86,.25,0),(13.8,1.84,.24,0),(14.4,1.72,.19,0),(14.8,1.50,.13,-.01),(15.0,1.10,.08,-.01)],power=1.4,steps=3)
+ canopy([(3.95,.02,.015,.58),(4.3,.30,.22,.57),(4.8,.44,.50,.53),(5.4,.47,.66,.50),(6.0,.45,.60,.55),(6.45,.36,.38,.62),(6.8,.02,.01,.66)])
+ loft('04 MiG-29S 9-13 enlarged dorsal hump',[(6.1,.30,.25,.60),(6.9,.50,.37,.55),(7.8,.54,.38,.50),(9.2,.54,.35,.45),(10.8,.48,.29,.36),(12.4,.40,.21,.27),(13.8,.32,.15,.19),(14.7,.24,.11,.12),(15.2,.05,.04,.08)],power=.9,steps=3,n=40)
+ loft('05 Flat beaver tail between nozzles',[(13.5,.36,.14,.02),(14.6,.36,.13,0),(15.3,.30,.10,-.02),(15.6,.14,.06,-.03),(15.7,.02,.02,-.03)],light,power=.7,steps=3,n=32)
+ ellipsoid('IRST housing',(.2,3.78,.58),(.12,.16,.12),frame);ellipsoid('IRST lens',(.2,3.68,.62),(.09,.06,.08),glass)
  for s in [-1,1]:
   tag='Port' if s<0 else 'Starboard'
-  loft(tag+' Fulcrum engine nacelle',[(5.95,.43,.48,-.55),(7.2,.52,.59,-.56),(10.1,.60,.59,-.49),(13.7,.55,.53,-.38),(15.94,.4922,.4922,-.32)],paint,s*1.19,.70)
-  inlet(tag+' wedge intake',s*1.19,5.86,-.58,.40,.44,.48);nozzle(tag+' nozzle',s*1.19,16.24,-.32,.46,1.06)
-  wing=foil(tag+' Fulcrum swept wing and LERX',[(.49,3.35,13.70,.16,.08),(.80,4.99,13.65,.14,.10),(1.34,6.90,13.61,.11,.12),(2.0,8.43,13.50,.04,.13),(3.3,9.60,13.23,-.04,.09),(4.55,10.76,13.0,-.11,.06),(5.66,11.78,12.75,-.19,.025)],s)
-  foil(tag+' Fulcrum stabilator',[(1.26,13.79,17.03,-.16,.095),(1.70,14.08,17.0,-.19,.085),(2.75,14.95,16.92,-.27,.058),(3.79,15.84,16.67,-.36,.023)],s,light)
-  foil(tag+' Fulcrum vertical fin',[(0,10.13,15.83,.23,.11),(.52,11.67,15.65,.23,.09),(1.32,12.66,15.4,.23,.066),(2.22,13.70,15.02,.23,.035),(2.47,13.96,14.91,.23,.024)],s,vertical=True,xbase=1.28,cant=.105)
-  seams_on(wing,[[(s*x,12.32+(5.6-x)*.11) for x in [2,3.2,4.4,5.55]],[(s*x,8.9+(x-2)*.89) for x in [2,3.2,4.4,5.55]]],tag+' wing control seams')
-  for j in range(7):seams_on(wing,[[(s*x,6.93+j*.14) for x in [.83,1.03,1.20]]],tag+' auxiliary intake louver '+str(j))
-  curve(tag+' navigation light',[(s*5.68,12.1,-.18),(s*5.68,12.3,-.18)],.023,red if s<0 else green)
-def frogfoot():
- nose=loft('01 Su-25T long sensor nose',[(0,.015,.025,-.13),(.55,.25,.26,-.10),(1.5,.42,.46,-.02),(2.8,.57,.65,.06),(3.5,.62,.78,.10)],radome,power=.8)
- loft('02 Su-25T deep central fuselage',[(3.3,.61,.78,.10),(4.8,.69,.86,.13),(6.6,.68,.80,.12),(8.8,.64,.73,.12),(11,.55,.59,.18),(13,.37,.43,.25),(14.9,.14,.21,.34),(15.3,.015,.02,.35)])
- loft('03 Raised cockpit and dorsal hump',[(3.25,.19,.12,.83),(4,.46,.44,.75),(5.4,.55,.49,.74),(6.9,.56,.43,.69),(8.8,.46,.27,.70),(10.3,.10,.06,.73)])
- canopy([(3.2,.02,.02,.88),(3.49,.28,.31,.97),(3.93,.42,.55,1.06),(4.51,.44,.66,1.08),(4.96,.36,.52,1.10),(5.35,.22,.29,1.08),(5.63,.015,.015,1.05)],'Raised single-seat Su-25T canopy')
- # Seat the exterior window directly on the lower nose shell, never below it.
- window=[]
- for x,y in [(-.13,.70),(.13,.70),(.22,1.10),(-.22,1.10)]:
-  hit,loc,norm,face=nose.ray_cast(Vector(P((x,y,-5))),Vector((0,0,1)))
-  assert hit, 'Nose window vertex missed its host shell'
-  loc=loc+norm*.009;window.append((loc.x,L/2-loc.y,loc.z))
- mesh('Nose optical window',window,[(0,1,2,3)],glass,False)
- curve('Nose window surround',window+[window[0]],.014,frame)
- for s in [-1,1]:
-  tag='Port' if s<0 else 'Starboard'
-  loft(tag+' Su-25 engine nacelle',[(5.35,.38,.44,.01),(6.2,.51,.56,-.02),(8.2,.56,.60,-.01),(10.7,.51,.53,.01),(12.8,.41,.45,.03),(13.10,.39055,.39055,.045)],paint,s*1.0)
-  inlet(tag+' rounded side intake',s*1.0,5.29,0,.34,.40,1);nozzle(tag+' short exhaust',s*1.0,13.40,.045,.365,.60)
-  wing=foil(tag+' straight tapered attack wing',[(.55,6.36,10.70,.44,.17),(1.35,6.58,10.62,.43,.16),(2.6,6.98,10.51,.37,.13),(4.3,7.54,10.32,.30,.105),(5.9,8.08,10.15,.23,.073),(7.07,8.47,10.02,.18,.036)],s)
-  loft(tag+' wingtip airbrake pod',[(7.97,.013,.013,.18),(8.35,.12,.16,.18),(9.9,.13,.16,.18),(10.7,.062,.08,.18),(10.90,.015,.025,.18)],light,s*7.08,steps=3,n=32)
-  foil(tag+' Su-25 tailplane',[(.27,12.67,15.03,.52,.09),(.7,12.87,15.00,.56,.08),(1.6,13.36,14.91,.67,.055),(2.60,13.96,14.74,.81,.025)],s,light)
-  seams_on(wing,[[(s*x,9.68+(7-x)*.04) for x in [1.3,2.6,4.3,5.9,7.02]],[(s*x,6.91+(x-1.3)*.32) for x in [1.3,2.6,4.3,5.9,7.0]]],tag+' flap and leading panel')
-  for x in [2.35,4.72]:
-   y=6.60+(x-1.35)*.34;z=.44-(x-.55)*.04;mesh(tag+' wing fence '+str(x),[(s*x,y,z),(s*x,y+2.3,z),(s*x,y+2.3,z+.20),(s*x,y+.10,z+.27)],[(0,1,2,3)],paint,False)
- foil('Single Su-25T swept vertical fin',[(0,11.15,15.3,.59,.12),(.60,11.74,15.18,.59,.095),(1.48,12.58,15.02,.59,.07),(2.52,13.61,14.84,.59,.039),(2.81,13.96,14.72,.59,.024)],1,vertical=True,xbase=0)
+  fulcrum_nacelle(tag,s,[(6.85,.88,.42,.50,-.56,.55),(7.6,.885,.45,.51,-.58,.6),(9.0,.89,.47,.51,-.60,.65),(11.0,.89,.47,.50,-.60,.72),(13.0,.885,.46,.48,-.58,.82),(14.3,.88,.45,.46,-.56,.95),(14.95,.88,.4494,.4494,-.55,1)],1.15)
+  nozzle(tag+' nozzle',s*.88,14.95,-.55,.42,1.0)
+  loft(tag+' fin and tailplane boom',[(9.6,.03,.03,.05),(10.6,.12,.10,.07),(12,.18,.16,.07),(15.2,.2,.17,.05),(16.0,.17,.14,.03),(16.5,.04,.04,.01)],paint,s*1.72,.8,3,32)
+  wing=foil(tag+' Fulcrum swept wing',[(1.2,8.45,13.2,.02,.14),(1.85,9.08,13.25,0,.13),(2.7,9.88,13.35,-.04,.11),(3.9,11.0,13.58,-.09,.085),(5.05,12.05,13.76,-.15,.055),(5.72,12.72,13.86,-.19,.028)],s)
+  foil(tag+' Fulcrum stabilator',[(1.75,13.95,16.5,-.05,.09),(2.0,14.2,16.53,-.06,.085),(2.75,15.0,16.78,-.09,.065),(3.47,15.95,17.1,-.13,.04),(3.87,16.5,17.3,-.16,.02)],s,light)
+  foil(tag+' outboard canted fin with root extension',[(0,10.2,15.95,.1,.075),(.3,11.75,15.93,.1,.072),(.7,12.55,15.91,.1,.068),(1.4,13.55,15.88,.1,.056),(2.0,14.45,15.85,.1,.045),(2.42,15.1,15.82,.1,.034)],s,vertical=True,xbase=1.72,cant=.105)
+  seams_on(wing,[[(s*x,13.25+(x-1.85)*.155-.72) for x in [2.0,3.2,4.4,5.5]],[(s*x,9.08+(x-1.85)*.94+.5) for x in [2.0,3.2,4.4,5.5]]],tag+' wing control seams')
+  for j in range(6):seams_on(body,[[(s*x,7.0+j*.15) for x in [.72,.88,1.04]]],tag+' auxiliary intake louver '+str(j))
+  curve(tag+' navigation light',[(s*5.71,12.95,-.19),(s*5.71,13.15,-.19)],.023,red if s<0 else green)
 def build(id):
  global L,air,aircoll,paint,light,radome,dark,seam,steel,frame,glass,red,green
  name,L,span=SPECS[id];out=ROOT/id;out.mkdir(parents=True,exist_ok=True)
  bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
  air=[];aircoll=bpy.data.collections.new(name+' | Original visual exterior');bpy.context.scene.collection.children.link(aircoll)
- colors={'su27':(.37,.48,.54),'su33':(.31,.43,.50),'j11a':(.43,.47,.49),'mig29s':(.39,.46,.44),'su25t':(.40,.42,.31)}
+ colors={'su27':(.37,.48,.54),'su33':(.31,.43,.50),'j11a':(.43,.47,.49),'mig29s':(.39,.46,.44)}
  paint=mat(name+' satin paint',colors[id],.22,.46);light=mat('Light control panels',tuple(min(1,c*1.10) for c in colors[id]),.18,.48);radome=mat('Dielectric nose',(.32,.36,.34) if id!='j11a' else(.28,.30,.31),.07,.56);dark=mat('Deep recess',(.008,.012,.014),.1,.62);seam=mat('Restrained panel seam',(.18,.23,.24),.15,.6);steel=mat('Heat-darkened exhaust metal',(.17,.16,.14),.78,.32);frame=mat('Canopy structural frame',tuple(c*.64 for c in colors[id]),.4,.32);glass=mat('Tinted canopy',(.028,.087,.106),.52,.18);glass.node_tree.nodes.get('Principled BSDF').inputs['Coat Weight'].default_value=.55;red=mat('Port lens',(.35,.012,.012),.3,.22);green=mat('Starboard lens',(.02,.29,.08),.3,.22)
  if id in ['su27','su33','j11a']:flanker(id)
- elif id=='mig29s':mig29()
- else:frogfoot()
+ else:mig29()
  bpy.ops.object.select_all(action='DESELECT')
  for o in air:o.select_set(True)
  bpy.context.view_layer.objects.active=air[0];bpy.ops.object.convert(target='MESH');air=list(bpy.context.selected_objects)
@@ -189,8 +178,7 @@ def build(id):
  caveats=['Original approximate exterior review asset; proportions use Fox3 JET_DIMENSIONS, not validated survey measurements.','Closed canopy, retracted landing gear, no stores, simplified inlets, exhausts, access panels and antennas.','Neutral review paint, not an authentic service livery.','Primary source DCS overview establishes aircraft families; official image gallery access returned HTTP 403 during research. Silhouettes use existing original app geometry plus artist approximation.']
  if id=='j11a':caveats+=['J-11A uses the closely related Su-27 external shell; subtle antenna and production-block differences not verified.']
  if id=='su33':caveats+=['Canards, wing-fold seam and retracted hook indicated; exact naval wing and folding mechanisms simplified.']
- if id=='mig29s':caveats+=['Enlarged 9-13 dorsal spine represented; exact 9-13S panel and antenna fit not verified.']
- if id=='su25t':caveats+=['Raised single-seat canopy, dorsal hump and nose optical window indicate T variant; exact fairing outlines simplified.']
+ if id=='mig29s':caveats+=['9-13 recognition cues represented: enlarged dorsal hump, broad flat centre body with LERX, raked wedge intakes under the LERX, widely spaced nacelles over a flat tunnel, outboard canted fins with root extensions on the tail booms, boom-mounted tailplanes, beaver tail between the nozzles and nose pitot probe; exact 9-13S panel and antenna fit not verified.','Planform, side and front proportions measured from the public Wikimedia Commons line drawing "Mikoyan MiG-29 3-view.svg" (https://commons.wikimedia.org/wiki/File:Mikoyan_MiG-29_3-view.svg, a 9-12 airframe) as a size reference only; no lines or geometry imported. The 9-13 hump height is an artist estimate.']
  manifest={'id':id,'name':name,'status':'review','length_m':L,'span_m':span,'dimensions_measured_m':{'span_x':dims[0],'length_z':dims[1],'height_y':dims[2]},'axis':{'gltf':'nose -Z, up +Y, right +X','blender':'nose +Y, up +Z, right +X','units':'metres','origin':'centered lateral and longitudinal bounds'},'reference_urls':['https://www.digitalcombatsimulator.com/en/products/flaming_cliffs/','https://www.digitalcombatsimulator.com/en/downloads/screenshots/283/'],'variant_caveats':caveats,'geometry_provenance':'Original scripted meshes; no downloaded meshes or external textures. Public recognition cues and original src/render/jets.ts silhouette guidance.','generator':'../create_fleet.py','rebuild_command':'Blender --background --python create_fleet.py -- --out OUTPUT --only '+id,'blender_version':bpy.app.version_string,'stats':{'objects':len(air),'triangles':tris,'vertices':sum(len(o.data.vertices) for o in air),'glb_bytes':(out/'model.glb').stat().st_size},'validation':{'actual_model_renders':['front.png','top.png','side.png','rear.png'],'visual_review':'pending image inspection','outstanding':'Browser/device performance, animation, exact variant review and app integration not performed'}}
  (out/'manifest.json').write_text(json.dumps(manifest,indent=2));print('FLEET_MODEL_COMPLETE',id,manifest['stats'],flush=True)
 for id in args.only or list(SPECS):build(id)
