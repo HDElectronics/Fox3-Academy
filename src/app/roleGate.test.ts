@@ -37,8 +37,8 @@ describe('fighter and attack roles', () => {
 });
 
 describe('route role gate and picker', () => {
-  it('keeps lesson role gates while Learn, progress and the reference accept every jet', () => {
-    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'harm', 'atflir', 'jdam', 'hangar', 'reference'].includes(x.path))) {
+  it('keeps lesson role gates while Learn, progress, the reference and 3D models accept every jet', () => {
+    for (const r of ROUTES.filter(x => !['strike', 'tgp', 'cas', 'progress', 'harm', 'atflir', 'jdam', 'hangar', 'reference', 'models'].includes(x.path))) {
       expect(routeRoles(r), r.path).toEqual(['fighter']);
       expect(jetAllowed(r, 'su25t'), r.path).toBe(false);
       expect(jetAllowed(r, 'f15c'), r.path).toBe(true);
@@ -52,8 +52,8 @@ describe('route role gate and picker', () => {
     expect(pickerJets(harm, 'f15c')).toEqual(AIRCRAFT_ORDER.filter(id => id === 'f15c' || id === 'fa18c'));
   });
 
-  it('allows the progress overview and the Learn landing for both roles', () => {
-    for (const path of ['progress', 'hangar']) {
+  it('allows the progress overview, the Learn landing and 3D models for both roles', () => {
+    for (const path of ['progress', 'hangar', 'models']) {
       const route = ROUTES.find(r => r.path === path)!;
       expect(routeRoles(route), path).toEqual(['fighter', 'attack']);
       for (const id of AIRCRAFT_ORDER) expect(jetAllowed(route, id), `${path} ${id}`).toBe(true);

@@ -47,10 +47,12 @@ describe('navigation destinations', () => {
 });
 
 describe('the second row for each destination', () => {
-  it('is the lesson path on Learn, the labs on Practice, the page itself on Reference and Fly', () => {
+  it('is the lesson path on Learn, the labs on Practice, the kneeboard and 3D models on Reference, the sortie on Fly', () => {
     expect(contextualLinks('learn', 'f15c')).toEqual(lessonSteps('f15c'));
     expect(contextualLinks('practice', 'f15c')[0]).toEqual({ path: 'practice', label: 'All practice' });
-    expect(contextualLinks('reference', 'su27')).toEqual([{ path: 'reference', label: 'Kneeboard' }]);
+    for (const id of AIRCRAFT_ORDER) {
+      expect(contextualLinks('reference', id).map(l => [l.path, l.label]), id).toEqual([['reference', 'Kneeboard'], ['models', '3D models']]);
+    }
     expect(contextualLinks('fly', 'f15c')).toEqual([{ path: 'sortie', label: 'Sortie' }]);
     expect(contextualLinks('fly', 'a10c')).toEqual([{ path: 'cas?lesson=sortie', label: 'Sortie' }]);
   });
@@ -103,6 +105,15 @@ describe('top-bar destinations for every jet', () => {
   it('opens the reference kneeboard for the attack jets', () => {
     for (const id of AIRCRAFT_ORDER) expect(jetAllowed(routeFor('reference'), id), id).toBe(true);
   });
+  it('opens 3D models for every jet, lit as Reference, outside the lesson path', () => {
+    expect(routeFor('models').path).toBe('models');
+    for (const id of AIRCRAFT_ORDER) {
+      expect(jetAllowed(routeFor('models'), id), id).toBe(true);
+      expect(destinationFor('models', new URLSearchParams('id=su25t&compare=fa18c'), id), id).toBe('reference');
+      expect(lessonSteps(id).some(link => link.path.startsWith('models')), id).toBe(false);
+    }
+    expect(LESSON_LINKS.some(link => link.path.startsWith('models'))).toBe(false);
+  });
 });
 
 describe('browser tab titles', () => {
@@ -112,6 +123,7 @@ describe('browser tab titles', () => {
     expect(title('tws')).toBe('TWS · Su-27 · Fox3 Academy');
     expect(title('flight-ops', '', 'fa18c')).toBe('Pattern & landing · F/A-18C · Fox3 Academy');
     expect(title('reference', '', 'a10c')).toBe('Reference · A-10C II · Fox3 Academy');
+    expect(title('models', 'id=su25t', 'su25t')).toBe('3D models · Su-25T · Fox3 Academy');
   });
   it('names practice labs as Practice does and sorties as Fly does', () => {
     expect(title('tws', 'lab=free')).toBe('Free TWS lab · Su-27 · Fox3 Academy');

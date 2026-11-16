@@ -37,11 +37,17 @@ export const PRACTICE_LINKS: readonly NavLink[] = [
   { path: 'flight-ops?lab=free&mode=fly', label: 'Fly the pattern', description: 'Fly the overhead break and the approach yourself, then read the graded debrief.' },
 ];
 
+/** Reference's second row: the kneeboard and the 3D model viewer. Both pages open for every jet. */
+export const REFERENCE_LINKS: readonly NavLink[] = [
+  { path: 'reference', label: 'Kneeboard' },
+  { path: 'models', label: '3D models', description: 'Every 3D model the app ships, at true size, with a side-by-side compare.' },
+];
+
 export function destinationFor(path: string, params = new URLSearchParams(), jet?: AircraftId): Destination {
   if (path === 'sortie') return 'fly';
   const sortie = jet && AIRCRAFT[jet].role === 'attack' ? ATTACK_SORTIE[jet as AttackId] : undefined;
   if (sortie && sortie === `${path}?lesson=${params.get('lesson')}`) return 'fly';
-  if (path === 'reference') return 'reference';
+  if (REFERENCE_LINKS.some(link => routeOf(link.path) === path)) return 'reference';
   if (path === 'practice' || (params.get('lab') === 'free' && LESSON_LINKS.some(link => routeOf(link.path) === path))) return 'practice';
   return 'learn';
 }
@@ -50,7 +56,7 @@ export function destinationFor(path: string, params = new URLSearchParams(), jet
 export function contextualLinks(destination: Destination, jet: AircraftId): readonly NavLink[] {
   if (destination === 'learn') return lessonSteps(jet);
   if (destination === 'practice') return [{ path: 'practice', label: 'All practice' }, ...PRACTICE_LINKS.filter(link => linkOpensFor(link, jet))];
-  if (destination === 'reference') return [{ path: 'reference', label: 'Kneeboard' }];
+  if (destination === 'reference') return REFERENCE_LINKS.filter(link => linkOpensFor(link, jet));
   const fly = destinationsFor(jet).find(d => d.id === 'fly');
   return fly ? [{ path: fly.path, label: 'Sortie' }] : [];
 }
