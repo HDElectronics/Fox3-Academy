@@ -456,6 +456,27 @@ narrow one), marks the section you are reading and jumps to a section on click o
 shows how many matches each section holds. The address follows the section you read (`#/reference?go=missiles`),
 so a reload, Back or a copied link opens the same section.
 
+#### 3D models
+**Reference → 3D models** shows every 3D model the app draws: the jets, air-to-air missiles, air-to-ground stores,
+ground units and the SAM vehicles with their missiles. Pick a category, then a model (Left / Right or Up / Down step
+through all of them). It opens on the jet in the top bar. Each model stands at true size on a scale grid
+(1 m lines, 5 m bold; 0.1 m and 0.5 m for anything under 5 m) with its length, width and height marked beside it.
+
+- **Camera:** drag to orbit, wheel or pinch to zoom, right drag to pan. **3/4**, **Side**, **Top** and **Front**
+  (keys **1** to **4**) frame the model; **Frame** (**F**) goes back to the preset. **Turntable** (**T**) turns the
+  camera slowly round the model.
+- **Shading:** **Paint** shows the model as the app draws it, **Clay** one matte grey with every facet visible (shape
+  without the paint), **Wire** the triangle edges (**W** cycles).
+- **Compare with** puts a second model beside the first at the same scale, noses on one line, both named in the
+  view. In the side view the second one sits above the first so neither hides the other. **Swap** puts it first.
+- **Facts:** the size measured from the file, in your units; for jets and air-to-air missiles the app's own figures
+  beside it, with a lamp where they differ by 3 % or more; triangles and file size; who made it, its caveats (what
+  is approximate) and its references; and which part of the app draws it. **Drawn from: App fallback** shows the
+  simple model the app builds while a jet or missile file loads, or if it fails.
+
+Every view is a link (`#/models?id=su25t&compare=fa18c&view=top`), so Back and shared links work. These are original
+artist models for a game trainer, not survey drawings: the caveats say what is simplified.
+
 ## Keys
 
 Wherever the app lets you operate the radar or weapons it uses your jet's DCS keys where DCS has a default, and

@@ -65,7 +65,7 @@ See `docs/api/sim-physics.md`, "Tuning workflow".
 | `src/render/` | three.js kit: `Stage`, sky and ground, procedural jets, `WorldView`, `RadarVolume`, `CameraRig`, `ReplayView` | `docs/api/render.md` |
 | `src/ui/` | Controls, panels, layouts, `bindKeys` | `docs/api/ui-kit.md` |
 | `src/ui/displays/` | Canvas cockpit displays: five radar formats, six RWRs, DLZ bar, missile timeline, RWR audio | `docs/api/displays.md` |
-| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, harm (F/A-18C HARM, page-local sim and SAMs) | page `index.ts` header |
+| `src/pages/<name>/` | One folder per route: hangar, radar-lab, tws, missile-lab, defense, rwr-trainer, sortie, reference, harm (F/A-18C HARM, page-local sim and SAMs), models (3D model viewer under Reference: every GLB at true size, compare, facts) | page `index.ts` header |
 | `missions/`, `public/missions/` | pydcs generators for DCS practice missions; the built `.miz` files the site serves | `missions/README.md` |
 | `src/styles/` | `tokens.css` (two cockpit skins), `base.css`, `components.css` | |
 | `docs/research/` | Sourced research notes, the ground truth for facts | |
@@ -125,6 +125,8 @@ src/pages/<route> owns a World, a Stage, kit components, and the lesson logic; t
   Shared rendering belongs in `src/render/`; lesson-specific choreography may stay with its page.
 - Keep `.blend` files, renders and audit outputs in ignored review locations unless the repository's
   asset packaging explicitly requires them. Audit GLB exports and verify both production build modes.
+- Review a model in the app at `#/models?id=<id>` (true size, clay and wire shadings, `&compare=<id>` beside a
+  reference model, `&view=side|top|front`); it reads the manifest, so a new entry appears there on its own.
 
 ## Visual checks
 

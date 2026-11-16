@@ -201,6 +201,13 @@ files). `meshStats(root)` (`assetStats.ts`) measures loaded geometry: exact boun
 frame (`bounds`, `size`: x span, y height, z length for nose-to-−z models), `triangles`, `vertices`, `meshes`; lines
 and points are skipped. Unlike `AssetVisual.bounds` (the template's node boxes) it is exact for rotated nodes.
 
+**3D models page** (`src/pages/models`, route `#/models`): every bundled file at true size on its own metre-scale
+stage (`viewer.ts`: a Stage without the sky, `autoPause: true`, render on demand, OrbitControls, a token-coloured studio
+light probe, a metric grid and length / width / height brackets), with a compare slot, clay and wire shadings and the
+app's procedural fallbacks (`src=fallback`). Use it to review an asset before and after a rebuild:
+`#/models?id=su25t&compare=fa18c&view=top`. `usage.ts` lists every `new AssetVisual(` consumer; its test fails when a
+new consumer is added without an entry there.
+
 `JetMesh(id, side, palette, { onReady? })` retains its existing API and adds `usingAsset` and `dispose()`.
 Clean states use the exterior; unrigged models use the complete procedural airframe for gear/flaps/brakes.
 The A-10 exterior binds nine named pivots in `a10Rig.ts` to `setConfig`, including both halves of each

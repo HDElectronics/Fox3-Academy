@@ -11,6 +11,9 @@
   destination. Existing `?mode=learn` and `?mode=quiz` links still open the same modes.
 - RWR trainer fits the window like the other labs: its height left out the lesson-path row, so at 1440 × 900 the page
   scrolled 44 px and cut off the RWR MODE control under the receiver.
+- Reference → 3D models: every 3D model the app ships (jets, missiles, stores, ground units, SAM vehicles) at true
+  size on a scale grid, with camera presets, a turntable, clay and wire shadings, a side-by-side compare, the size
+  measured from the file beside the app's own figures, the manifest caveats, and which part of the app draws it.
 - AI pilots defending against a SAM keep their notch through a launch warning that blinks off for a moment (the
   site's track flickering), as they already did against air-to-air missiles.
 - Missile defense free drill: a shooter with a missile that needs a lock (AIM-7M, Super 530D, an STT shot) now locks
