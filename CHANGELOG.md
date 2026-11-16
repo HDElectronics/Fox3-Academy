@@ -14,6 +14,11 @@
 - Reference → 3D models: every 3D model the app ships (jets, missiles, stores, ground units, SAM vehicles) at true
   size on a scale grid, with camera presets, a turntable, clay and wire shadings, a side-by-side compare, the size
   measured from the file beside the app's own figures, the manifest caveats, and which part of the app draws it.
+- The Su-25T 3D model has the jet's own shape instead of a fighter's: a deep slab-sided body with a short blunt nose
+  and the flat optical window in its tip, a raised canopy running into the dorsal hump, a nearly straight shoulder
+  wing on two big side nacelles with oval cheek intakes, blunt airbrake pods at the wingtips, five empty pylons a
+  side, one tall fin on a slim tail boom and tailplanes with dihedral. It has its own Blender builder
+  (`scripts/assets/source/aircraft/eastern/create_su25t.py`).
 - Control caps no longer cut their text when a panel gives them less than one line of room: the key hint drops
   below the legend, and a legend still too wide breaks between words. Fixed "Lock / unlock (Enter)" in the Su-25T
   controls (Shkval & Vikhr, CAS & JTAC), "Slower (Control)" on the Sortie fly screen and the Flare cap's count on
